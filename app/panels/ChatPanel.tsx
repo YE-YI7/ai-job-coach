@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import JobOverviewPanel, { JobOverviewData } from "./JobOverviewPanel";
+import { WhiteboardData } from "@/components/Whiteboard";
 
 type Message = {
   id: string;
@@ -22,6 +24,11 @@ interface ChatPanelProps {
   setChatSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   onAchieve?: (label: string) => void;
   onSessionReady?: (sessionId: string) => void;
+  currentStage?: string;
+  onStageChange?: (stage: string) => void;
+  onBack?: () => void;
+  whiteboardData?: WhiteboardData;
+  onWhiteboardUpdate?: (data: WhiteboardData) => void;
 }
 
 export default function ChatPanel({ 
@@ -36,9 +43,15 @@ export default function ChatPanel({
   chatSessionId,
   setChatSessionId,
   onAchieve, 
-  onSessionReady 
+  onSessionReady,
+  currentStage,
+  onStageChange,
+  onBack,
+  whiteboardData,
+  onWhiteboardUpdate
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [overviewData, setOverviewData] = useState<JobOverviewData>({});
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [messages]);
@@ -96,6 +109,23 @@ export default function ChatPanel({
       const data = await response.json();
       const aiMessage: Message = { id: (Date.now() + 1).toString(), content: data.reply, isUser: false, timestamp: new Date() };
       setMessages(prev => [...prev, aiMessage]);
+      
+      // 更新右侧分析数据
+      if (data.analysisData) {
+        setOverviewData(prev => {
+          const merged = { ...prev, ...data.analysisData };
+          // 合并项目数组
+          if (data.analysisData.projects) {
+            merged.projects = [...(prev.projects || []), ...data.analysisData.projects].slice(0, 5);
+          }
+          return merged;
+        });
+      }
+      
+      // 更新白板数据
+      if (data.whiteboardData && onWhiteboardUpdate) {
+        onWhiteboardUpdate(data.whiteboardData);
+      }
     } catch (e) {
       // noop
     } finally {
@@ -111,44 +141,103 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <div className="lg:col-span-8">
-        <div className="bg-[var(--card-bg)] border border-gray-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[75vh]">
-          {personalTip && (
-            <div className="px-4 py-2 text-xs text-gray-700 bg-amber-50 border-b border-amber-200">{personalTip}</div>
+    <div className="flex-1 flex flex-col overflow-hidden h-full">
+      {/* 顶部返回按钮 */}
+      {onBack && (
+        <div className="h-16 border-b border-gray-200 bg-white flex items-center px-6 flex-shrink-0">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            <span>←</span>
+            <span>返回阶段选择</span>
+          </button>
+          {currentStage && (
+            <div className="ml-4 flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-500">当前阶段：</span>
+              <span className="text-base font-semibold text-gray-900">{currentStage}</span>
+            </div>
           )}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        </div>
+      )}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-6 pt-6 pb-24">
+          <div className="max-w-3xl mx-auto space-y-[15.33px]">
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${message.isUser ? "bg-[var(--blue-500)] text-white" : "bg-gray-100 text-gray-800"}`}>
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  <p className="text-2xs opacity-70 mt-1">{message.timestamp.toLocaleTimeString()}</p>
+                <div className="flex items-start gap-3">
+                  {!message.isUser && (
+                    <div className="w-8 h-8 rounded-full bg-cyan-400 flex items-center justify-center flex-shrink-0">
+                      <div className="w-4 h-4 relative">
+                        <div className="w-[2.67px] h-[2.67px] left-[5.33px] top-[2.67px] absolute outline outline-[1.33px] outline-white outline-offset-[-0.67px]" />
+                        <div className="w-2.5 h-2 left-[2.67px] top-[5.33px] absolute outline outline-[1.33px] outline-white outline-offset-[-0.67px]" />
+                        <div className="w-[1.33px] h-0 left-[1.33px] top-[9.33px] absolute outline outline-[1.33px] outline-white outline-offset-[-0.67px]" />
+                        <div className="w-[1.33px] h-0 left-[13.33px] top-[9.33px] absolute outline outline-[1.33px] outline-white outline-offset-[-0.67px]" />
+                      </div>
+                    </div>
+                  )}
+                  <div className={`px-4 pt-3 pb-[0.67px] rounded-2xl ${message.isUser ? "bg-white outline outline-[0.67px] outline-red-300/30 outline-offset-[-0.67px]" : "bg-neutral-50"}`}>
+                    <div className="text-gray-900 text-base font-normal leading-6 whitespace-pre-wrap">
+                      {message.content}
+                    </div>
+                  </div>
+                  {message.isUser && (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-b from-red-300 to-red-300 flex items-center justify-center flex-shrink-0">
+                      <div className="text-white text-base font-normal leading-6">U</div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-2xl">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-cyan-400 flex items-center justify-center">
+                    <div className="w-4 h-4 relative">
+                      <div className="w-[2.67px] h-[2.67px] left-[5.33px] top-[2.67px] absolute outline outline-[1.33px] outline-white outline-offset-[-0.67px]" />
+                    </div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-2xl px-4 py-3">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
-          <div className="border-t border-gray-200 p-4">
-            <div className="flex gap-2">
-              <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyPress={handleKeyPress} placeholder="输入你的消息..." className="flex-1 px-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--blue-500)] focus:border-transparent bg-white" disabled={isLoading} />
-              <button onClick={sendMessage} disabled={!inputValue.trim() || isLoading} className="px-5 py-3 text-white rounded-xl disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors bg-[var(--blue-500)] hover:bg-[var(--blue-600)]">发送</button>
+        </div>
+        <div className="w-full h-24 pl-6 pr-12 pt-6 bg-white border-t-[0.67px] border-gray-200">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-full flex justify-center items-center">
+              <div className="w-4 h-4 relative">
+                <div className="w-3 h-3.5 left-[2px] top-[1.33px] absolute outline outline-[1.33px] outline-gray-600 outline-offset-[-0.67px]" />
+              </div>
             </div>
+            <input 
+              type="text" 
+              value={inputValue} 
+              onChange={(e) => setInputValue(e.target.value)} 
+              onKeyPress={handleKeyPress} 
+              placeholder="告诉我你最近的求职困惑，或者直接开始一项任务..." 
+              className="flex-1 h-12 px-6 bg-neutral-50 rounded-full outline outline-[0.67px] outline-gray-200 outline-offset-[-0.67px] text-sm font-normal text-gray-400"
+              disabled={isLoading} 
+            />
+            <button 
+              onClick={sendMessage} 
+              disabled={!inputValue.trim() || isLoading} 
+              className="w-12 h-12 bg-cyan-400 rounded-full flex items-center justify-center disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              <div className="w-4 h-4 relative">
+                <div className="w-3.5 h-3.5 left-[1.33px] top-[1.33px] absolute outline outline-[1.33px] outline-gray-900 outline-offset-[-0.67px]" />
+                <div className="w-2 h-2 left-[7.28px] top-[1.43px] absolute outline outline-[1.33px] outline-gray-900 outline-offset-[-0.67px]" />
+              </div>
+            </button>
           </div>
         </div>
-      </div>
-      <div className="lg:col-span-4 space-y-6">
-        {/* 右侧信息区可留空，或未来放快捷提示 */}
       </div>
     </div>
   );

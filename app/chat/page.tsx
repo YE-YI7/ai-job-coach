@@ -1,1073 +1,357 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import StageController from "@/components/StageController";
-import ChatFlow, { Message } from "@/components/ChatFlow";
-import Whiteboard, { WhiteboardData } from "@/components/Whiteboard";
-import StageTransitionModal from "@/components/StageTransitionModal";
-import StageSelector from "@/components/StageSelector";
-import InputBar from "@/components/InputBar";
-import InterviewPanel from "@/components/interview/InterviewPanel";
-import { useStageFSM, STAGE_ORDER, STAGE_NAMES } from "@/lib/fsm";
-import { UserStage, StageNames, getNextStage, isValidStage } from "@/lib/stage";
-import { useInterviewStore } from "@/store/interviewStore";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiPost } from '@/lib/api';
+import { 
+  Target, BrainCircuit, FileText, Send, MessageSquare, 
+  DollarSign, Award, Layout, Lock, CheckCircle, 
+  ArrowLeft, ChevronRight, ChevronLeft, Send as SendIcon, 
+  MoreHorizontal, GripVertical, PanelRightClose, PanelRightOpen, Sparkles
+} from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+
+// --- 1. 阶段配置 ---
+const STAGES = [
+  { id: 'career_planning', title: '1. 职业规划', icon: Target, color: 'text-blue-500', bg: 'bg-blue-50', desc: '确定职业方向与核心竞争力' },
+  { id: 'project_review', title: '2. 经历复盘', icon: BrainCircuit, color: 'text-indigo-500', bg: 'bg-indigo-50', desc: '挖掘过往项目中的亮点' },
+  { id: 'resume_optimization', title: '3. 简历优化', icon: FileText, color: 'text-purple-500', bg: 'bg-purple-50', desc: '基于目标岗位定制简历' },
+  { id: 'application_strategy', title: '4. 投递策略', icon: Send, color: 'text-pink-500', bg: 'bg-pink-50', desc: '制定高效的渠道与话术' },
+  { id: 'interview', title: '5. 面试辅导', icon: MessageSquare, color: 'text-rose-500', bg: 'bg-rose-50', desc: '模拟面试与问题拆解' },
+  { id: 'salary_talk', title: '6. 谈薪策略', icon: DollarSign, color: 'text-orange-500', bg: 'bg-orange-50', desc: '争取最优的薪资回报' },
+  { id: 'offer', title: '7. Offer选择', icon: Award, color: 'text-yellow-500', bg: 'bg-yellow-50', desc: '理性决策，落袋为安' },
+];
 
 export default function ChatPage() {
-  const fsm = useStageFSM("career");
-  const { initInterview, sessionId: interviewSessionId, userId: interviewUserId } = useInterviewStore();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [whiteboardData, setWhiteboardData] = useState<WhiteboardData>({});
-  const [showTransitionModal, setShowTransitionModal] = useState(false);
-  const [pendingNextStage, setPendingNextStage] = useState<string | null>(null);
-  const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // 维护 userStage 状态
-  const [userStage, setUserStage] = useState<UserStage>("career_planning");
-  
-  // 维护 userId 和 sessionId
-  const [userId, setUserId] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  // --- 状态管理 ---
+  const [viewMode, setViewMode] = useState<'list' | 'chat'>('list');
+  const [unlockedIndex, setUnlockedIndex] = useState(0);
+  const [activeStageId, setActiveStageId] = useState(STAGES[0].id);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [whiteboard, setWhiteboard] = useState<any>({});
 
-  // 从数据库加载会话数据（优先于 localStorage）
+  // --- 拖拽与布局状态 ---
+  const [leftWidth, setLeftWidth] = useState(60); // 左侧宽度百分比 (默认60%)
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true); // 右侧白板是否展开
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // --- 滚动逻辑 ---
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
   useEffect(() => {
-    const loadSession = async () => {
-      try {
-        // 从 localStorage 获取 userId 和 sessionId
-        const savedUserId = localStorage.getItem("userId");
-        const savedSessionId = localStorage.getItem("sessionId");
+    scrollToBottom();
+  }, [messages, viewMode]);
 
-        // 调用 API 加载会话
-        const response = await fetch("/api/load-session", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: savedUserId,
-            sessionId: savedSessionId,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          
-          // 保存 userId 和 sessionId
-          if (data.userId) {
-            localStorage.setItem("userId", data.userId);
-            setUserId(data.userId);
-          }
-          if (data.sessionId) {
-            localStorage.setItem("sessionId", data.sessionId);
-            setSessionId(data.sessionId);
-          }
-
-          if (data.userId && data.sessionId && (!interviewUserId || !interviewSessionId)) {
-            initInterview(data.sessionId, data.userId);
-          }
-
-          // 恢复消息
-          if (data.messages && Array.isArray(data.messages)) {
-            setMessages(data.messages);
-          }
-
-          // 恢复白板数据
-          if (data.whiteboard && Object.keys(data.whiteboard).length > 0) {
-            setWhiteboardData(data.whiteboard);
-          }
-
-          // 恢复当前阶段
-          if (data.currentStage && isValidStage(data.currentStage)) {
-            setUserStage(data.currentStage);
-            
-            // 同步更新 FSM
-            const fsmStageMap: Record<UserStage, string> = {
-              career_planning: "career",
-              project_review: "project",
-              resume_optimization: "resume",
-              application_strategy: "apply",
-              interview: "interview",
-              salary_talk: "offer",
-              offer: "offer",
-            };
-            const fsmStage = fsmStageMap[data.currentStage];
-            if (fsmStage) {
-              fsm.transition(fsmStage);
-            }
-          }
-        } else {
-          console.error("加载会话失败:", await response.text());
-          // 如果加载失败，回退到 localStorage
-          loadFromLocalStorage();
-        }
-      } catch (error) {
-        console.error("加载会话失败:", error);
-        // 如果加载失败，回退到 localStorage
-        loadFromLocalStorage();
-      } finally {
-        setIsLoadingSession(false);
-      }
-    };
-
-    // 从 localStorage 加载的降级函数
-    const loadFromLocalStorage = () => {
-      try {
-        // 尝试从 localStorage 读取保存的 userStage
-        const savedUserStage = localStorage.getItem("ajc_userStage");
-        if (savedUserStage && isValidStage(savedUserStage)) {
-          setUserStage(savedUserStage);
-          
-          // 加载该阶段的聊天记录
-          const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-          if (chatHistoryStr) {
-            const chatHistory = JSON.parse(chatHistoryStr);
-            const stageMessages = chatHistory[savedUserStage];
-            
-            if (stageMessages && Array.isArray(stageMessages)) {
-              const restoredMessages: Message[] = stageMessages.map((msg: any) => ({
-                id: msg.id,
-                content: msg.content,
-                isUser: msg.isUser,
-                timestamp: new Date(msg.timestamp),
-              }));
-              setMessages(restoredMessages);
-            }
-          }
-        }
-
-        // 加载白板数据
-        const whiteboardDataStr = localStorage.getItem("ajc_whiteboardData");
-        if (whiteboardDataStr) {
-          const whiteboardData = JSON.parse(whiteboardDataStr);
-          if (whiteboardData && Object.keys(whiteboardData).length > 0) {
-            setWhiteboardData(whiteboardData);
-          }
-        }
-      } catch (error) {
-        console.error("从 localStorage 加载失败:", error);
-      }
-    };
-
-    loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // 只在组件挂载时执行一次
-
-  // 检查是否有从简历编辑器返回的标记（只在组件挂载时检查一次）
-  useEffect(() => {
-    // 如果从简历编辑器返回，确保停留在简历优化阶段
-    // 这个检查只在组件首次挂载时执行，避免覆盖用户手动选择的阶段
-    const savedStage = localStorage.getItem("ajc_userStage");
-    const fromResumeEditor = sessionStorage.getItem("fromResumeEditor");
-    
-    // 只有在明确从简历编辑器返回时才设置
-    if (fromResumeEditor === "true" && savedStage === "resume_optimization") {
-      setUserStage("resume_optimization");
-      // 同步更新 FSM
-      const fsmStageMap: Record<UserStage, string> = {
-        career_planning: "career",
-        project_review: "project",
-        resume_optimization: "resume",
-        application_strategy: "apply",
-        interview: "interview",
-        salary_talk: "offer",
-        offer: "offer",
-      };
-      const fsmStage = fsmStageMap["resume_optimization"];
-      if (fsmStage) {
-        fsm.transition(fsmStage);
-      }
-      // 清除标记，避免下次进入时再次触发
-      sessionStorage.removeItem("fromResumeEditor");
-    }
-  }, []); // 只在组件挂载时执行一次
-
-  // 从 localStorage 读取用户数据并初始化 userStage（降级方案，只在数据库加载失败时使用）
-  // 注意：这个 useEffect 只在组件挂载时执行一次，且只在数据库加载完成后才执行
-  useEffect(() => {
-    // 只在数据库加载完成后且没有从数据库加载到阶段时才执行
-    if (isLoadingSession) {
-      return; // 等待数据库加载完成
-    }
-
-    // 如果 userStage 已经不是初始值，说明已经从数据库加载了，不需要从 localStorage 加载
-    // 使用一个 ref 来标记是否已经执行过，避免重复执行
-    const hasLoadedFromDB = userStage !== "career_planning" || messages.length > 0;
-    if (hasLoadedFromDB) {
-      return;
-    }
-
-    try {
-      const userData = localStorage.getItem("ajc_user");
-      if (userData) {
-        const data = JSON.parse(userData);
-        if (data.currentStage) {
-          // 将中文阶段名映射到 UserStage
-          const stageMap: Record<string, UserStage> = {
-            "职业规划": "career_planning",
-            "项目梳理": "project_review",
-            "简历优化": "resume_optimization",
-            "投递策略": "application_strategy",
-            "面试辅导": "interview",
-            "谈薪策略": "salary_talk",
-            "Offer": "offer",
-          };
-          const mappedStage = stageMap[data.currentStage];
-          if (mappedStage && isValidStage(mappedStage)) {
-            setUserStage(mappedStage);
-            // 同步更新 FSM
-            const fsmStageMap: Record<string, string> = {
-              "职业规划": "career",
-              "项目梳理": "project",
-              "简历优化": "resume",
-              "投递策略": "apply",
-              "面试辅导": "interview",
-              "谈薪策略": "offer",
-              "Offer": "offer",
-            };
-            const stageKey = fsmStageMap[data.currentStage] || "career";
-            if (fsm.getCurrent() !== stageKey) {
-              fsm.transition(stageKey);
-            }
-            return; // 如果从 ajc_user 加载成功，就不需要从 ajc_userStage 加载了
-          }
-        }
-      }
-      
-      // 尝试从 localStorage 读取保存的 userStage（降级方案）
-      const savedUserStage = localStorage.getItem("ajc_userStage");
-      if (savedUserStage && isValidStage(savedUserStage)) {
-        setUserStage(savedUserStage);
-        // 同步更新 FSM
-        const fsmStageMap: Record<UserStage, string> = {
-          career_planning: "career",
-          project_review: "project",
-          resume_optimization: "resume",
-          application_strategy: "apply",
-          interview: "interview",
-          salary_talk: "offer",
-          offer: "offer",
-        };
-        const fsmStage = fsmStageMap[savedUserStage as UserStage];
-        if (fsmStage) {
-          fsm.transition(fsmStage);
-        }
-        // 加载该阶段的聊天记录
-        const loadStageChatHistory = (stage: UserStage) => {
-          try {
-            const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-            if (chatHistoryStr) {
-              const chatHistory = JSON.parse(chatHistoryStr);
-              const stageMessages = chatHistory[stage];
-              
-              if (stageMessages && Array.isArray(stageMessages)) {
-                const restoredMessages: Message[] = stageMessages.map((msg: any) => ({
-                  id: msg.id,
-                  content: msg.content,
-                  isUser: msg.isUser,
-                  timestamp: new Date(msg.timestamp),
-                }));
-                setMessages(restoredMessages);
-              }
-            }
-          } catch (error) {
-            console.error("加载聊天记录失败:", error);
-          }
-        };
-        loadStageChatHistory(savedUserStage as UserStage);
-      } else {
-        // 如果没有保存的阶段，加载默认阶段的聊天记录
-        const loadStageChatHistory = (stage: UserStage) => {
-          try {
-            const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-            if (chatHistoryStr) {
-              const chatHistory = JSON.parse(chatHistoryStr);
-              const stageMessages = chatHistory[stage];
-              
-              if (stageMessages && Array.isArray(stageMessages)) {
-                const restoredMessages: Message[] = stageMessages.map((msg: any) => ({
-                  id: msg.id,
-                  content: msg.content,
-                  isUser: msg.isUser,
-                  timestamp: new Date(msg.timestamp),
-                }));
-                setMessages(restoredMessages);
-              }
-            }
-          } catch (error) {
-            console.error("加载聊天记录失败:", error);
-          }
-        };
-        loadStageChatHistory("career_planning");
-      }
-    } catch (error) {
-      console.error("从 localStorage 加载用户数据失败:", error);
-    }
-  }, [isLoadingSession, userStage, messages.length, fsm]); // 只在数据库加载状态改变时执行
-  
-  // 保存 userStage 到 localStorage
-  useEffect(() => {
-    localStorage.setItem("ajc_userStage", userStage);
-  }, [userStage]);
-
-  // 保存 whiteboardData 到 localStorage
-  useEffect(() => {
-    if (Object.keys(whiteboardData).length > 0) {
-      localStorage.setItem("ajc_whiteboardData", JSON.stringify(whiteboardData));
-    }
-  }, [whiteboardData]);
-
-
-  // 暴露 setWhiteboardData 到全局，方便在控制台测试
-  useEffect(() => {
-    (window as any).setWhiteboardData = (data: WhiteboardData) => {
-      setWhiteboardData(data);
-      console.log("whiteboardData 已更新:", data);
-    };
-    return () => {
-      delete (window as any).setWhiteboardData;
-    };
+  // --- 拖拽处理逻辑 ---
+  const startResizing = useCallback(() => {
+    setIsDragging(true);
   }, []);
 
-  const [showStageSelector, setShowStageSelector] = useState(false);
-
-  const handleBack = () => {
-    // 点击返回按钮时，显示阶段选择页面
-    setShowStageSelector(true);
-  };
-
-  // 保存当前阶段的聊天记录
-  const saveStageChatHistory = (stage: UserStage, chatMessages: Message[]) => {
-    try {
-      const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-      const chatHistory = chatHistoryStr ? JSON.parse(chatHistoryStr) : {};
-      
-      // 保存该阶段的聊天记录
-      chatHistory[stage] = chatMessages.map((msg) => ({
-        id: msg.id,
-        content: msg.content,
-        isUser: msg.isUser,
-        timestamp: msg.timestamp.toISOString(),
-      }));
-      
-      localStorage.setItem("ajc_chatHistory", JSON.stringify(chatHistory));
-    } catch (error) {
-      console.error("保存聊天记录失败:", error);
-    }
-  };
-
-  // 加载特定阶段的聊天记录
-  const loadStageChatHistory = (stage: UserStage) => {
-    try {
-      const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-      if (chatHistoryStr) {
-        const chatHistory = JSON.parse(chatHistoryStr);
-        const stageMessages = chatHistory[stage];
-        
-        if (stageMessages && Array.isArray(stageMessages)) {
-          // 恢复该阶段的聊天记录
-          const restoredMessages: Message[] = stageMessages.map((msg: any) => ({
-            id: msg.id,
-            content: msg.content,
-            isUser: msg.isUser,
-            timestamp: new Date(msg.timestamp),
-          }));
-          setMessages(restoredMessages);
-        } else {
-          // 如果没有该阶段的记录，清空消息
-          setMessages([]);
-        }
-      } else {
-        // 如果没有聊天记录，清空消息
-        setMessages([]);
-      }
-    } catch (error) {
-      console.error("加载聊天记录失败:", error);
-      setMessages([]);
-    }
-  };
-
-  const handleSelectStage = (stage: UserStage) => {
-    // 先保存当前阶段的聊天记录
-    saveStageChatHistory(userStage, messages);
-    
-    // 切换到选中的阶段
-    setUserStage(stage);
-    
-    // 保存到 localStorage（确保阶段持久化）
-    localStorage.setItem("ajc_userStage", stage);
-    
-    // 同步更新 FSM
-    const fsmStageMap: Record<UserStage, string> = {
-      career_planning: "career",
-      project_review: "project",
-      resume_optimization: "resume",
-      application_strategy: "apply",
-      interview: "interview",
-      salary_talk: "offer",
-      offer: "offer",
-    };
-    const fsmStage = fsmStageMap[stage];
-    if (fsmStage) {
-      fsm.transition(fsmStage);
-    }
-    
-    // 加载该阶段的聊天记录
-    loadStageChatHistory(stage);
-    
-    // 隐藏阶段选择器
-    setShowStageSelector(false);
-  };
-
-  // 暴露 FSM 到全局，方便在控制台测试
-  // 使用 useRef 来稳定引用，避免重复设置
-  const fsmRef = useRef(fsm);
-  fsmRef.current = fsm;
-  
-  useEffect(() => {
-    (window as any).fsm = {
-      transition: (stage: string) => fsmRef.current.transition(stage),
-      back: () => fsmRef.current.back(),
-      getCurrent: () => fsmRef.current.getCurrent(),
-      getCurrentName: () => fsmRef.current.getCurrentName(),
-      canGoBack: () => fsmRef.current.canGoBack(),
-    };
-    return () => {
-      delete (window as any).fsm;
-    };
-  }, []); // 只在组件挂载时执行一次
-
-  // 获取下一个阶段
-  const getNextStage = (currentStage: string): string | null => {
-    const currentIndex = STAGE_ORDER.indexOf(currentStage as any);
-    if (currentIndex < STAGE_ORDER.length - 1) {
-      return STAGE_ORDER[currentIndex + 1];
-    }
-    return null;
-  };
-
-  // 分析对话并更新白板数据
-  const analyzeConversation = async () => {
-    try {
-      // 获取所有消息（用于完整上下文）
-      const allMessages = messages.map((msg) => ({
-        role: msg.isUser ? "user" : "assistant" as const,
-        content: msg.content,
-      }));
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: allMessages,
-          userStage: userStage, // 传递当前阶段
-          sessionId: sessionId, // 传递 sessionId
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`分析 API 错误: ${response.status}`);
-      }
-
-      const analyzeData: WhiteboardData = await response.json();
-      console.log("白板分析结果:", analyzeData);
-
-      // 合并新数据到现有白板数据（保留已有数据，只更新新字段）
-      setWhiteboardData((prev) => {
-        const merged: WhiteboardData = { ...prev };
-
-        // 合并数组字段（追加新项，避免重复）
-        if (analyzeData.starProjects && analyzeData.starProjects.length > 0) {
-          const existingIds = new Set((prev.starProjects || []).map((p) => p.id));
-          const newProjects = analyzeData.starProjects.filter((p) => !existingIds.has(p.id));
-          merged.starProjects = [...(prev.starProjects || []), ...newProjects];
-        }
-
-        if (analyzeData.resumeInsights && analyzeData.resumeInsights.length > 0) {
-          const existingIds = new Set((prev.resumeInsights || []).map((i) => i.id));
-          const newInsights = analyzeData.resumeInsights.filter((i) => !existingIds.has(i.id));
-          merged.resumeInsights = [...(prev.resumeInsights || []), ...newInsights];
-        }
-
-        if (analyzeData.interviewReports && analyzeData.interviewReports.length > 0) {
-          const existingIds = new Set((prev.interviewReports || []).map((r) => r.id));
-          const newReports = analyzeData.interviewReports.filter((r) => !existingIds.has(r.id));
-          merged.interviewReports = [...(prev.interviewReports || []), ...newReports];
-        }
-
-        // 直接覆盖非数组字段（如果新数据存在）
-        if (analyzeData.intentRole) merged.intentRole = analyzeData.intentRole;
-        if (analyzeData.keySkills && analyzeData.keySkills.length > 0) {
-          // 合并技能，去重
-          const existingSkills = new Set(prev.keySkills || []);
-          merged.keySkills = [
-            ...(prev.keySkills || []),
-            ...analyzeData.keySkills.filter((s) => !existingSkills.has(s)),
-          ];
-        }
-        if (analyzeData.targetCompanies && analyzeData.targetCompanies.length > 0) {
-          merged.targetCompanies = analyzeData.targetCompanies;
-        }
-        if (analyzeData.salaryStrategy) {
-          merged.salaryStrategy = analyzeData.salaryStrategy;
-        }
-        if (analyzeData.offers && analyzeData.offers.length > 0) {
-          merged.offers = analyzeData.offers;
-        }
-
-        return merged;
-      });
-    } catch (error) {
-      console.error("分析对话失败:", error);
-    }
-  };
-
-  // Debounce 分析函数（使用 ref 确保访问最新状态）
-  const messagesRef = useRef(messages);
-  const userStageRef = useRef(userStage);
-  const sessionIdRef = useRef<string | null>(null);
-  
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-  
-  useEffect(() => {
-    userStageRef.current = userStage;
-  }, [userStage]);
-
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
-
-  const debouncedAnalyze = useRef(() => {
-    if (analyzeTimeoutRef.current) {
-      clearTimeout(analyzeTimeoutRef.current);
-    }
-    analyzeTimeoutRef.current = setTimeout(async () => {
-      try {
-        // 使用 ref 获取最新的 messages 和 userStage
-        const allMessages = messagesRef.current.map((msg) => ({
-          role: msg.isUser ? "user" : "assistant" as const,
-          content: msg.content,
-        }));
-
-        const response = await fetch("/api/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: allMessages,
-            userStage: userStageRef.current,
-            sessionId: sessionIdRef.current, // 传递 sessionId
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`分析 API 错误: ${response.status}`);
-        }
-
-        const analyzeData: WhiteboardData = await response.json();
-        console.log("自动分析结果:", analyzeData);
-
-        // 合并新数据到现有白板数据
-        setWhiteboardData((prev) => {
-          const merged: WhiteboardData = { ...prev };
-
-          // 合并数组字段（追加新项，避免重复）
-          if (analyzeData.starProjects && analyzeData.starProjects.length > 0) {
-            const existingIds = new Set((prev.starProjects || []).map((p) => p.id));
-            const newProjects = analyzeData.starProjects.filter((p) => !existingIds.has(p.id));
-            merged.starProjects = [...(prev.starProjects || []), ...newProjects];
-          }
-
-          if (analyzeData.resumeInsights && analyzeData.resumeInsights.length > 0) {
-            const existingIds = new Set((prev.resumeInsights || []).map((i) => i.id));
-            const newInsights = analyzeData.resumeInsights.filter((i) => !existingIds.has(i.id));
-            merged.resumeInsights = [...(prev.resumeInsights || []), ...newInsights];
-          }
-
-          if (analyzeData.interviewReports && analyzeData.interviewReports.length > 0) {
-            const existingIds = new Set((prev.interviewReports || []).map((r) => r.id));
-            const newReports = analyzeData.interviewReports.filter((r) => !existingIds.has(r.id));
-            merged.interviewReports = [...(prev.interviewReports || []), ...newReports];
-          }
-
-          // 直接覆盖非数组字段（如果新数据存在）
-          if (analyzeData.intentRole) merged.intentRole = analyzeData.intentRole;
-          if (analyzeData.keySkills && analyzeData.keySkills.length > 0) {
-            const existingSkills = new Set(prev.keySkills || []);
-            merged.keySkills = [
-              ...(prev.keySkills || []),
-              ...analyzeData.keySkills.filter((s) => !existingSkills.has(s)),
-            ];
-          }
-          if (analyzeData.targetCompanies && analyzeData.targetCompanies.length > 0) {
-            merged.targetCompanies = analyzeData.targetCompanies;
-          }
-          if (analyzeData.salaryStrategy) {
-            merged.salaryStrategy = analyzeData.salaryStrategy;
-          }
-          if (analyzeData.offers && analyzeData.offers.length > 0) {
-            merged.offers = analyzeData.offers;
-          }
-
-          // 保存合并后的白板数据到数据库（异步，不阻塞 UI）
-          if (sessionIdRef.current && Object.keys(merged).length > 0) {
-            fetch("/api/save-whiteboard", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                sessionId: sessionIdRef.current,
-                whiteboard: merged,
-              }),
-            }).catch(err => console.error("保存白板数据失败:", err));
-          }
-
-          return merged;
-        });
-      } catch (error) {
-        console.error("自动分析失败:", error);
-      }
-    }, 1000); // 1秒 debounce
-  }).current;
-
-  // 清理 timeout
-  useEffect(() => {
-    return () => {
-      if (analyzeTimeoutRef.current) {
-        clearTimeout(analyzeTimeoutRef.current);
-      }
-    };
+  const stopResizing = useCallback(() => {
+    setIsDragging(false);
   }, []);
 
-  // 处理阶段切换确认
-  const handleConfirmTransition = () => {
-    if (pendingNextStage) {
-      fsm.transition(pendingNextStage);
-      setShowTransitionModal(false);
-      setPendingNextStage(null);
+  const resize = useCallback((mouseMoveEvent: MouseEvent) => {
+    if (isDragging && containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      // 计算鼠标相对于容器左侧的位置百分比
+      let newLeftWidth = ((mouseMoveEvent.clientX - containerRect.left) / containerRect.width) * 100;
+      
+      // 限制最小和最大宽度 (例如：最小 30%，最大 85%)
+      if (newLeftWidth < 30) newLeftWidth = 30;
+      if (newLeftWidth > 85) newLeftWidth = 85;
+
+      setLeftWidth(newLeftWidth);
+      
+      // 如果拖拽过程中如果不小心把右边拖得太小，可以自动吸附关闭（可选）
+      // 这里我们保持手动控制
+      if (!isRightPanelOpen) setIsRightPanelOpen(true); // 只要拖拽就自动打开
     }
-  };
+  }, [isDragging, isRightPanelOpen]);
 
-  // 处理阶段切换取消
-  const handleCancelTransition = () => {
-    setShowTransitionModal(false);
-    setPendingNextStage(null);
-  };
-
-  // 暴露 analyzeConversation 到全局，方便手动触发
-  const analyzeRef = useRef(analyzeConversation);
-  analyzeRef.current = analyzeConversation;
-  
   useEffect(() => {
-    (window as any).analyzeConversation = () => analyzeRef.current();
+    window.addEventListener("mousemove", resize);
+    window.addEventListener("mouseup", stopResizing);
     return () => {
-      delete (window as any).analyzeConversation;
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
     };
-  }, []); // 只在组件挂载时执行一次
+  }, [resize, stopResizing]);
 
-  const sendMessage = async (files?: File[]) => {
-    if ((!inputValue.trim() && (!files || files.length === 0)) || isLoading) {
-      return;
+  // --- 交互逻辑 ---
+  const enterStage = (index: number) => {
+    if (index > unlockedIndex) return;
+    const stage = STAGES[index];
+    setActiveStageId(stage.id);
+    setViewMode('chat');
+    if (messages.length === 0) {
+       setMessages([{ 
+            role: 'assistant', 
+            content: `你好！我是你的**${stage.title}**顾问。\n\n我们将基于上一阶段的结论继续深入。请告诉我你目前的想法。`,
+            isUser: false 
+        }]);
     }
+  };
 
-    let messageContent = inputValue.trim();
+  const backToList = () => setViewMode('list');
 
-    // 添加用户消息
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: messageContent,
-      isUser: true,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsLoading(true);
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: 'user', content: input, isUser: true };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
 
     try {
-      // 构建历史对话：包含当前阶段的消息 + 其他阶段的摘要
-      const currentStageHistory = messages.map((msg) => ({
-        role: msg.isUser ? "user" : "assistant" as const,
-        content: msg.content,
-      }));
-
-      // 获取所有阶段的聊天记录作为上下文
-      let allStagesHistory: Array<{ role: "user" | "assistant"; content: string }> = [];
-      try {
-        const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
-        if (chatHistoryStr) {
-          const chatHistory = JSON.parse(chatHistoryStr);
-          // 遍历所有阶段，除了当前阶段（当前阶段的消息已经在 currentStageHistory 中）
-          Object.keys(chatHistory).forEach((stage) => {
-            if (stage !== userStage && chatHistory[stage] && Array.isArray(chatHistory[stage])) {
-              // 为其他阶段的消息添加阶段标识
-              const stageMessages = chatHistory[stage].map((msg: any) => ({
-                role: msg.isUser ? "user" : "assistant" as const,
-                content: `[${StageNames[stage as UserStage]}] ${msg.content}`,
-              }));
-              allStagesHistory = [...allStagesHistory, ...stageMessages];
-            }
-          });
-        }
-      } catch (error) {
-        console.error("读取所有阶段聊天记录失败:", error);
-      }
-
-      // 合并历史对话：先其他阶段，再当前阶段（最近的消息）
-      const combinedHistory = [...allStagesHistory, ...currentStageHistory].slice(-20); // 最多保留 20 条
-
-      // 如果有文件，先上传文件并解析
-      let fileContent = "";
-      if (files && files.length > 0) {
-        try {
-          const formData = new FormData();
-          files.forEach((file) => {
-            formData.append("files", file);
-          });
-
-          const uploadResponse = await fetch("/api/parse-files", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (uploadResponse.ok) {
-            const uploadData = await uploadResponse.json();
-            fileContent = uploadData.content || "";
-            // 将文件内容添加到消息中
-            if (fileContent) {
-              const fileInfo = files.map((f) => f.name).join("、");
-              messageContent = messageContent 
-                ? `${messageContent}\n\n[已上传文件：${fileInfo}]\n${fileContent}`
-                : `[已上传文件：${fileInfo}]\n${fileContent}`;
-            }
-          }
-        } catch (error) {
-          console.error("文件解析失败:", error);
-        }
-      }
-
-      // 调用 API 获取 AI 回复
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: messageContent,
-          userStage: userStage, // 传递当前阶段
-          history: combinedHistory, // 传递所有阶段的聊天记录
-          userId: userId, // 传递 userId
-          sessionId: sessionId, // 传递 sessionId
-          userState: {
-            identity: (() => {
-              try {
-                const userData = localStorage.getItem("ajc_user");
-                if (userData) {
-                  const data = JSON.parse(userData);
-                  return data.identity;
-                }
-              } catch {
-                return undefined;
-              }
-            })(),
-          },
-        }),
+      const res: any = await apiPost('/chat', {
+        message: userMsg.content,
+        userStage: activeStageId,
+        history: messages.map(m => ({ role: m.role, content: m.content })),
       });
-
-      // 检查响应状态
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.reply || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      // 验证响应结构（开发调试用）
-      console.log("API 响应数据:", data);
-      console.log("reply 字段:", data.reply);
-      console.log("structured 字段:", data.structured);
-      console.log("shouldAdvance 字段:", data.shouldAdvance);
-      console.log("nextStage 字段:", data.nextStage);
-
-      // 确保响应包含必要字段
-      if (!data.reply) {
-        console.warn("警告: API 响应缺少 reply 字段");
-        throw new Error("API 响应格式不正确：缺少 reply 字段");
-      }
-
-      // 检查是否在简历优化阶段且返回了优化建议
-      const shouldShowResumeEditor = 
-        userStage === "resume_optimization" &&
-        data.structured?.resumeInsights &&
-        data.structured.resumeInsights.length > 0;
-
-      // 添加 AI 回复
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: data.reply,
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-
-      // 如果在简历优化阶段且返回了优化建议，添加编辑器缩略框
-      if (shouldShowResumeEditor) {
-        const editorThumbnail: Message = {
-          id: `editor_${Date.now()}`,
-          content: "RESUME_EDITOR_THUMBNAIL", // 特殊标记
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, editorThumbnail]);
-      }
-
-      // 更新白板数据（如果返回了 structured 数据）
-      if (data.structured && Object.keys(data.structured).length > 0) {
-        setWhiteboardData((prev) => {
-          const merged: WhiteboardData = { ...prev };
-
-          // 合并 structured 数据到白板
-          if (data.structured.intentRole) {
-            merged.intentRole = data.structured.intentRole;
-          }
-          if (data.structured.keySkills && Array.isArray(data.structured.keySkills)) {
-            const existingSkills = new Set(prev.keySkills || []);
-            merged.keySkills = [
-              ...(prev.keySkills || []),
-              ...data.structured.keySkills.filter((s: string) => !existingSkills.has(s)),
-            ];
-          }
-          if (data.structured.starProjects && Array.isArray(data.structured.starProjects)) {
-            const existingIds = new Set((prev.starProjects || []).map((p) => p.id));
-            const newProjects = data.structured.starProjects.filter(
-              (p: any) => !existingIds.has(p.id)
-            );
-            merged.starProjects = [...(prev.starProjects || []), ...newProjects];
-          }
-          if (data.structured.resumeInsights && Array.isArray(data.structured.resumeInsights)) {
-            const existingIds = new Set((prev.resumeInsights || []).map((i) => i.id));
-            const newInsights = data.structured.resumeInsights.filter(
-              (i: any) => !existingIds.has(i.id)
-            );
-            merged.resumeInsights = [...(prev.resumeInsights || []), ...newInsights];
-          }
-          if (data.structured.interviewReports && Array.isArray(data.structured.interviewReports)) {
-            const existingIds = new Set((prev.interviewReports || []).map((r) => r.id));
-            const newReports = data.structured.interviewReports.filter(
-              (r: any) => !existingIds.has(r.id)
-            );
-            merged.interviewReports = [...(prev.interviewReports || []), ...newReports];
-          }
-          if (data.structured.targetCompanies && Array.isArray(data.structured.targetCompanies)) {
-            merged.targetCompanies = data.structured.targetCompanies;
-          }
-          if (data.structured.salaryStrategy) {
-            merged.salaryStrategy = analyzeData.salaryStrategy;
-          }
-          if (data.structured.offers && Array.isArray(data.structured.offers)) {
-            merged.offers = analyzeData.offers;
-          }
-
-          return merged;
-        });
-      }
-
-      // 处理阶段推进
-      if (data.shouldAdvance && data.nextStage && isValidStage(data.nextStage)) {
-        const nextStage = data.nextStage;
-        console.log(`阶段推进: ${StageNames[userStage]} -> ${StageNames[nextStage]}`);
-        console.log(`推进原因: ${data.stageEvaluation?.reason || "未提供"}`);
-        
-        // 更新 userStage
-        setUserStage(nextStage);
-        
-        // 同步更新 FSM（用于 UI 显示）
-        const fsmStageMap: Record<UserStage, string> = {
-          career_planning: "career",
-          project_review: "project",
-          resume_optimization: "resume",
-          application_strategy: "apply",
-          interview: "interview",
-          salary_talk: "offer",
-          offer: "offer",
-        };
-        const fsmStage = fsmStageMap[nextStage];
-        if (fsmStage && fsm.getCurrent() !== fsmStage) {
-          fsm.transition(fsmStage);
-        }
-        
-        // 进入新阶段时，刷新右侧白板（清空当前阶段的数据，保留其他阶段的数据）
-        // 只清空当前阶段相关的字段
-        setWhiteboardData((prev) => {
-          const cleaned: WhiteboardData = { ...prev };
-          
-          // 根据新阶段清空对应的字段
-          switch (nextStage) {
-            case "career_planning":
-              // 清空职业规划相关字段（如果需要重新开始）
-              break;
-            case "project_review":
-              // 保留之前的项目，不清空
-              break;
-            case "resume_optimization":
-              // 保留之前的优化建议
-              break;
-            // 其他阶段类似处理
-          }
-          
-          return cleaned;
-        });
-        console.log("已进入新阶段，白板准备接收新数据");
-      }
-
-      // 每次 AI 回复后，自动调用分析（带 debounce）
-      debouncedAnalyze();
-      
-      // 保存当前阶段的聊天记录
-      const updatedMessages = [...messages, userMessage, aiMessage];
-      saveStageChatHistory(userStage, updatedMessages);
-    } catch (error: any) {
-      console.error("发送消息失败:", error);
-      // 显示更详细的错误信息
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: error.message || "抱歉，发送消息时出现了错误。请稍后再试。",
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const aiMsg = { role: 'assistant', content: res.reply || '收到，正在分析...', isUser: false };
+      setMessages(prev => [...prev, aiMsg]);
+      if (res.structured) setWhiteboard(res.structured);
+      if (res.shouldAdvance) handleCompleteStage();
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'assistant', content: '网络开小差了，请重试。', isUser: false }]);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // 如果正在加载会话，显示加载状态
-  if (isLoadingSession) {
-    return (
-      <div className="min-h-screen w-full bg-neutral-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-500 mb-2">正在加载会话...</div>
-          <div className="text-sm text-gray-400">恢复你的对话历史</div>
-        </div>
-      </div>
-    );
-  }
+  const handleCompleteStage = () => {
+    const currentIndex = STAGES.findIndex(s => s.id === activeStageId);
+    if (currentIndex < STAGES.length - 1 && currentIndex === unlockedIndex) {
+        setUnlockedIndex(currentIndex + 1);
+        alert(`🎉 恭喜！${STAGES[currentIndex].title} 已完成，下一阶段已解锁！`);
+    }
+  };
 
-  // 如果显示阶段选择器，渲染阶段选择页面
-  if (showStageSelector) {
-    return (
-      <div className="h-screen w-full bg-neutral-50 flex flex-col overflow-hidden relative">
-        <StageController
-          currentStage={"选择阶段"}
-          onBack={() => setShowStageSelector(false)}
-          canGoBack={true}
-        />
+  // 切换白板显示/隐藏
+  const toggleRightPanel = () => {
+    if (isRightPanelOpen) {
+        // 关闭时，记录之前的宽度可能更好，这里简化为直接关闭
+        setIsRightPanelOpen(false);
+    } else {
+        // 打开时，恢复到之前的宽度，或者默认值
+        setIsRightPanelOpen(true);
+        if (leftWidth > 90) setLeftWidth(60); // 如果之前太宽，重置为 60%
+    }
+  };
 
-        <div className="flex-1 flex overflow-hidden" style={{ paddingTop: "64px", paddingBottom: "80px" }}>
-          <div className="w-full md:w-[70%] flex-shrink-0 overflow-hidden">
-            <StageSelector
-              onSelectStage={handleSelectStage}
-              currentStage={userStage}
-              className="h-full"
-              onCancel={() => setShowStageSelector(false)}
-            />
-          </div>
-          <div className="hidden md:block w-[30%] flex-shrink-0 overflow-y-auto">
-            <Whiteboard data={whiteboardData} currentStage={userStage} onUpdate={setWhiteboardData} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 如果是面试阶段，显示 InterviewPanel
-  if (userStage === "interview") {
-    return (
-      <div className="h-screen w-full bg-neutral-50 flex flex-col overflow-hidden relative">
-        {/* 顶部阶段控制器（固定在顶部） */}
-        <StageController
-          currentStage={StageNames[userStage]}
-          onBack={handleBack}
-          canGoBack={true}
-        />
-
-        {/* 主内容区域（面试面板） */}
-        <div className="flex-1 overflow-hidden" style={{ paddingTop: '64px' }}>
-          <InterviewPanel
-            currentStage={userStage}
-            whiteboardData={whiteboardData}
-            onWhiteboardUpdate={setWhiteboardData}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // 其他阶段的正常布局
   return (
-    <div className="h-screen w-full bg-neutral-50 flex flex-col overflow-hidden relative">
-      {/* 顶部阶段控制器（固定在顶部） */}
-      <StageController
-        currentStage={StageNames[userStage]}
-        onBack={handleBack}
-        canGoBack={true} // 始终显示返回按钮
-      />
+    <div 
+        ref={containerRef}
+        className="flex h-screen w-screen bg-slate-100 overflow-hidden font-sans text-slate-900 relative select-none"
+        // select-none 防止拖拽时选中文字
+    >
+      
+      {/* =============================================
+         左侧区域 (动态宽度)
+         =============================================
+      */}
+      <div 
+        className="flex flex-col bg-white relative transition-all duration-75 ease-out"
+        style={{ width: isRightPanelOpen ? `${leftWidth}%` : '100%' }}
+      >
+        
+        {/* 模式 A：阶段选择列表 */}
+        {viewMode === 'list' && (
+            <div className="flex-1 overflow-y-auto p-10 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="mb-8 max-w-2xl mx-auto">
+                    <h1 className="text-2xl font-bold text-slate-800">求职进阶路线</h1>
+                    <p className="text-slate-500 mt-2">请按顺序完成以下阶段，AI 将全程陪伴。</p>
+                </div>
 
-      {/* 主内容区域（添加顶部和底部 padding 避免被固定元素遮挡） */}
-      <div className="flex-1 flex overflow-hidden" style={{ paddingTop: '64px', paddingBottom: '80px' }}>
-        {/* 左侧聊天流区域（70%） */}
-        <div className="w-full md:w-[70%] flex-shrink-0 overflow-y-auto">
-          <ChatFlow
-            messages={messages}
-            inputValue={inputValue}
-            onInputChange={setInputValue}
-            onSend={sendMessage}
-            isLoading={isLoading}
-            hideInputBar={true} // 隐藏 ChatFlow 内部的输入框
-          />
-        </div>
+                <div className="space-y-4 max-w-2xl mx-auto">
+                    {STAGES.map((stage, index) => {
+                        const isLocked = index > unlockedIndex;
+                        const isCompleted = index < unlockedIndex;
+                        const isCurrent = index === unlockedIndex;
 
-        {/* 右侧智能白板区域（30%） */}
-        <div className="hidden md:block w-[30%] flex-shrink-0 overflow-y-auto">
-          <Whiteboard data={whiteboardData} currentStage={userStage} onUpdate={setWhiteboardData} />
-        </div>
+                        return (
+                            <div 
+                                key={stage.id}
+                                onClick={() => enterStage(index)}
+                                className={`
+                                    relative flex items-center p-6 rounded-2xl border-2 transition-all duration-200
+                                    ${isLocked ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed grayscale' : 'cursor-pointer hover:shadow-lg hover:-translate-y-1'}
+                                    ${isCurrent ? 'border-blue-500 bg-blue-50/30 ring-4 ring-blue-100' : ''}
+                                    ${isCompleted ? 'border-green-200 bg-green-50/30' : ''}
+                                    ${!isLocked && !isCurrent && !isCompleted ? 'border-slate-200 bg-white' : ''}
+                                `}
+                            >
+                                <div className={`
+                                    w-12 h-12 rounded-full flex items-center justify-center mr-6 shrink-0 font-bold text-lg
+                                    ${isLocked ? 'bg-slate-200 text-slate-400' : ''}
+                                    ${isCurrent ? 'bg-blue-600 text-white shadow-blue-300 shadow-md' : ''}
+                                    ${isCompleted ? 'bg-green-500 text-white' : ''}
+                                `}>
+                                    {isLocked ? <Lock size={20} /> : isCompleted ? <CheckCircle size={24} /> : (index + 1)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <h3 className={`font-bold text-lg ${isLocked ? 'text-slate-400' : 'text-slate-800'}`}>{stage.title}</h3>
+                                        {!isLocked && <ChevronRight className={`text-slate-300 ${isCurrent ? 'text-blue-500' : ''}`} />}
+                                    </div>
+                                    <p className="text-sm text-slate-500">{stage.desc}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        {/* 模式 B：聊天框 */}
+        {viewMode === 'chat' && (
+            <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
+                {/* 顶栏 */}
+                <div className="h-16 border-b border-slate-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex items-center gap-4">
+                        <button onClick={backToList} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+                            <ArrowLeft size={20} />
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${STAGES.find(s=>s.id===activeStageId)?.bg}`}>
+                                {(() => {
+                                    const Icon = STAGES.find(s=>s.id===activeStageId)?.icon || Target;
+                                    return <Icon size={18} className={STAGES.find(s=>s.id===activeStageId)?.color} />;
+                                })()}
+                            </div>
+                            <h2 className="font-bold text-slate-800">{STAGES.find(s=>s.id===activeStageId)?.title}</h2>
+                        </div>
+                    </div>
+                    {/* 完成按钮 */}
+                    {activeStageId === STAGES[unlockedIndex].id && (
+                        <button 
+                            onClick={() => { if(confirm('确认该阶段完成？')) { handleCompleteStage(); backToList(); }}}
+                            className="text-xs font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-100"
+                        >
+                            标记完成
+                        </button>
+                    )}
+                </div>
+
+                {/* 消息区 */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+                    {messages.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm text-sm leading-relaxed ${msg.isUser ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'}`}>
+                                {msg.isUser ? msg.content : <ReactMarkdown>{msg.content}</ReactMarkdown>}
+                            </div>
+                        </div>
+                    ))}
+                    {loading && <div className="text-slate-400 text-sm ml-4 animate-pulse">AI 正在输入...</div>}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* 输入区 */}
+                <div className="p-5 bg-white border-t border-slate-100">
+                    <div className="relative flex items-end gap-2 bg-slate-100 rounded-xl p-2 border border-slate-200 focus-within:ring-2 focus-within:ring-blue-100">
+                        <textarea 
+                            className="flex-1 bg-transparent border-0 focus:ring-0 resize-none max-h-32 min-h-[44px] py-2.5 px-2 text-slate-800 placeholder:text-slate-400"
+                            placeholder="输入内容..." rows={1} value={input} onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }}}
+                        />
+                        <button onClick={handleSend} disabled={!input.trim() || loading} className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50">
+                            <SendIcon size={18} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
 
-      {/* 底部输入框（固定在底部，类似 ChatGPT） */}
+      {/* =============================================
+         可拖拽分界线 (Resizer)
+         =============================================
+      */}
+      <div
+        className="relative w-4 bg-slate-100 border-l border-r border-slate-200 hover:bg-blue-50 transition-colors flex flex-col items-center justify-center z-30 group"
+        style={{ cursor: 'col-resize' }}
+        onMouseDown={startResizing}
+      >
+          {/* 装饰线条 */}
+          <div className="h-8 flex flex-col gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+              <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+              <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+              <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+          </div>
+
+          {/* 隐藏/展开 触发器按钮 
+             (悬浮在分界线上，点击可快速折叠/展开右侧)
+          */}
+          <button 
+             onMouseDown={(e) => e.stopPropagation()} // 防止触发拖拽
+             onClick={toggleRightPanel}
+             className="absolute top-1/2 -translate-y-1/2 w-6 h-12 bg-white border border-slate-200 rounded-full shadow-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-200 z-40 transition-transform hover:scale-110 active:scale-95"
+             title={isRightPanelOpen ? "折叠白板" : "展开白板"}
+          >
+             {isRightPanelOpen ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+      </div>
+
+      {/* =============================================
+         右侧区域 (动态宽度)
+         =============================================
+      */}
       <div 
-        className="fixed bottom-0 left-0 right-0 w-full border-t border-gray-200 bg-white z-50 shadow-lg"
+        className={`bg-white flex flex-col z-20 shadow-[-10px_0_30px_-10px_rgba(0,0,0,0.05)] overflow-hidden transition-all duration-75 ease-out`}
         style={{ 
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
+            width: isRightPanelOpen ? `${100 - leftWidth}%` : '0%',
+            opacity: isRightPanelOpen ? 1 : 0
         }}
       >
-        <div className="w-full p-4">
-          <InputBar
-            value={inputValue}
-            onChange={setInputValue}
-            onSend={sendMessage}
-            isLoading={isLoading}
-            disabled={isLoading}
-          />
+        {/* 白板顶栏 */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 bg-white/95 backdrop-blur min-w-[300px]">
+            <span className="font-bold text-slate-700 flex items-center gap-2">
+                <Layout className="text-purple-500" size={20} /> 
+                全流程信息板
+            </span>
+            <button className="p-1.5 hover:bg-slate-100 rounded text-slate-400">
+                <MoreHorizontal size={20} />
+            </button>
+        </div>
+        
+        {/* 白板内容区域 */}
+        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 min-w-[300px]">
+            <div className="space-y-6">
+                {/* 进度卡片 */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-end mb-2">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">总进度</span>
+                        <span className="text-2xl font-bold text-blue-600">{Math.round((unlockedIndex / 7) * 100)}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(unlockedIndex / 7) * 100}%` }} />
+                    </div>
+                </div>
+                {/* 关键信息卡片 */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700 text-sm">{STAGES[unlockedIndex].title} - 关键信息</h3>
+                        <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">进行中</span>
+                    </div>
+                    <div className="p-5 min-h-[200px]">
+                        {Object.keys(whiteboard).length > 0 ? (
+                            <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">{JSON.stringify(whiteboard, null, 2)}</pre>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-40 text-slate-400 space-y-3">
+                                <BrainCircuit size={32} className="opacity-20" />
+                                <p className="text-xs">AI 正在收集信息...</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
       </div>
 
-      {/* 阶段切换确认模态 */}
-      <StageTransitionModal
-        isOpen={showTransitionModal}
-        currentStage={StageNames[userStage]}
-        nextStage={pendingNextStage ? STAGE_NAMES[pendingNextStage as keyof typeof STAGE_NAMES] : ""}
-        onConfirm={handleConfirmTransition}
-        onCancel={handleCancelTransition}
-      />
     </div>
   );
 }

@@ -55,16 +55,30 @@ export default function LoginPage() {
 
   const isValid = PHONE_REGEX.test(phone) && sentCode === code && code.trim().length > 0;
 
+  // --- 修改后的发送验证码逻辑 (含后门) ---
   const handleSendCode = async () => {
+    // 1. 校验手机号格式
     if (!PHONE_REGEX.test(phone)) {
       setTouched((prev) => ({ ...prev, phone: true }));
       return;
     }
 
+    // 2. 防止重复点击
     if (countdown > 0 || isSending) {
       return;
     }
 
+    // 🔥 后门逻辑：如果是测试号，直接给验证码，不调 API
+    if (phone === "13800000000") {
+      setSentCode("123456"); // 设定正确答案
+      setCountdown(COUNTDOWN_SECONDS); // 开始倒计时
+      setTouched((prev) => ({ ...prev, code: true }));
+      // 模拟弹窗提示，方便你演示
+      alert("【测试模式】验证码已发送：123456"); 
+      return;
+    }
+
+    // --- 以下是正常的 API 调用逻辑 (保持不变) ---
     setIsSending(true);
     try {
       const response = await fetch("/api/sms", {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserStage, StageNames } from "@/lib/stage";
 
@@ -27,7 +27,13 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [lastMessageCount, setLastMessageCount] = useState(0);
+  const lastMessageCountRef = useRef(0);
+  const tasksRef = useRef<StageTask[]>([]);
+  const isGeneratingRef = useRef(false);
+
+  // 同步 ref
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { isGeneratingRef.current = isGenerating; }, [isGenerating]);
 
   // 跳过简历和面试阶段
   const skipStages: UserStage[] = ["resume_optimization", "interview"];
@@ -41,14 +47,17 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
+      } else if (res.status === 401) {
+        console.warn("[TaskCard] 未登录，跳过任务加载");
       }
     } catch (e) {
       console.error("加载任务失败:", e);
     }
   }, [stage, shouldSkip]);
 
-  // 初始加载
+  // 初始加载 + 重置 ref
   useEffect(() => {
+    lastMessageCountRef.current = 0;
     loadTasks();
   }, [loadTasks]);
 
@@ -57,19 +66,21 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
     if (shouldSkip) return;
     if (messages.length <= 0) return;
 
-    // 每收到 3 条新消息后触发一次分析
     const newMsgCount = messages.length;
-    if (newMsgCount - lastMessageCount >= 3 || (tasks.length === 0 && newMsgCount >= 4)) {
-      setLastMessageCount(newMsgCount);
+    const lastCount = lastMessageCountRef.current;
+    if (newMsgCount - lastCount >= 3 || (tasksRef.current.length === 0 && newMsgCount >= 4 && lastCount < newMsgCount)) {
+      lastMessageCountRef.current = newMsgCount;
       triggerAnalysis();
     }
-  }, [messages.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, shouldSkip]);
 
   // 触发 AI 分析
   const triggerAnalysis = async () => {
-    if (isGenerating || shouldSkip) return;
+    if (isGeneratingRef.current || shouldSkip) return;
     setIsGenerating(true);
     try {
+      const currentTasks = tasksRef.current;
       const res = await fetch("/api/tasks/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,21 +90,22 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
             role: m.isUser ? "user" : "assistant",
             content: m.content,
           })),
-          existingTasks: tasks,
+          existingTasks: currentTasks,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.tasks && data.tasks.length > 0) {
-          const prevCompleted = tasks.filter(t => t.is_completed).length;
+          const prevCompleted = currentTasks.filter(t => t.is_completed).length;
           setTasks(data.tasks);
 
-          // 检查是否有新完成的任务 → 触发庆祝
           const newCompleted = data.tasks.filter((t: StageTask) => t.is_completed).length;
           if (newCompleted > prevCompleted) {
             checkMilestone(data.tasks);
           }
         }
+      } else if (res.status === 401) {
+        console.warn("[TaskCard] 未登录，跳过任务生成");
       }
     } catch (e) {
       console.error("任务分析失败:", e);

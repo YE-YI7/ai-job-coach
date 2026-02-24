@@ -63,6 +63,9 @@ export default function InterviewStartPage() {
   const [useResume, setUseResume] = useState(true);
   const [hasResume, setHasResume] = useState(false);
   const [resumeFilename, setResumeFilename] = useState<string | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 分享卡片状态
   const [shareCardData, setShareCardData] = useState<ShareCardData | null>(null);
@@ -149,6 +152,61 @@ export default function InterviewStartPage() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 简历上传处理
+  const handleResumeUpload = async (file: File) => {
+    if (!file) return;
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      alert("请上传 PDF 或 Word 格式的简历");
+      return;
+    }
+    setIsUploadingResume(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/resume/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHasResume(true);
+        setUseResume(true);
+        setResumeFilename(data.filename || file.name);
+      } else {
+        const errText = await res.text();
+        console.error("简历上传失败:", errText);
+        alert("简历上传失败，请重试");
+      }
+    } catch (e) {
+      console.error("简历上传错误:", e);
+      alert("上传出错，请重试");
+    } finally {
+      setIsUploadingResume(false);
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleResumeUpload(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
 
   // FIX: 删除重定向到 /chat 的逻辑
   // 即使 jd 为空，用户也应该能在 /interview/start 页面输入配置并开始面试
@@ -755,50 +813,64 @@ export default function InterviewStartPage() {
       case "assessment":
         const { assessment } = message.data;
         return (
-          <div key={message.id} className="interview-card glass-card hover-lift animate-scale-in bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200/60 rounded-2xl shadow-lg p-6 my-4">
-            <div className="flex items-center gap-3 mb-4">
+          <div key={message.id} className="interview-card animate-scale-in bg-white rounded-2xl shadow-lg border border-stone-200/60 p-6 my-4 overflow-hidden">
+            <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md">
-                <span className="text-white text-xl">📊</span>
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
               </div>
-              <h2 className="text-xl font-semibold text-stone-800">你的回答评价</h2>
+              <div>
+                <h2 className="text-lg font-bold text-stone-800" style={{ fontFamily: "-apple-system, 'SF Pro Display', 'Inter', sans-serif" }}>回答评估</h2>
+                <p className="text-xs text-stone-400">AI 导师点评</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 mb-6">
-              <span className="text-sm text-stone-600">总分：</span>
-              <span className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
+            
+            <div className="flex items-baseline gap-1 mb-6 pl-1">
+              <span className="text-4xl font-black bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent" style={{ fontFamily: "'SF Pro Display', 'Inter', -apple-system, sans-serif" }}>
                 {assessment.score}
               </span>
-              <span className="text-sm text-stone-500">/ 100</span>
+              <span className="text-sm text-stone-400 font-medium">/ 100</span>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {assessment.dimensions?.map((dim: any, idx: number) => (
-                <div key={idx} className="glass-card bg-white/60 rounded-xl p-4 border border-stone-200/60">
+                <div key={idx} className="bg-stone-50 rounded-xl p-4 border border-stone-100">
                   <div className="flex items-center justify-between mb-2">
-                    <strong className="text-sm font-semibold text-stone-800">{dim.name}</strong>
+                    <span className="text-sm font-semibold text-stone-700" style={{ fontFamily: "-apple-system, 'SF Pro Display', 'Inter', sans-serif" }}>{dim.name}</span>
                     {dim.score !== undefined && (
-                      <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-medium rounded-full">
+                      <span className="text-sm font-bold text-orange-600" style={{ fontFamily: "'SF Pro Display', 'Inter', -apple-system, sans-serif" }}>
                         {dim.score}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-stone-700 leading-relaxed">{parseMarkdownBold(dim.comment)}</p>
+                  {dim.score !== undefined && (
+                    <div className="w-full h-1.5 bg-stone-200 rounded-full mb-2 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400 transition-all duration-700"
+                        style={{ width: `${dim.score}%` }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-sm text-stone-600 leading-relaxed" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>{parseMarkdownBold(dim.comment)}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-stone-200">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-purple-600 text-lg">✨</span>
-                <h3 className="text-sm font-semibold text-stone-800">总结</h3>
+            <div className="mt-5 pt-4 border-t border-stone-100">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-stone-700">总结</h3>
               </div>
-              <p className="text-sm text-stone-700 leading-relaxed">{parseMarkdownBold(assessment.summary)}</p>
+              <p className="text-sm text-stone-600 leading-relaxed" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>{parseMarkdownBold(assessment.summary)}</p>
             </div>
           </div>
         );
 
       case "summary":
         const { summary } = message.data;
-        // 兼容不同的 summary 数据结构
         const overallScore = summary.overallScore || summary.score || 0;
         const strengths = summary.strengths || [];
         const weaknesses = summary.weaknesses || summary.improvements || [];
@@ -806,62 +878,110 @@ export default function InterviewStartPage() {
         const summaryText = summary.summary || summary.overall || "";
         
         return (
-          <div key={message.id} className="interview-card bg-stone-50 border-2 border-amber-200 rounded-xl shadow-lg p-6 my-4">
-            <h2 className="text-xl font-semibold text-stone-800 mb-4">本轮面试总结</h2>
+          <div key={message.id} className="interview-card bg-white rounded-2xl shadow-lg border border-stone-200/60 p-6 my-4 overflow-hidden">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-stone-800" style={{ fontFamily: "-apple-system, 'SF Pro Display', 'Inter', sans-serif" }}>本轮面试总结</h2>
+                <p className="text-xs text-stone-400">AI 全面评估</p>
+              </div>
+            </div>
+            
             {overallScore > 0 && (
-              <p className="text-lg font-bold text-amber-600 mb-4">综合得分：{overallScore}</p>
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 mb-5 border border-orange-100 flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-4xl font-black bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent" style={{ fontFamily: "'SF Pro Display', 'Inter', -apple-system, sans-serif" }}>
+                    {overallScore}
+                  </div>
+                  <div className="text-xs text-orange-600 font-medium mt-0.5">综合得分</div>
+                </div>
+                <div className="flex-1 h-2 bg-orange-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400 transition-all duration-1000"
+                    style={{ width: `${overallScore}%` }}
+                  />
+                </div>
+              </div>
             )}
             
             {summaryText && (
-              <div className="mb-4">
-                <p className="text-sm text-stone-700 leading-relaxed">{parseMarkdownBold(summaryText)}</p>
-              </div>
+              <p className="text-sm text-stone-600 leading-relaxed mb-5" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>
+                {parseMarkdownBold(summaryText)}
+              </p>
             )}
 
             <div className="space-y-4">
               {strengths.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-stone-800 mb-2">优势</h3>
-                  <ul className="list-disc list-inside space-y-1 text-sm text-stone-700">
+                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-emerald-800">优势表现</h3>
+                  </div>
+                  <ul className="space-y-1.5">
                     {strengths.map((s: string, idx: number) => (
-                      <li key={idx}>{parseMarkdownBold(s)}</li>
+                      <li key={idx} className="text-sm text-emerald-700 leading-relaxed flex items-start gap-2" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>
+                        <span className="text-emerald-400 mt-1 shrink-0">•</span>
+                        <span>{parseMarkdownBold(s)}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
 
               {weaknesses.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-stone-800 mb-2">薄弱点</h3>
-                  <ul className="list-disc list-inside space-y-1 text-sm text-stone-700">
+                <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-orange-800">提升空间</h3>
+                  </div>
+                  <ul className="space-y-1.5">
                     {weaknesses.map((s: string, idx: number) => (
-                      <li key={idx}>{parseMarkdownBold(s)}</li>
+                      <li key={idx} className="text-sm text-orange-700 leading-relaxed flex items-start gap-2" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>
+                        <span className="text-orange-400 mt-1 shrink-0">•</span>
+                        <span>{parseMarkdownBold(s)}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
 
               {suggestions.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-stone-800 mb-2">建议</h3>
-                  <ul className="list-disc list-inside space-y-1 text-sm text-stone-700">
+                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    <h3 className="text-sm font-semibold text-blue-800">改进建议</h3>
+                  </div>
+                  <ul className="space-y-1.5">
                     {suggestions.map((s: any, idx: number) => (
-                      <li key={idx}>{parseMarkdownBold(typeof s === 'string' ? s : (s.title || s.detail || JSON.stringify(s)))}</li>
+                      <li key={idx} className="text-sm text-blue-700 leading-relaxed flex items-start gap-2" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>
+                        <span className="text-blue-400 mt-1 shrink-0">•</span>
+                        <span>{parseMarkdownBold(typeof s === 'string' ? s : (s.title || s.detail || JSON.stringify(s)))}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
             </div>
 
-            {/* 个性化鼓励语 */}
-            <div className={`mt-4 p-3 rounded-xl text-center ${
+            {/* 鼓励语 */}
+            <div className={`mt-5 p-3 rounded-xl text-center ${
               overallScore >= 80 
                 ? "bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200" 
                 : overallScore >= 60 
                   ? "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200"
                   : "bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200"
             }`}>
-              <p className="text-sm font-medium text-slate-700">
+              <p className="text-sm font-medium text-stone-700" style={{ fontFamily: "-apple-system, 'SF Pro Text', 'Inter', 'Noto Sans SC', sans-serif" }}>
                 {overallScore >= 80
                   ? getRandomMessage("interview_excellent")
                   : overallScore >= 60
@@ -872,7 +992,7 @@ export default function InterviewStartPage() {
             </div>
 
             {/* 生成战报按钮 */}
-            <div className="mt-5 pt-4 border-t border-amber-200">
+            <div className="mt-5 pt-4 border-t border-stone-100">
               <button
                 onClick={() => {
                   setShareCardData({
@@ -1024,9 +1144,9 @@ export default function InterviewStartPage() {
                           <option value={5}>5 题</option>
                         </select>
                       </div>
-                      {/* 简历关联开关 */}
+                      {/* 简历关联 */}
                       <div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-2">
                           <label className="text-sm font-medium text-stone-700">关联简历（个性化出题）</label>
                           <button
                             type="button"
@@ -1050,9 +1170,47 @@ export default function InterviewStartPage() {
                             ✓ 已检测到简历：{resumeFilename}
                           </p>
                         ) : (
-                          <p className="text-xs text-stone-400 mt-1">
-                            未检测到简历，前往「简历优化」阶段上传后可开启
-                          </p>
+                          <div
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            className={`mt-2 border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer ${
+                              isDragOver
+                                ? "border-amber-400 bg-amber-50"
+                                : "border-stone-300 hover:border-amber-400 hover:bg-amber-50/50"
+                            }`}
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept=".pdf,.doc,.docx"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleResumeUpload(f);
+                                e.target.value = "";
+                              }}
+                            />
+                            {isUploadingResume ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-xs text-amber-600">上传中...</span>
+                              </div>
+                            ) : (
+                              <>
+                                <svg className="w-6 h-6 mx-auto text-stone-400 mb-1" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                                <p className="text-xs text-stone-500">
+                                  拖拽或点击上传简历（PDF/Word）
+                                </p>
+                                <p className="text-xs text-stone-400 mt-0.5">
+                                  上传后可开启个性化出题
+                                </p>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
                       {/* 启动按钮 */}
@@ -1142,7 +1300,7 @@ export default function InterviewStartPage() {
               />
               {interviewState === "idle" && (
                 <div className="text-xs text-stone-500 mt-2 text-center pb-4 px-4">
-                  💡 面试题会根据你在其他阶段的聊天历史个性化出题，如没有记录可点击左侧加号上传简历获得更精准的题目
+                  💡 面试题会根据你在其他阶段的聊天历史个性化出题，也可以在上方配置区直接上传简历
                 </div>
               )}
               {interviewState === "finished" && (

@@ -749,8 +749,63 @@ export default function ChatPage() {
 
   // 处理阶段切换确认
   const handleConfirmTransition = () => {
-    if (pendingNextStage) {
-      fsm.transition(pendingNextStage);
+    if (pendingNextStage && isValidStage(pendingNextStage)) {
+      // 保存当前阶段聊天记录
+      saveStageChatHistory(userStage, messages);
+      
+      const nextStage = pendingNextStage as UserStage;
+      
+      // 如果是面试阶段，跳转到面试页面
+      if (nextStage === "interview") {
+        setShowTransitionModal(false);
+        setPendingNextStage(null);
+        router.push("/interview/start");
+        return;
+      }
+      
+      // 如果是简历优化阶段，跳转到简历编辑器
+      if (nextStage === "resume_optimization") {
+        setShowTransitionModal(false);
+        setPendingNextStage(null);
+        router.push("/chat/resume-editor");
+        return;
+      }
+      
+      // 更新 userStage
+      setUserStage(nextStage);
+      
+      // 同步更新 FSM
+      const fsmStageMap: Record<UserStage, string> = {
+        career_planning: "career",
+        project_review: "project",
+        resume_optimization: "resume",
+        application_strategy: "apply",
+        interview: "interview",
+        salary_talk: "offer",
+        offer: "offer",
+      };
+      const fsmStage = fsmStageMap[nextStage];
+      if (fsmStage) {
+        fsm.transition(fsmStage);
+      }
+      
+      // 加载新阶段的聊天记录
+      loadStageChatHistory(nextStage);
+      
+      // 检查是否有聊天记录，首次进入发送开场白
+      const chatHistoryStr = localStorage.getItem("ajc_chatHistory");
+      let hasHistory = false;
+      if (chatHistoryStr) {
+        try {
+          const chatHistory = JSON.parse(chatHistoryStr);
+          const stageMessages = chatHistory[nextStage];
+          hasHistory = stageMessages && Array.isArray(stageMessages) && stageMessages.length > 0;
+        } catch (e) { /* silent */ }
+      }
+      if (!hasHistory) {
+        sendStageGreeting(StageNames[nextStage]);
+      }
+      
       setShowTransitionModal(false);
       setPendingNextStage(null);
     }
@@ -1008,52 +1063,14 @@ export default function ChatPage() {
         });
       }
 
-      // 处理阶段推进
+      // 处理阶段推进 — 显示弹窗让用户选择
       if (data.shouldAdvance && data.nextStage && isValidStage(data.nextStage)) {
         const nextStage = data.nextStage;
-        console.log(`阶段推进: ${StageNames[userStage]} -> ${StageNames[nextStage as UserStage]}`);
-        console.log(`推进原因: ${data.stageEvaluation?.reason || "未提供"}`);
+        console.log(`阶段推进建议: ${StageNames[userStage]} -> ${StageNames[nextStage as UserStage]}`);
         
-        // 更新 userStage
-        setUserStage(nextStage);
-        
-        // 同步更新 FSM（用于 UI 显示）
-        const fsmStageMap: Record<UserStage, string> = {
-          career_planning: "career",
-          project_review: "project",
-          resume_optimization: "resume",
-          application_strategy: "apply",
-          interview: "interview",
-          salary_talk: "offer",
-          offer: "offer",
-        };
-        const fsmStage = fsmStageMap[nextStage as UserStage];
-        if (fsmStage && fsm.getCurrent() !== fsmStage) {
-          fsm.transition(fsmStage);
-        }
-        
-        // 进入新阶段时，刷新右侧白板（清空当前阶段的数据，保留其他阶段的数据）
-        // 只清空当前阶段相关的字段
-        setWhiteboardData((prev) => {
-          const cleaned: WhiteboardData = { ...prev };
-          
-          // 根据新阶段清空对应的字段
-          switch (nextStage) {
-            case "career_planning":
-              // 清空职业规划相关字段（如果需要重新开始）
-              break;
-            case "project_review":
-              // 保留之前的项目，不清空
-              break;
-            case "resume_optimization":
-              // 保留之前的优化建议
-              break;
-            // 其他阶段类似处理
-          }
-          
-          return cleaned;
-        });
-        console.log("已进入新阶段，白板准备接收新数据");
+        // 显示阶段切换确认弹窗
+        setPendingNextStage(nextStage);
+        setShowTransitionModal(true);
       }
 
       // 每次 AI 回复后，自动调用分析（带 debounce）
@@ -1200,8 +1217,8 @@ export default function ChatPage() {
       {/* 阶段切换确认模态 */}
       <StageTransitionModal
         isOpen={showTransitionModal}
-        currentStage={fsm.getCurrentName()}
-        nextStage={pendingNextStage ? STAGE_NAMES[pendingNextStage as keyof typeof STAGE_NAMES] : ""}
+        currentStage={StageNames[userStage]}
+        nextStage={pendingNextStage ? (StageNames[pendingNextStage as UserStage] || pendingNextStage) : ""}
         onConfirm={handleConfirmTransition}
         onCancel={handleCancelTransition}
       />

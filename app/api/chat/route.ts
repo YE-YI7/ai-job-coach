@@ -350,10 +350,35 @@ export async function POST(req: Request) {
       console.warn('[Memory] 后处理失败:', err);
     });
 
+    // ===== 阶段完成判断 =====
+    // 检测 AI 回复中是否包含阶段完成推荐话术的信号
+    const stageCompletionSignals = [
+      "进入下一阶段", "选择'项目梳理'", "选择'简历优化'", "选择'投递策略'",
+      "选择'模拟面试'", "选择'薪资沟通'", "选择'Offer'",
+      "阶段已经完成", "可以进入下一步", "建议你进入",
+      "点击左上角返回"
+    ];
+    const shouldAdvance = stageCompletionSignals.some(signal => reply.includes(signal));
+    
+    // 推断下一阶段
+    let nextStage: string | null = null;
+    if (shouldAdvance) {
+      const stageProgressionMap: Record<string, string> = {
+        career_planning: "project_review",
+        project_review: "resume_optimization",
+        resume_optimization: "application_strategy",
+        application_strategy: "interview",
+        interview: "salary_talk",
+        salary_talk: "offer",
+      };
+      nextStage = stageProgressionMap[stage || ""] || null;
+    }
+
     // 返回 AI 回复
     return NextResponse.json({ 
       ok: true, 
-      result: reply
+      result: reply,
+      ...(shouldAdvance && nextStage ? { shouldAdvance: true, nextStage } : {}),
     });
   } catch (err) {
     console.error("API Error:", err);

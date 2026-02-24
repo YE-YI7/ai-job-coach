@@ -21,69 +21,66 @@ export default function StageTransitionModal({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* 背景遮罩 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black bg-opacity-50"
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
             onClick={onCancel}
           />
-          {/* 模态内容 */}
           <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 pointer-events-auto"
+              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 pointer-events-auto border border-stone-100"
             >
-              <div className="mb-4">
-                <motion.h3
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1, duration: 0.3 }}
-                  className="text-lg font-semibold text-gray-900 mb-2"
-                >
-                  AI 建议进入下一阶段
-                </motion.h3>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.15, duration: 0.3 }}
-                  className="text-sm text-gray-600 mb-4"
-                >
-                  当前阶段：<span className="font-medium">{currentStage}</span>
-                </motion.p>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.2, duration: 0.3 }}
-                  className="text-sm text-gray-600"
-                >
-                  建议进入：<span className="font-medium text-cyan-600">{nextStage}</span>
-                </motion.p>
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-200/50">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-stone-800 mb-2">
+                  当前阶段已完成！
+                </h3>
+                <p className="text-sm text-stone-500 leading-relaxed">
+                  AI 导师认为你已经完成了
+                  <span className="font-semibold text-stone-700">「{currentStage}」</span>
+                  阶段的核心目标
+                </p>
               </div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25, duration: 0.3 }}
-                className="flex gap-3 justify-end"
-              >
+
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 mb-6 border border-orange-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-sm shrink-0">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-xs text-orange-600 font-medium mb-0.5">推荐进入</div>
+                    <div className="text-base font-bold text-stone-800">{nextStage}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
                 <button
                   onClick={onCancel}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex-1 px-4 py-3 text-sm font-medium text-stone-600 bg-stone-100 rounded-xl hover:bg-stone-200 transition-colors"
                 >
                   稍后再说
                 </button>
                 <button
                   onClick={onConfirm}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-colors"
+                  className="flex-1 px-4 py-3 text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl hover:from-orange-600 hover:to-amber-600 transition-colors shadow-md shadow-orange-200/50"
                 >
-                  同意并切换
+                  进入下一阶段
                 </button>
-              </motion.div>
+              </div>
             </motion.div>
           </div>
         </>
@@ -91,4 +88,3 @@ export default function StageTransitionModal({
     </AnimatePresence>
   );
 }
-

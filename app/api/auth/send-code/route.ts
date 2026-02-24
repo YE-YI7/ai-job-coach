@@ -58,8 +58,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 生成6位验证码
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // 开发模式：使用固定验证码，跳过邮件发送
+    const isDevBypass = process.env.DEV_BYPASS_CODE === '1';
+    const code = isDevBypass ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5分钟过期
 
     // 存储验证码
@@ -78,6 +79,15 @@ export async function POST(request: Request) {
         { ok: false, error: '发送失败，请稍后重试' },
         { status: 500 }
       );
+    }
+
+    // 开发模式跳过邮件发送
+    if (isDevBypass) {
+      console.log(`[DEV] 验证码: ${code}，邮箱: ${email}`);
+      return NextResponse.json({
+        ok: true,
+        message: '验证码已发送（开发模式：123456）',
+      });
     }
 
     // 发送邮件

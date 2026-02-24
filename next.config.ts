@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     optimizeCss: false, // 关闭 lightningcss
   },
 
+  // Turbopack 配置（Next.js 16 默认启用）
+  turbopack: {},
+
   // 全局安全头配置：CSP（与 app/layout.tsx 中的 meta tag CSP 保持一致）
   async headers() {
     return [

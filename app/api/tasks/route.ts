@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "缺少 stage 参数" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from("stage_tasks")
       .select("*")
       .eq("user_id", user.id)
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
     if (action === "toggle") {
       const { taskId, isCompleted } = body;
-      const { error } = await supabase
+      const { error } = await getSupabase()
         .from("stage_tasks")
         .update({
           is_completed: isCompleted,
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       if (error) throw error;
 
       // 返回更新后的任务列表
-      const { data: updatedTasks } = await supabase
+      const { data: updatedTasks } = await getSupabase()
         .from("stage_tasks")
         .select("*")
         .eq("user_id", user.id)
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 
       if (action === "generate") {
         // 先删除该阶段旧任务
-        await supabase
+        await getSupabase()
           .from("stage_tasks")
           .delete()
           .eq("user_id", user.id)
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         completed_by: t.is_completed ? (t.completed_by || "ai") : null,
       }));
 
-      const { data: insertedTasks, error } = await supabase
+      const { data: insertedTasks, error } = await getSupabase()
         .from("stage_tasks")
         .insert(tasksToInsert)
         .select();

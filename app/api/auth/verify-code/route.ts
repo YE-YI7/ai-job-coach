@@ -76,13 +76,12 @@ export async function POST(request: Request) {
     let userId: string;
     let isNewUser = false;
 
-    // 按 email 精确查找用户（避免 listUsers 分页问题，只返回前50个用户）
+    // 按 email 精确查找用户
     const { data: usersByEmail } = await supabaseAdmin.auth.admin.listUsers({
-      filter: `email.eq.${email}`,
       page: 1,
-      perPage: 1,
+      perPage: 1000,
     });
-    const existingUser = usersByEmail?.users?.[0];
+    const existingUser = usersByEmail?.users?.find(u => u.email === email);
 
     if (existingUser) {
       userId = existingUser.id;

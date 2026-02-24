@@ -31,7 +31,7 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     const totalInvited = referrals?.length || 0;
-    const totalRewarded = referrals?.filter(r => r.reward_granted)?.length || 0;
+    const totalRewarded = referrals?.filter((r: { reward_granted: boolean }) => r.reward_granted)?.length || 0;
 
     return NextResponse.json({
       ok: true,

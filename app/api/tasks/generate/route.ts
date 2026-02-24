@@ -6,7 +6,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
 import { StageNames, UserStage } from "@/lib/stage";
 
-const supabase = createClient(
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
@@ -19,7 +19,7 @@ type Message = {
 
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUserFromRequest(request);
+    const user = await getCurrentUserFromRequest();
     if (!user) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
@@ -110,7 +110,7 @@ ${messages.slice(-20).map((m: Message) => `${m.role || (m.isUser ? "user" : "ass
     if (parsed.completedTaskIndices && parsed.completedTaskIndices.length > 0 && existingTasks.length > 0) {
       for (const idx of parsed.completedTaskIndices) {
         if (idx >= 0 && idx < existingTasks.length && !existingTasks[idx].is_completed) {
-          await supabase
+          await getSupabase()
             .from("stage_tasks")
             .update({
               is_completed: true,
@@ -127,7 +127,7 @@ ${messages.slice(-20).map((m: Message) => `${m.role || (m.isUser ? "user" : "ass
     // 如果需要生成新任务
     if (parsed.shouldGenerate && parsed.tasks && parsed.tasks.length > 0) {
       // 删除旧的未完成任务（保留已完成的）
-      await supabase
+      await getSupabase()
         .from("stage_tasks")
         .delete()
         .eq("user_id", user.id)
@@ -135,7 +135,7 @@ ${messages.slice(-20).map((m: Message) => `${m.role || (m.isUser ? "user" : "ass
         .eq("is_completed", false);
 
       // 获取已完成的任务
-      const { data: completedTasks } = await supabase
+      const { data: completedTasks } = await getSupabase()
         .from("stage_tasks")
         .select("*")
         .eq("user_id", user.id)
@@ -155,7 +155,7 @@ ${messages.slice(-20).map((m: Message) => `${m.role || (m.isUser ? "user" : "ass
         is_completed: false,
       }));
 
-      const { data: insertedTasks, error } = await supabase
+      const { data: insertedTasks, error } = await getSupabase()
         .from("stage_tasks")
         .insert(tasksToInsert)
         .select();
@@ -172,7 +172,7 @@ ${messages.slice(-20).map((m: Message) => `${m.role || (m.isUser ? "user" : "ass
     }
 
     // 获取最新的任务列表（包含已更新的完成状态）
-    const { data: latestTasks } = await supabase
+    const { data: latestTasks } = await getSupabase()
       .from("stage_tasks")
       .select("*")
       .eq("user_id", user.id)

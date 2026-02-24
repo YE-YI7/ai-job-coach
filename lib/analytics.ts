@@ -167,16 +167,16 @@ export async function getUserStageSummary(
       return { totalRecords: 0, avgScore: 0, maxScore: 0, recentTrend: 'stable' };
     }
 
-    const values = data.map(d => d.metric_value);
+    const values: number[] = data.map((d: { metric_value: number }) => d.metric_value);
     const totalRecords = values.length;
-    const avgScore = Math.round(values.reduce((a, b) => a + b, 0) / totalRecords);
+    const avgScore = Math.round(values.reduce((a: number, b: number) => a + b, 0) / totalRecords);
     const maxScore = Math.max(...values);
 
     // 计算趋势：对比最近 3 次和之前的平均值
     let recentTrend: 'improving' | 'stable' | 'declining' = 'stable';
     if (values.length >= 4) {
-      const recentAvg = values.slice(-3).reduce((a, b) => a + b, 0) / 3;
-      const olderAvg = values.slice(0, -3).reduce((a, b) => a + b, 0) / (values.length - 3);
+      const recentAvg = values.slice(-3).reduce((a: number, b: number) => a + b, 0) / 3;
+      const olderAvg = values.slice(0, -3).reduce((a: number, b: number) => a + b, 0) / (values.length - 3);
       if (recentAvg > olderAvg * 1.05) recentTrend = 'improving';
       else if (recentAvg < olderAvg * 0.95) recentTrend = 'declining';
     }

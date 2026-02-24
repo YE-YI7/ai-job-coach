@@ -38,32 +38,71 @@ export default function LoginPage() {
     setTimeout(() => { if (cardRef.current) cardRef.current.style.transform = 'translateX(0)'; }, 150);
   };
 
-  // 发送验证码
+  // 判断输入是否为邮箱
+  const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+  // 邀请码直接登录
+  const handleInviteCodeLogin = async (inviteCode: string) => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: `${inviteCode}@invite.local`, code: inviteCode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "登录失败");
+      }
+
+      if (data.userId) {
+        localStorage.setItem("sessionId", data.userId);
+      }
+      localStorage.setItem("inviteCode", inviteCode);
+
+      if (data.isNewUser) {
+        router.push("/onboarding");
+      } else {
+        router.push("/chat");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登录失败");
+      shakeCard();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 发送验证码（或邀请码直接登录）
   const handleSendCode = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError("");
 
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      setError("请输入邮箱地址");
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("请输入邮箱或邀请码");
       shakeCard();
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      setError("请输入正确的邮箱地址");
-      shakeCard();
+    // 如果不是邮箱格式，当作邀请码直接登录
+    if (!isEmail(trimmed)) {
+      await handleInviteCodeLogin(trimmed);
       return;
     }
 
+    // 邮箱流程：发送验证码
     setIsLoading(true);
 
     try {
       const response = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail }),
+        body: JSON.stringify({ email: trimmed }),
       });
 
       const data = await response.json();
@@ -414,7 +453,7 @@ export default function LoginPage() {
             </div>
             <h1 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">益职 AI</h1>
             <p className="text-slate-500 text-sm font-medium">
-              {step === 'email' ? '您的私人求职导师正在等候' : '验证码已发送至您的邮箱'}
+              {step === 'email' ? '邮箱登录或使用邀请码' : '验证码已发送至您的邮箱'}
             </p>
           </div>
 
@@ -423,15 +462,21 @@ export default function LoginPage() {
             <form onSubmit={handleSendCode} className="space-y-5 animate-slide-up">
               <div className="group">
                 <div className="input-field rounded-xl flex items-center px-4 py-4">
-                  <svg className="w-4 h-4 text-slate-400 mr-3 shrink-0 group-focus-within:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+                  {isEmail(email) || !email ? (
+                    <svg className="w-4 h-4 text-slate-400 mr-3 shrink-0 group-focus-within:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-slate-400 mr-3 shrink-0 group-focus-within:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  )}
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="bg-transparent border-none outline-none text-slate-800 text-base w-full font-medium placeholder:text-slate-400"
-                    placeholder="请输入您的邮箱地址"
+                    placeholder="邮箱地址或邀请码"
                     autoComplete="email"
                     disabled={isLoading}
                     autoFocus
@@ -454,7 +499,7 @@ export default function LoginPage() {
                   <div className="loading-spinner"></div>
                 ) : (
                   <>
-                    <span className="tracking-wide">获取验证码</span>
+                    <span className="tracking-wide">{isEmail(email.trim()) ? '获取验证码' : '登录'}</span>
                     <svg 
                       className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300"
                       fill="none" stroke="currentColor" viewBox="0 0 24 24"

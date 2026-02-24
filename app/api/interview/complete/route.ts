@@ -21,7 +21,7 @@
 
 // 强制使用 Node.js runtime（禁止 Edge Runtime）
 export const runtime = "nodejs";
-export const preferredRegion = "auto";
+export const preferredRegion = "iad1";
 
 import { getDbClient } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";

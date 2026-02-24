@@ -83,15 +83,20 @@ export default function LoginPage() {
     }
   };
 
-  // 验证码输入处理
+  // 验证码输入处理（同时支持粘贴邀请码）
   const handleCodeInput = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return;
-
     const newCode = [...code];
 
-    // 处理粘贴整段验证码
+    // 处理粘贴：如果粘贴的内容包含字母，视为邀请码直接提交
     if (value.length > 1) {
-      const digits = value.replace(/\D/g, '').slice(0, 6).split('');
+      const trimmed = value.trim();
+      if (/[A-Za-z]/.test(trimmed)) {
+        // 包含字母 → 邀请码，直接提交
+        setTimeout(() => handleVerifyCode(trimmed), 100);
+        return;
+      }
+      // 纯数字粘贴，填入6格
+      const digits = trimmed.replace(/\D/g, '').slice(0, 6).split('');
       digits.forEach((d, i) => {
         if (i < 6) newCode[i] = d;
       });
@@ -104,6 +109,9 @@ export default function LoginPage() {
       }
       return;
     }
+
+    // 单字符输入，只允许数字
+    if (!/^\d*$/.test(value)) return;
 
     newCode[index] = value;
     setCode(newCode);
@@ -126,13 +134,13 @@ export default function LoginPage() {
     }
   };
 
-  // 验证验证码
+  // 验证验证码或邀请码
   const handleVerifyCode = async (fullCode?: string) => {
     setError("");
     const codeStr = fullCode || code.join('');
 
-    if (codeStr.length !== 6) {
-      setError("请输入完整的6位验证码");
+    if (codeStr.length < 6) {
+      setError("请输入完整的验证码");
       shakeCard();
       return;
     }

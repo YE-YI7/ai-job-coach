@@ -1,0 +1,932 @@
+/* 所有 @import 必须在最前面 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+/* TODO: 替换为本地 FontAwesome（安装后取消注释）
+ * npm install @fortawesome/fontawesome-free
+ * @import '@fortawesome/fontawesome-free/css/all.min.css';
+ */
+@import "tailwindcss";
+
+:root {
+  /* ========== 设计系统 - 色彩变量 ========== */
+  
+  /* 主色调 - 蓝色系 (专业、信任) */
+  --primary-50: #EFF6FF;
+  --primary-100: #DBEAFE;
+  --primary-200: #BFDBFE;
+  --primary-300: #93C5FD;
+  --primary-400: #60A5FA;
+  --primary-500: #3B82F6;   /* 主蓝色 */
+  --primary-600: #2563EB;
+  --primary-700: #1D4ED8;
+  --primary-800: #1E40AF;
+  --primary-900: #1E3A8A;
+  
+  /* 辅助色 - 橙色系 (活力、温暖) */
+  --secondary-50: #FFF7ED;
+  --secondary-100: #FFEDD5;
+  --secondary-200: #FED7AA;
+  --secondary-300: #FDBA74;
+  --secondary-400: #FB923C;
+  --secondary-500: #F97316;  /* 主橙色 */
+  --secondary-600: #EA580C;
+  --secondary-700: #C2410C;
+  --secondary-800: #9A3412;
+  --secondary-900: #7C2D12;
+  
+  /* 成功色 - 绿色系 */
+  --success-50: #F0FDF4;
+  --success-100: #DCFCE7;
+  --success-500: #22C55E;
+  --success-600: #16A34A;
+  --success-700: #15803D;
+  
+  /* 警告色 - 黄色系 */
+  --warning-50: #FFFBEB;
+  --warning-100: #FEF3C7;
+  --warning-500: #F59E0B;
+  --warning-600: #D97706;
+  --warning-700: #B45309;
+  
+  /* 错误色 - 红色系 */
+  --error-50: #FEF2F2;
+  --error-100: #FEE2E2;
+  --error-500: #EF4444;
+  --error-600: #DC2626;
+  --error-700: #B91C1C;
+  
+  /* 中性色系统 */
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-400: #9CA3AF;
+  --gray-500: #6B7280;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+  
+  /* ========== 语义化颜色 ========== */
+  --background: #F9FAFB;
+  --foreground: #111827;
+  --card-bg: #FFFFFF;
+  --border: #E5E7EB;
+  --border-light: #F3F4F6;
+  
+  /* ========== 间距系统 (4px 网格) ========== */
+  --spacing-0: 0px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+  
+  /* ========== 圆角系统 ========== */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+  
+  /* ========== 阴影系统 ========== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  
+  /* ========== 动画系统 ========== */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* ========== 旧变量兼容 ========== */
+  --primary-orange: #F97316;
+  --primary-orange-light: #FB923C;
+  --primary-orange-dark: #EA580C;
+  --primary-blue: #3B82F6;
+  --primary-blue-light: #60A5FA;
+  --primary-blue-dark: #2563EB;
+  --accent: #3B82F6;
+  --accent-600: #2563EB;
+  --accent-50: #EFF6FF;
+  --blue-500: #3B82F6;
+  --blue-600: #2563EB;
+  --red-300: #FCA5A5;
+  --neutral-50: #F9FAFB;
+  --neutral-100: #F3F4F6;
+  --neutral-200: #E5E7EB;
+  --neutral-300: #D1D5DB;
+  --neutral-500: #6B7280;
+  --neutral-700: #374151;
+  --neutral-900: #111827;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* 使用系统字体替代 Google Fonts，避免构建时的网络请求 */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  --font-arimo: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b1220;
+    --foreground: #e5e7eb;
+  }
+}
+
+/* ========== 动画定义 ========== */
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(-8px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0; 
+    transform: translateX(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes slideLeft {
+  from { 
+    opacity: 0; 
+    transform: translateX(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes slideRight {
+  from { 
+    opacity: 0; 
+    transform: translateX(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0); 
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* ========== 动画类 ========== */
+
+.animate-fade-in { 
+  animation: fadeIn var(--duration-normal) var(--ease-out) both; 
+}
+
+.animate-bounce { 
+  animation: bounce 1s infinite; 
+}
+
+.animate-slide-in { 
+  animation: slideIn var(--duration-slow) var(--ease-out) both; 
+}
+
+.animate-scale-in { 
+  animation: scaleIn var(--duration-normal) var(--ease-out) both; 
+}
+
+.animate-pulse { 
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
+}
+
+.animate-blink { 
+  animation: blink 1s step-end infinite; 
+}
+
+.animate-slide-left { 
+  animation: slideLeft var(--duration-slow) var(--ease-out) both; 
+}
+
+.animate-slide-right { 
+  animation: slideRight var(--duration-slow) var(--ease-out) both; 
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    var(--gray-100) 0%,
+    var(--gray-200) 20%,
+    var(--gray-100) 40%,
+    var(--gray-100) 100%
+  );
+  background-size: 1000px 100%;
+}
+
+/* ========== 实用类 ========== */
+
+/* 玻璃拟态效果 - 已弃用，使用简洁设计 */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 悬停提升效果 */
+.hover-lift {
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 卡片样式 */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-6);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--gray-300);
+}
+
+/* 按钮基础样式 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-6);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: all var(--duration-fast) var(--ease-out);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 主要按钮 */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* 次要按钮 */
+.btn-secondary {
+  background: var(--card-bg);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--gray-50);
+  border-color: var(--gray-400);
+}
+
+/* 文字按钮 */
+.btn-text {
+  background: transparent;
+  color: var(--primary-600);
+  padding: var(--spacing-2) var(--spacing-4);
+}
+
+.btn-text:hover:not(:disabled) {
+  background: var(--primary-50);
+  color: var(--primary-700);
+}
+
+/* 输入框样式 */
+.input {
+  width: 100%;
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--gray-900);
+  background: var(--card-bg);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--primary-50);
+}
+
+.input::placeholder {
+  color: var(--gray-400);
+}
+
+.input:disabled {
+  background: var(--gray-50);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+
+/* 徽章样式 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.badge-primary {
+  background: var(--primary-100);
+  color: var(--primary-700);
+}
+
+.badge-success {
+  background: var(--success-100);
+  color: var(--success-700);
+}
+
+.badge-warning {
+  background: var(--warning-100);
+  color: var(--warning-700);
+}
+
+.badge-error {
+  background: var(--error-100);
+  color: var(--error-700);
+}
+
+/* 分隔线 */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--spacing-6) 0;
+}
+
+/* 骨架屏 */
+.skeleton {
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    var(--gray-100) 0%,
+    var(--gray-200) 20%,
+    var(--gray-100) 40%,
+    var(--gray-100) 100%
+  );
+  background-size: 1000px 100%;
+}
+
+body {
+  font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--background);
+  color: var(--gray-700);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== 面试卡片样式 ========== */
+
+.interview-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-6);
+  margin-bottom: var(--spacing-4);
+  transition: all var(--duration-normal) var(--ease-out);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.interview-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-200);
+  transform: translateY(-2px);
+}
+
+.interview-card h2 {
+  margin-bottom: var(--spacing-4);
+  color: var(--gray-900);
+  font-weight: 600;
+}
+
+.interview-card h3 {
+  margin-top: var(--spacing-4);
+  margin-bottom: var(--spacing-2);
+  color: var(--gray-800);
+  font-weight: 500;
+}
+
+.interview-card ul {
+  list-style-type: disc;
+  padding-left: var(--spacing-6);
+  color: var(--gray-700);
+}
+
+.interview-card .tips {
+  margin-top: var(--spacing-4);
+  padding: var(--spacing-3);
+  background: var(--primary-50);
+  border-left: 3px solid var(--primary-500);
+  border-radius: var(--radius-md);
+}
+
+/* Loading 卡片样式 */
+.interview-loading-card {
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-3) var(--spacing-4);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 隐藏滚动条 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ========== 聊天气泡样式 ========== */
+
+/* AI 消息气泡 */
+.chat-bubble-ai {
+  background: var(--card-bg);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-4) var(--spacing-5);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.chat-bubble-ai:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--gray-300);
+}
+
+/* 用户消息气泡 */
+.chat-bubble-user {
+  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-sm);
+  padding: var(--spacing-4) var(--spacing-5);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.chat-bubble-user:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* 输入框 Glow 特效 */
+.group:hover .glow-wrapper {
+    opacity: 0.3;
+}
+
+#chat-input:focus {
+    background: #f8fafc;
+}
+
+#chat-messages > div {
+    animation: fadeIn 0.25s ease-out;
+}
+
+/* ===== 白板固定后的布局修复 ===== */
+
+/* 3) 聊天气泡维持原布局（AI 左，用户右） */
+.chat-bubble-ai,
+.chat-bubble-user {
+    max-width: 80% !important;
+}
+
+/* 4) 修复聊天内容只显示在 25% 区域的问题 */
+#chat-messages {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+}
+
+#chat-messages > div {
+    max-width: 100% !important;
+}
+
+/* 5) 聊天输入框位置保持固定底部（不随白板溢出） */
+#chat-view > .absolute.bottom-6,
+#chat-view .absolute.bottom-6,
+div[class*="fixed"][class*="bottom"][class*="z-20"] {
+    width: calc(100vw - 30vw) !important;
+    max-width: calc(100vw - 30vw) !important;
+    left: 0 !important;
+    right: 30vw !important;
+}
+
+/* ===== V1-1: 固定白板（不随聊天增长） ===== */
+
+/* 1) 确保整个主布局是左右两列：左侧主内容 scroll，自身高度限制；右侧白板固定显示 */
+/* 主容器不影响白板的固定定位 - 确保没有 transform/perspective/filter 等会创建包含块的属性 */
+#main-content {
+  display: flex;               /* ensure two-column layout remains */
+  flex-direction: column;      /* keep internal layout */
+  min-height: 100vh;
+  overflow: visible;           /* allow child scrolls */
+  /* 不设置 transform/perspective/filter，避免创建包含块影响 fixed 定位 */
+  position: relative;          /* 为子元素提供定位上下文，但不影响 fixed 元素 */
+}
+
+/* 保证左侧主区为弹性区域并且独立滚动 */
+/* 内容区域不影响白板的固定定位 - 确保没有会创建包含块的属性 */
+#content-area {
+  flex: 1 1 auto;
+  min-height: 0;              /* critical to let child overflow-y work inside flex */
+  overflow: hidden;            /* prevent outer scroll, let children scroll */
+  -webkit-overflow-scrolling: touch;
+  /* 不设置 transform/perspective/filter，避免创建包含块影响 fixed 定位 */
+  position: relative;         /* 为子元素提供定位上下文，但不影响 fixed 元素 */
+}
+
+/* 确保左侧聊天区域可以独立滚动，并为右侧固定白板留出空间 */
+/* 聊天区域不受白板固定影响，可以正常滚动 */
+#content-area > div:first-child {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-right: 30vw !important; /* 为右侧固定白板（30vw）留出空间，避免内容被遮挡 */
+  /* 确保聊天区域可以独立滚动，不影响白板位置 */
+  position: relative !important;
+}
+
+/* 聊天区域占剩余的 70% 宽度 */
+#chat-view,
+#content-area,
+#roadmap-view {
+  width: calc(100vw - 30vw) !important;
+  max-width: calc(100vw - 30vw) !important;
+}
+
+#chat-view {
+  margin-right: 30vw !important; /* 为 fixed 白板预留空间 */
+  overflow-x: hidden !important;
+  height: 100%;
+  min-height: 0;
+}
+
+/* 2) 白板固定：右侧固定面板，永远固定在屏幕右侧，使用 position: fixed */
+/* 白板宽度为页面30%，高度为视口高度（满屏） */
+#whiteboard-panel {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;          /* 确保从顶部到底部 */
+  height: 100vh !important;       /* 固定为视口高度（满屏） */
+  min-height: 100vh !important;  /* 最小高度也是视口高度 */
+  max-height: 100vh !important;  /* 最大高度也是视口高度 */
+  width: 30vw !important;         /* 页面宽度的30% */
+  overflow-y: auto !important;   /* 内部滚动 */
+  overflow-x: hidden !important; /* 防止横向滚动 */
+  background: inherit !important;
+  z-index: 50 !important;       /* 永远在 chat 上层 */
+  pointer-events: auto !important;
+  -webkit-overflow-scrolling: touch;
+  /* 确保白板不受任何父容器影响，直接相对于视口定位 */
+  isolation: isolate !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.whiteboard-panel {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;          /* 确保从顶部到底部 */
+  height: 100vh !important;      /* 固定为视口高度（满屏） */
+  min-height: 100vh !important;  /* 最小高度也是视口高度 */
+  max-height: 100vh !important;  /* 最大高度也是视口高度 */
+  width: 30vw !important;        /* 页面宽度的30% */
+  overflow-y: auto !important;
+  overflow-x: hidden !important; /* 防止横向滚动 */
+  z-index: 50 !important;
+  -webkit-overflow-scrolling: touch;
+  /* 确保白板不受任何父容器影响，直接相对于视口定位 */
+  isolation: isolate !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 3) 白板内容容器：确保占满整个白板高度 */
+#whiteboard-panel > div,
+.whiteboard-panel > div {
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex;
+  flex-direction: column;
+}
+
+#whiteboard-panel .content-container,
+.whiteboard-panel .content-container {
+  height: auto !important;
+  overflow-y: visible !important;
+}
+
+/* Whiteboard 组件最外层容器占满高度 */
+#whiteboard-panel [class*="h-full"]:first-child,
+.whiteboard-panel [class*="h-full"]:first-child {
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+/* 白板内部内容区域：内容多时由父容器滚动 */
+#whiteboard-panel [class*="overflow-y-auto"],
+.whiteboard-panel [class*="overflow-y-auto"] {
+  overflow-y: auto !important; /* 内容超出时滚动 */
+  flex: 1 1 auto !important;    /* 占据剩余空间 */
+  min-height: 0 !important;     /* 允许flex子元素收缩 */
+}
+
+/* 5) 防止聊天的一些绝对/固定元素影响布局（保持输入层在最上层可见） */
+/* 输入框已经在 ChatFlow 中设置为 fixed，确保 z-index 低于白板 */
+#chat-view ~ div[class*="fixed"][class*="bottom"],
+div[class*="fixed"][class*="bottom"][class*="z-20"] {
+  z-index: 24 !important; /* lower than whiteboard (50) so whiteboard is never covered */
+  width: calc(100vw - 30vw) !important;
+  max-width: calc(100vw - 30vw) !important;
+  left: 0 !important;
+  right: 30vw !important;
+}
+
+/* 6) 在小屏幕下，白板仍为固定，但宽度调整 */
+@media (max-width: 1024px) {
+  #whiteboard-panel,
+  .whiteboard-panel {
+    width: 30vw !important; /* 保持30%宽度 */
+    height: 100vh !important; /* 保持固定高度 */
+  }
+  
+  /* 小屏幕下聊天区域的右侧边距也要相应调整 */
+  #content-area > div:first-child {
+    margin-right: 30vw !important;
+  }
+  
+  /* 小屏幕下聊天区域宽度调整 */
+  #chat-view,
+  #content-area,
+  #roadmap-view {
+    width: calc(100vw - 30vw) !important;
+    max-width: calc(100vw - 30vw) !important;
+  }
+  
+  /* 小屏幕下输入框宽度调整 */
+  #chat-view > .absolute.bottom-6,
+  #chat-view .absolute.bottom-6,
+  div[class*="fixed"][class*="bottom"][class*="z-20"] {
+    width: calc(100vw - 30vw) !important;
+    max-width: calc(100vw - 30vw) !important;
+    right: 30vw !important;
+  }
+}
+
+/* 当白板收缩状态（collapsed）时：宽度变更继续通过现有 JS 控制 */
+/* CSS 只覆盖 position/height，不覆盖宽度动画，保持 JS 控制的宽度 */
+#whiteboard-panel.collapsed,
+.whiteboard-panel.collapsed,
+#whiteboard-panel[class*="w-0"],
+#whiteboard-panel[class*="hidden"]:not([class*="md:block"]),
+.whiteboard-panel[class*="w-0"],
+.whiteboard-panel[class*="hidden"]:not([class*="md:block"]) {
+  /* 保持 fixed 定位，但允许 JS 控制宽度和显示/隐藏 */
+  position: fixed !important;
+  width: 0 !important; /* collapsed 时宽度为0 */
+  overflow: hidden !important;
+  /* 不覆盖其他属性，让 JS 控制动画 */
+}
+
+/* 7) 修复常见 flex overflow 问题：确保父元素 min-height:0 */
+html, body, #__next, #main-content, #content-area {
+  min-height: 0;
+}
+
+/* ===== /interview/start 页面两栏布局样式 ===== */
+/* FIX: interview/start 页面两栏布局 - 左侧消息流 + 底部输入，右侧固定白板 */
+
+/* 左侧主内容区 */
+.interview-start-page .left-panel {
+  min-width: 0; /* 防止 flex 子元素溢出 */
+  display: flex;
+  flex-direction: column;
+  position: relative; /* 为绝对定位的输入区提供定位上下文 */
+  height: 100%;
+  min-height: calc(100vh - 64px); /* 确保输入框能固定在页面底部（64px 是顶部导航栏高度） */
+}
+
+/* 消息/卡片流区域（可滚动） */
+.interview-start-page .messages-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0; /* 允许 flex 子元素正确收缩 */
+  -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+  padding-bottom: 10rem; /* 确保最后一条消息不被输入栏遮挡 */
+}
+
+/* 左栏底部输入区：固定在左栏底部 */
+.interview-start-page .left-input-area {
+  position: absolute; /* 使用 absolute 而不是 sticky，确保固定在左栏底部 */
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30; /* 确保输入区在白板之上（只在左栏范围内有效） */
+  background: linear-gradient(to top, rgba(250, 250, 249, 0.98) 0%, rgba(250, 250, 249, 0.95) 80%, transparent 100%);
+  backdrop-filter: blur(8px);
+  pointer-events: none; /* 允许点击穿透到背景，但子元素可以接收事件 */
+}
+
+.interview-start-page .left-input-area > div {
+  pointer-events: auto; /* 恢复子元素的点击事件 */
+}
+
+/* InputBar 组件在 interview/start 页面中去掉重复的 border */
+.interview-start-page .left-input-area .border-t {
+  border-top: none !important; /* 移除 InputBar 自带的 border-top */
+}
+
+/* 右侧白板：sticky 定位，始终可见，独立滚动 */
+.interview-start-page .right-whiteboard {
+  position: relative;
+  flex-shrink: 0;
+  background: white;
+}
+
+.interview-start-page .right-whiteboard > div {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  z-index: 20; /* 低于输入区的 z-index: 30，但高于消息流 */
+  background: white;
+}
+
+/* 面试卡片通用样式 */
+.interview-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s ease;
+}
+
+.interview-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading 卡片样式 */
+.interview-loading-card {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 响应式：小屏幕隐藏白板 */
+@media (max-width: 880px) {
+  .interview-start-page .right-whiteboard {
+    display: none !important;
+  }
+  
+  .interview-start-page .left-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  .interview-start-page .messages-area {
+    padding-bottom: 8rem; /* 小屏幕时减少 padding */
+  }
+}

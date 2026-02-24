@@ -1,0 +1,166 @@
+/**
+ * Technical/Engineering Resume Template
+ * Dense, information-rich layout emphasizing technical skills
+ */
+
+import { ResumeData } from '../pdf-generator';
+import { ResumeTemplate, RenderOptions } from './types';
+
+export const technicalTemplate: ResumeTemplate = {
+  id: 'technical',
+  name: '技术模板',
+  category: 'technical',
+  description: '适合技术岗位，信息密集，突出技能和项目',
+  
+  layout: {
+    pageWidth: 794,
+    pageHeight: 1123,
+    margins: { top: 30, right: 30, bottom: 30, left: 30 },
+    photoArea: { width: 100, height: 130 },
+  },
+  
+  typography: {
+    headingFont: "'Microsoft YaHei', sans-serif",
+    bodyFont: "'Microsoft YaHei', sans-serif",
+    headingSize: 16,
+    subheadingSize: 13,
+    bodySize: 11,
+    lineHeight: 1.4,
+  },
+  
+  styling: {
+    primaryColor: '#000000',
+    secondaryColor: '#333333',
+    accentColor: '#0066cc',
+    sectionSpacing: 12,
+    bulletStyle: 'disc',
+  },
+  
+  render(data: ResumeData, options: RenderOptions): HTMLElement {
+    const container = document.createElement('div');
+    const { layout, typography, styling } = this;
+    
+    const contentWidth = options.includePhoto 
+      ? layout.pageWidth - layout.margins.left - layout.margins.right - (layout.photoArea?.width || 0) - 15
+      : layout.pageWidth - layout.margins.left - layout.margins.right;
+    
+    container.style.cssText = `
+      width: ${layout.pageWidth}px;
+      min-height: ${layout.pageHeight}px;
+      padding: ${layout.margins.top}px ${layout.margins.right}px ${layout.margins.bottom}px ${layout.margins.left}px;
+      background: white;
+      font-family: ${typography.bodyFont};
+      font-size: ${typography.bodySize}px;
+      line-height: ${typography.lineHeight};
+      color: ${styling.secondaryColor};
+      box-sizing: border-box;
+    `;
+    
+    // Header with name and contact
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: ${styling.sectionSpacing}px;
+      border-bottom: 2px solid ${styling.accentColor};
+      padding-bottom: 8px;
+    `;
+    
+    const headerContent = document.createElement('div');
+    headerContent.style.cssText = `width: ${contentWidth}px;`;
+    
+    // Name
+    const name = document.createElement('h1');
+    name.style.cssText = `
+      font-size: ${typography.headingSize + 4}px;
+      font-weight: bold;
+      color: ${styling.primaryColor};
+      margin: 0 0 4px 0;
+    `;
+    // Extract name from first line of personal info
+    const firstLine = data.personalInfo ? data.personalInfo.split('\n')[0] : '姓名';
+    name.textContent = firstLine || '姓名';
+    headerContent.appendChild(name);
+    
+    // Contact info from personal info (remaining lines)
+    if (data.personalInfo) {
+      const lines = data.personalInfo.split('\n');
+      if (lines.length > 1) {
+        const contact = document.createElement('div');
+        contact.style.cssText = `
+          font-size: ${typography.bodySize}px;
+          color: ${styling.secondaryColor};
+          line-height: 1.3;
+        `;
+        contact.textContent = lines.slice(1, 3).join(' | ');
+        headerContent.appendChild(contact);
+      }
+    }
+    
+    header.appendChild(headerContent);
+    
+    // Photo placeholder
+    if (options.includePhoto && layout.photoArea) {
+      const photoPlaceholder = document.createElement('div');
+      photoPlaceholder.style.cssText = `
+        width: ${layout.photoArea.width}px;
+        height: ${layout.photoArea.height}px;
+        border: 2px dashed #ccc;
+        background: #f5f5f5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        font-size: 11px;
+        flex-shrink: 0;
+      `;
+      photoPlaceholder.textContent = '照片';
+      header.appendChild(photoPlaceholder);
+    }
+    
+    container.appendChild(header);
+    
+    // Helper function to add section
+    const addSection = (title: string, content: string) => {
+      if (!content || content.trim() === '') return;
+      
+      const section = document.createElement('div');
+      section.style.cssText = `margin-bottom: ${styling.sectionSpacing}px;`;
+      
+      const sectionTitle = document.createElement('h2');
+      sectionTitle.style.cssText = `
+        font-size: ${typography.subheadingSize}px;
+        font-weight: bold;
+        color: ${styling.primaryColor};
+        margin: 0 0 6px 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      `;
+      sectionTitle.textContent = title;
+      section.appendChild(sectionTitle);
+      
+      const sectionContent = document.createElement('div');
+      sectionContent.style.cssText = `
+        font-size: ${typography.bodySize}px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      `;
+      sectionContent.textContent = content;
+      section.appendChild(sectionContent);
+      
+      container.appendChild(section);
+    };
+    
+    // Add sections in the same order as web preview
+    addSection('个人信息', data.personalInfo);
+    addSection('教育背景', data.education);
+    addSection('在校经历', data.campusExperience);
+    addSection('项目经历', data.projects);
+    addSection('工作经历', data.workExperience);
+    if (data.selfEvaluation) {
+      addSection('个人评价', data.selfEvaluation);
+    }
+    
+    return container;
+  },
+};

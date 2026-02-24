@@ -1,0 +1,17 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 头部 -->
+  <circle cx="50" cy="35" r="20" fill="#f97316" stroke="#ea580c" stroke-width="2"/>
+  <!-- 眼镜 -->
+  <circle cx="43" cy="33" r="5" fill="white" stroke="#1e293b" stroke-width="2"/>
+  <circle cx="57" cy="33" r="5" fill="white" stroke="#1e293b" stroke-width="2"/>
+  <line x1="48" y1="33" x2="52" y2="33" stroke="#1e293b" stroke-width="2"/>
+  <!-- 微笑 -->
+  <path d="M 42 40 Q 50 45 58 40" stroke="#1e293b" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- 身体 -->
+  <rect x="40" y="55" width="20" height="25" rx="3" fill="#f97316" stroke="#ea580c" stroke-width="2"/>
+  <!-- 领带 -->
+  <path d="M 50 55 L 47 65 L 50 75 L 53 65 Z" fill="#1e293b"/>
+  <!-- 笔记本电脑 -->
+  <rect x="35" y="70" width="30" height="20" rx="2" fill="#64748b" stroke="#1e293b" stroke-width="2"/>
+  <rect x="37" y="72" width="26" height="14" fill="#94a3b8"/>
+</svg>

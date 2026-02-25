@@ -27,13 +27,12 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const lastMessageCountRef = useRef(0);
+  const prevMessageCountRef = useRef(0);
   const tasksRef = useRef<StageTask[]>([]);
-  const isGeneratingRef = useRef(false);
+  const reloadTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 同步 ref
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  useEffect(() => { isGeneratingRef.current = isGenerating; }, [isGenerating]);
 
   // 跳过简历和面试阶段
   const skipStages: UserStage[] = ["resume_optimization", "interview"];
@@ -46,7 +45,15 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
       const res = await fetch(`/api/tasks?stage=${stage}`);
       if (res.ok) {
         const data = await res.json();
-        setTasks(data.tasks || []);
+        const newTasks = data.tasks || [];
+        const prevCompleted = tasksRef.current.filter(t => t.is_completed).length;
+        setTasks(newTasks);
+        
+        // 检查是否有新完成的任务
+        const newCompleted = newTasks.filter((t: StageTask) => t.is_completed).length;
+        if (newCompleted > prevCompleted && newTasks.length > 0) {
+          checkMilestone(newTasks);
+        }
       } else if (res.status === 401) {
         console.warn("[TaskCard] 未登录，跳过任务加载");
       }
@@ -55,71 +62,45 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
     }
   }, [stage, shouldSkip]);
 
-  // 初始加载 + 重置 ref
+  // 初始加载
   useEffect(() => {
-    lastMessageCountRef.current = 0;
+    prevMessageCountRef.current = messages.length;
     loadTasks();
   }, [loadTasks]);
 
-  // 当消息变化时，触发 AI 分析
-  // 首次触发：任务为空且有 2+ 条消息（1轮对话）即尝试生成
-  // 后续触发：每 3 条新消息分析一次
+  // 当有新的 AI 消息时，延迟刷新任务列表
+  // 后端在每次 AI 回复后异步更新待办，这里延迟 3 秒后轮询获取结果
   useEffect(() => {
     if (shouldSkip) return;
     if (messages.length <= 0) return;
-
-    const newMsgCount = messages.length;
-    const lastCount = lastMessageCountRef.current;
-    const hasTasks = tasksRef.current.length > 0;
     
-    if (
-      (!hasTasks && newMsgCount >= 2 && lastCount < newMsgCount) ||
-      (newMsgCount - lastCount >= 3)
-    ) {
-      lastMessageCountRef.current = newMsgCount;
-      triggerAnalysis();
+    const newCount = messages.length;
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = newCount;
+    
+    // 只在有新 AI 消息时触发（非用户消息）
+    if (newCount > prevCount) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && !lastMsg.isUser) {
+        // 显示"分析中"
+        setIsGenerating(true);
+        
+        // 清除之前的定时器
+        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+        
+        // 延迟 3 秒后刷新（给后端异步处理时间）
+        reloadTimerRef.current = setTimeout(async () => {
+          await loadTasks();
+          setIsGenerating(false);
+        }, 3000);
+      }
     }
+    
+    return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, shouldSkip]);
-
-  // 触发 AI 分析
-  const triggerAnalysis = async () => {
-    if (isGeneratingRef.current || shouldSkip) return;
-    setIsGenerating(true);
-    try {
-      const currentTasks = tasksRef.current;
-      const res = await fetch("/api/tasks/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          stage,
-          messages: messages.map(m => ({
-            role: m.isUser ? "user" : "assistant",
-            content: m.content,
-          })),
-          existingTasks: currentTasks,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tasks && data.tasks.length > 0) {
-          const prevCompleted = currentTasks.filter(t => t.is_completed).length;
-          setTasks(data.tasks);
-
-          const newCompleted = data.tasks.filter((t: StageTask) => t.is_completed).length;
-          if (newCompleted > prevCompleted) {
-            checkMilestone(data.tasks);
-          }
-        }
-      } else if (res.status === 401) {
-        console.warn("[TaskCard] 未登录，跳过任务生成");
-      }
-    } catch (e) {
-      console.error("任务分析失败:", e);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   // 手动切换任务完成状态
   const toggleTask = async (taskId: string, currentCompleted: boolean) => {

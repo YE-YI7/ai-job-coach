@@ -61,14 +61,21 @@ export default function TaskCard({ stage, messages, onMilestone }: TaskCardProps
     loadTasks();
   }, [loadTasks]);
 
-  // 当消息变化时，触发 AI 分析（每 3 条新消息分析一次）
+  // 当消息变化时，触发 AI 分析
+  // 首次触发：任务为空且有 2+ 条消息（1轮对话）即尝试生成
+  // 后续触发：每 3 条新消息分析一次
   useEffect(() => {
     if (shouldSkip) return;
     if (messages.length <= 0) return;
 
     const newMsgCount = messages.length;
     const lastCount = lastMessageCountRef.current;
-    if (newMsgCount - lastCount >= 3 || (tasksRef.current.length === 0 && newMsgCount >= 4 && lastCount < newMsgCount)) {
+    const hasTasks = tasksRef.current.length > 0;
+    
+    if (
+      (!hasTasks && newMsgCount >= 2 && lastCount < newMsgCount) ||
+      (newMsgCount - lastCount >= 3)
+    ) {
       lastMessageCountRef.current = newMsgCount;
       triggerAnalysis();
     }

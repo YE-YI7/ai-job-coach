@@ -78,9 +78,14 @@ export default function ResumeEditorPage() {
     height: number;
   } | null>(null);
 
+  // 加载状态
+  const [isLoadingResume, setIsLoadingResume] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("正在加载简历数据...");
+
   // 从 localStorage 或 API 加载简历数据
   useEffect(() => {
     const loadResumeData = async () => {
+      setIsLoadingResume(true);
       try {
         // 1. 先尝试从保存的编辑器数据加载
         const savedEditorData = localStorage.getItem("ajc_resumeEditor");
@@ -96,6 +101,7 @@ export default function ResumeEditorPage() {
             setAvatarData(editorData.avatarData);
           }
           console.log("从localStorage恢复简历数据");
+          setIsLoadingResume(false);
           return; // 如果有保存的数据，直接使用
         }
 
@@ -145,6 +151,7 @@ export default function ResumeEditorPage() {
             console.log("收集到的对话消息数量:", allMessages.length);
             
             if (allMessages.length > 0) {
+              setLoadingMessage("正在通过 AI 解析对话中的简历信息，请稍候...");
               // 调用 API 解析简历信息
               const messages = allMessages.map((msg: any) => ({
                 role: msg.isUser ? "user" : "assistant",
@@ -208,6 +215,8 @@ export default function ResumeEditorPage() {
         }
       } catch (error) {
         console.error("加载简历数据失败:", error);
+      } finally {
+        setIsLoadingResume(false);
       }
     };
 
@@ -717,6 +726,18 @@ ${preview.selfEvaluation}
       })
     );
   };
+
+  if (isLoadingResume) {
+    return (
+      <div className="h-screen w-full bg-neutral-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin mx-auto mb-4" />
+          <div className="text-gray-600 font-medium mb-1">{loadingMessage}</div>
+          <div className="text-sm text-gray-400">首次加载可能需要几秒钟</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <React.Fragment>

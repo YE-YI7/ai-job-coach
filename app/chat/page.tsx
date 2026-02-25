@@ -23,7 +23,21 @@ export default function ChatPage() {
   useEffect(() => {
     console.log("[DEBUG] isLoading changed:", isLoading);
   }, [isLoading]);
-  const [whiteboardData, setWhiteboardData] = useState<WhiteboardData>({});
+  const [whiteboardData, setWhiteboardData] = useState<WhiteboardData>(() => {
+    // 从 localStorage 立即恢复白板数据，避免页面切换导致丢失
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem("ajc_whiteboardData");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Object.keys(parsed).length > 0) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return {};
+  });
   const [showTransitionModal, setShowTransitionModal] = useState(false);
   const [pendingNextStage, setPendingNextStage] = useState<string | null>(null);
   const analyzeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,9 +142,31 @@ export default function ChatPage() {
             setMessages(formattedMessages);
           }
 
-          // 恢复白板数据
+          // 恢复白板数据（合并 API 数据到已有数据，而不是替换）
           if (data.whiteboard && Object.keys(data.whiteboard).length > 0) {
-            setWhiteboardData(data.whiteboard);
+            setWhiteboardData(prev => {
+              const merged = { ...prev };
+              // 合并标量字段
+              if (data.whiteboard.intentRole) merged.intentRole = data.whiteboard.intentRole;
+              if (data.whiteboard.keySkills?.length) {
+                const existing = new Set(prev.keySkills || []);
+                merged.keySkills = [...(prev.keySkills || []), ...data.whiteboard.keySkills.filter((s: string) => !existing.has(s))];
+              }
+              if (data.whiteboard.salaryStrategy) merged.salaryStrategy = data.whiteboard.salaryStrategy;
+              // 合并数组字段（按 id 去重）
+              const mergeArray = (prevArr: any[] | undefined, newArr: any[] | undefined) => {
+                if (!newArr?.length) return prevArr;
+                if (!prevArr?.length) return newArr;
+                const existingIds = new Set(prevArr.map((item: any) => item.id));
+                return [...prevArr, ...newArr.filter((item: any) => !existingIds.has(item.id))];
+              };
+              merged.starProjects = mergeArray(prev.starProjects, data.whiteboard.starProjects);
+              merged.resumeInsights = mergeArray(prev.resumeInsights, data.whiteboard.resumeInsights);
+              merged.interviewReports = mergeArray(prev.interviewReports, data.whiteboard.interviewReports);
+              if (data.whiteboard.targetCompanies?.length) merged.targetCompanies = data.whiteboard.targetCompanies;
+              if (data.whiteboard.offers?.length) merged.offers = data.whiteboard.offers;
+              return merged;
+            });
           }
 
           // 恢复当前阶段

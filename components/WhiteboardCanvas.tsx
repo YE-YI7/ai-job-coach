@@ -174,32 +174,48 @@ export default function WhiteboardCanvas({
   }, []); // 移除 currentStage 依赖
 
   // 初始化位置（在 customNotes 加载后，全局共享）
+  // 优化：只为新增的便利贴生成位置，已有位置保持不变
   useEffect(() => {
     try {
-      // 检查 localStorage 是否可用
       if (typeof window === 'undefined' || !window.localStorage) {
-        console.warn("localStorage is not available for positions");
         setNotePositions(generateAutoLayout());
         return;
       }
 
       // 尝试从 localStorage 加载保存的位置
       const savedPositions = localStorage.getItem('whiteboard_positions');
+      let existingPositions: Record<string, { x: number; y: number }> = {};
       if (savedPositions) {
         try {
-          const positions = JSON.parse(savedPositions);
-          setNotePositions(positions);
-          console.log("Loaded positions:", Object.keys(positions).length);
+          existingPositions = JSON.parse(savedPositions);
         } catch (e) {
           console.error("Failed to parse positions:", e);
-          // 如果加载失败，使用自动布局
-          setNotePositions(generateAutoLayout());
         }
-      } else {
-        // 首次加载，使用自动布局
+      }
+
+      // 如果没有任何已保存位置，使用完整自动布局
+      if (Object.keys(existingPositions).length === 0) {
         const autoLayout = generateAutoLayout();
         setNotePositions(autoLayout);
-        console.log("Generated auto layout:", Object.keys(autoLayout).length);
+        if (Object.keys(autoLayout).length > 0) {
+          localStorage.setItem('whiteboard_positions', JSON.stringify(autoLayout));
+        }
+        return;
+      }
+
+      // 为新的便利贴（没有已保存位置的）生成位置，保留已有位置
+      const allLayout = generateAutoLayout();
+      let hasNewNotes = false;
+      for (const key of Object.keys(allLayout)) {
+        if (!existingPositions[key]) {
+          existingPositions[key] = allLayout[key];
+          hasNewNotes = true;
+        }
+      }
+
+      setNotePositions(existingPositions);
+      if (hasNewNotes) {
+        localStorage.setItem('whiteboard_positions', JSON.stringify(existingPositions));
       }
     } catch (e) {
       console.error("Failed to access localStorage for positions:", e);

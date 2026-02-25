@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getCurrentUserId } from '@/lib/auth';
 import { getDbClient } from '@/lib/db';
 
@@ -46,27 +45,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: '你已经使用过邀请码了' }, { status: 400 });
     }
 
-    // 通过 Supabase Auth admin API 查找推荐人（邀请码 = userId 前8位）
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ ok: false, error: '服务配置错误' }, { status: 500 });
-    }
+    // 通过 users 表查找推荐人（邀请码 = userId 前8位）
+    const { data: allUsers } = await client
+      .from('users')
+      .select('id');
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const { data: allUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-    const referrer = allUsers?.users?.find(
-      (u: any) => u.id.substring(0, 8).toUpperCase() === referralCode
+    const referrer = allUsers?.find(
+      (u: { id: string }) => u.id.substring(0, 8).toUpperCase() === referralCode
     );
 
     if (!referrer) {
       return NextResponse.json({ ok: false, error: '邀请码无效' }, { status: 400 });
     }
 
-    // 记录邀请关系（使用完整 UUID 作为 referrer_id）
+    // 记录邀请关系
     await client.from('referrals').insert({
       referrer_id: referrer.id,
       referee_id: userId,

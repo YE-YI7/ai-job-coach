@@ -40,6 +40,112 @@ function buildSessionResponse(userId: string, email: string, isNewUser: boolean)
 }
 
 /**
+ * 获取 Supabase Admin 客户端（可选，如果有 SERVICE_ROLE_KEY）
+ */
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+/**
+ * 在 users 表中查找或创建用户
+ */
+async function findOrCreateUser(
+  client: any,
+  email: string,
+  provider: string = 'email'
+): Promise<{ userId: string; isNewUser: boolean }> {
+  // 先按 email 查找
+  const { data: existingUser } = await client
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single();
+
+  if (existingUser) {
+    // 更新最后活跃时间
+    await client
+      .from('users')
+      .update({ last_active: new Date().toISOString() })
+      .eq('id', existingUser.id);
+    return { userId: existingUser.id, isNewUser: false };
+  }
+
+  // 创建新用户
+  const userId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // 尝试通过 Supabase Auth Admin 创建（如果可用，ID 会与 Auth 系统一致）
+  const supabaseAdmin = getSupabaseAdmin();
+  let authUserId: string | null = null;
+
+  if (supabaseAdmin) {
+    try {
+      const randomPassword = crypto.randomUUID();
+      const { data: newAuthUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: randomPassword,
+        email_confirm: true,
+      });
+      if (!authError && newAuthUser?.user) {
+        authUserId = newAuthUser.user.id;
+      }
+    } catch (e) {
+      console.warn('[AUTH] Supabase Auth 创建用户失败，使用自定义 ID:', e);
+    }
+  }
+
+  const finalUserId = authUserId || userId;
+
+  // 插入 users 表
+  const { error: insertError } = await client
+    .from('users')
+    .insert({
+      id: finalUserId,
+      email,
+      provider,
+      created_at: now,
+      last_active: now,
+    });
+
+  if (insertError) {
+    // 可能是并发导致的冲突，再查一次
+    const { data: retryUser } = await client
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (retryUser) {
+      return { userId: retryUser.id, isNewUser: false };
+    }
+    throw insertError;
+  }
+
+  // 创建用户额度记录
+  const today = now.split('T')[0];
+  await client.from('user_quotas').insert({
+    user_id: finalUserId,
+    free_chat_daily: 3,
+    free_resume_daily: 1,
+    paid_chat_remaining: 0,
+    paid_resume_remaining: 0,
+    paid_interview_remaining: 0,
+    last_free_reset: today,
+  });
+
+  return { userId: finalUserId, isNewUser: true };
+}
+
+/**
  * POST /api/auth/verify-code
  * 验证邮箱验证码或邀请码，创建/查找用户，设置session cookie
  * 
@@ -61,20 +167,6 @@ export async function POST(request: Request) {
     const code = body.code.trim();
     const referralCode = body.referralCode?.trim() || null;
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { ok: false, error: '认证服务未配置' },
-        { status: 500 }
-      );
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
     const client = await getDbClient();
     if (!client) {
       return NextResponse.json(
@@ -91,51 +183,22 @@ export async function POST(request: Request) {
       .single();
 
     if (invite) {
-      // 命中邀请码，走邀请码登录流程
       let userId: string;
       let isNewUser = false;
 
       if (invite.used === true && invite.redeemed_by) {
         // 邀请码已使用过，直接用已绑定的用户登录
         userId = invite.redeemed_by;
+        // 更新最后活跃时间
+        await client.from('users').update({ last_active: new Date().toISOString() }).eq('id', userId);
       } else {
         // 邀请码未使用，创建或查找用户
-        const fakeEmail = `${code}@invite.local`;
-        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-        const existingUser = existingUsers?.users?.find((u: { email?: string }) => u.email === fakeEmail);
+        const inviteEmail = `${code}@invite.local`;
+        const result = await findOrCreateUser(client, inviteEmail, 'invite');
+        userId = result.userId;
+        isNewUser = result.isNewUser;
 
-        if (existingUser) {
-          userId = existingUser.id;
-        } else {
-          isNewUser = true;
-          const randomPassword = crypto.randomUUID();
-          const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-            email: fakeEmail,
-            password: randomPassword,
-            email_confirm: true,
-          });
-
-          if (createUserError || !newUser?.user) {
-            return NextResponse.json(
-              { ok: false, error: `创建用户失败: ${createUserError?.message || '未知错误'}` },
-              { status: 500 }
-            );
-          }
-
-          userId = newUser.user.id;
-
-          // 创建用户额度记录
-          const today = new Date().toISOString().split('T')[0];
-          await client.from('user_quotas').insert({
-            user_id: userId,
-            free_chat_daily: 3,
-            free_resume_daily: 1,
-            paid_chat_remaining: 0,
-            paid_resume_remaining: 0,
-            paid_interview_remaining: 0,
-            last_free_reset: today,
-          });
-
+        if (isNewUser) {
           // 更新邀请码状态
           const currentUsesCount = invite.uses_count || 0;
           const newUsesCount = currentUsesCount + 1;
@@ -183,53 +246,18 @@ export async function POST(request: Request) {
       .update({ used: true })
       .eq('id', verificationRecord.id);
 
-    let userId: string;
-    let isNewUser = false;
+    // 查找或创建用户
+    const { userId, isNewUser } = await findOrCreateUser(client, email, 'email');
 
-    // 按 email 精确查找用户
-    const { data: usersByEmail } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-    const existingUser = usersByEmail?.users?.find(u => u.email === email);
+    // 处理推荐码（仅新用户）
+    if (isNewUser && referralCode) {
+      try {
+        // 通过推荐码前8位匹配 referrer
+        const { data: allUsers } = await client
+          .from('users')
+          .select('id');
 
-    if (existingUser) {
-      userId = existingUser.id;
-    } else {
-      // 创建新用户
-      isNewUser = true;
-      const randomPassword = crypto.randomUUID();
-      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: randomPassword,
-        email_confirm: true,
-      });
-
-      if (createError || !newUser?.user) {
-        return NextResponse.json(
-          { ok: false, error: '创建用户失败' },
-          { status: 500 }
-        );
-      }
-
-      userId = newUser.user.id;
-
-      // 创建用户额度记录
-      const today = new Date().toISOString().split('T')[0];
-      await client.from('user_quotas').insert({
-        user_id: userId,
-        free_chat_daily: 3,
-        free_resume_daily: 1,
-        paid_chat_remaining: 0,
-        paid_resume_remaining: 0,
-        paid_interview_remaining: 0,
-        last_free_reset: today,
-      });
-
-      // 处理推荐码
-      if (referralCode) {
-        const { data: allUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-        const referrer = allUsers?.users?.find(
+        const referrer = allUsers?.find(
           (u: { id: string }) => u.id.substring(0, 8).toUpperCase() === referralCode.toUpperCase()
         );
 
@@ -243,6 +271,7 @@ export async function POST(request: Request) {
             reward_granted: true,
           });
 
+          // 给推荐人增加额度
           const { data: referrerQuota } = await client
             .from('user_quotas')
             .select('paid_chat_remaining')
@@ -256,11 +285,14 @@ export async function POST(request: Request) {
             }).eq('user_id', referrer.id);
           }
 
+          // 给新用户增加额度
           await client.from('user_quotas').update({
             paid_chat_remaining: REWARD_CHAT,
             updated_at: new Date().toISOString(),
           }).eq('user_id', userId);
         }
+      } catch (refErr) {
+        console.warn('[AUTH] 处理推荐码失败:', refErr);
       }
     }
 

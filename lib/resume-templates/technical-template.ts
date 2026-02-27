@@ -99,23 +99,38 @@ export const technicalTemplate: ResumeTemplate = {
     
     header.appendChild(headerContent);
     
-    // Photo placeholder
+    // Photo area - real avatar or placeholder
     if (options.includePhoto && layout.photoArea) {
-      const photoPlaceholder = document.createElement('div');
-      photoPlaceholder.style.cssText = `
-        width: ${layout.photoArea.width}px;
-        height: ${layout.photoArea.height}px;
-        border: 2px dashed #ccc;
-        background: #f5f5f5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #999;
-        font-size: 11px;
-        flex-shrink: 0;
-      `;
-      photoPlaceholder.textContent = '照片';
-      header.appendChild(photoPlaceholder);
+      if (options.avatarSrc) {
+        // 使用真实头像图片
+        const photoImg = document.createElement('img');
+        photoImg.src = options.avatarSrc;
+        photoImg.style.cssText = `
+          width: ${layout.photoArea.width}px;
+          height: ${layout.photoArea.height}px;
+          object-fit: cover;
+          border-radius: 4px;
+          flex-shrink: 0;
+        `;
+        header.appendChild(photoImg);
+      } else {
+        // 无头像时显示占位框
+        const photoPlaceholder = document.createElement('div');
+        photoPlaceholder.style.cssText = `
+          width: ${layout.photoArea.width}px;
+          height: ${layout.photoArea.height}px;
+          border: 2px dashed #ccc;
+          background: #f5f5f5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #999;
+          font-size: 11px;
+          flex-shrink: 0;
+        `;
+        photoPlaceholder.textContent = '照片';
+        header.appendChild(photoPlaceholder);
+      }
     }
     
     container.appendChild(header);

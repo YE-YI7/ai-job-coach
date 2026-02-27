@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- 头发渐变 -->
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B5E3C"/>
+      <stop offset="100%" stop-color="#6D4228"/>
+    </linearGradient>
+    <!-- 肤色渐变 -->
+    <linearGradient id="skin" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#F5C5A3"/>
+      <stop offset="100%" stop-color="#EDB08A"/>
+    </linearGradient>
+    <!-- 西装渐变 -->
+    <linearGradient id="suit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4A4A52"/>
+      <stop offset="100%" stop-color="#35353D"/>
+    </linearGradient>
+    <!-- 白色外描边/贴纸效果 -->
+    <filter id="sticker" x="-5%" y="-5%" width="110%" height="110%">
+      <feMorphology operator="dilate" radius="3" in="SourceAlpha" result="expanded"/>
+      <feFlood flood-color="white" result="white"/>
+      <feComposite in="white" in2="expanded" operator="in" result="outline"/>
+      <feMerge>
+        <feMergeNode in="outline"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="200" height="200" rx="20" fill="#F0EDE8"/>
+
+  <!-- 主体组（带贴纸描边效果） -->
+  <g filter="url(#sticker)">
+    <!-- ===== 后层头发 ===== -->
+    <!-- 左侧头发 -->
+    <ellipse cx="68" cy="105" rx="28" ry="52" fill="url(#hair)"/>
+    <!-- 右侧头发 -->
+    <ellipse cx="132" cy="105" rx="28" ry="52" fill="url(#hair)"/>
+    <!-- 头顶头发 -->
+    <ellipse cx="100" cy="62" rx="42" ry="36" fill="url(#hair)"/>
+
+    <!-- ===== 脸部 ===== -->
+    <ellipse cx="100" cy="95" rx="34" ry="38" fill="url(#skin)"/>
+
+    <!-- ===== 前层头发(刘海) ===== -->
+    <path d="M60 78 C60 48, 82 38, 100 38 C118 38, 140 48, 140 78 C140 65, 125 55, 100 55 C75 55, 60 65, 60 78Z" fill="url(#hair)"/>
+
+    <!-- ===== 耳朵 ===== -->
+    <ellipse cx="66" cy="98" rx="7" ry="9" fill="#F0B88A"/>
+    <ellipse cx="134" cy="98" rx="7" ry="9" fill="#F0B88A"/>
+
+    <!-- ===== 眼睛 ===== -->
+    <!-- 左眼白 -->
+    <circle cx="86" cy="92" r="10" fill="white"/>
+    <!-- 左瞳孔 -->
+    <circle cx="86" cy="93" r="7" fill="#5C3A1E"/>
+    <!-- 左眼高光星 -->
+    <path d="M84 90 L84.5 88 L85 90 L87 90.5 L85 91 L84.5 93 L84 91 L82 90.5Z" fill="white"/>
+
+    <!-- 右眼白 -->
+    <circle cx="114" cy="92" r="10" fill="white"/>
+    <!-- 右瞳孔 -->
+    <circle cx="114" cy="93" r="7" fill="#5C3A1E"/>
+    <!-- 右眼高光星 -->
+    <path d="M112 90 L112.5 88 L113 90 L115 90.5 L113 91 L112.5 93 L112 91 L110 90.5Z" fill="white"/>
+
+    <!-- ===== 微笑 ===== -->
+    <path d="M90 108 Q100 118, 110 108" fill="none" stroke="#C07050" stroke-width="2.5" stroke-linecap="round"/>
+
+    <!-- ===== 脖子 ===== -->
+    <rect x="92" y="128" width="16" height="12" rx="4" fill="url(#skin)"/>
+
+    <!-- ===== 身体/西装 ===== -->
+    <!-- 肩膀 -->
+    <path d="M55 175 C55 148, 75 138, 100 138 C125 138, 145 148, 145 175 L145 200 L55 200Z" fill="url(#suit)"/>
+
+    <!-- 领口/衬衫 -->
+    <path d="M88 138 L95 160 L100 155 L105 160 L112 138" fill="#F0E8D8" stroke="none"/>
+
+    <!-- 西装翻领左 -->
+    <path d="M88 138 L82 155 L95 160 L88 138Z" fill="#555560"/>
+    <!-- 西装翻领右 -->
+    <path d="M112 138 L118 155 L105 160 L112 138Z" fill="#555560"/>
+  </g>
+</svg>

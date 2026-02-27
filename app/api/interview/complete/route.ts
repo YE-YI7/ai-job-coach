@@ -35,9 +35,12 @@ interface CompleteResponse {
   session_id: string;
   summary: {
     overallScore: number;
+    grade: string;
+    gradeNext: string;
     strengths: string[];
     weaknesses: string[];
     suggestions: string[];
+    dimensions: { name: string; score: number; comment: string }[];
   };
 }
 

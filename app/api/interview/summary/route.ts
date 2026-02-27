@@ -122,9 +122,12 @@ export async function GET(request: Request) {
     const response: InterviewSummaryResponse = {
       session_id: session_id,
       overallScore: summary.overallScore,
+      grade: summary.grade,
+      gradeNext: summary.gradeNext,
       strengths: summary.strengths,
       weaknesses: summary.weaknesses,
       suggestions: summary.suggestions,
+      dimensions: summary.dimensions,
     };
 
     return NextResponse.json(response);

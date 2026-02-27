@@ -747,11 +747,20 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
 /**
  * 面试总结结果
  */
+interface InterviewDimension {
+  name: string;
+  score: number; // 0-100
+  comment: string;
+}
+
 interface InterviewSummaryResult {
   overallScore: number; // 0-100
+  grade: string; // "S" | "A" | "B+" | "B" | "C" | "D"
+  gradeNext: string; // e.g. "再练2次可达A"
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
+  dimensions: InterviewDimension[]; // 7维度评分
 }
 
 /**
@@ -760,9 +769,20 @@ interface InterviewSummaryResult {
 function generateStubSummary(): InterviewSummaryResult {
   return {
     overallScore: 70,
+    grade: "B",
+    gradeNext: "再练2次可达B+",
     strengths: ["表达清晰", "思路完整"],
     weaknesses: ["缺少量化指标", "项目细节不足"],
     suggestions: ["补充数据指标", "提前准备关键案例"],
+    dimensions: [
+      { name: "专业深度", score: 72, comment: "基础扎实，但缺少深层原理阐述" },
+      { name: "逻辑表达", score: 78, comment: "条理较清晰，结论有时不够明确" },
+      { name: "应变能力", score: 65, comment: "面对追问时略显紧张" },
+      { name: "项目理解", score: 68, comment: "对项目细节的把控还需加强" },
+      { name: "沟通技巧", score: 75, comment: "沟通自然，但需注意倾听" },
+      { name: "自我认知", score: 70, comment: "对自身优劣势有基本认知" },
+      { name: "文化匹配", score: 73, comment: "价值观基本契合" },
+    ],
   };
 }
 
@@ -805,15 +825,22 @@ export async function summarizeInterview({
 1. 根据"所有题目的评估结果"生成最终的整体评价
 2. 输出以下结构：
    - overallScore: 0-100 的整数，综合所有题目的得分
+   - grade: 能力等级，取值为 "S"(90-100) / "A"(80-89) / "B+"(75-79) / "B"(60-74) / "C"(40-59) / "D"(0-39)
+   - gradeNext: 简短的进阶提示，如"再练2次可达A"、"距离B+只差一步"等
    - strengths: 数组，列出 2-4 个优势表现
    - weaknesses: 数组，列出 2-4 个薄弱环节
    - suggestions: 数组，列出 2-4 个下一步提升建议
+   - dimensions: 7个维度的评分数组，每个维度包含 name、score(0-100)、comment(一句话点评)
+     七个维度固定为：专业深度、逻辑表达、应变能力、项目理解、沟通技巧、自我认知、文化匹配
 3. 请严格按照 JSON 返回，不要输出任何解释
 
 输出格式要求：
 - 必须是一个 JSON 对象
 - overallScore 必须是 0-100 的整数
+- grade 必须是 "S"/"A"/"B+"/"B"/"C"/"D" 之一
+- gradeNext 必须是字符串，简短鼓励性的进阶提示
 - strengths、weaknesses、suggestions 必须是字符串数组
+- dimensions 必须是包含7个对象的数组，每个对象有 name(string)、score(number 0-100)、comment(string)
 - 禁止输出任何其他内容，只输出 JSON`;
 
     // 将 assessments 转换为字符串（处理可能的复杂对象）
@@ -834,9 +861,20 @@ ${assessmentsStr}
 
 {
   "overallScore": 85,
+  "grade": "A",
+  "gradeNext": "再练1次稳冲S级",
   "strengths": ["...", "..."],
   "weaknesses": ["...", "..."],
-  "suggestions": ["...", "..."]
+  "suggestions": ["...", "..."],
+  "dimensions": [
+    {"name": "专业深度", "score": 82, "comment": "..."},
+    {"name": "逻辑表达", "score": 88, "comment": "..."},
+    {"name": "应变能力", "score": 80, "comment": "..."},
+    {"name": "项目理解", "score": 85, "comment": "..."},
+    {"name": "沟通技巧", "score": 90, "comment": "..."},
+    {"name": "自我认知", "score": 78, "comment": "..."},
+    {"name": "文化匹配", "score": 83, "comment": "..."}
+  ]
 }
 
 注意：只输出 JSON，不要有任何其他文字。`;
@@ -922,12 +960,45 @@ ${assessmentsStr}
       throw new Error("LLM 返回的 suggestions 数组元素必须是字符串");
     }
 
+    // 验证 grade（容错：如果LLM没返回，根据分数自动计算）
+    const validGrades = ["S", "A", "B+", "B", "C", "D"];
+    let grade = rawData.grade;
+    if (!grade || !validGrades.includes(grade)) {
+      const s = rawData.overallScore;
+      grade = s >= 90 ? "S" : s >= 80 ? "A" : s >= 75 ? "B+" : s >= 60 ? "B" : s >= 40 ? "C" : "D";
+    }
+
+    // 验证 gradeNext（容错）
+    const gradeNext = typeof rawData.gradeNext === "string" ? rawData.gradeNext : `继续加油，向${grade === "S" ? "S" : validGrades[validGrades.indexOf(grade) - 1] || "S"}级进发`;
+
+    // 验证 dimensions（容错：缺失时生成默认值）
+    const defaultDimNames = ["专业深度", "逻辑表达", "应变能力", "项目理解", "沟通技巧", "自我认知", "文化匹配"];
+    let dimensions: InterviewDimension[];
+    if (Array.isArray(rawData.dimensions) && rawData.dimensions.length === 7) {
+      dimensions = rawData.dimensions.map((d: any, i: number) => ({
+        name: typeof d.name === "string" ? d.name : defaultDimNames[i],
+        score: typeof d.score === "number" && d.score >= 0 && d.score <= 100 ? Math.round(d.score) : rawData.overallScore,
+        comment: typeof d.comment === "string" ? d.comment : "",
+      }));
+    } else {
+      // LLM未正确返回dimensions，根据总分生成近似值
+      const base = rawData.overallScore;
+      dimensions = defaultDimNames.map((name) => ({
+        name,
+        score: Math.max(0, Math.min(100, base + Math.round((Math.random() - 0.5) * 16))),
+        comment: "",
+      }));
+    }
+
     // 构建最终结果
     const result: InterviewSummaryResult = {
-      overallScore: Math.round(rawData.overallScore), // 确保是整数
+      overallScore: Math.round(rawData.overallScore),
+      grade,
+      gradeNext,
       strengths: rawData.strengths,
       weaknesses: rawData.weaknesses,
       suggestions: rawData.suggestions,
+      dimensions,
     };
 
     return result;

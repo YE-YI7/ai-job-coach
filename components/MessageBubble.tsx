@@ -28,7 +28,7 @@ export default function MessageBubble({
           <div className="relative flex-shrink-0">
             <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md ring-2 ring-orange-100">
               <img
-                src="/picture.png"
+                src="/picture.svg"
                 alt="益老师"
                 className="w-full h-full object-cover"
                 onError={(e) => {

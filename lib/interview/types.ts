@@ -102,9 +102,12 @@ export interface AnswerQuestionResponse {
 export interface InterviewSummaryResponse {
   session_id: string;
   overallScore: number;
+  grade: string;
+  gradeNext: string;
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
+  dimensions: { name: string; score: number; comment: string }[];
 }
 
 

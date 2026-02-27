@@ -99,21 +99,33 @@ export const productTemplate: ResumeTemplate = {
     
     // Photo
     if (options.includePhoto && layout.photoArea) {
-      const photoPlaceholder = document.createElement('div');
-      photoPlaceholder.style.cssText = `
-        width: ${layout.photoArea.width}px;
-        height: ${layout.photoArea.height}px;
-        border: 2px dashed #d1d5db;
-        background: #f9fafb;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #9ca3af;
-        font-size: 11px;
-        border-radius: 4px;
-      `;
-      photoPlaceholder.textContent = '照片';
-      header.appendChild(photoPlaceholder);
+      if (options.avatarSrc) {
+        const photoImg = document.createElement('img');
+        photoImg.src = options.avatarSrc;
+        photoImg.style.cssText = `
+          width: ${layout.photoArea.width}px;
+          height: ${layout.photoArea.height}px;
+          object-fit: cover;
+          border-radius: 4px;
+        `;
+        header.appendChild(photoImg);
+      } else {
+        const photoPlaceholder = document.createElement('div');
+        photoPlaceholder.style.cssText = `
+          width: ${layout.photoArea.width}px;
+          height: ${layout.photoArea.height}px;
+          border: 2px dashed #d1d5db;
+          background: #f9fafb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #9ca3af;
+          font-size: 11px;
+          border-radius: 4px;
+        `;
+        photoPlaceholder.textContent = '照片';
+        header.appendChild(photoPlaceholder);
+      }
     }
     
     container.appendChild(header);

@@ -11,6 +11,7 @@ import { Confetti, CelebrationModal, getRandomMessage, type EncouragementType } 
 import type { RoundType, InterviewQuestion } from "@/lib/interview/types";
 import { parseMarkdownBold } from "@/lib/markdown-utils";
 import InterviewShareCard from "@/components/InterviewShareCard";
+import InterviewRadarChart, { GradeBadge } from "@/components/InterviewRadarChart";
 import type { ShareCardData } from "@/components/InterviewShareCard";
 
 // FIX: interview/start 页面永远使用固定阶段：interview
@@ -876,6 +877,9 @@ export default function InterviewStartPage() {
         const weaknesses = summary.weaknesses || summary.improvements || [];
         const suggestions = summary.suggestions || summary.recommendations || [];
         const summaryText = summary.summary || summary.overall || "";
+        const summaryGrade = summary.grade || (overallScore >= 90 ? "S" : overallScore >= 80 ? "A" : overallScore >= 75 ? "B+" : overallScore >= 60 ? "B" : overallScore >= 40 ? "C" : "D");
+        const summaryGradeNext = summary.gradeNext || "";
+        const summaryDimensions = summary.dimensions || [];
         
         return (
           <div key={message.id} className="interview-card bg-white rounded-2xl shadow-lg border border-stone-200/60 p-6 my-4 overflow-hidden">
@@ -891,20 +895,29 @@ export default function InterviewStartPage() {
               </div>
             </div>
             
+            {/* 能力等级 + 综合得分 */}
             {overallScore > 0 && (
-              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 mb-5 border border-orange-100 flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-4xl font-black bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent" style={{ fontFamily: "'SF Pro Display', 'Inter', -apple-system, sans-serif" }}>
-                    {overallScore}
-                  </div>
-                  <div className="text-xs text-orange-600 font-medium mt-0.5">综合得分</div>
-                </div>
-                <div className="flex-1 h-2 bg-orange-100 rounded-full overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 mb-5 border border-orange-100">
+                <GradeBadge grade={summaryGrade} gradeNext={summaryGradeNext} overallScore={overallScore} />
+                <div className="mt-3 h-2 bg-orange-100 rounded-full overflow-hidden">
                   <div 
                     className="h-full rounded-full bg-gradient-to-r from-orange-400 to-amber-400 transition-all duration-1000"
                     style={{ width: `${overallScore}%` }}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* 7维雷达图 */}
+            {summaryDimensions.length > 0 && (
+              <div className="mb-5 bg-stone-50/50 rounded-xl p-4 border border-stone-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
+                  </svg>
+                  <h3 className="text-sm font-semibold text-stone-700">能力雷达图</h3>
+                </div>
+                <InterviewRadarChart dimensions={summaryDimensions} />
               </div>
             )}
             

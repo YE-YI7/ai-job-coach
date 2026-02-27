@@ -30,6 +30,7 @@ export interface PDFGenerationOptions {
   };
   templateId?: string;
   includePhoto?: boolean;
+  avatarSrc?: string; // base64 头像图片数据
 }
 
 // PDF Configuration (kept for reference, but not used in HTML rendering approach)
@@ -143,6 +144,7 @@ export async function generateResumePDF(
     // Create HTML element using template
     const htmlElement = template.render(data, {
       includePhoto: options?.includePhoto || false,
+      avatarSrc: options?.avatarSrc,
     });
     
     // Temporarily add to document (hidden)

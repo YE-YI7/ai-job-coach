@@ -930,3 +930,17 @@ html, body, #__next, #main-content, #content-area {
     padding-bottom: 8rem; /* 小屏幕时减少 padding */
   }
 }
+
+/* 移动端白板抽屉动画 */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* 安全区域底部 padding（iPhone 等） */
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}

@@ -4,7 +4,90 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 
-type OnboardingStep = 'welcome' | 'identity' | 'stage';
+type OnboardingStep = 'welcome' | 'identity' | 'stage' | 'methodology';
+
+// 各阶段方法论数据（与 MethodologyModal 一致）
+const METHODOLOGY_DATA: Record<string, {
+  icon: string;
+  title: string;
+  subtitle: string;
+  methodology: string;
+  keyInsight: string;
+  dataPoint: string;
+  steps: string[];
+  gradient: string;
+}> = {
+  career_planning: {
+    icon: "🧭",
+    title: "职业定位模型",
+    subtitle: "Career Positioning Model",
+    methodology: "基于 2000+ 场真实面试数据和行业薪资调研，我们提炼出「三维职业定位法」——从市场需求、个人优势、长期价值三个维度交叉验证，帮你找到最优解。",
+    keyInsight: "73% 的求职失败源于定位模糊——不是能力不够，而是方向不对。",
+    dataPoint: "精准定位后，面试通过率平均提升 2.4 倍",
+    steps: ["自我画像：挖掘你的核心竞争力和隐藏优势", "市场校准：对标真实岗位要求，找到供需甜蜜点", "路径规划：制定可落地的求职策略和时间表"],
+    gradient: "from-blue-500 to-indigo-600",
+  },
+  project_review: {
+    icon: "🔍",
+    title: "STAR 深挖引擎",
+    subtitle: "STAR Deep-Mining Engine",
+    methodology: "顶尖候选人和普通候选人的差距，往往不在能力，而在「表达」。我们的 STAR 深挖引擎通过 4 层递进式追问，帮你把 60 分的经历讲出 90 分的效果。",
+    keyInsight: "面试官平均 6 秒判断一段项目经历的含金量——关键在于「量化指标」和「个人贡献度」。",
+    dataPoint: "经过 STAR 深挖的项目描述，面试官评分平均提升 47%",
+    steps: ["项目锁定：识别最具面试价值的 2-3 个核心项目", "细节挖掘：按 S-T-A-R 四层结构逐步深入", "亮点提炼：量化成果 + 突出个人贡献"],
+    gradient: "from-indigo-500 to-purple-600",
+  },
+  resume_optimization: {
+    icon: "✍️",
+    title: "简历诊断系统",
+    subtitle: "Resume Diagnostic System",
+    methodology: "我们分析了 500+ 份成功入职大厂的简历，提炼出「7 维简历评估模型」——从信息密度、量化表达、关键词匹配、视觉层次等维度系统优化。",
+    keyInsight: "87% 的简历在初筛就被淘汰，最常见的三个原因：缺乏量化、描述笼统、关键词缺失。",
+    dataPoint: "通过系统优化的简历，面试邀约率平均提升 3.1 倍",
+    steps: ["全面诊断：7 维度扫描，定位核心问题", "对比优化：修改前 vs 修改后，直观展示差距", "精准打磨：逐字逐句优化，确保每一行都有价值"],
+    gradient: "from-orange-500 to-rose-500",
+  },
+  application_strategy: {
+    icon: "🎯",
+    title: "投递策略矩阵",
+    subtitle: "Application Strategy Matrix",
+    methodology: "盲目海投是效率最低的求职方式。我们基于「目标-能力匹配度」和「竞争激烈度」两个维度，构建投递优先级矩阵，让每一次投递都有的放矢。",
+    keyInsight: "Top 10% 的求职者平均只投递 15-20 家公司，但面试转化率高达 40%。秘诀在于精准匹配。",
+    dataPoint: "使用策略矩阵后，面试邀约率提升 2.8 倍，求职周期缩短 35%",
+    steps: ["目标分层：梦想公司 / 稳妥公司 / 保底公司", "时序规划：先保底后冲刺，积累面试手感", "动态调整：根据反馈实时优化投递方向"],
+    gradient: "from-emerald-500 to-teal-600",
+  },
+  interview: {
+    icon: "🎤",
+    title: "7 维面试评估模型",
+    subtitle: "7-Dimension Interview Assessment",
+    methodology: "基于 2000+ 场真实面试的评分数据，我们构建了「7 维面试评估模型」——覆盖专业深度、逻辑表达、应变能力、项目理解、沟通技巧、自我认知和文化匹配。",
+    keyInsight: "面试不及格的候选人中，62% 不是因为不会，而是因为「不会说」——表达方式比内容本身更重要。",
+    dataPoint: "通过 3 次以上模拟面试训练，最终面试通过率提升 58%",
+    steps: ["能力诊断：7 维度精准评估你的面试水平", "模拟实战：还原真实面试场景，积累手感", "靶向提升：针对薄弱维度重点突破"],
+    gradient: "from-cyan-500 to-blue-600",
+  },
+  salary_talk: {
+    icon: "💰",
+    title: "薪资谈判框架",
+    subtitle: "Salary Negotiation Framework",
+    methodology: "薪资谈判不是「要价」，而是「价值呈现」。我们基于市场薪资数据和谈判心理学，构建了一套科学的谈薪框架——让你在不伤害关系的前提下，争取最优条件。",
+    keyInsight: "65% 的候选人从未尝试谈薪，而尝试谈薪的人中，82% 都成功获得了加薪。不谈才是最大的损失。",
+    dataPoint: "使用谈薪框架的候选人，平均薪资提升 12-18%",
+    steps: ["市场调研：掌握目标岗位的真实薪资区间", "价值锚定：用数据和成果支撑你的薪资期望", "策略谈判：灵活运用时机和话术，争取最优包裹"],
+    gradient: "from-rose-500 to-pink-600",
+  },
+  offer: {
+    icon: "⚖️",
+    title: "Offer 决策模型",
+    subtitle: "Offer Decision Model",
+    methodology: "选 Offer 不是选薪资最高的那个，而是选「3 年后你会感谢自己」的那个。我们的多维决策模型从短期收益、成长空间、生活平衡、行业前景等维度帮你理性决策。",
+    keyInsight: "入职 1 年后后悔的人中，78% 都只在「薪资」这一个维度上做了决策。",
+    dataPoint: "使用决策模型的用户，入职满意度提升 41%",
+    steps: ["信息收集：全面了解每个 Offer 的显性和隐性条件", "多维评估：薪资、成长、文化、生活的权重分配", "决策输出：给出综合评分和个性化建议"],
+    gradient: "from-purple-500 to-violet-600",
+  },
+};
 
 const STAGES = [
   { 
@@ -99,7 +182,7 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [identity, setIdentity] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedStage, setSelectedStage] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<typeof STAGES[0] | null>(null);
   const [fadeClass, setFadeClass] = useState('animate-fadeIn');
 
   useAuth();
@@ -118,27 +201,31 @@ export default function OnboardingPage() {
     setTimeout(() => transition('stage'), 200);
   };
 
-  const handleStageClick = async (stage: typeof STAGES[0]) => {
-    if (isLoading) return;
-    setSelectedStage(stage.key);
+  const handleStageClick = (stage: typeof STAGES[0]) => {
+    setSelectedStage(stage);
+    localStorage.setItem("current_stage", stage.key);
+    // 进入方法论预告页
+    transition('methodology');
+  };
+
+  const handleStartFromMethodology = async () => {
+    if (!selectedStage || isLoading) return;
     setIsLoading(true);
 
     try {
-      localStorage.setItem("current_stage", stage.key);
-
-      if (stage.key === "interview") {
+      if (selectedStage.key === "interview") {
         router.push("/interview/start");
         return;
       }
 
-      if (stage.route.startsWith("/chat")) {
+      if (selectedStage.route.startsWith("/chat")) {
         try {
           const apiStageMap: Record<string, string> = {
             career_planning: "career", project_review: "review",
             resume_optimization: "resume", application_strategy: "delivery",
             salary_talk: "salary", offer: "offer",
           };
-          const apiStage = apiStageMap[stage.key] || stage.key;
+          const apiStage = apiStageMap[selectedStage.key] || selectedStage.key;
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -154,15 +241,17 @@ export default function OnboardingPage() {
         } catch { /* 静默失败 */ }
       }
 
-      router.push(stage.route);
+      router.push(selectedStage.route);
     } catch {
-      router.push(stage.route);
+      router.push(selectedStage.route);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const stepIndex = ['welcome', 'identity', 'stage'].indexOf(currentStep);
+  const allSteps: OnboardingStep[] = ['welcome', 'identity', 'stage', 'methodology'];
+  const stepIndex = allSteps.indexOf(currentStep);
+  const methodologyData = selectedStage ? METHODOLOGY_DATA[selectedStage.key] : null;
 
   return (
     <>
@@ -195,6 +284,10 @@ export default function OnboardingPage() {
           0% { transform: scale(0.9); opacity: 0.6; }
           100% { transform: scale(1.3); opacity: 0; }
         }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
 
       <div className="min-h-screen w-full flex flex-col items-center justify-center p-6 relative" style={{ background: 'linear-gradient(180deg, #fafaf9 0%, #f5f0eb 100%)' }}>
@@ -203,7 +296,7 @@ export default function OnboardingPage() {
 
         {/* Progress Bar */}
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3">
-          {['welcome', 'identity', 'stage'].map((s, i) => (
+          {allSteps.map((s, i) => (
             <div key={s} className="flex items-center gap-3">
               <div className={`rounded-full transition-all duration-500 ${
                 i < stepIndex ? 'w-2.5 h-2.5 bg-orange-400' : 
@@ -234,7 +327,7 @@ export default function OnboardingPage() {
                 你的 AI 私人求职导师<br/>全流程陪你拿到理想 Offer
               </p>
 
-              {/* 3 Feature Cards - 精致无 emoji 版本 */}
+              {/* 3 Feature Cards */}
               <div className="grid grid-cols-3 gap-3 w-full mb-12">
                 {[
                   {
@@ -285,7 +378,7 @@ export default function OnboardingPage() {
               {/* AI导师形象 */}
               <div className="flex items-center gap-3 mb-8 px-6 py-4 bg-white/70 backdrop-blur-sm rounded-2xl border border-stone-100 shadow-sm" style={{ animation: 'staggerIn 0.5s 0.6s ease forwards', opacity: 0 }}>
                 <div className="w-12 h-12 rounded-xl overflow-hidden shadow-md ring-2 ring-orange-100 shrink-0">
-                  <img src="/picture.png" alt="益老师" className="w-full h-full object-cover" />
+                  <img src="/picture.svg" alt="益老师" className="w-full h-full object-cover" />
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-stone-700">益老师</p>
@@ -316,7 +409,6 @@ export default function OnboardingPage() {
               <p className="text-stone-500 mb-10 text-center text-sm">益老师会根据你的身份定制辅导方案</p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-lg">
-                {/* Student */}
                 <button
                   onClick={() => handleIdentitySelect("在校生")}
                   className={`group rounded-2xl p-8 cursor-pointer flex flex-col items-center text-center bg-white border-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
@@ -332,7 +424,6 @@ export default function OnboardingPage() {
                   <p className="text-sm text-stone-400 leading-relaxed">校招 / 实习 / 第一份工作</p>
                 </button>
 
-                {/* Professional */}
                 <button
                   onClick={() => handleIdentitySelect("社招生")}
                   className={`group rounded-2xl p-8 cursor-pointer flex flex-col items-center text-center bg-white border-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
@@ -367,10 +458,7 @@ export default function OnboardingPage() {
                   <button
                     key={stage.id}
                     onClick={() => handleStageClick(stage)}
-                    disabled={isLoading}
-                    className={`group relative rounded-xl p-4 flex items-center gap-4 bg-white border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60 disabled:cursor-wait ${
-                      selectedStage === stage.key ? "border-orange-400 shadow-md shadow-orange-50" : "border-stone-100 shadow-sm hover:border-orange-200"
-                    }`}
+                    className="group relative rounded-xl p-4 flex items-center gap-4 bg-white border border-stone-100 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:border-orange-200"
                     style={{ animation: `staggerIn 0.4s ${index * 0.04 + 0.1}s ease forwards`, opacity: 0 }}
                   >
                     <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stage.gradient} text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform shrink-0`}>
@@ -380,23 +468,111 @@ export default function OnboardingPage() {
                       <h3 className="font-semibold text-stone-800 text-[15px] mb-0.5">{stage.title}</h3>
                       <p className="text-xs text-stone-400 truncate">{stage.desc}</p>
                     </div>
-                    {selectedStage === stage.key ? (
-                      <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
-                        {isLoading ? (
-                          <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                          </svg>
-                        )}
-                      </div>
-                    ) : (
-                      <svg className="w-4 h-4 text-stone-300 group-hover:text-orange-400 group-hover:translate-x-0.5 transition-all shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
-                      </svg>
-                    )}
+                    <svg className="w-4 h-4 text-stone-300 group-hover:text-orange-400 group-hover:translate-x-0.5 transition-all shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ===== Step 4: Methodology Preview ===== */}
+          {currentStep === 'methodology' && methodologyData && selectedStage && (
+            <div className="flex flex-col items-center w-full max-w-lg mx-auto">
+              {/* 返回按钮 */}
+              <button
+                onClick={() => transition('stage')}
+                className="self-start flex items-center gap-1.5 text-stone-400 hover:text-stone-600 text-sm mb-4 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+                </svg>
+                重新选择
+              </button>
+
+              {/* 方法论卡片 */}
+              <div className="w-full bg-white rounded-2xl shadow-lg border border-stone-200/60 overflow-hidden">
+                {/* 顶部渐变 header */}
+                <div className={`bg-gradient-to-br ${methodologyData.gradient} px-8 pt-8 pb-6 relative overflow-hidden`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+                  <div className="relative">
+                    <div className="text-4xl mb-3" style={{ animation: 'slideUp 0.5s 0.2s ease forwards', opacity: 0 }}>{methodologyData.icon}</div>
+                    <h2 className="text-xl font-bold text-white mb-1" style={{ animation: 'slideUp 0.5s 0.3s ease forwards', opacity: 0 }}>
+                      {methodologyData.title}
+                    </h2>
+                    <p className="text-sm text-white/70 font-medium tracking-wide" style={{ animation: 'slideUp 0.5s 0.4s ease forwards', opacity: 0 }}>
+                      {methodologyData.subtitle}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 内容区域 */}
+                <div className="px-8 py-6 space-y-5">
+                  {/* 方法论描述 */}
+                  <p className="text-sm text-stone-600 leading-relaxed" style={{ animation: 'slideUp 0.5s 0.5s ease forwards', opacity: 0 }}>
+                    {methodologyData.methodology}
+                  </p>
+
+                  {/* 关键洞察 */}
+                  <div className="bg-stone-50 rounded-xl p-4 border border-stone-100" style={{ animation: 'slideUp 0.5s 0.6s ease forwards', opacity: 0 }}>
+                    <div className="flex gap-3">
+                      <div className="shrink-0 text-2xl text-stone-300 font-serif leading-none mt-0.5">&ldquo;</div>
+                      <div>
+                        <p className="text-sm text-stone-700 font-medium leading-relaxed">
+                          {methodologyData.keyInsight}
+                        </p>
+                        <p className={`text-xs mt-2 font-semibold bg-gradient-to-r ${methodologyData.gradient} bg-clip-text text-transparent`}>
+                          {methodologyData.dataPoint}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 步骤列表 */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-3">益老师会带你</h3>
+                    <div className="space-y-3">
+                      {methodologyData.steps.map((step, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-start gap-3"
+                          style={{ animation: `slideUp 0.5s ${0.7 + idx * 0.1}s ease forwards`, opacity: 0 }}
+                        >
+                          <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${methodologyData.gradient} flex items-center justify-center shrink-0 mt-0.5 shadow-sm`}>
+                            <span className="text-[10px] font-bold text-white">{idx + 1}</span>
+                          </div>
+                          <p className="text-sm text-stone-600 leading-relaxed">{step}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 底部行动按钮 */}
+                <div className="px-8 pb-6">
+                  <button
+                    onClick={handleStartFromMethodology}
+                    disabled={isLoading}
+                    className={`group w-full py-3.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r ${methodologyData.gradient} hover:shadow-lg transition-all duration-300 active:scale-[0.98] disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2`}
+                    style={{ animation: 'slideUp 0.5s 1s ease forwards', opacity: 0 }}
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        正在准备...
+                      </>
+                    ) : (
+                      <>
+                        开始 {selectedStage.title.slice(0, 6)}...
+                        <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}

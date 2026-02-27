@@ -10,6 +10,7 @@ import { compressResume } from "@/lib/resume-compressor";
 import { detectPageCount } from "@/lib/page-detector";
 import { getTemplate, getDefaultTemplate } from "@/lib/resume-templates";
 import ResumePreviewEditor from "@/components/ResumePreviewEditor";
+import ResumeTailorPanel from "@/components/ResumeTailorPanel";
 
 type ResumeSection = {
   id: string;
@@ -63,6 +64,9 @@ export default function ResumeEditorPage() {
   
   // Tab切换状态
   const [activeTab, setActiveTab] = useState<"edit" | "hr-review">("edit");
+  
+  // 针对性简历生成面板
+  const [showTailorPanel, setShowTailorPanel] = useState(false);
   
   // 文件上传相关状态
   const [uploading, setUploading] = useState(false);
@@ -487,8 +491,12 @@ ${preview.selfEvaluation}
       // Get template
       const template = getTemplate(templateId) || getDefaultTemplate();
       
+      // 准备头像数据
+      const avatarSrc = avatarData?.src;
+      const renderOptions = { includePhoto, avatarSrc };
+      
       // Render initial HTML
-      const initialElement = template.render(resumeData, { includePhoto });
+      const initialElement = template.render(resumeData, renderOptions);
       
       // Detect page count
       const detection = await detectPageCount(initialElement);
@@ -503,7 +511,7 @@ ${preview.selfEvaluation}
 
         const compressionResult = await compressResume(
           resumeData,
-          (data) => template.render(data, { includePhoto }),
+          (data) => template.render(data, renderOptions),
           (progress) => {
             setCompressionProgress(
               `正在压缩... 第 ${progress.iteration}/${progress.maxIterations} 次尝试`
@@ -532,6 +540,7 @@ ${preview.selfEvaluation}
       await generateResumePDF(finalData, {
         templateId,
         includePhoto,
+        avatarSrc,
       });
 
       setExportError(null);
@@ -981,6 +990,12 @@ ${preview.selfEvaluation}
             <h2 className="text-lg font-semibold text-gray-900">简历预览</h2>
             <div className="flex gap-2">
               <button
+                onClick={() => setShowTailorPanel(true)}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-white text-sm font-medium hover:from-orange-600 hover:to-amber-600 transition-all shadow-sm"
+              >
+                🎯 针对岗位
+              </button>
+              <button
                 onClick={exportToPDF}
                 disabled={exportingPDF}
                 className={`px-4 py-2 rounded-lg transition-colors ${
@@ -1023,6 +1038,36 @@ ${preview.selfEvaluation}
         isOpen={showExportDialog}
         onClose={() => setShowExportDialog(false)}
         onExport={handleExportWithSettings}
+        hasAvatar={!!avatarData?.src}
+      />
+
+      {/* 针对性简历生成面板 */}
+      <ResumeTailorPanel
+        isOpen={showTailorPanel}
+        onClose={() => setShowTailorPanel(false)}
+        currentResume={preview}
+        onApplyTailored={(tailoredData) => {
+          // 更新预览数据
+          setPreview(tailoredData);
+          // 同步更新编辑区各分区
+          setSections((prev) =>
+            prev.map((section) => {
+              const keyMap: Record<string, keyof typeof tailoredData> = {
+                "个人信息": "personalInfo",
+                "教育信息": "education",
+                "在校经历": "campusExperience",
+                "项目经历": "projects",
+                "工作/实习经历": "workExperience",
+                "个人评价": "selfEvaluation",
+              };
+              const dataKey = keyMap[section.title];
+              if (dataKey && tailoredData[dataKey]) {
+                return { ...section, content: tailoredData[dataKey] };
+              }
+              return section;
+            })
+          );
+        }}
       />
     </React.Fragment>
   );

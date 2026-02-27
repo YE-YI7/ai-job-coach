@@ -7,18 +7,20 @@ interface ExportSettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onExport: (templateId: string, includePhoto: boolean) => void;
+  hasAvatar?: boolean; // 是否已上传头像
 }
 
 export default function ExportSettingsDialog({
   isOpen,
   onClose,
   onExport,
+  hasAvatar = false,
 }: ExportSettingsDialogProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('technical');
   const [includePhoto, setIncludePhoto] = useState<boolean>(false);
   const [templates] = useState<ResumeTemplate[]>(getAllTemplates());
 
-  // Load saved preferences
+  // Load saved preferences, auto-enable photo if avatar exists
   useEffect(() => {
     if (isOpen) {
       const savedTemplate = localStorage.getItem('resume-export-template');
@@ -27,11 +29,13 @@ export default function ExportSettingsDialog({
       if (savedTemplate) {
         setSelectedTemplateId(savedTemplate);
       }
-      if (savedPhotoPreference) {
+      if (hasAvatar) {
+        setIncludePhoto(true);
+      } else if (savedPhotoPreference) {
         setIncludePhoto(savedPhotoPreference === 'true');
       }
     }
-  }, [isOpen]);
+  }, [isOpen, hasAvatar]);
 
   const handleExport = () => {
     // Save preferences
@@ -89,11 +93,13 @@ export default function ExportSettingsDialog({
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-gray-700">
-                包含照片占位符
+                {hasAvatar ? '包含头像照片' : '包含照片占位符'}
               </span>
             </label>
             <p className="text-xs text-gray-500 mt-1 ml-6">
-              在简历右上角预留照片区域（仅占位，不上传照片）
+              {hasAvatar 
+                ? '✓ 已上传头像，将自动嵌入到简历右上角'
+                : '在简历右上角预留照片区域（可在编辑器中上传头像）'}
             </p>
           </div>
 

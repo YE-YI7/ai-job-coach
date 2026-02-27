@@ -40,6 +40,7 @@ export interface TemplateStyling {
 
 export interface RenderOptions {
   includePhoto: boolean;
+  avatarSrc?: string; // base64 头像图片数据
 }
 
 export interface ResumeTemplate {
@@ -57,4 +58,5 @@ export interface ExportOptions {
   templateId: string;
   includePhoto: boolean;
   autoCompress: boolean;
+  avatarSrc?: string; // base64 头像图片数据
 }

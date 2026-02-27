@@ -9,6 +9,7 @@ import WhiteboardCanvas from "@/components/WhiteboardCanvas";
 import StageTransitionModal from "@/components/StageTransitionModal";
 import StageSelector from "@/components/StageSelector";
 import { Confetti, CelebrationModal, type EncouragementType } from "@/components/CelebrationSystem";
+import { MethodologyModal, MethodologyTrigger, useMethodologyModal } from "@/components/MethodologyModal";
 import { useStageFSM, STAGE_ORDER, STAGE_NAMES } from "@/lib/fsm";
 import { UserStage, StageNames, getNextStage, isValidStage } from "@/lib/stage";
 
@@ -44,6 +45,8 @@ export default function ChatPage() {
   
   // 白板显示/隐藏状态
   const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(true);
+  // 移动端白板抽屉
+  const [mobileWhiteboardOpen, setMobileWhiteboardOpen] = useState(false);
   
   // 庆祝系统状态
   const [showConfetti, setShowConfetti] = useState(false);
@@ -71,6 +74,9 @@ export default function ChatPage() {
   // 维护 userStage 状态
   const [userStage, setUserStage] = useState<UserStage>("career_planning");
   
+  // 方法论弹窗
+  const methodology = useMethodologyModal(userStage);
+
   // 维护 userId 和 sessionId
   const [userId, setUserId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -1195,14 +1201,76 @@ export default function ChatPage() {
         title={celebrationTitle}
       />
 
+      {/* 方法论弹窗 */}
+      <MethodologyModal
+        isOpen={methodology.isOpen}
+        onClose={methodology.close}
+        stage={userStage}
+      />
+
       {/* 旧面试按钮 UI 已移除 - 现在使用 /app/interview/start/page.tsx */}
       
       {/* 顶部阶段控制器 */}
-      <StageController
-        currentStage={fsm.getCurrentName()}
-        onBack={handleBack}
-        canGoBack={true} // 始终显示返回按钮
-      />
+      <div className="relative">
+        <StageController
+          currentStage={fsm.getCurrentName()}
+          onBack={handleBack}
+          canGoBack={true}
+        />
+        {/* 右上角工具栏：方法论 + 白板切换 + 功能快捷入口 */}
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-2">
+          {/* 功能快捷入口 */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            <button
+              onClick={() => router.push("/interview/start")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-stone-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+              title="面试模拟"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span className="hidden lg:inline">面试</span>
+            </button>
+            <button
+              onClick={() => router.push("/chat/resume-editor")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-stone-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+              title="简历编辑器"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span className="hidden lg:inline">简历</span>
+            </button>
+            <button
+              onClick={() => router.push("/interview/review")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-stone-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+              title="面试复盘"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              <span className="hidden lg:inline">复盘</span>
+            </button>
+            <div className="w-px h-4 bg-stone-200 mx-0.5" />
+          </div>
+          {/* 白板切换按钮 - 桌面端 */}
+          <button
+            onClick={() => setIsWhiteboardVisible(!isWhiteboardVisible)}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-all"
+            title={isWhiteboardVisible ? "收起白板" : "展开白板"}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              {isWhiteboardVisible ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
+              )}
+            </svg>
+            <span className="hidden lg:inline">{isWhiteboardVisible ? "收起白板" : "展开白板"}</span>
+          </button>
+          <MethodologyTrigger stage={userStage} onClick={methodology.open} />
+        </div>
+      </div>
 
       {/* 主内容区域 */}
       <div className="flex-1 flex overflow-hidden">
@@ -1249,6 +1317,87 @@ export default function ChatPage() {
           />
         </div>
       </div>
+
+      {/* 移动端底部快捷导航栏 */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-lg border-t border-stone-200/60 px-4 py-2 safe-area-pb">
+        <div className="flex items-center justify-around">
+          <button
+            onClick={() => router.push("/interview/start")}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 text-stone-500 active:text-orange-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+            <span className="text-[10px] font-medium">面试</span>
+          </button>
+          <button
+            onClick={() => router.push("/chat/resume-editor")}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 text-stone-500 active:text-orange-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span className="text-[10px] font-medium">简历</span>
+          </button>
+          <button
+            onClick={() => setMobileWhiteboardOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 text-stone-500 active:text-orange-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+            </svg>
+            <span className="text-[10px] font-medium">白板</span>
+          </button>
+          <button
+            onClick={() => router.push("/interview/review")}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 text-stone-500 active:text-orange-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <span className="text-[10px] font-medium">复盘</span>
+          </button>
+          <button
+            onClick={methodology.open}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 text-stone-500 active:text-orange-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span className="text-[10px] font-medium">方法论</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 移动端白板抽屉 */}
+      {mobileWhiteboardOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileWhiteboardOpen(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col animate-slide-up">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100">
+              <h3 className="text-sm font-semibold text-stone-700">智能白板</h3>
+              <button
+                onClick={() => setMobileWhiteboardOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <WhiteboardCanvas
+                data={whiteboardData}
+                currentStage={userStage}
+                onUpdate={setWhiteboardData}
+                isVisible={true}
+                messages={messages}
+                onMilestone={handleMilestone}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 阶段切换确认模态 */}
       <StageTransitionModal

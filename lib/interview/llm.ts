@@ -787,6 +787,89 @@ function generateStubSummary(): InterviewSummaryResult {
 }
 
 /**
+ * 基于已有的单题评估数据动态生成降级总结（替代固定 stub）
+ * 当 LLM 调用失败但有单题评估数据时使用
+ */
+function generateFallbackSummary(assessments: any[]): InterviewSummaryResult {
+  // 从单题评估中提取分数
+  const scores: number[] = [];
+  for (const a of assessments) {
+    if (a && typeof a === 'object') {
+      const s = a.score ?? a.overallScore;
+      if (typeof s === 'number' && s >= 0 && s <= 100) {
+        scores.push(s);
+      }
+    }
+  }
+
+  // 如果连分数都没有，真正退化到 stub
+  if (scores.length === 0) {
+    return generateStubSummary();
+  }
+
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const grade = avg >= 90 ? "S" : avg >= 80 ? "A" : avg >= 75 ? "B+" : avg >= 60 ? "B" : avg >= 40 ? "C" : "D";
+  const validGrades = ["S", "A", "B+", "B", "C", "D"];
+  const nextGrade = validGrades[Math.max(0, validGrades.indexOf(grade) - 1)] || "S";
+
+  // 从评估中收集维度信息
+  const dimScores: Record<string, number[]> = {};
+  const dimComments: Record<string, string[]> = {};
+  for (const a of assessments) {
+    if (a?.dimensions && Array.isArray(a.dimensions)) {
+      for (const d of a.dimensions) {
+        if (d.name && typeof d.score === 'number') {
+          if (!dimScores[d.name]) dimScores[d.name] = [];
+          dimScores[d.name].push(d.score);
+        }
+        if (d.name && d.comment) {
+          if (!dimComments[d.name]) dimComments[d.name] = [];
+          dimComments[d.name].push(d.comment);
+        }
+      }
+    }
+  }
+
+  // 收集 summary 文本用于提取优劣势
+  const summaries: string[] = assessments
+    .filter(a => a?.summary && typeof a.summary === 'string')
+    .map(a => a.summary);
+
+  const defaultDimNames = ["专业深度", "逻辑表达", "应变能力", "项目理解", "沟通技巧", "自我认知", "文化匹配"];
+  const dimensions: InterviewDimension[] = defaultDimNames.map((name) => {
+    const s = dimScores[name];
+    const c = dimComments[name];
+    return {
+      name,
+      score: s && s.length > 0 ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : Math.max(0, Math.min(100, avg + Math.round((Math.random() - 0.5) * 16))),
+      comment: c && c.length > 0 ? c[c.length - 1] : "",
+    };
+  });
+
+  // 根据分数生成基本描述
+  const strengths: string[] = [];
+  const weaknesses: string[] = [];
+  if (avg >= 70) strengths.push("整体表现尚可");
+  if (avg >= 80) strengths.push("多数问题回答到位");
+  const highDims = dimensions.filter(d => d.score >= 75).sort((a, b) => b.score - a.score);
+  const lowDims = dimensions.filter(d => d.score < 65).sort((a, b) => a.score - b.score);
+  for (const d of highDims.slice(0, 2)) strengths.push(`${d.name}表现突出`);
+  for (const d of lowDims.slice(0, 2)) weaknesses.push(`${d.name}有待提升`);
+  if (strengths.length === 0) strengths.push("有一定基础");
+  if (weaknesses.length === 0) weaknesses.push("整体可进一步提升");
+
+  return {
+    overallScore: avg,
+    grade,
+    gradeNext: grade === "S" ? "保持S级水准" : `继续努力，向${nextGrade}级进发`,
+    strengths,
+    weaknesses,
+    suggestions: ["多做模拟练习", "针对薄弱维度专项提升"],
+    dimensions,
+  };
+}
+
+/**
  * 生成面试总结
  * 
  * @param jd 职位描述
@@ -1003,10 +1086,10 @@ ${assessmentsStr}
 
     return result;
   } catch (error: any) {
-    console.error("LLM 生成面试总结失败，降级到 stub 模式:", error?.message || error);
+    console.error("LLM 生成面试总结失败，基于已有评估数据生成降级总结:", error?.message || error);
     
-    // 降级到 stub 模式
-    return generateStubSummary();
+    // 基于已有评估数据动态生成总结，而非返回固定硬编码内容
+    return generateFallbackSummary(assessments);
   }
 }
 

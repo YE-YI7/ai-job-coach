@@ -32,22 +32,26 @@ export async function POST(req: Request) {
 5. 量化指标尽量保留并强化
 6. 语气专业但不夸张
 
-输出格式：返回JSON，包含针对性调整后的各分区内容，以及adjustment_notes（调整说明）。
-JSON格式：
+⚠️ 极其重要的输出规则：
+- personalInfo、education、campusExperience、projects、workExperience、selfEvaluation 这6个字段的值必须是【完整的简历正文内容】
+- 这6个字段绝对不能是修改建议、调整说明或分析文字
+- 每个字段的内容应该可以直接放入简历展示给HR看
+- 修改建议和调整说明只能放在 adjustment_notes 字段中
+
+输出格式：返回纯JSON。
+
+示例（注意看字段值是简历正文，不是建议）：
 {
-  "personalInfo": "调整后的个人信息",
-  "education": "调整后的教育信息",
-  "campusExperience": "调整后的在校经历",
-  "projects": "调整后的项目经历",
-  "workExperience": "调整后的工作经历",
-  "selfEvaluation": "调整后的个人评价",
-  "adjustment_notes": [
-    "调整说明1：...",
-    "调整说明2：..."
-  ],
+  "personalInfo": "张三 | 产品经理 | 手机：138xxxx | 邮箱：xxx@qq.com",
+  "education": "北京大学 计算机科学与技术 本科 2020-2024 GPA 3.8/4.0",
+  "campusExperience": "校学生会技术部部长，负责...",
+  "projects": "电商推荐系统优化项目\n- 负责用户画像模块设计，DAU提升15%...",
+  "workExperience": "字节跳动 产品实习生 2023.06-2023.09\n- 主导...",
+  "selfEvaluation": "3年互联网产品经验，擅长数据驱动决策...",
+  "adjustment_notes": ["将项目经历中的推荐系统经验前置，匹配JD中的算法要求", "在自我评价中强调了数据分析能力"],
   "match_score": 85,
-  "key_matches": ["匹配的关键能力1", "匹配的关键能力2"],
-  "gaps": ["需要补强的方面1"]
+  "key_matches": ["数据分析", "用户增长"],
+  "gaps": ["缺少B端产品经验"]
 }
 
 只返回JSON，不要包含markdown标记或其他文字。`;
@@ -107,6 +111,21 @@ ${jobDescription}
         { ok: false, error: "AI返回格式解析失败，请重试" },
         { status: 500 }
       );
+    }
+
+    // 校验：如果简历字段看起来像是建议文字而非简历正文，回退到原始内容
+    const suggestionPatterns = /^(建议|应该|可以|需要|调整|优化|修改|补充|将|把|在|针对|根据|突出|强化|增加|删除|替换|这里|此处|该部分)/;
+    const resumeKeys = ['personalInfo', 'education', 'campusExperience', 'projects', 'workExperience', 'selfEvaluation'] as const;
+    for (const key of resumeKeys) {
+      const val = parsed[key];
+      if (val && typeof val === 'string') {
+        const trimmed = val.trim();
+        // 如果内容很短且以建议性词语开头，视为LLM误返回了调整说明
+        if (trimmed.length < 80 && suggestionPatterns.test(trimmed)) {
+          console.warn(`Resume tailor: ${key} 看起来像建议而非正文，回退到原始内容`);
+          parsed[key] = null; // 让下面的 fallback 逻辑使用原始数据
+        }
+      }
     }
 
     return NextResponse.json({

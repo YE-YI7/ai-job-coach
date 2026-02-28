@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import HRReviewTab from "@/components/HRReviewTab";
+import ResumeDiscussionPanel from "@/components/ResumeDiscussionPanel";
 import { generateResumePDF, isResumeDataEmpty, type ResumeData } from "@/lib/pdf-generator";
 import ExportSettingsDialog from "@/components/ExportSettingsDialog";
 import { compressResume } from "@/lib/resume-compressor";
@@ -836,7 +836,7 @@ ${preview.selfEvaluation}
                     : "border-transparent text-gray-600 hover:text-gray-900"
                 }`}
               >
-                HR点评
+                HR对谈
               </button>
             </div>
 
@@ -953,8 +953,7 @@ ${preview.selfEvaluation}
                 </div>
               ) : (
                 // HR点评页
-                <HRReviewTab 
-                  sections={sections} 
+                <ResumeDiscussionPanel
                   appliedContent={Object.values(preview).filter(v => v.trim() !== "").join("\n\n")}
                 />
               )}

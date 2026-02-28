@@ -6,6 +6,9 @@ import {
   getAdvisoryHRPrompt,
   POSITIVE_HR_NAME,
   ADVISORY_HR_NAME,
+  getInitialDiscussionPrompt,
+  getFollowUpDiscussionPrompt,
+  getQuestionDiscussionPrompt,
 } from "@/lib/prompts";
 
 // 使用 Node.js runtime
@@ -106,6 +109,48 @@ export async function POST(req: Request) {
           },
         });
       }
+    } else if (type === "discussion") {
+      // 对谈模式：两位HR围绕简历展开自然对话
+      const { previousResumeContent, previousDiscussionSummary } = body;
+      
+      let conversation;
+      if (previousResumeContent && previousDiscussionSummary) {
+        // 后续对谈：聚焦简历变化
+        conversation = await generateFollowUpDiscussion(
+          resumeContent,
+          previousResumeContent,
+          previousDiscussionSummary
+        );
+      } else {
+        // 首次对谈
+        conversation = await generateInitialDiscussion(resumeContent);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        conversation,
+      });
+    } else if (type === "discussion-question") {
+      // 对谈模式下的追问
+      const { question: userQuestion, recentDiscussion } = body;
+      
+      if (!userQuestion) {
+        return NextResponse.json(
+          { ok: false, error: "缺少问题内容" },
+          { status: 400 }
+        );
+      }
+
+      const conversation = await generateQuestionDiscussion(
+        resumeContent,
+        userQuestion,
+        recentDiscussion || ""
+      );
+
+      return NextResponse.json({
+        ok: true,
+        conversation,
+      });
     } else {
       return NextResponse.json(
         { ok: false, error: "无效的type参数" },
@@ -269,4 +314,128 @@ function cleanMarkdown(text: string): string {
     .replace(/`([^`]+)`/g, "$1") // 移除行内代码
     .replace(/```[\s\S]*?```/g, "") // 移除代码块
     .trim();
+}
+
+/**
+ * 解析LLM返回的对谈JSON
+ */
+function parseDiscussionResponse(raw: string): Array<{ speaker: string; content: string }> {
+  // 尝试从返回内容中提取JSON数组
+  let jsonStr = raw.trim();
+  
+  // 如果被markdown代码块包裹，提取内部内容
+  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1].trim();
+  }
+  
+  // 尝试找到JSON数组的起止位置
+  const startIdx = jsonStr.indexOf("[");
+  const endIdx = jsonStr.lastIndexOf("]");
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    jsonStr = jsonStr.slice(startIdx, endIdx + 1);
+  }
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item: any) => item.speaker && item.content)
+        .map((item: any) => ({
+          speaker: String(item.speaker),
+          content: cleanMarkdown(String(item.content)),
+        }));
+    }
+  } catch {
+    // JSON解析失败，尝试按行解析
+    console.warn("JSON解析对谈内容失败，尝试按行解析");
+  }
+  
+  // fallback: 返回一条错误消息
+  return [
+    { speaker: "系统", content: "对谈内容生成失败，请重试" },
+  ];
+}
+
+/**
+ * 生成首次对谈
+ */
+async function generateInitialDiscussion(
+  resumeContent: string
+): Promise<Array<{ speaker: string; content: string }>> {
+  const prompt = getInitialDiscussionPrompt(resumeContent);
+  const raw = await callLLM(
+    [
+      {
+        role: "system",
+        content: "你是一个对话生成器，负责模拟两位HR之间的自然对谈。严格按照JSON数组格式输出，不要添加任何其他文字。",
+      },
+      { role: "user", content: prompt },
+    ],
+    {
+      temperature: 0.8,
+      maxTokens: 1200,
+      provider: "deepseek",
+      timeoutMs: 60000,
+    }
+  );
+  return parseDiscussionResponse(raw);
+}
+
+/**
+ * 生成后续对谈（简历更新后）
+ */
+async function generateFollowUpDiscussion(
+  newResumeContent: string,
+  previousResumeContent: string,
+  previousDiscussionSummary: string
+): Promise<Array<{ speaker: string; content: string }>> {
+  const prompt = getFollowUpDiscussionPrompt(
+    newResumeContent,
+    previousResumeContent,
+    previousDiscussionSummary
+  );
+  const raw = await callLLM(
+    [
+      {
+        role: "system",
+        content: "你是一个对话生成器，负责模拟两位HR之间的后续对谈。严格按照JSON数组格式输出，不要添加任何其他文字。",
+      },
+      { role: "user", content: prompt },
+    ],
+    {
+      temperature: 0.8,
+      maxTokens: 1000,
+      provider: "deepseek",
+      timeoutMs: 60000,
+    }
+  );
+  return parseDiscussionResponse(raw);
+}
+
+/**
+ * 生成追问回应对谈
+ */
+async function generateQuestionDiscussion(
+  resumeContent: string,
+  question: string,
+  recentDiscussion: string
+): Promise<Array<{ speaker: string; content: string }>> {
+  const prompt = getQuestionDiscussionPrompt(resumeContent, question, recentDiscussion);
+  const raw = await callLLM(
+    [
+      {
+        role: "system",
+        content: "你是一个对话生成器，负责模拟两位HR回应候选人的追问。严格按照JSON数组格式输出，不要添加任何其他文字。",
+      },
+      { role: "user", content: prompt },
+    ],
+    {
+      temperature: 0.7,
+      maxTokens: 600,
+      provider: "deepseek",
+      timeoutMs: 60000,
+    }
+  );
+  return parseDiscussionResponse(raw);
 }

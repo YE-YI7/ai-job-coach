@@ -4,3 +4,4 @@
 
 export * from './hr-positive';
 export * from './hr-advisory';
+export * from './hr-discussion';

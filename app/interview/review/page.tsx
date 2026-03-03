@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -69,8 +69,24 @@ function RoleAvatar({ roleId, size = "sm" }: { roleId: ReviewRoleId | "consensus
   return <RoleAvatarSvg roleId={roleId} size={px} />;
 }
 
-// ===== 主组件 =====
+// ===== 主组件（包裹 Suspense） =====
 export default function InterviewReviewPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/50 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <Loader2 className="w-8 h-8 text-orange-500 animate-spin mx-auto" />
+          <p className="text-sm text-slate-500">加载中...</p>
+        </div>
+      </div>
+    }>
+      <InterviewReviewContent />
+    </Suspense>
+  );
+}
+
+// ===== 内容组件 =====
+function InterviewReviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 

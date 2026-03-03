@@ -336,7 +336,7 @@ export function EmptyStateIllustration({ size = 200 }: { size?: number }) {
 
 /** 主组件 */
 export default function RoleAvatarSvg({ roleId, size = 40, className }: RoleAvatarSvgProps) {
-  const avatarMap: Record<string, (props: { size: number }) => JSX.Element> = {
+  const avatarMap: Record<string, (props: { size: number }) => React.ReactElement> = {
     kay: KayAvatar,
     mia: MiaAvatar,
     rex: RexAvatar,

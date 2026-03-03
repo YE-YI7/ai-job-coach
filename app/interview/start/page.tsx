@@ -96,6 +96,9 @@ export default function InterviewStartPage() {
     setShowCelebration(true);
   }, []);
 
+  // 双分支入口状态：null=尚未选择，"mock"=模拟面试，"review"=面试复盘
+  const [branchChoice, setBranchChoice] = useState<"mock" | "review" | null>(null);
+
   // FIX: interview/start 页面初始化
   // 只读取面试配置（jd, roundType, questionCount），不读取或设置全局阶段状态
   // 不重定向到 /chat，即使 jd 为空也保持在当前页面（用户可以在此页面输入配置）
@@ -120,6 +123,8 @@ export default function InterviewStartPage() {
           timestamp: new Date(msg.timestamp),
         }));
         setMessages(restoredMessages);
+        // 有历史记录说明之前选了模拟面试，跳过分支选择
+        setBranchChoice("mock");
       }
       // FIX: 如果没有历史记录，不显示初始配置卡片，让页面为空
       // 用户可以直接在配置卡片中填写信息
@@ -1086,7 +1091,7 @@ export default function InterviewStartPage() {
               <span className="text-white text-lg">💼</span>
             </div>
             <h1 className="text-xl font-semibold text-stone-800">
-              模拟面试
+              {branchChoice === "review" ? "面试复盘" : branchChoice === "mock" ? "模拟面试" : "面试中心"}
             </h1>
           </div>
           <button
@@ -1107,7 +1112,68 @@ export default function InterviewStartPage() {
         <div className="left-panel flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* 消息/卡片流（可滚动） - FIX: 独立滚动区域 */}
           <div className="messages-area flex-1 overflow-y-auto px-6 py-6 space-y-4">
-            {messages.length === 0 ? (
+            {messages.length === 0 && branchChoice === null ? (
+              /* 双分支入口选择 */
+              <div className="flex items-center justify-center h-full">
+                <div className="w-full max-w-md space-y-6 px-4">
+                  <div className="text-center space-y-2">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg">
+                      <span className="text-white text-3xl">💼</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-stone-800">面试中心</h2>
+                    <p className="text-sm text-stone-500">选择你需要的功能</p>
+                  </div>
+
+                  <div className="grid gap-4">
+                    {/* 模拟面试 */}
+                    <button
+                      onClick={() => setBranchChoice("mock")}
+                      className="group w-full text-left bg-white rounded-2xl border-2 border-blue-200/60 shadow-sm p-5 hover:shadow-lg hover:border-blue-300 transition-all active:scale-[0.98]"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-stone-800 mb-1">模拟面试</h3>
+                          <p className="text-sm text-stone-500 leading-relaxed">
+                            AI 根据岗位 JD 生成面试题，实时作答并获得评分反馈
+                          </p>
+                        </div>
+                        <svg className="w-5 h-5 text-stone-300 mt-1 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* 面试复盘 */}
+                    <button
+                      onClick={() => router.push("/interview/review")}
+                      className="group w-full text-left bg-white rounded-2xl border-2 border-orange-200/60 shadow-sm p-5 hover:shadow-lg hover:border-orange-300 transition-all active:scale-[0.98]"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-stone-800 mb-1">面试复盘</h3>
+                          <p className="text-sm text-stone-500 leading-relaxed">
+                            粘贴面试内容，6位 AI 专家多角色点评分析，精准定位薄弱点
+                          </p>
+                        </div>
+                        <svg className="w-5 h-5 text-stone-300 mt-1 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : messages.length === 0 && branchChoice === "mock" ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-stone-500">
                   <div className="interview-card bg-amber-50 border-2 border-amber-200 rounded-xl shadow-lg p-6 my-4">

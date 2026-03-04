@@ -26,9 +26,9 @@ export const REVIEW_ROLES: Record<ReviewRoleId, ReviewRole> = {
   kay: {
     id: "kay",
     name: "Kay",
-    tag: "大厂技术总监",
-    duty: "负责诊断技术短板，指出技术深度不足和系统思维缺失，追问架构设计思路",
-    style: "犀利直接，关注技术深度和系统思维，多用「这个地方不够深入」「你需要思考底层逻辑」",
+    tag: "行业资深总监",
+    duty: "负责诊断专业短板，指出深度不足和系统思维缺失，追问核心能力和方法论",
+    style: "犀利直接，关注专业深度和系统思维，多用「这个地方不够深入」「你需要思考底层逻辑」",
     colorClass: "text-indigo-600",
     bgClass: "bg-indigo-50",
     borderClass: "border-indigo-300",
@@ -39,7 +39,7 @@ export const REVIEW_ROLES: Record<ReviewRoleId, ReviewRole> = {
     id: "mia",
     name: "Mia",
     tag: "面霸学姐",
-    duty: "负责给出标准/参考答案，分享面试话术和通关技巧，提供高分回答模板",
+    duty: "负责给出参考答案，分享面试话术和通关技巧，提供高分回答模板",
     style: "亲切鼓励，分享通关技巧和话术，多用「我当时也遇到过」「你可以这么说」",
     colorClass: "text-emerald-600",
     bgClass: "bg-emerald-50",
@@ -50,9 +50,9 @@ export const REVIEW_ROLES: Record<ReviewRoleId, ReviewRole> = {
   rex: {
     id: "rex",
     name: "Rex",
-    tag: "创业公司CTO",
-    duty: "负责评估项目实战能力，追问落地细节和量化数据，考察解决问题的思路",
-    style: "务实坦率，关注落地能力和成长潜力，多用「实际项目中你会怎么做」「这个能不能量化」",
+    tag: "实战派管理者",
+    duty: "负责评估实战能力，追问落地细节和量化成果，考察解决问题的思路",
+    style: "务实坦率，关注落地能力和成长潜力，多用「实际工作中你会怎么做」「这个能不能量化」",
     colorClass: "text-orange-600",
     bgClass: "bg-orange-50",
     borderClass: "border-orange-300",
@@ -87,7 +87,7 @@ export const REVIEW_ROLES: Record<ReviewRoleId, ReviewRole> = {
     id: "lu",
     name: "Prof. Lu",
     tag: "高校导师",
-    duty: "负责检验基础功底，纠正原理性错误和逻辑漏洞，确保技术概念理解准确",
+    duty: "负责检验基础功底，纠正概念性错误和逻辑漏洞，确保专业知识理解准确",
     style: "学术严谨，关注基础功底和逻辑表达，多用「从原理上来说」「你的逻辑链条断了」",
     colorClass: "text-amber-700",
     bgClass: "bg-amber-50",
@@ -234,6 +234,7 @@ export interface FollowUpRequest {
 
 /**
  * 根据面试类型选择 3~4 个角色参与讨论
+ * 支持各种岗位：研发、产品、设计、运营、市场、销售等
  */
 export function selectRolesForRound(round: string, tags: string[]): ReviewRoleId[] {
   const tagSet = new Set(tags.map(t => t.toLowerCase()));
@@ -255,36 +256,84 @@ export function selectRolesForRound(round: string, tags: string[]): ReviewRoleId
     weights.rex += 2;
     weights.lu += 1;
   }
-  if (round.includes("HR") || round.includes("终面")) {
+  if (round.includes("HR") || round.includes("终面") || round.includes("综合")) {
     weights.vivi += 3;
     weights.coco += 2;
     weights.mia += 1;
   }
-  if (round.includes("项目")) {
+  if (round.includes("项目") || round.includes("案例")) {
     weights.rex += 3;
     weights.kay += 2;
   }
-  if (round.includes("总监")) {
+  if (round.includes("总监") || round.includes("VP") || round.includes("负责人")) {
     weights.kay += 3;
     weights.vivi += 2;
   }
 
-  // 根据标签加权
-  if (tagSet.has("八股") || tagSet.has("基础")) {
+  // 根据标签加权 - 技术类
+  if (tagSet.has("八股") || tagSet.has("基础") || tagSet.has("原理")) {
     weights.lu += 2;
     weights.kay += 1;
   }
-  if (tagSet.has("行为面") || tagSet.has("bq")) {
-    weights.vivi += 2;
-    weights.mia += 1;
-  }
-  if (tagSet.has("系统设计")) {
+  if (tagSet.has("系统设计") || tagSet.has("架构")) {
     weights.kay += 2;
     weights.rex += 2;
   }
-  if (tagSet.has("项目深挖")) {
+
+  // 根据标签加权 - 通用
+  if (tagSet.has("行为面") || tagSet.has("bq") || tagSet.has("情景题")) {
+    weights.vivi += 2;
+    weights.mia += 1;
+  }
+  if (tagSet.has("项目深挖") || tagSet.has("案例分析")) {
     weights.rex += 2;
     weights.kay += 1;
+  }
+
+  // 根据标签加权 - 非研发岗位
+  if (tagSet.has("产品") || tagSet.has("产品经理") || tagSet.has("需求分析") || tagSet.has("用户体验")) {
+    weights.rex += 2;  // 实战落地
+    weights.vivi += 2; // 沟通表达
+    weights.mia += 1;  // 话术技巧
+    weights.lu -= 1;   // 降低学术权重
+  }
+  if (tagSet.has("设计") || tagSet.has("ui") || tagSet.has("ux") || tagSet.has("交互")) {
+    weights.vivi += 2;
+    weights.rex += 1;
+    weights.coco += 1;
+    weights.lu -= 1;
+  }
+  if (tagSet.has("运营") || tagSet.has("市场") || tagSet.has("营销") || tagSet.has("增长")) {
+    weights.rex += 2;  // 数据量化
+    weights.vivi += 2; // 沟通表达
+    weights.mia += 1;
+    weights.lu -= 1;
+  }
+  if (tagSet.has("销售") || tagSet.has("商务") || tagSet.has("bd")) {
+    weights.vivi += 3;
+    weights.rex += 1;
+    weights.coco += 1;
+    weights.lu -= 1;
+    weights.kay -= 1;
+  }
+  if (tagSet.has("管理") || tagSet.has("leader") || tagSet.has("团队")) {
+    weights.kay += 2;
+    weights.vivi += 2;
+    weights.rex += 1;
+  }
+  if (tagSet.has("数据") || tagSet.has("分析") || tagSet.has("数据分析")) {
+    weights.kay += 1;
+    weights.rex += 2;
+    weights.lu += 1;
+  }
+  if (tagSet.has("薪资谈判") || tagSet.has("谈薪")) {
+    weights.vivi += 3;
+    weights.mia += 2;
+  }
+
+  // 确保权重不为负
+  for (const role of allRoles) {
+    if (weights[role] < 0) weights[role] = 0;
   }
 
   // 按权重排序，选前 3~4 个

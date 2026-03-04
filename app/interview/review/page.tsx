@@ -30,6 +30,7 @@ import {
   ClipboardCheck,
   History,
   File,
+  Briefcase,
 } from "lucide-react";
 import RoleAvatarSvg from "@/components/interview-review/RoleAvatarSvg";
 
@@ -107,6 +108,9 @@ function InterviewReviewContent() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [privacyConsent, setPrivacyConsent] = useState(false);
+
+  // JD 职位描述
+  const [jobDescription, setJobDescription] = useState("");
 
   // 简历关联
   const [resumeText, setResumeText] = useState<string>("");
@@ -303,6 +307,7 @@ function InterviewReviewContent() {
           interview_time: interviewTime,
           tags,
           resume_text: resumeText || undefined,
+          job_description: jobDescription || undefined,
         }),
       });
       const data = await res.json();
@@ -371,6 +376,7 @@ function InterviewReviewContent() {
           tags,
           session_id: sessionId,
           resume_text: resumeText || undefined,
+          job_description: jobDescription || undefined,
         }),
       });
       const data = await res.json();
@@ -555,6 +561,7 @@ function InterviewReviewContent() {
     setTags([]);
     setTagInput("");
     setPrivacyConsent(false);
+    setJobDescription("");
     setResumeText("");
     setSelectedResumeId(null);
     setRawContent("");
@@ -613,13 +620,14 @@ function InterviewReviewContent() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/50">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div className={`${step === "result" ? "max-w-6xl" : "max-w-3xl"} mx-auto px-4 sm:px-6 h-14 flex items-center justify-between`}>
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => {
                 if (step === "paste") setStep("info");
                 else if (step === "preview") setStep("paste");
-                else router.back();
+                else if (step === "info") router.push("/interview/start");
+                else router.push("/interview/start");
               }}
               className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors"
             >
@@ -683,7 +691,7 @@ function InterviewReviewContent() {
         )}
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-5 space-y-5">
+      <main className={`${step === "result" ? "max-w-6xl" : "max-w-3xl"} mx-auto px-4 sm:px-6 py-5 space-y-5`}>
         <AnimatePresence mode="wait">
           {/* ========== Step 1: 基础信息 ========== */}
           {step === "info" && (
@@ -771,6 +779,24 @@ function InterviewReviewContent() {
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+
+                {/* 关联 JD */}
+                <div>
+                  <label className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1">
+                    <Briefcase className="w-3.5 h-3.5" /> 职位描述 JD
+                    <span className="text-slate-300 font-normal">（可选，提升分析精度）</span>
+                  </label>
+                  <textarea
+                    value={jobDescription}
+                    onChange={e => setJobDescription(e.target.value)}
+                    placeholder="粘贴职位描述/JD，AI 将结合岗位要求分析你的面试表现..."
+                    rows={3}
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-orange-300/50 focus:border-orange-300 transition-all placeholder:text-slate-300"
+                  />
+                  {jobDescription && (
+                    <p className="text-[10px] text-slate-400 mt-1">{jobDescription.length} 字</p>
+                  )}
                 </div>
 
                 {/* 关联简历 */}
@@ -1118,7 +1144,10 @@ function InterviewReviewContent() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-5"
             >
-              {/* 汇总卡片 */}
+              {/* 左右布局容器 */}
+              <div className="lg:grid lg:grid-cols-[380px_1fr] lg:gap-6">
+                {/* 左侧：汇总卡片（桌面端 sticky） */}
+                <div className="lg:sticky lg:top-[60px] lg:self-start lg:max-h-[calc(100vh-80px)] lg:overflow-y-auto lg:pb-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -1294,7 +1323,10 @@ function InterviewReviewContent() {
                   )}
                 </div>
               </motion.div>
+                </div>{/* 左侧结束 */}
 
+                {/* 右侧：逐题分析卡片 */}
+                <div className="mt-5 lg:mt-0">
               {/* 逐题分析卡片 */}
               <div>
                 <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -1682,6 +1714,8 @@ function InterviewReviewContent() {
                   ))}
                 </div>
               </div>
+                </div>{/* 右侧结束 */}
+              </div>{/* 左右布局容器结束 */}
 
               {/* 底部操作 */}
               <div className="text-center pb-6 space-y-3">

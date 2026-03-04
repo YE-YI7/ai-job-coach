@@ -43,7 +43,8 @@ function parseJsonResponse(raw: string): any {
 async function analyzeQuestion(
   q: ParsedQuestion,
   roleIds: ReviewRoleId[],
-  resumeText?: string
+  resumeText?: string,
+  jobDescription?: string
 ): Promise<QuestionAnalysisResult> {
   // Step 1: 多角色讨论
   const discussionRaw = await callLLM(
@@ -52,7 +53,7 @@ async function analyzeQuestion(
       {
         role: "user",
         content: getMultiRoleDiscussionPrompt(
-          q.question, q.answer, roleIds, resumeText, q.index
+          q.question, q.answer, roleIds, resumeText, q.index, jobDescription
         ),
       },
     ],
@@ -89,7 +90,7 @@ async function analyzeQuestion(
         { role: "system", content: "你是面试评分专家。只输出评级字母。" },
         {
           role: "user",
-          content: getQuestionScorePrompt(q.question, q.answer, discussionSummary),
+          content: getQuestionScorePrompt(q.question, q.answer, discussionSummary, jobDescription),
         },
       ],
       { temperature: 0.2, maxTokens: 10, provider: "deepseek" }
@@ -100,7 +101,7 @@ async function analyzeQuestion(
         {
           role: "user",
           content: getAnswerRewritePrompt(
-            q.question, q.answer, discussionSummary, resumeText
+            q.question, q.answer, discussionSummary, resumeText, jobDescription
           ),
         },
       ],
@@ -151,12 +152,13 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { questions, company, round, tags, resume_text, session_id } = body as {
+    const { questions, company, round, tags, resume_text, job_description, session_id } = body as {
       questions: ParsedQuestion[];
       company?: string;
       round?: string;
       tags?: string[];
       resume_text?: string;
+      job_description?: string;
       session_id?: string;
     };
 
@@ -173,7 +175,7 @@ export async function POST(req: Request) {
     // 逐题分析（串行，避免 API 限流）
     const analysisResults: QuestionAnalysisResult[] = [];
     for (const q of questions) {
-      const result = await analyzeQuestion(q, roleIds, resume_text);
+      const result = await analyzeQuestion(q, roleIds, resume_text, job_description);
       analysisResults.push(result);
     }
 
@@ -193,7 +195,7 @@ export async function POST(req: Request) {
         { role: "system", content: "你是面试复盘总教练。严格输出JSON。" },
         {
           role: "user",
-          content: getCoachSummaryPrompt(summaryInput, company || "", round || ""),
+          content: getCoachSummaryPrompt(summaryInput, company || "", round || "", job_description, resume_text),
         },
       ],
       { temperature: 0.4, maxTokens: 1000, provider: "deepseek" }

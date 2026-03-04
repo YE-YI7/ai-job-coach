@@ -72,32 +72,35 @@ export function getMultiRoleDiscussionPrompt(
   answer: string,
   roleIds: ReviewRoleId[],
   resumeText?: string,
-  questionIndex?: number
+  questionIndex?: number,
+  jobDescription?: string
 ): string {
   const rolesSection = getRoleList(roleIds);
   const speakerNames = getSpeakerNames(roleIds);
   const resumeSection = resumeText
     ? `\n【候选人简历摘要】\n${resumeText}\n`
     : "";
+  const jdSection = jobDescription
+    ? `\n【目标岗位 JD】\n${jobDescription}\n`
+    : "";
 
-  return `你需要模拟${roleIds.length}位面试复盘专家围绕一道面试题展开自然讨论。他们各有不同的视角和风格。
+  return `你需要模拟${roleIds.length}位面试复盘顾问围绕一道面试题展开自然讨论。他们各有不同的视角和风格。
 
 【参与角色】
 - ${rolesSection}
 
 【讨论要求】
-1. 对话要自然、真实，像几个同事在会议室讨论一个候选人的表现
-2. 角色之间要有互动——可以附和、补充、反驳、追问
-3. 每个角色的发言必须严格符合其人设风格，不要串角色
-4. 每个角色都要聚焦在自己的职责范围内（详见每个角色的职责描述），不要偏离自己的专业领域
-5. 先整体评价这道题答得怎么样，然后各自从自己的角度切入
-6. ${roleIds.length * 2}-${roleIds.length * 2 + 2}条对话，以一句简短共识收尾
-7. 每条对话控制在40-100字，简洁有力
-8. 只输出纯文本内容，不要使用 markdown 格式
-9. 不要过度吹捧，也不要过度打击，保持专业但有温度
-10. 要给出具体、可执行的建议，不说空话
-
-${resumeSection}
+1. 对话要自然、真实，像几个朋友在帮你复盘面试
+2. 角色之间要有互动——可以附和、补充、反驳
+3. 每个角色严格符合其人设风格
+4. **不要使用专业术语堆砌**，用通俗易懂的语言
+5. 评价要结合实际场景，给出具体例子和建议
+6. 如果有JD，要指出回答与岗位要求的匹配/差距
+7. 如果有简历，要结合候选人的真实经历给建议
+8. ${roleIds.length * 2}-${roleIds.length * 2 + 2}条对话，以一句简短共识收尾
+9. 每条对话控制在40-100字，简洁有力
+10. 只输出纯文本内容，不要使用 markdown 格式
+${resumeSection}${jdSection}
 【面试题 Q${questionIndex ?? ""}】
 ${question}
 
@@ -125,20 +128,26 @@ export function getAnswerRewritePrompt(
   question: string,
   originalAnswer: string,
   discussionSummary: string,
-  resumeText?: string
+  resumeText?: string,
+  jobDescription?: string
 ): string {
   const resumeSection = resumeText
     ? `\n【候选人简历/项目经历】\n${resumeText}\n`
     : "";
+  const jdSection = jobDescription
+    ? `\n【目标岗位 JD】\n${jobDescription}\n`
+    : "";
 
-  return `你是一位资深的面试辅导教练。基于对一道面试题的多位专家讨论意见，帮候选人改写出一个更好的参考回答。
+  return `你是一位经验丰富的面试辅导教练。根据几位顾问的讨论意见，帮候选人改写出一个更好的参考回答。
 
 【核心原则】
 1. 这不是"标准答案"，而是"如果你这么说会更好"的参考
 2. 必须贴合候选人自身的经历和背景（如有简历则参考）
 3. 保留原回答中的真实经历和好的部分
-4. 修正专家们指出的问题（结构不清、缺少数据、逻辑断裂等）
+4. 修正讨论中指出的问题（结构不清、缺少数据、逻辑断裂等）
 5. 语气自然口语化，像候选人自己会说的话，不要书面腔
+6. 如果有JD，回答要突出与岗位要求匹配的能力和经验
+7. 用通俗易懂的语言，避免堆砌专业术语
 
 【面试题】
 ${question}
@@ -146,9 +155,9 @@ ${question}
 【候选人的原始回答】
 ${originalAnswer || "（未提供回答）"}
 
-【专家讨论要点摘要】
+【顾问讨论要点摘要】
 ${discussionSummary}
-${resumeSection}
+${resumeSection}${jdSection}
 【输出要求】
 1. 先给出回答骨架（3-5个关键要点，每个10字以内）
 2. 再给出完整的改写回答（200-400字，口语化）
@@ -222,28 +231,40 @@ export function getCoachSummaryPrompt(
     key_issues: string;
   }>,
   company: string,
-  round: string
+  round: string,
+  jobDescription?: string,
+  resumeText?: string
 ): string {
   const questionsSection = questionsData
     .map((q, i) => `Q${i + 1}[${q.score}][${q.tags.join(",")}]: ${q.question}\n  关键问题: ${q.key_issues}`)
     .join("\n\n");
+
+  const jdSection = jobDescription
+    ? `\n【目标岗位 JD】\n${jobDescription}\n`
+    : "";
+  const resumeSection = resumeText
+    ? `\n【候选人简历摘要】\n${resumeText}\n`
+    : "";
 
   return `你是一位温柔但坦率的面试复盘总教练。基于对每道题的分析结果，给出本场面试的整体复盘总结。
 
 【面试信息】
 公司：${company || "未知"}
 轮次：${round || "未知"}
-
+${jdSection}${resumeSection}
 【逐题分析结果】
 ${questionsSection}
 
 【总结要求】
-1. "one_line_summary"：一句话总结本场面试（20字以内，犀利且准确）
-2. "biggest_weakness"：最核心的一个短板（不要多个，就一个最要命的）
+1. "one_line_summary"：一句话总结本场面试（20字以内，犀利且准确，用大白话）
+2. "biggest_weakness"：最核心的一个短板（不要多个，就一个最要命的，说人话）
 3. "biggest_strength"：最亮眼的一个优势
-4. "training_suggestions"：3条具体、可执行的改进建议（不要空泛的"加强练习"）
+4. "training_suggestions"：3条具体、可执行的改进建议（不要空泛的"加强练习"，要具体到可以立刻去做的事情）
 5. "overall_grade"：S/A+/A/A-/B+/B/B-/C+/C/D 打分
 6. "recommended_tags"：推荐本场面试的标签（3~5个），用于历史分类
+7. 如果有JD，评估候选人与岗位要求的匹配度，建议中要包含如何补齐与JD差距的具体行动
+8. 如果有简历，结合候选人真实背景给出针对性建议
+9. 用通俗易懂的语言，不要堆砌专业术语
 
 【输出格式】
 严格输出 JSON，不要添加任何其他文字：
@@ -295,17 +316,22 @@ ${rawContent}
 export function getQuestionScorePrompt(
   question: string,
   answer: string,
-  discussionContent: string
+  discussionContent: string,
+  jobDescription?: string
 ): string {
-  return `基于面试题和回答内容，以及专家讨论的要点，给这道题打一个评级分数。
+  const jdHint = jobDescription
+    ? `\n注意：结合目标岗位JD要求进行评分，如果回答与岗位需求高度匹配可适当加分。\n`
+    : "";
 
+  return `基于面试题和回答内容，以及顾问讨论的要点，给这道题打一个评级分数。
+${jdHint}
 【面试题】
 ${question}
 
 【候选人回答】
 ${answer || "（未提供）"}
 
-【专家讨论要点】
+【顾问讨论要点】
 ${discussionContent}
 
 【评级标准】

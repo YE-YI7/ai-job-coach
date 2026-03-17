@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 type Step = 'email' | 'code';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -15,6 +17,16 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // 从 URL 读取 OAuth 错误信息
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+      // 清除 URL 中的 error 参数
+      router.replace("/login");
+    }
+  }, [searchParams, router]);
 
   // 倒计时
   useEffect(() => {
@@ -512,6 +524,33 @@ export default function LoginPage() {
             </form>
           )}
 
+          {/* OAuth 第三方登录 */}
+          {step === 'email' && (
+            <div className="mt-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+              {/* 分割线 */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 h-px bg-slate-300/40"></div>
+                <span className="text-xs text-slate-400 font-medium">或</span>
+                <div className="flex-1 h-px bg-slate-300/40"></div>
+              </div>
+
+              {/* 观猹登录按钮 */}
+              <a
+                href="/api/auth/watcha/authorize"
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl border border-slate-200/60 bg-white/50 hover:bg-white/80 hover:border-slate-300/60 transition-all duration-200 group"
+              >
+                <img
+                  src="https://watcha.tos-cn-beijing.volces.com/products/logo/1752064513_guan-cha-insights.png"
+                  alt="观猹"
+                  className="w-5 h-5 rounded object-contain"
+                />
+                <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-800 transition-colors">
+                  观猹账号登录
+                </span>
+              </a>
+            </div>
+          )}
+
           {/* Step: Code Input */}
           {step === 'code' && (
             <div className="space-y-5 animate-slide-up">
@@ -582,5 +621,13 @@ export default function LoginPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginContent />
+    </Suspense>
   );
 }

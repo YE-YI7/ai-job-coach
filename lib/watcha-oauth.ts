@@ -25,15 +25,17 @@ function getConfig() {
 export function getWatchaAuthorizeUrl(state: string): string {
   const { clientId, redirectUri } = getConfig();
 
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    scope: "read",
-    state,
-  });
+  // 手动拼接 URL，对 redirect_uri 和 state 编码，但保持 client_id 原样
+  // 因为 URLSearchParams 会把 + 编码为 %2B，而观猹可能不接受
+  const queryString = [
+    `response_type=code`,
+    `client_id=${encodeURIComponent(clientId)}`,
+    `redirect_uri=${encodeURIComponent(redirectUri)}`,
+    `scope=read`,
+    `state=${encodeURIComponent(state)}`,
+  ].join("&");
 
-  return `${WATCHA_BASE_URL}/oauth/authorize?${params.toString()}`;
+  return `${WATCHA_BASE_URL}/oauth/authorize?${queryString}`;
 }
 
 /**

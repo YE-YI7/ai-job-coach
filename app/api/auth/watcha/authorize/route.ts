@@ -15,6 +15,12 @@ export async function GET() {
   const state = generateState();
   const authorizeUrl = getWatchaAuthorizeUrl(state);
 
+  console.log("[WATCHA OAuth] 发起授权:", {
+    authorizeUrl,
+    clientId: process.env.WATCHA_CLIENT_ID,
+    baseUrl: process.env.NEXT_PUBLIC_BASE_URL,
+  });
+
   const response = NextResponse.redirect(authorizeUrl);
 
   // 设置 state cookie，5 分钟过期

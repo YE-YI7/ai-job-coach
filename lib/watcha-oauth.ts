@@ -11,19 +11,20 @@
 const WATCHA_BASE_URL = "https://watcha.cn";
 
 // 环境变量
-function getConfig() {
+function getConfig(baseUrl?: string) {
+  const base = baseUrl || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   return {
     clientId: process.env.WATCHA_CLIENT_ID || "",
     clientSecret: process.env.WATCHA_CLIENT_SECRET || "",
-    redirectUri: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/auth/watcha/callback`,
+    redirectUri: `${base}/api/auth/watcha/callback`,
   };
 }
 
 /**
  * 生成授权 URL
  */
-export function getWatchaAuthorizeUrl(state: string): string {
-  const { clientId, redirectUri } = getConfig();
+export function getWatchaAuthorizeUrl(state: string, baseUrl?: string): string {
+  const { clientId, redirectUri } = getConfig(baseUrl);
 
   // 手动拼接 URL
   // client_id 不做 encodeURIComponent，保持 + 号原样（观猹可能要求原始值）

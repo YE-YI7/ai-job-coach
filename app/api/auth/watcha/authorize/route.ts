@@ -11,14 +11,20 @@ export const runtime = "nodejs";
  * 2. 设置 state cookie（防 CSRF）
  * 3. 重定向到观猹授权页面
  */
-export async function GET() {
+export async function GET(request: Request) {
+  // 从请求 URL 中提取 origin（如 https://ai-job-coach.xin）
+  // 这样不依赖环境变量，100% 准确
+  const requestUrl = new URL(request.url);
+  const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+
   const state = generateState();
-  const authorizeUrl = getWatchaAuthorizeUrl(state);
+  const authorizeUrl = getWatchaAuthorizeUrl(state, baseUrl);
 
   console.log("[WATCHA OAuth] 发起授权:", {
     authorizeUrl,
+    baseUrl,
     clientId: process.env.WATCHA_CLIENT_ID,
-    baseUrl: process.env.NEXT_PUBLIC_BASE_URL,
+    envBaseUrl: process.env.NEXT_PUBLIC_BASE_URL,
   });
 
   const response = NextResponse.redirect(authorizeUrl);

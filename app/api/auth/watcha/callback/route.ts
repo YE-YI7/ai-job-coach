@@ -5,6 +5,37 @@ import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 export const runtime = "nodejs";
 
 /**
+ * 生成中间跳转 HTML 页面
+ * 
+ * 为什么不能直接 302 redirect + Set-Cookie？
+ * 因为 OAuth 回调是从 watcha.cn 跳过来的跨站请求，
+ * 浏览器可能不保存 302 响应中的 Set-Cookie（SameSite 限制）。
+ * 所以先返回一个在我们域名下的 HTML 页面，
+ * 用 JS 设置 cookie 后再 location.href 跳转。
+ */
+function buildRedirectHtml(
+  sessionToken: string,
+  userId: string,
+  redirectPath: string
+): string {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>登录中...</title></head>
+<body>
+<p style="text-align:center;margin-top:40vh;color:#888;font-family:sans-serif;">正在登录，请稍候...</p>
+<script>
+  var maxAge = ${60 * 60 * 24 * 7};
+  var secure = location.protocol === 'https:' ? ';Secure' : '';
+  document.cookie = 'sb-access-token=${sessionToken};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
+  document.cookie = 'sb-session-user-id=${userId};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
+  document.cookie = 'watcha_oauth_state=;path=/;max-age=0';
+  location.href = '${redirectPath}';
+</script>
+</body>
+</html>`;
+}
+
+/**
  * GET /api/auth/watcha/callback
  * 
  * 观猹 OAuth2 回调端点
@@ -13,10 +44,11 @@ export const runtime = "nodejs";
  * 2. 用 code 换取 access_token
  * 3. 用 access_token 获取用户信息
  * 4. 在 users 表中查找或创建用户（provider = 'watcha'）
- * 5. 设置 session cookie
- * 6. 重定向到前端
+ * 5. 返回中间 HTML 页面设置 cookie 并跳转
  */
 export async function GET(request: Request) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
   try {
     const url = new URL(request.url);
     const code = url.searchParams.get("code");
@@ -24,7 +56,13 @@ export async function GET(request: Request) {
     const error = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description");
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    console.log("[WATCHA OAuth] 收到回调:", { 
+      hasCode: !!code, 
+      hasState: !!state, 
+      error, 
+      errorDescription,
+      fullUrl: request.url 
+    });
 
     // 用户拒绝授权或出错
     if (error) {
@@ -35,17 +73,25 @@ export async function GET(request: Request) {
     }
 
     if (!code) {
+      console.warn("[WATCHA OAuth] 回调缺少 code 参数");
       return NextResponse.redirect(
         `${baseUrl}/login?error=${encodeURIComponent("缺少授权码")}`
       );
     }
 
     // 验证 state（从 cookie 中取）
-    const cookieState = request.headers.get("cookie")
-      ?.split(";")
+    const cookieHeader = request.headers.get("cookie") || "";
+    const cookieState = cookieHeader
+      .split(";")
       .find((c) => c.trim().startsWith("watcha_oauth_state="))
       ?.split("=")[1]
       ?.trim();
+
+    console.log("[WATCHA OAuth] state 验证:", { 
+      urlState: state, 
+      cookieState: cookieState ? `${cookieState.slice(0, 8)}...` : "无",
+      allCookies: cookieHeader.split(";").map(c => c.trim().split("=")[0])
+    });
 
     if (state && cookieState && state !== cookieState) {
       console.warn("[WATCHA OAuth] state 不匹配，可能存在 CSRF 攻击");
@@ -55,14 +101,22 @@ export async function GET(request: Request) {
     }
 
     // Step 1: 用授权码换取 token
+    console.log("[WATCHA OAuth] 开始换取 token...");
     const tokenData = await exchangeCodeForToken(code);
+    console.log("[WATCHA OAuth] Token 换取成功, expires_in:", tokenData.expires_in);
 
     // Step 2: 获取用户信息
+    console.log("[WATCHA OAuth] 获取用户信息...");
     const watchaUser = await getWatchaUserInfo(tokenData.access_token);
+    console.log("[WATCHA OAuth] 用户信息:", { 
+      user_id: watchaUser.user_id, 
+      nickname: watchaUser.nickname 
+    });
 
     // Step 3: 在数据库中查找或创建用户
     const client = await getDbClient();
     if (!client) {
+      console.error("[WATCHA OAuth] 无法获取数据库客户端");
       return NextResponse.redirect(
         `${baseUrl}/login?error=${encodeURIComponent("服务暂不可用")}`
       );
@@ -73,11 +127,17 @@ export async function GET(request: Request) {
     let isNewUser = false;
 
     // 先用 watcha 唯一标识查找
-    const { data: existingUser } = await client
+    const { data: existingUser, error: findError } = await client
       .from("users")
       .select("id")
       .eq("email", watchaEmail)
       .single();
+
+    console.log("[WATCHA OAuth] 查找用户:", { 
+      email: watchaEmail, 
+      found: !!existingUser,
+      findError: findError?.message 
+    });
 
     if (existingUser) {
       userId = existingUser.id;
@@ -107,6 +167,7 @@ export async function GET(request: Request) {
       });
 
       if (insertError) {
+        console.warn("[WATCHA OAuth] 插入用户失败，尝试再次查找:", insertError.message);
         // 并发冲突，再查一次
         const { data: retryUser } = await client
           .from("users")
@@ -137,11 +198,12 @@ export async function GET(request: Request) {
           paid_interview_remaining: 0,
           last_free_reset: today,
         });
+        console.log("[WATCHA OAuth] 新用户额度记录已创建");
       }
     }
 
     // Step 4: 保存观猹 token 到数据库（用于后续刷新）
-    await client.from("watcha_tokens").upsert(
+    const { error: upsertError } = await client.from("watcha_tokens").upsert(
       {
         user_id: userId,
         watcha_user_id: watchaUser.user_id,
@@ -151,13 +213,12 @@ export async function GET(request: Request) {
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
-    ).then(({ error: upsertError }: { error: unknown }) => {
-      if (upsertError) {
-        console.warn("[WATCHA OAuth] 保存 token 失败（不影响登录）:", upsertError);
-      }
-    });
+    );
+    if (upsertError) {
+      console.warn("[WATCHA OAuth] 保存 token 失败（不影响登录）:", upsertError);
+    }
 
-    // Step 5: 设置 session cookie 并重定向
+    // Step 5: 生成 session token，返回中间页面设置 cookie
     const sessionToken = Buffer.from(
       JSON.stringify({
         userId,
@@ -167,38 +228,27 @@ export async function GET(request: Request) {
     ).toString("base64");
 
     const redirectPath = isNewUser ? "/onboarding" : "/chat";
-    const response = NextResponse.redirect(`${baseUrl}${redirectPath}`);
-
-    response.cookies.set("sb-access-token", sessionToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-
-    response.cookies.set("sb-session-user-id", userId, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-
-    // 清除 state cookie
-    response.cookies.set("watcha_oauth_state", "", {
-      maxAge: 0,
-      path: "/",
-    });
 
     console.log(
-      `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}`
+      `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`
     );
 
-    return response;
+    // 返回中间 HTML 页面，由前端 JS 设置 cookie 后跳转
+    const html = buildRedirectHtml(sessionToken, userId, redirectPath);
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        // 同时在 response header 中也设置 cookie（双保险）
+        "Set-Cookie": [
+          `sb-access-token=${sessionToken}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
+          `sb-session-user-id=${userId}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
+          `watcha_oauth_state=; Path=/; Max-Age=0`,
+        ].join(", "),
+      },
+    });
   } catch (err) {
     console.error("[WATCHA OAuth] 回调处理失败:", err);
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     return NextResponse.redirect(
       `${baseUrl}/login?error=${encodeURIComponent("登录失败，请重试")}`
     );

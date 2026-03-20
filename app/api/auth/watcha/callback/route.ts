@@ -47,10 +47,12 @@ function buildRedirectHtml(
  * 5. 返回中间 HTML 页面设置 cookie 并跳转
  */
 export async function GET(request: Request) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  // 从请求 URL 提取 origin（与 authorize 路由一致，不依赖环境变量）
+  const requestUrl = new URL(request.url);
+  const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
 
   try {
-    const url = new URL(request.url);
+    const url = requestUrl;
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
@@ -102,7 +104,7 @@ export async function GET(request: Request) {
 
     // Step 1: 用授权码换取 token
     console.log("[WATCHA OAuth] 开始换取 token...");
-    const tokenData = await exchangeCodeForToken(code);
+    const tokenData = await exchangeCodeForToken(code, baseUrl);
     console.log("[WATCHA OAuth] Token 换取成功, expires_in:", tokenData.expires_in);
 
     // Step 2: 获取用户信息

@@ -27,10 +27,10 @@ export function getWatchaAuthorizeUrl(state: string, baseUrl?: string): string {
   const { clientId, redirectUri } = getConfig(baseUrl);
 
   // 手动拼接 URL
-  // client_id 不做 encodeURIComponent，保持 + 号原样（观猹可能要求原始值）
+  // 重要：client_id 中可能含 +/= 等特殊字符，必须 encodeURIComponent（观猹文档明确要求）
   const queryString = [
     `response_type=code`,
-    `client_id=${clientId}`,
+    `client_id=${encodeURIComponent(clientId)}`,
     `redirect_uri=${encodeURIComponent(redirectUri)}`,
     `scope=read`,
     `state=${encodeURIComponent(state)}`,
@@ -42,14 +42,14 @@ export function getWatchaAuthorizeUrl(state: string, baseUrl?: string): string {
 /**
  * 用授权码换取 Token
  */
-export async function exchangeCodeForToken(code: string): Promise<{
+export async function exchangeCodeForToken(code: string, baseUrl?: string): Promise<{
   access_token: string;
   token_type: string;
   expires_in: number;
   refresh_token: string;
   scope: string;
 }> {
-  const { clientId, clientSecret, redirectUri } = getConfig();
+  const { clientId, clientSecret, redirectUri } = getConfig(baseUrl);
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",

@@ -1,125 +1,70 @@
 /**
  * 多模型编排器
- * 根据用户当前阶段自动选择对应的模型
- * 
- * LangChain disabled - 所有 LangChain 相关逻辑已注释
+ * 根据用户当前阶段自动选择对应的模型，并解析阶段完成度评估
  */
 
-/* LangChain disabled
-import { UserStage } from "@/lib/stage";
-import { runDeepSeekCareer, CareerPlanningResult } from "./models/career_planning";
-import { runDeepSeekProjectReview, ProjectReviewResult } from "./models/project_review";
-import { runDeepSeekResume, ResumeOptimizationResult } from "./models/resume_optimization";
-import { runDeepSeekStrategy, ApplicationStrategyResult } from "./models/application_strategy";
-import { runDeepSeekInterview, InterviewResult } from "./models/interview";
-import { runDeepSeekSalary, SalaryTalkResult } from "./models/salary_talk";
-import { runDeepSeekOffer, OfferResult } from "./models/offer";
-*/
+import { runStageModel } from "./stageAgent";
+
+export type StageEvaluation = {
+  completion: number;       // 0-100 阶段完成度
+  reason: string;           // 判断依据
+  should_advance: boolean;  // 是否建议进入下一阶段
+};
 
 export type OrchestratorResult = {
-  reply: string;
-  structured: any; // 白板数据结构
+  reply: string;            // 给用户的回复（已去除评估 JSON）
+  structured: any;          // 白板数据结构
+  stageEval?: StageEvaluation;  // 阶段完成度评估
 };
 
 export type OrchestratorInput = {
-  userStage: any; // LangChain disabled - 暂时使用 any
+  userStage: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 /**
+ * 从 AI 回复中解析并剥离 stage_eval JSON 块
+ */
+function extractStageEval(reply: string): { cleanReply: string; eval?: StageEvaluation } {
+  const evalRegex = /```stage_eval\s*\n?([\s\S]*?)\n?```/;
+  const match = reply.match(evalRegex);
+
+  if (!match) {
+    return { cleanReply: reply };
+  }
+
+  try {
+    const evalData = JSON.parse(match[1].trim());
+    const cleanReply = reply.replace(evalRegex, "").trim();
+    return {
+      cleanReply,
+      eval: {
+        completion: Math.max(0, Math.min(100, Number(evalData.completion) || 0)),
+        reason: String(evalData.reason || ""),
+        should_advance: Boolean(evalData.should_advance),
+      },
+    };
+  } catch {
+    // JSON 解析失败，返回原始回复
+    return { cleanReply: reply.replace(evalRegex, "").trim() };
+  }
+}
+
+/**
  * 运行编排器，根据阶段选择对应的模型
- * 
- * LangChain disabled - 暂时禁用所有子模块调用
  */
 export async function runOrchestrator({
   userStage,
   messages,
 }: OrchestratorInput): Promise<OrchestratorResult> {
-  /* LangChain disabled
-  let result: OrchestratorResult;
+  const result = await runStageModel(userStage, messages);
 
-  switch (userStage) {
-    case "career_planning": {
-      const careerResult = await runDeepSeekCareer(messages);
-      result = {
-        reply: careerResult.reply,
-        structured: careerResult.structured,
-      };
-      break;
-    }
+  // 解析阶段完成度评估并从回复中剥离
+  const { cleanReply, eval: stageEval } = extractStageEval(result.reply);
 
-    case "project_review": {
-      const projectResult = await runDeepSeekProjectReview(messages);
-      result = {
-        reply: projectResult.reply,
-        structured: projectResult.structured,
-      };
-      break;
-    }
-
-    case "resume_optimization": {
-      const resumeResult = await runDeepSeekResume(messages);
-      result = {
-        reply: resumeResult.reply,
-        structured: resumeResult.structured,
-      };
-      break;
-    }
-
-    case "application_strategy": {
-      const strategyResult = await runDeepSeekStrategy(messages);
-      result = {
-        reply: strategyResult.reply,
-        structured: strategyResult.structured,
-      };
-      break;
-    }
-
-    case "interview": {
-      const interviewResult = await runDeepSeekInterview(messages);
-      result = {
-        reply: interviewResult.reply,
-        structured: interviewResult.structured,
-      };
-      break;
-    }
-
-    case "salary_talk": {
-      const salaryResult = await runDeepSeekSalary(messages);
-      result = {
-        reply: salaryResult.reply,
-        structured: salaryResult.structured,
-      };
-      break;
-    }
-
-    case "offer": {
-      const offerResult = await runDeepSeekOffer(messages);
-      result = {
-        reply: offerResult.reply,
-        structured: offerResult.structured,
-      };
-      break;
-    }
-
-    default: {
-      // 默认使用职业规划模型
-      const careerResult = await runDeepSeekCareer(messages);
-      result = {
-        reply: careerResult.reply,
-        structured: careerResult.structured,
-      };
-    }
-  }
-
-  return result;
-  */
-
-  // 暂时禁用所有子模块调用，返回简单的 passthrough
-  const lastMessage = messages[messages.length - 1];
   return {
-    reply: lastMessage?.content || "",
-    structured: {}
+    reply: cleanReply,
+    structured: result.structured,
+    stageEval,
   };
 }
-

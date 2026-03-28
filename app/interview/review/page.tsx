@@ -33,6 +33,8 @@ import {
   Briefcase,
 } from "lucide-react";
 import RoleAvatarSvg from "@/components/interview-review/RoleAvatarSvg";
+import AnalyzingPhase from "@/components/interview-review/AnalyzingPhase";
+import { useAnalysisStream } from "@/hooks/useAnalysisStream";
 
 // ===== 类型导入 =====
 import type {
@@ -47,7 +49,7 @@ import type {
 import { REVIEW_ROLES } from "@/lib/interview-review/types";
 
 // ===== 步骤定义 =====
-type Step = "info" | "paste" | "preview" | "analyzing" | "result";
+type Step = "info" | "paste" | "preview" | "analyzing" | "revealing" | "result";
 
 // ===== 评级颜色 =====
 const gradeConfig: Record<string, { bg: string; text: string; border: string; glow: string }> = {
@@ -152,6 +154,18 @@ function InterviewReviewContent() {
   const [tasksGenerated, setTasksGenerated] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // SSE 流式分析
+  const analysisStream = useAnalysisStream();
+
+  // SSE 错误时回退到 preview 步骤
+  useEffect(() => {
+    if (analysisStream.status === "error" && step === "revealing") {
+      setError(analysisStream.error || "分析过程出错，请重试");
+      setStep("preview");
+      setIsAnalyzing(false);
+    }
+  }, [analysisStream.status, analysisStream.error, step]);
 
   // ===== 从 URL 加载历史会话 =====
   useEffect(() => {
@@ -353,51 +367,33 @@ function InterviewReviewContent() {
     }
   };
 
-  // ===== Step 3 → Step 4: 分析 =====
+  // ===== Step 3 → Step 4: 流式分析 =====
   const handleAnalyze = async () => {
     setError(null);
     setIsAnalyzing(true);
-    setAnalyzeProgress(0);
-    setStep("analyzing");
+    setStep("revealing");
 
-    // 模拟进度
-    const interval = setInterval(() => {
-      setAnalyzeProgress(prev => Math.min(prev + Math.random() * 8, 90));
-    }, 1500);
+    analysisStream.startStream({
+      questions: parsedQuestions,
+      company,
+      round,
+      tags,
+      session_id: sessionId || undefined,
+      resume_text: resumeText || undefined,
+      job_description: jobDescription || undefined,
+    });
+  };
 
-    try {
-      const res = await fetch("/api/interview-review/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questions: parsedQuestions,
-          company,
-          round,
-          tags,
-          session_id: sessionId,
-          resume_text: resumeText || undefined,
-          job_description: jobDescription || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "分析失败");
-
-      clearInterval(interval);
-      setAnalyzeProgress(100);
-
-      setAnalysisResults(data.analysis_results);
-      setSummary(data.summary);
-      setRolesUsed(data.roles_used || []);
+  // SSE 流完成后的回调：将结果同步到 page 级状态
+  const handleStreamComplete = () => {
+    if (analysisStream.completedResults.length > 0) {
+      setAnalysisResults(analysisStream.completedResults);
+      setSummary(analysisStream.summary);
+      setRolesUsed(analysisStream.rolesUsed);
       setExpandedQuestions(new Set([0]));
-
-      setTimeout(() => setStep("result"), 500);
-    } catch (err: any) {
-      clearInterval(interval);
-      setError(err.message || "分析失败，请重试");
-      setStep("preview");
-    } finally {
-      setIsAnalyzing(false);
+      setStep("result");
     }
+    setIsAnalyzing(false);
   };
 
   // ===== 追问出题 =====
@@ -640,6 +636,7 @@ function InterviewReviewContent() {
                 {step === "paste" && "粘贴面试内容"}
                 {step === "preview" && "确认解析结果"}
                 {step === "analyzing" && "AI 深度分析中..."}
+                {step === "revealing" && "专家团分析中..."}
                 {step === "result" && `${company || "面试"} · ${round || "复盘"}`}
               </p>
             </div>
@@ -676,22 +673,26 @@ function InterviewReviewContent() {
         {step !== "result" && (
           <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-2.5">
             <div className="flex gap-1.5">
-              {["info", "paste", "preview", "analyzing"].map((s, i) => (
-                <div
-                  key={s}
-                  className={`h-1 rounded-full flex-1 transition-all duration-500 ${
-                    i <= ["info", "paste", "preview", "analyzing"].indexOf(step)
-                      ? "bg-gradient-to-r from-orange-400 to-amber-400"
-                      : "bg-slate-100"
-                  }`}
-                />
-              ))}
+              {["info", "paste", "preview", "analyzing"].map((s, i) => {
+                // "revealing" 等价于 "analyzing" 在进度条中的位置
+                const currentStep = step === "revealing" ? "analyzing" : step;
+                return (
+                  <div
+                    key={s}
+                    className={`h-1 rounded-full flex-1 transition-all duration-500 ${
+                      i <= ["info", "paste", "preview", "analyzing"].indexOf(currentStep)
+                        ? "bg-gradient-to-r from-orange-400 to-amber-400"
+                        : "bg-slate-100"
+                    }`}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
       </header>
 
-      <main className={`${step === "result" ? "max-w-6xl" : "max-w-3xl"} mx-auto px-4 sm:px-6 py-5 space-y-5`}>
+      <main className={`${step === "result" ? "max-w-6xl" : "max-w-3xl"} mx-auto px-4 sm:px-6 py-5 space-y-5`} ref={scrollRef}>
         <AnimatePresence mode="wait">
           {/* ========== Step 1: 基础信息 ========== */}
           {step === "info" && (
@@ -702,6 +703,18 @@ function InterviewReviewContent() {
               exit={{ opacity: 0, y: -12 }}
               className="space-y-4"
             >
+              {/* 温暖欢迎 */}
+              <div className="bg-gradient-to-r from-orange-50/60 via-amber-50/40 to-orange-50/60 rounded-2xl border border-orange-100/40 p-4 flex items-center gap-3">
+                <div className="flex -space-x-2">
+                  <RoleAvatarSvg roleId="mia" size={28} />
+                  <RoleAvatarSvg roleId="kay" size={28} />
+                  <RoleAvatarSvg roleId="coco" size={28} />
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  <span className="font-semibold text-slate-700">6 位专家</span>将为你的面试表现做全方位复盘，找到提升方向
+                </p>
+              </div>
+
               {/* 公司 & 轮次 */}
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -1078,6 +1091,26 @@ function InterviewReviewContent() {
                 </div>
               )}
 
+              {/* 分析前角色预览 */}
+              <div className="bg-gradient-to-r from-orange-50/50 via-amber-50/30 to-orange-50/50 rounded-2xl border border-orange-100/50 p-4">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  {(["kay", "mia", "rex", "vivi", "coco", "lu"] as const).slice(0, 4).map((id, i) => (
+                    <motion.div
+                      key={id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 + i * 0.1 }}
+                    >
+                      <RoleAvatarSvg roleId={id} size={32} />
+                    </motion.div>
+                  ))}
+                  <span className="text-xs text-slate-400 ml-1">...</span>
+                </div>
+                <p className="text-xs text-center text-slate-500">
+                  专家团将逐题讨论你的面试表现，给出评分和改写建议
+                </p>
+              </div>
+
               <button
                 onClick={handleAnalyze}
                 disabled={parsedQuestions.length === 0}
@@ -1091,7 +1124,22 @@ function InterviewReviewContent() {
             </motion.div>
           )}
 
-          {/* ========== Step 4: 分析中 ========== */}
+          {/* ========== Step 4a: 流式揭晓 ========== */}
+          {step === "revealing" && (
+            <motion.div
+              key="revealing"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <AnalyzingPhase
+                stream={analysisStream}
+                onComplete={handleStreamComplete}
+              />
+            </motion.div>
+          )}
+
+          {/* ========== Step 4b: 旧版分析中（兼容历史回退） ========== */}
           {step === "analyzing" && (
             <motion.div
               key="analyzing"

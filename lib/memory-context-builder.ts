@@ -64,7 +64,7 @@ const STAGE_RELEVANCE: Record<Stage, Record<Stage, number>> = {
 // ==================== Token 预算控制 ====================
 
 // 记忆注入的 Token 预算（避免上下文过载）
-const MEMORY_TOKEN_BUDGET = 800; // 大约 400 个中文字
+const MEMORY_TOKEN_BUDGET = 1500; // 大约 750 个中文字，支持更完整的用户画像
 
 // 粗略估算文本 token 数（中文 1 字 ≈ 1.5 token）
 function estimateTokens(text: string): number {
@@ -175,9 +175,9 @@ export async function buildMemoryContext(
         if (summaryTokensUsed + tokens > summaryTokenBudget) break;
 
         const label = stageLabels[summary.stage] || summary.stage;
-        // 截取总结的核心部分（最多200字）
-        const truncated = summary.summary_content.length > 200 
-          ? summary.summary_content.substring(0, 200) + '...'
+        // 截取总结的核心部分（最多350字）
+        const truncated = summary.summary_content.length > 350
+          ? summary.summary_content.substring(0, 350) + '...'
           : summary.summary_content;
         summaryLines.push(`[${label}阶段] ${truncated}`);
         summaryTokensUsed += Math.min(tokens, estimateTokens(truncated));

@@ -36,7 +36,7 @@ export async function runDeepSeekInterview(
   // 调用 LLM
   const response = await callLLM(llmMessages, {
     temperature: 0.7,
-    maxTokens: 1000,
+    maxTokens: 2000,
     provider: "deepseek",
   });
 

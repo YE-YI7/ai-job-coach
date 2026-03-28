@@ -511,9 +511,9 @@ export default function ChatPage() {
     // 获取阶段的中文名称
     const stageName = StageNames[stage];
     
-    // 如果是面试阶段，跳转到新的面试页面
+    // 如果是面试阶段，跳转到面试中心（带来源标记）
     if (stage === "interview") {
-      router.push("/interview/start");
+      router.push("/interview/start?from=stage-select");
       return;
     }
     

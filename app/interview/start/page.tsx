@@ -13,6 +13,7 @@ import { parseMarkdownBold } from "@/lib/markdown-utils";
 import InterviewShareCard from "@/components/InterviewShareCard";
 import InterviewRadarChart, { GradeBadge } from "@/components/InterviewRadarChart";
 import type { ShareCardData } from "@/components/InterviewShareCard";
+import RoleAvatarSvg from "@/components/interview-review/RoleAvatarSvg";
 
 // FIX: interview/start 页面永远使用固定阶段：interview
 // 不读取 localStorage.current_stage，不从全局 stage store 恢复 chat 阶段
@@ -113,9 +114,14 @@ export default function InterviewStartPage() {
     setQuestionCount(savedCount);
 
     // 从localStorage恢复历史面试记录
+    // 但如果用户刚从阶段选择页面跳转过来（带 ?from=stage-select），
+    // 始终显示双分支选择界面
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromStageSelect = urlParams.get("from") === "stage-select";
+
     try {
       const savedMessages = localStorage.getItem("interview_messages");
-      if (savedMessages) {
+      if (savedMessages && !fromStageSelect) {
         const parsedMessages = JSON.parse(savedMessages);
         // 恢复时间戳为Date对象
         const restoredMessages = parsedMessages.map((msg: any) => ({
@@ -126,11 +132,9 @@ export default function InterviewStartPage() {
         // 有历史记录说明之前选了模拟面试，跳过分支选择
         setBranchChoice("mock");
       }
-      // FIX: 如果没有历史记录，不显示初始配置卡片，让页面为空
-      // 用户可以直接在配置卡片中填写信息
+      // 没有历史记录或来自阶段选择页，显示双分支入口
     } catch (error) {
       console.error("恢复面试记录失败:", error);
-      // 恢复失败时也不显示配置卡片，保持空白
     }
     
     // 恢复未完成的 AI 生成状态
@@ -1116,9 +1120,11 @@ export default function InterviewStartPage() {
               /* 双分支入口选择 */
               <div className="flex items-center justify-center h-full">
                 <div className="w-full max-w-md space-y-6 px-4">
-                  <div className="text-center space-y-2">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg">
-                      <span className="text-white text-3xl">💼</span>
+                  <div className="text-center space-y-3">
+                    <div className="flex justify-center -space-x-2">
+                      <RoleAvatarSvg roleId="kay" size={36} />
+                      <RoleAvatarSvg roleId="mia" size={36} />
+                      <RoleAvatarSvg roleId="rex" size={36} />
                     </div>
                     <h2 className="text-2xl font-bold text-stone-800">面试中心</h2>
                     <p className="text-sm text-stone-500">选择你需要的功能</p>
@@ -1154,15 +1160,18 @@ export default function InterviewStartPage() {
                       className="group w-full text-left bg-white rounded-2xl border-2 border-orange-200/60 shadow-sm p-5 hover:shadow-lg hover:border-orange-300 transition-all active:scale-[0.98]"
                     >
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform">
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                          </svg>
+                        <div className="relative w-12 h-12 shrink-0">
+                          <div className="absolute -left-1 top-0">
+                            <RoleAvatarSvg roleId="vivi" size={28} />
+                          </div>
+                          <div className="absolute right-0 bottom-0">
+                            <RoleAvatarSvg roleId="coco" size={28} />
+                          </div>
                         </div>
                         <div className="flex-1">
                           <h3 className="text-lg font-bold text-stone-800 mb-1">面试复盘</h3>
                           <p className="text-sm text-stone-500 leading-relaxed">
-                            粘贴面试内容，6位 AI 专家多角色点评分析，精准定位薄弱点
+                            粘贴面试内容，6 位 AI 专家多角色点评分析，精准定位薄弱点
                           </p>
                         </div>
                         <svg className="w-5 h-5 text-stone-300 mt-1 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

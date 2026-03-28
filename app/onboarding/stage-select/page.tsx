@@ -116,10 +116,10 @@ export default function StageSelectPage() {
     try {
       const canonicalKey = stagePromptKeyMap[stage.title] || stage.title;
       
-      // 如果是模拟面试，直接跳转
+      // 如果是面试阶段，跳转到面试中心（带来源标记，确保显示双分支入口）
       if (canonicalKey === "interview") {
         localStorage.setItem("current_stage", "interview");
-        router.push("/interview/start");
+        router.push("/interview/start?from=stage-select");
         return;
       }
 

@@ -702,12 +702,12 @@ div[class*="fixed"][class*="bottom"][class*="z-20"] {
 /* 白板宽度为页面30%，高度为视口高度（满屏） */
 #whiteboard-panel {
   position: fixed !important;
-  top: 0 !important;
+  top: 4rem !important;
   right: 0 !important;
   bottom: 0 !important;          /* 确保从顶部到底部 */
-  height: 100vh !important;       /* 固定为视口高度（满屏） */
-  min-height: 100vh !important;  /* 最小高度也是视口高度 */
-  max-height: 100vh !important;  /* 最大高度也是视口高度 */
+  height: calc(100vh - 4rem) !important;       /* 顶栏下方占满视口 */
+  min-height: calc(100vh - 4rem) !important;  /* 最小高度也是顶栏下剩余视口 */
+  max-height: calc(100vh - 4rem) !important;  /* 最大高度也是顶栏下剩余视口 */
   width: 30vw !important;         /* 页面宽度的30% */
   overflow-y: auto !important;   /* 内部滚动 */
   overflow-x: hidden !important; /* 防止横向滚动 */
@@ -723,12 +723,12 @@ div[class*="fixed"][class*="bottom"][class*="z-20"] {
 
 .whiteboard-panel {
   position: fixed !important;
-  top: 0 !important;
+  top: 4rem !important;
   right: 0 !important;
   bottom: 0 !important;          /* 确保从顶部到底部 */
-  height: 100vh !important;      /* 固定为视口高度（满屏） */
-  min-height: 100vh !important;  /* 最小高度也是视口高度 */
-  max-height: 100vh !important;  /* 最大高度也是视口高度 */
+  height: calc(100vh - 4rem) !important;      /* 顶栏下方占满视口 */
+  min-height: calc(100vh - 4rem) !important;  /* 最小高度也是顶栏下剩余视口 */
+  max-height: calc(100vh - 4rem) !important;  /* 最大高度也是顶栏下剩余视口 */
   width: 30vw !important;        /* 页面宽度的30% */
   overflow-y: auto !important;
   overflow-x: hidden !important; /* 防止横向滚动 */
@@ -786,7 +786,8 @@ div[class*="fixed"][class*="bottom"][class*="z-20"] {
   #whiteboard-panel,
   .whiteboard-panel {
     width: 30vw !important; /* 保持30%宽度 */
-    height: 100vh !important; /* 保持固定高度 */
+    top: 4rem !important;
+    height: calc(100vh - 4rem) !important; /* 保持固定高度 */
   }
   
   /* 小屏幕下聊天区域的右侧边距也要相应调整 */

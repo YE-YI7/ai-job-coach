@@ -14,7 +14,7 @@ export default function StageController({
   canGoBack = false,
 }: StageControllerProps) {
   return (
-    <div className="w-full h-16 glass-card bg-white/80 backdrop-blur-md border-b border-neutral-200/60 flex items-center justify-between px-6 sticky top-0 z-20 shadow-sm">
+    <div className="w-full h-16 glass-card bg-white/95 backdrop-blur-md border-b border-neutral-200/80 flex items-center justify-between px-4 sm:px-6 shadow-sm">
       <div className="flex items-center gap-4">
         <AnimatePresence mode="wait">
           {canGoBack && (
@@ -30,7 +30,7 @@ export default function StageController({
               <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              <span className="font-medium">返回</span>
+              <span className="font-medium">切换阶段</span>
             </motion.button>
           )}
         </AnimatePresence>

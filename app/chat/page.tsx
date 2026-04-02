@@ -1191,7 +1191,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gray-50">
+    <div className="relative h-screen w-full overflow-hidden bg-gray-50 pt-16">
       {/* 庆祝动画层 */}
       <Confetti isActive={showConfetti} />
       <CelebrationModal
@@ -1211,7 +1211,8 @@ export default function ChatPage() {
       {/* 旧面试按钮 UI 已移除 - 现在使用 /app/interview/start/page.tsx */}
       
       {/* 顶部阶段控制器 */}
-      <div className="relative">
+      <div className="fixed inset-x-0 top-0 z-[60]">
+        <div className="relative">
         <StageController
           currentStage={fsm.getCurrentName()}
           onBack={handleBack}
@@ -1270,12 +1271,13 @@ export default function ChatPage() {
           </button>
           <MethodologyTrigger stage={userStage} onClick={methodology.open} />
         </div>
+        </div>
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex h-full min-h-0 overflow-hidden">
         {/* 左侧聊天流区域（70%） */}
-        <div className="w-full md:w-[70%] flex-shrink-0 relative">
+        <div className="relative min-h-0 w-full md:w-[70%] flex-shrink-0">
           <ChatFlow
             messages={messages}
             inputValue={inputValue}
@@ -1287,7 +1289,7 @@ export default function ChatPage() {
           />
           {/* 阶段选择器覆盖层（固定定位，覆盖整个视口） */}
           {showStageSelector && (
-            <div className="fixed inset-0 z-50 bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-y-auto">
+            <div className="fixed inset-0 z-[80] bg-gradient-to-br from-blue-50 via-white to-purple-50 overflow-y-auto">
               <div className="min-h-screen w-full flex items-start justify-start py-8 pl-8 pr-4">
                 <div className="w-full max-w-3xl">
                   <StageSelector

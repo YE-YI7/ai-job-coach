@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 
 type OnboardingStep = 'welcome' | 'identity' | 'stage' | 'methodology';
+
+function normalizeRedirectPath(path: string | null): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
+    return null;
+  }
+  return path;
+}
 
 // 各阶段方法论数据（与 MethodologyModal 一致）
 const METHODOLOGY_DATA: Record<string, {
@@ -177,8 +184,10 @@ const STAGES = [
   },
 ];
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTarget = normalizeRedirectPath(searchParams.get("redirect"));
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [identity, setIdentity] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -212,7 +221,14 @@ export default function OnboardingPage() {
     if (!selectedStage || isLoading) return;
     setIsLoading(true);
 
+    const fallbackRoute = redirectTarget || selectedStage.route;
+
     try {
+      if (redirectTarget) {
+        router.push(redirectTarget);
+        return;
+      }
+
       if (selectedStage.key === "interview") {
         router.push("/interview/start");
         return;
@@ -243,7 +259,7 @@ export default function OnboardingPage() {
 
       router.push(selectedStage.route);
     } catch {
-      router.push(selectedStage.route);
+      router.push(fallbackRoute);
     } finally {
       setIsLoading(false);
     }
@@ -589,5 +605,13 @@ export default function OnboardingPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <OnboardingContent />
+    </Suspense>
   );
 }

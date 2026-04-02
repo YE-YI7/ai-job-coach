@@ -3,6 +3,14 @@ import { getWatchaAuthorizeUrl, generateState } from "@/lib/watcha-oauth";
 
 export const runtime = "nodejs";
 
+function normalizeRedirectPath(path: string | null): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
+    return null;
+  }
+
+  return path;
+}
+
 /**
  * GET /api/auth/watcha/authorize
  * 
@@ -18,6 +26,7 @@ export async function GET(request: Request) {
   const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
 
   const state = generateState();
+  const redirectPath = normalizeRedirectPath(requestUrl.searchParams.get("redirect"));
   const authorizeUrl = getWatchaAuthorizeUrl(state, baseUrl);
 
   console.log("[WATCHA OAuth] 发起授权:", {
@@ -37,6 +46,24 @@ export async function GET(request: Request) {
     maxAge: 60 * 5,
     path: "/",
   });
+
+  if (redirectPath) {
+    response.cookies.set("watcha_oauth_redirect", redirectPath, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 5,
+      path: "/",
+    });
+  } else {
+    response.cookies.set("watcha_oauth_redirect", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 0,
+      path: "/",
+    });
+  }
 
   return response;
 }

@@ -4,6 +4,25 @@ import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 
 export const runtime = "nodejs";
 
+function normalizeRedirectPath(path: string | null): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
+    return null;
+  }
+
+  return path;
+}
+
+function buildLoginRedirectUrl(baseUrl: string, errorMessage: string, redirectPath?: string | null) {
+  const loginUrl = new URL("/login", baseUrl);
+
+  if (redirectPath) {
+    loginUrl.searchParams.set("redirect", redirectPath);
+  }
+
+  loginUrl.searchParams.set("error", errorMessage);
+  return loginUrl.toString();
+}
+
 /**
  * 生成中间跳转 HTML 页面
  * 
@@ -29,6 +48,7 @@ function buildRedirectHtml(
   document.cookie = 'sb-access-token=${sessionToken};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
   document.cookie = 'sb-session-user-id=${userId};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
   document.cookie = 'watcha_oauth_state=;path=/;max-age=0';
+  document.cookie = 'watcha_oauth_redirect=;path=/;max-age=0';
   location.href = '${redirectPath}';
 </script>
 </body>
@@ -57,6 +77,14 @@ export async function GET(request: Request) {
     const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description");
+    const cookieHeader = request.headers.get("cookie") || "";
+    const requestedRedirect = normalizeRedirectPath(
+      cookieHeader
+        .split(";")
+        .find((c) => c.trim().startsWith("watcha_oauth_redirect="))
+        ?.split("=")[1]
+        ?.trim() || null
+    );
 
     console.log("[WATCHA OAuth] 收到回调:", { 
       hasCode: !!code, 
@@ -70,19 +98,18 @@ export async function GET(request: Request) {
     if (error) {
       console.warn(`[WATCHA OAuth] 授权失败: ${error} - ${errorDescription}`);
       return NextResponse.redirect(
-        `${baseUrl}/login?error=${encodeURIComponent(errorDescription || "授权失败")}`
+        buildLoginRedirectUrl(baseUrl, errorDescription || "授权失败", requestedRedirect)
       );
     }
 
     if (!code) {
       console.warn("[WATCHA OAuth] 回调缺少 code 参数");
       return NextResponse.redirect(
-        `${baseUrl}/login?error=${encodeURIComponent("缺少授权码")}`
+        buildLoginRedirectUrl(baseUrl, "缺少授权码", requestedRedirect)
       );
     }
 
     // 验证 state（从 cookie 中取）
-    const cookieHeader = request.headers.get("cookie") || "";
     const cookieState = cookieHeader
       .split(";")
       .find((c) => c.trim().startsWith("watcha_oauth_state="))
@@ -98,7 +125,7 @@ export async function GET(request: Request) {
     if (state && cookieState && state !== cookieState) {
       console.warn("[WATCHA OAuth] state 不匹配，可能存在 CSRF 攻击");
       return NextResponse.redirect(
-        `${baseUrl}/login?error=${encodeURIComponent("安全验证失败，请重试")}`
+        buildLoginRedirectUrl(baseUrl, "安全验证失败，请重试", requestedRedirect)
       );
     }
 
@@ -120,7 +147,7 @@ export async function GET(request: Request) {
     if (!client) {
       console.error("[WATCHA OAuth] 无法获取数据库客户端");
       return NextResponse.redirect(
-        `${baseUrl}/login?error=${encodeURIComponent("服务暂不可用")}`
+        buildLoginRedirectUrl(baseUrl, "服务暂不可用", requestedRedirect)
       );
     }
 
@@ -183,7 +210,7 @@ export async function GET(request: Request) {
         } else {
           console.error("[WATCHA OAuth] 创建用户失败:", insertError);
           return NextResponse.redirect(
-            `${baseUrl}/login?error=${encodeURIComponent("创建账号失败，请重试")}`
+            buildLoginRedirectUrl(baseUrl, "创建账号失败，请重试", requestedRedirect)
           );
         }
       }
@@ -229,7 +256,11 @@ export async function GET(request: Request) {
       })
     ).toString("base64");
 
-    const redirectPath = isNewUser ? "/onboarding" : "/chat";
+    const redirectPath = requestedRedirect
+      ? (isNewUser && !requestedRedirect.startsWith("/resume-score")
+          ? `/onboarding?redirect=${encodeURIComponent(requestedRedirect)}`
+          : requestedRedirect)
+      : (isNewUser ? "/onboarding" : "/chat");
 
     console.log(
       `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`
@@ -246,13 +277,23 @@ export async function GET(request: Request) {
           `sb-access-token=${sessionToken}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
           `sb-session-user-id=${userId}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
           `watcha_oauth_state=; Path=/; Max-Age=0`,
+          `watcha_oauth_redirect=; Path=/; Max-Age=0`,
         ].join(", "),
       },
     });
   } catch (err) {
     console.error("[WATCHA OAuth] 回调处理失败:", err);
+    const cookieHeader = request.headers.get("cookie") || "";
+    const requestedRedirect = normalizeRedirectPath(
+      cookieHeader
+        .split(";")
+        .find((c) => c.trim().startsWith("watcha_oauth_redirect="))
+        ?.split("=")[1]
+        ?.trim() || null
+    );
+
     return NextResponse.redirect(
-      `${baseUrl}/login?error=${encodeURIComponent("登录失败，请重试")}`
+      buildLoginRedirectUrl(baseUrl, "登录失败，请重试", requestedRedirect)
     );
   }
 }

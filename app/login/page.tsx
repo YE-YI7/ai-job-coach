@@ -6,6 +6,14 @@ import { Suspense } from "react";
 
 type Step = 'email' | 'code';
 
+function normalizeRedirectPath(path: string | null): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
+    return null;
+  }
+
+  return path;
+}
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -17,16 +25,35 @@ function LoginContent() {
   const [countdown, setCountdown] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const redirectTarget = normalizeRedirectPath(searchParams.get("redirect"));
+  const loginBaseUrl = redirectTarget ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : "/login";
+  const watchaAuthorizeHref = redirectTarget
+    ? `/api/auth/watcha/authorize?redirect=${encodeURIComponent(redirectTarget)}`
+    : "/api/auth/watcha/authorize";
+
+  const getPostLoginTarget = (isNewUser: boolean) => {
+    if (!isNewUser) {
+      return redirectTarget || "/chat";
+    }
+
+    if (redirectTarget?.startsWith("/resume-score")) {
+      return redirectTarget;
+    }
+
+    return redirectTarget
+      ? `/onboarding?redirect=${encodeURIComponent(redirectTarget)}`
+      : "/onboarding";
+  };
 
   // 从 URL 读取 OAuth 错误信息
   useEffect(() => {
     const oauthError = searchParams.get("error");
     if (oauthError) {
       setError(decodeURIComponent(oauthError));
-      // 清除 URL 中的 error 参数
-      router.replace("/login");
+      // 清除 URL 中的 error 参数，但保留 redirect
+      router.replace(loginBaseUrl);
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, loginBaseUrl]);
 
   // 倒计时
   useEffect(() => {
@@ -76,11 +103,7 @@ function LoginContent() {
       }
       localStorage.setItem("inviteCode", inviteCode);
 
-      if (data.isNewUser) {
-        router.push("/onboarding");
-      } else {
-        router.push("/chat");
-      }
+      router.push(getPostLoginTarget(data.isNewUser));
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
       shakeCard();
@@ -217,12 +240,7 @@ function LoginContent() {
       }
       localStorage.setItem("userEmail", email.trim());
 
-      // 新用户去 onboarding，老用户去 chat
-      if (data.isNewUser) {
-        router.push("/onboarding");
-      } else {
-        router.push("/chat");
-      }
+      router.push(getPostLoginTarget(data.isNewUser));
     } catch (err) {
       setError(err instanceof Error ? err.message : "验证失败");
       shakeCard();
@@ -536,7 +554,7 @@ function LoginContent() {
 
               {/* 观猹登录按钮 */}
               <a
-                href="/api/auth/watcha/authorize"
+                href={watchaAuthorizeHref}
                 className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl border border-slate-200/60 bg-white/50 hover:bg-white/80 hover:border-slate-300/60 transition-all duration-200 group"
               >
                 <img

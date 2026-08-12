@@ -1,4 +1,28 @@
-# AI Job Coach - 智能求职助手
+# 益职 AI - 你的求职 Agent
+
+> 不只是给建议，而是把岗位、简历和面试变成有证据、可执行、可复盘的求职行动。
+
+## 用你的 Agent 直接开始
+
+Codex：
+
+```bash
+codex plugin marketplace add YE-YI7/ai-job-coach --ref backend && codex plugin add yi-zhi@yi-zhi
+```
+
+Claude Code：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude
+```
+
+安装后可以直接说“分析这个 JD 和我的经历”“针对这个岗位修改简历”“开始模拟面试”或“复盘这次面试”。完整能力、其他 Agent 安装方式和隐私边界见 [Agent 使用导航](docs/agent-usage.md)。
+
+## Web 求职作战台
+
+[ai-job-coach.xin](https://ai-job-coach.xin) 用于保存长期求职进度、面试复盘与训练任务。Agent Skills 第一版默认在本地处理材料，不会自动上传用户数据。
+
+## 原项目说明
 
 这是一个基于 Next.js 和 DeepSeek AI 的智能求职教练应用，帮助用户优化简历、准备面试、进行薪资谈判等求职相关任务。
 

@@ -1,0 +1,31 @@
+# 益职 AI
+
+> 益职 AI 是面向求职者的 Agent 求职教练，把岗位、简历和面试转化为有证据、可执行、可复盘的行动。
+
+Website: https://ai-job-coach.xin
+Source: https://github.com/YE-YI7/ai-job-coach
+Agent guide: https://github.com/YE-YI7/ai-job-coach/blob/backend/docs/agent-usage.md
+Privacy: https://ai-job-coach.xin/privacy
+
+## Agent capabilities
+
+- Job fit analysis: compare a job description with a candidate's real experience, identify evidence gaps, and recommend whether to apply.
+- Resume tailoring: customize a resume for a target role without inventing facts, while showing material changes.
+- Mock interview: run a role-specific interview with dynamic follow-up questions and an evidence-based report.
+- Interview review: turn a completed interview transcript or notes into weak points, improved answer structures, and training tasks.
+
+## Install for Codex
+
+    codex plugin marketplace add YE-YI7/ai-job-coach --ref backend && codex plugin add yi-zhi@yi-zhi
+
+## Install for Claude Code
+
+    curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude
+
+## Recommended first prompt
+
+    帮我选择下一步最值得做的求职任务。
+
+## Data policy
+
+The first Agent Skills release processes materials in the user's current agent environment and does not automatically upload resumes or interview records to ai-job-coach.xin. Users should remove confidential or personally identifying information before sharing materials. 益职 AI does not promise job offers or hiring outcomes.

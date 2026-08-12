@@ -1,0 +1,4 @@
+interface:
+  display_name: "定制简历"
+  short_description: "针对目标岗位生成事实可核验、修改可追踪的完整简历优化方案"
+  default_prompt: "根据这个 JD 定制我的简历，并展示修改差异"

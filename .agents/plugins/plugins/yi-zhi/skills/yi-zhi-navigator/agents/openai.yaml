@@ -1,0 +1,4 @@
+interface:
+  display_name: "益职导航"
+  short_description: "根据现有材料选择最值得立即执行的求职教练任务与行动路径"
+  default_prompt: "帮我选择下一步最值得做的求职任务"

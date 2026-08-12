@@ -1,0 +1,38 @@
+{
+  "name": "yi-zhi",
+  "version": "0.1.0",
+  "description": "Evidence-based job search coaching workflows for job fit, resumes, mock interviews, and interview reviews.",
+  "author": {
+    "name": "益职 AI",
+    "url": "https://ai-job-coach.xin"
+  },
+  "homepage": "https://ai-job-coach.xin",
+  "repository": "https://github.com/YE-YI7/ai-job-coach",
+  "license": "MIT",
+  "keywords": [
+    "job-search",
+    "career",
+    "resume",
+    "interview",
+    "job-coach",
+    "codex",
+    "agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "益职 AI",
+    "shortDescription": "把岗位、简历与面试变成可执行的求职作战计划",
+    "longDescription": "面向真实求职任务的 Agent 工作流：用经历证据诊断岗位匹配度，针对 JD 定制简历，进行模拟面试，并把真实面试复盘成弱项、训练任务和下一步行动。默认在本地处理材料，只有在用户明确同意后才同步到线上作战台。",
+    "developerName": "益职 AI",
+    "category": "Productivity",
+    "capabilities": ["Read", "Interactive", "Write"],
+    "websiteURL": "https://ai-job-coach.xin",
+    "privacyPolicyURL": "https://ai-job-coach.xin/privacy",
+    "defaultPrompt": [
+      "帮我判断现在最值得做的求职任务",
+      "分析这个 JD 和我的经历，找出关键匹配点与缺口",
+      "复盘这次面试，并生成下一轮训练计划"
+    ],
+    "brandColor": "#F97316"
+  }
+}

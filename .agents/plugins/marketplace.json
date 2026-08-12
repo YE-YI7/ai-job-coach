@@ -1,0 +1,20 @@
+{
+  "name": "yi-zhi",
+  "interface": {
+    "displayName": "益职 AI"
+  },
+  "plugins": [
+    {
+      "name": "yi-zhi",
+      "source": {
+        "source": "local",
+        "path": "./.agents/plugins/plugins/yi-zhi"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

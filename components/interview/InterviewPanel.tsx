@@ -16,9 +16,10 @@ import {
   useInterviewStore,
   RoundType,
 } from "@/store/interviewStore";
+import type { UserStage } from "@/lib/stage";
 
 interface InterviewPanelProps {
-  currentStage: string;
+  currentStage: UserStage;
   whiteboardData: WhiteboardData;
   onWhiteboardUpdate?: (data: WhiteboardData) => void;
 }
@@ -103,7 +104,9 @@ export default function InterviewPanel({
     summaryHandledRef.current = latestSummary.reportId;
 
     const scores = latestSummary.summary?.scores;
-    const scoreValues = scores ? Object.values(scores) : [];
+    const scoreValues = scores
+      ? Object.values(scores).filter((score): score is number => typeof score === "number")
+      : [];
     const avgScore = scoreValues.length
       ? Math.round(scoreValues.reduce((acc, val) => acc + val, 0) / scoreValues.length)
       : undefined;
@@ -307,7 +310,7 @@ export default function InterviewPanel({
           {Object.entries(latestSummary.summary.scores).map(([key, value]) => (
             <div key={key} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
               <span className="font-medium capitalize">{key}</span>
-              <span className="text-cyan-600 font-semibold">{value}</span>
+              <span className="text-cyan-600 font-semibold">{String(value)}</span>
             </div>
           ))}
         </div>
@@ -496,4 +499,3 @@ export default function InterviewPanel({
     </div>
   );
 }
-

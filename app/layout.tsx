@@ -1,23 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Arimo } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const arimo = Arimo({
-  variable: "--font-arimo",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: "AI Job Coach - 智能求职助手",
@@ -32,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body 
-        className={`${geistSans.variable} ${geistMono.variable} ${arimo.variable} antialiased min-h-screen bg-[var(--background)] text-[var(--foreground)] font-[family-name:var(--font-arimo)]`}
+        className="antialiased min-h-screen bg-[var(--background)] text-[var(--foreground)]"
         suppressHydrationWarning
       >
         <Providers>

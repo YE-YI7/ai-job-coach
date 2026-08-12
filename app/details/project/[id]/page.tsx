@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { WhiteboardData } from "@/components/Whiteboard";
+import type { WhiteboardData } from "@/components/Whiteboard";
+
+type StarProject = NonNullable<WhiteboardData["starProjects"]>[number];
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const [project, setProject] = useState<WhiteboardData["starProjects"]>[0] | null>(null);
+  const [project, setProject] = useState<StarProject | null>(null);
 
   useEffect(() => {
     // 从 localStorage 获取白板数据
@@ -113,7 +115,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 

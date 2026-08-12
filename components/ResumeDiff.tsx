@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 
 interface ResumeDiffProps {
   original: string;
@@ -24,7 +24,7 @@ export default function ResumeDiff({ original, optimized, suggestion, section }:
     const optimizedWords = optimized.split(/\s+/);
     
     // 找出新增或修改的词汇
-    const result: JSX.Element[] = [];
+    const result: ReactElement[] = [];
     let origIdx = 0;
     let optIdx = 0;
 

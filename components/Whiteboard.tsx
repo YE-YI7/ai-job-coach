@@ -100,7 +100,7 @@ export default function Whiteboard({ data, currentStage = "career_planning", onU
       y: 0,
       transition: {
         duration: 0.3,
-        ease: "easeOut",
+        ease: "easeOut" as const,
       },
     },
   };
@@ -410,4 +410,3 @@ export default function Whiteboard({ data, currentStage = "career_planning", onU
     </div>
   );
 }
-

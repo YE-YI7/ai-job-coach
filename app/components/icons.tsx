@@ -1,11 +1,13 @@
 "use client";
 
+import type { ReactElement } from "react";
+
 import React from "react";
 
 // 简单的图标组件，用于替代 lucide-react
 export function Icon({ name, size = 20, className = "" }: { name: string; size?: number; className?: string }) {
   const style = { width: size, height: size };
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, ReactElement> = {
     bot: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M12 8V4H8" /><path d="m8 8 4-4 4 4" /><path d="M8 12c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2" /></svg>,
     user: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
     target: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={style}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg>,

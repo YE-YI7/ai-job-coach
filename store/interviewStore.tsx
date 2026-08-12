@@ -320,12 +320,14 @@ export function InterviewProvider({ children }: { children: ReactNode }) {
 
   const buildRecentMessages = useCallback(() =>
     questions.flatMap((q) => {
-      const records = [{ role: 'assistant' as const, content: q.q }];
+      const records: Array<{ role: InterviewMessageRole; content: string }> = [
+        { role: 'assistant', content: q.q },
+      ];
       if (q.userAnswer) {
-        records.push({ role: 'user' as const, content: q.userAnswer });
+        records.push({ role: 'user', content: q.userAnswer });
       }
       if (q.evaluation?.tips) {
-        records.push({ role: 'assistant' as const, content: q.evaluation.tips });
+        records.push({ role: 'assistant', content: q.evaluation.tips });
       }
       return records;
     }),
@@ -714,6 +716,7 @@ export function InterviewProvider({ children }: { children: ReactNode }) {
     initInterview,
     loadRound,
     answerQuestion,
+    setEvaluation,
     nextQuestion,
     prevQuestion,
     retryCurrentQuestion,
@@ -760,6 +763,7 @@ export function useInterviewStore(): InterviewStore {
       initInterview: () => {},
       loadRound: async () => {},
       answerQuestion: async () => {},
+      setEvaluation: () => {},
       nextQuestion: async () => {},
       prevQuestion: () => {},
       retryCurrentQuestion: () => {},

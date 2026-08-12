@@ -742,7 +742,6 @@ export async function POST(request: Request) {
 
         // 从 recentMessages 中提取已回答的问题（简化处理）
         const currentIndex = recentMessages?.filter((m) => m.role === "user").length || 0;
-        const questionCount = body.questionCount || 3;
         const answeredQuestions: Array<{ question: string; answer: string }> = [];
 
         if (recentMessages) {
@@ -757,7 +756,7 @@ export async function POST(request: Request) {
         }
 
         if (useStub) {
-          return NextResponse.json(stubNextQuestion(roundType, currentIndex, questionCount));
+          return NextResponse.json(stubNextQuestion(roundType, currentIndex));
         } else {
           const result = await deepseekNextQuestion(roundType, answeredQuestions, currentIndex);
           return NextResponse.json(result);

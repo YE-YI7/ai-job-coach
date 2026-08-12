@@ -37,7 +37,6 @@ export default function ChatSidebar() {
     if (state.view === "main" && !state.chatSessionId && state.currentStageHistory.length <= 1) {
       initializeChat();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.view]);
 
   const initializeChat = async () => {

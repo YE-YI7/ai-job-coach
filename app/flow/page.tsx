@@ -80,7 +80,7 @@ const StickFigureCoach = ({
   };
   const rightArmVariants = {
     crossedRight: { d: "M 0,0 L -5,15 L 15,15", rotate: 0, transition: { duration: 0.3 } },
-    thinking: { d: "M 0,0 L 15,5 L 5,-15", rotate: 0, transition: { duration: 0.5, ease: "easeInOut" } },
+    thinking: { d: "M 0,0 L 15,5 L 5,-15", rotate: 0, transition: { duration: 0.5, ease: "easeInOut" as const } },
     wave: { d: "M 0,0 L 15,-15", rotate: [0, -20, 20, 0], transition: { rotate: { repeat: 3, duration: 0.4 } } },
     cap: { d: "M 0,0 L 15,-20", rotate: 0, transition: { duration: 0.3 } },
     point: { d: "M 0,0 L 25,-10", rotate: 0, transition: { duration: 0.3 } }

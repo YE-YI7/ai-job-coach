@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ResumeDiff from "@/components/ResumeDiff";
-import { WhiteboardData } from "@/components/Whiteboard";
+import type { WhiteboardData } from "@/components/Whiteboard";
 
 type ResumeInsight = NonNullable<WhiteboardData["resumeInsights"]>[0];
 
@@ -12,7 +12,7 @@ export default function ResumeDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const [insight, setInsight] = useState<ResumeInsight | null>(null);
-  const [allInsights, setAllInsights] = useState<WhiteboardData["resumeInsights"]>([]);
+  const [allInsights, setAllInsights] = useState<ResumeInsight[]>([]);
 
   useEffect(() => {
     // 从 localStorage 获取白板数据

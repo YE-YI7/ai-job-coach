@@ -5,13 +5,13 @@
 
 // 根据环境变量选择数据库客户端
 type DbClient = 
-  | { type: 'supabase'; from: (table: string) => any; [key: string]: any }
+  | { type?: never; from: (table: string) => any; [key: string]: any }
   | { type: 'postgres'; pool: any };
 
 let dbClient: DbClient | null = null;
 
 // 初始化数据库客户端
-async function getDbClient(): Promise<DbClient | null> {
+export async function getDbClient(): Promise<DbClient | null> {
   if (dbClient) {
     return dbClient;
   }
@@ -465,4 +465,3 @@ export async function saveResume(
 
   return resumeId;
 }
-

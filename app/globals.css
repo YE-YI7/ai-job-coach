@@ -10,13 +10,15 @@
   --blue-500: #22d3ee;
   --blue-600: #06b6d4;
   --red-300: #fca5a5;
+  --app-font-sans: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --app-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -42,7 +44,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-arimo), Arial, Helvetica, sans-serif;
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* Line clamp utilities */

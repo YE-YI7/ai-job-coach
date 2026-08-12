@@ -9,9 +9,10 @@ ARCHIVE_URL="${YI_ZHI_ARCHIVE_URL:-https://codeload.github.com/${REPOSITORY}/tar
 case "$TARGET" in
   codex) DESTINATION="${CODEX_HOME:-$HOME/.codex}/skills" ;;
   claude) DESTINATION="$HOME/.claude/skills" ;;
+  workbuddy) DESTINATION="${WORKBUDDY_HOME:-$HOME/.workbuddy}/skills" ;;
   agents|generic) DESTINATION="$HOME/.agents/skills" ;;
   *)
-    printf '用法: install-agent.sh [codex|claude|agents]\n' >&2
+    printf '用法: install-agent.sh [codex|claude|workbuddy|agents]\n' >&2
     exit 2
     ;;
 esac

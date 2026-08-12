@@ -22,6 +22,10 @@ Privacy: https://ai-job-coach.xin/privacy
 
     curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude
 
+## Install for WorkBuddy
+
+    curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
+
 ## Recommended first prompt
 
     帮我选择下一步最值得做的求职任务。

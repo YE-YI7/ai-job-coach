@@ -16,6 +16,12 @@ Claude Code：
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude
 ```
 
+WorkBuddy：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
+```
+
 安装后可以直接说“分析这个 JD 和我的经历”“针对这个岗位修改简历”“开始模拟面试”或“复盘这次面试”。完整能力、其他 Agent 安装方式和隐私边界见 [Agent 使用导航](docs/agent-usage.md)。
 
 ## Web 求职作战台

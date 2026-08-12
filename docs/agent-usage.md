@@ -18,6 +18,14 @@ codex plugin marketplace add YE-YI7/ai-job-coach --ref backend && codex plugin a
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude
 ```
 
+### WorkBuddy
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
+```
+
+默认安装到用户级 `~/.workbuddy/skills/`，重启 WorkBuddy 后生效。首次导入第三方 Skill 时，WorkBuddy 可能先运行安全审查；本包只有 Markdown 工作流与元数据，不包含可执行脚本。
+
 ### 其他支持 Agent Skills 的工具
 
 ```bash

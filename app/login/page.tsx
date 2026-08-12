@@ -3,16 +3,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { normalizeRedirectPath } from "@/lib/auth-redirect";
 
 type Step = 'email' | 'code';
-
-function normalizeRedirectPath(path: string | null): string | null {
-  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
-    return null;
-  }
-
-  return path;
-}
 
 function LoginContent() {
   const router = useRouter();

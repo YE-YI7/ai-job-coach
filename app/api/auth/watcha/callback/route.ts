@@ -2,16 +2,9 @@ import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 import { createSessionToken, sessionCookie } from "@/lib/session";
+import { normalizeRedirectPath, readCookieValue } from "@/lib/auth-redirect";
 
 export const runtime = "nodejs";
-
-function normalizeRedirectPath(path: string | null): string | null {
-  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
-    return null;
-  }
-
-  return path;
-}
 
 function buildLoginRedirectUrl(baseUrl: string, errorMessage: string, redirectPath?: string | null) {
   const loginUrl = new URL("/login", baseUrl);
@@ -48,11 +41,7 @@ export async function GET(request: Request) {
     const errorDescription = url.searchParams.get("error_description");
     const cookieHeader = request.headers.get("cookie") || "";
     const requestedRedirect = normalizeRedirectPath(
-      cookieHeader
-        .split(";")
-        .find((c) => c.trim().startsWith("watcha_oauth_redirect="))
-        ?.split("=")[1]
-        ?.trim() || null
+      readCookieValue(cookieHeader, "watcha_oauth_redirect")
     );
 
     console.log("[WATCHA OAuth] 收到回调:", { 
@@ -79,11 +68,7 @@ export async function GET(request: Request) {
     }
 
     // 验证 state（从 cookie 中取）
-    const cookieState = cookieHeader
-      .split(";")
-      .find((c) => c.trim().startsWith("watcha_oauth_state="))
-      ?.split("=")[1]
-      ?.trim();
+    const cookieState = readCookieValue(cookieHeader, "watcha_oauth_state");
 
     console.log("[WATCHA OAuth] state 验证:", { 
       urlState: state, 
@@ -239,11 +224,7 @@ export async function GET(request: Request) {
     console.error("[WATCHA OAuth] 回调处理失败:", err);
     const cookieHeader = request.headers.get("cookie") || "";
     const requestedRedirect = normalizeRedirectPath(
-      cookieHeader
-        .split(";")
-        .find((c) => c.trim().startsWith("watcha_oauth_redirect="))
-        ?.split("=")[1]
-        ?.trim() || null
+      readCookieValue(cookieHeader, "watcha_oauth_redirect")
     );
 
     return NextResponse.redirect(

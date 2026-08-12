@@ -18,6 +18,7 @@
     "codex",
     "agent"
   ],
+  "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "interface": {
     "displayName": "益职 AI",

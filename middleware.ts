@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   if (!isValidSession) {
     const loginUrl = new URL("/login", request.url);
     if (pathname !== "/login") {
-      loginUrl.searchParams.set("redirect", pathname);
+      loginUrl.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`);
     }
     return NextResponse.redirect(loginUrl);
   }

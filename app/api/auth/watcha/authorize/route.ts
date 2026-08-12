@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
 import { getWatchaAuthorizeUrl, generateState } from "@/lib/watcha-oauth";
+import { normalizeRedirectPath } from "@/lib/auth-redirect";
 
 export const runtime = "nodejs";
-
-function normalizeRedirectPath(path: string | null): string | null {
-  if (!path || !path.startsWith("/") || path.startsWith("//") || path.startsWith("/login")) {
-    return null;
-  }
-
-  return path;
-}
 
 /**
  * GET /api/auth/watcha/authorize

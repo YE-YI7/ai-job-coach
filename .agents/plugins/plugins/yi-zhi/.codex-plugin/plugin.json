@@ -1,7 +1,7 @@
 {
   "name": "yi-zhi",
-  "version": "0.1.0",
-  "description": "Evidence-based job search coaching workflows for job fit, resumes, mock interviews, and interview reviews.",
+  "version": "0.2.0",
+  "description": "A private job-search cockpit with evidence-based workflows, persistent local cases, and saved deliverables.",
   "author": {
     "name": "益职 AI",
     "url": "https://ai-job-coach.xin"

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "yi-zhi": {
+      "command": "node",
+      "args": ["./mcp/server.mjs"],
+      "cwd": "."
+    }
+  }
+}

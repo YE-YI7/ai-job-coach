@@ -1,4 +1,4 @@
 interface:
-  display_name: "益职导航"
-  short_description: "根据现有材料选择最值得立即执行的求职教练任务与行动路径"
-  default_prompt: "帮我选择下一步最值得做的求职任务"
+  display_name: "益职求职作战台"
+  short_description: "从当前最急的问题开始，持续推进岗位、简历和面试事项"
+  default_prompt: "我正在找工作，但不知道从哪开始"

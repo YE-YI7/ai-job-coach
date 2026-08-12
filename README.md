@@ -22,7 +22,7 @@ WorkBuddy：
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
 ```
 
-安装后可以直接说“分析这个 JD 和我的经历”“针对这个岗位修改简历”“开始模拟面试”或“复盘这次面试”。完整能力、其他 Agent 安装方式和隐私边界见 [Agent 使用导航](docs/agent-usage.md)。
+重启 Agent 后直接说“我正在找工作，但不知道从哪开始”，或直接发送 JD、简历、面试记录。益职会把对方视为求职者，打开当前作战台并推进一个最值得做的动作，不要求用户先选择 Skill。完整能力、其他 Agent 安装方式和隐私边界见 [Agent 使用导航](docs/agent-usage.md)。
 
 ## Web 求职作战台
 

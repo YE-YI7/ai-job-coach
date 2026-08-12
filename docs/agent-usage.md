@@ -1,6 +1,6 @@
 # 益职 AI Agent 导航
 
-益职把求职教练能力交给用户自己的 Agent。第一版默认在本地读取和处理材料，不要求注册；只有用户主动选择同步时才连接线上作战台。
+益职让求职者在常用 Agent 里直接使用求职作战台。默认在本地读取和处理材料，不要求注册；只有用户主动选择同步时才连接线上服务。
 
 ## 一行安装
 
@@ -24,7 +24,7 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
 ```
 
-默认安装到用户级 `~/.workbuddy/skills/`，重启 WorkBuddy 后生效。首次导入第三方 Skill 时，WorkBuddy 可能先运行安全审查；本包只有 Markdown 工作流与元数据，不包含可执行脚本。
+安装命令会把 Skills 放入 `~/.workbuddy/skills/`，并在 `~/.workbuddy/mcp.json` 中合并一个本地“益职求职作战台”连接器。它只在本机保存事项状态和 Markdown 产物，不调用远程模型，也不会上传简历。重启 WorkBuddy 后生效。
 
 ### 其他支持 Agent Skills 的工具
 
@@ -36,9 +36,9 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 
 ## 从这里开始
 
-不确定下一步时说：
+不需要先理解功能或选择 Skill。不确定下一步时直接说：
 
-> 帮我选择下一步最值得做的求职任务。
+> 我正在找工作，但不知道从哪开始。
 
 | 你现在要解决的问题 | 可以直接说 |
 |---|---|
@@ -54,11 +54,16 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 - 面试复盘：可使用脱敏后的逐字稿、笔记或尽可能完整的回忆。
 - 不要提交受保密协议约束的内容；手机号、邮箱、姓名和客户信息建议先脱敏。
 
+## 本地作战台
+
+WorkBuddy 和 Codex 插件会得到四个可见工具：创建求职事项、打开当前作战台、更新阶段、保存交付物。默认数据位置是 `~/.yi-zhi/`，因此换一个对话仍可继续当前事项。
+
 ## 当前能力边界
 
-- 第一版依赖用户当前 Agent 的模型能力，不调用益职的远程模型额度。
+- 分析和生成仍使用用户当前 Agent 的模型，不调用益职远程模型额度。
 - 默认不把求职材料同步到 `ai-job-coach.xin`。
-- 线上历史、跨设备同步与用量计费将在远程 MCP 接入后提供。
+- 本地 MCP 只保存事项元数据与用户选择保存的成品；面试逐字稿不会默认保存。
+- 线上历史、跨设备同步与账号体系仍需后续远程 MCP。
 - 益职提供求职准备和决策支持，不承诺录用结果。
 
 ## 产品结构

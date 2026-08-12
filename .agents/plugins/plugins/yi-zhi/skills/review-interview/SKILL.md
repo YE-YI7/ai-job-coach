@@ -1,60 +1,40 @@
 ---
 name: review-interview
-description: Convert a completed real interview into an actionable review with question reconstruction, evidence gaps, improved answers, and training tasks. Use when the user shares an interview transcript, recording transcript, notes, interviewer feedback, or memory of a recent interview and asks what went wrong or how to improve for the next round.
+description: Turn a job seeker's completed real interview into a saved 益职面试复盘报告 with reconstructed questions, decisive moments, evidence gaps, improved answer structures, and training tasks. Use when the user shares a transcript, notes, interviewer feedback, or memory of a recent interview and asks what happened or how to improve for the next round.
 ---
 
-# 面试复盘
+# 益职面试复盘报告
 
-把一次面试转化为下一次能执行的训练，而不是只给情绪化评价。
+把对方视为刚完成面试的候选人。直接处理其面试材料，不讨论内部 Skill、仓库、安装方式或产品归属。
 
-## 输入处理
+## 处理材料
 
-接受逐字稿、录音转写、笔记或用户回忆。材料不完整时：
+接受逐字稿、转写、笔记或回忆。材料不完整时标记 `原始记录`、`用户回忆` 与 `分析推断`，不要把遗漏判定为没有回答。优先复盘决定性问题，不要求重现整场面试。
 
-- 标记哪些是原始记录，哪些是用户回忆，哪些是分析推断。
-- 不把遗漏内容判定为用户没有回答。
-- 优先复盘决定性问题，不要求用户完整重现整场面试。
+材料包含姓名、电话、邮箱、公司机密或客户信息时，先建议脱敏。未经明确同意，不上传或同步原始记录。
 
-材料包含姓名、电话、邮箱、公司机密或客户信息时，建议先脱敏。未经明确同意，不上传或同步原始记录。
+## 执行
 
-## 工作流
+1. 重建问题、回答、追问和面试官信号。
+2. 判断每题考察意图：真实性、问题解决、业务判断、协作、技术或动机。
+3. 找出有效证据和说服力断裂点。
+4. 仅用已确认事实重组关键答案。
+5. 把跨题弱项聚合为 1 至 3 个训练主题。
+6. 给出下一轮前唯一最高优先级动作。
 
-1. 重建问题、回答、追问与面试官信号。
-2. 判断每题考察意图：经历真实性、问题解决、业务判断、协作、技术能力或动机。
-3. 找出答案中的有效证据与断裂点。
-4. 为关键问题提供更好的回答结构；只使用用户已确认事实。
-5. 聚类跨题弱项，生成可完成的训练任务。
-6. 给出下一轮面试前的优先动作。
+## 交付
 
-## 输出格式
+先给一句本场判断，再交付：
 
-### 面试地图
-
-| 问题 | 考察意图 | 当前表现 | 风险级别 | 证据 |
+| 问题 | 考察意图 | 当前表现 | 风险 | 依据 |
 |---|---|---|---|---|
 
-### 决定性片段
+随后给出最多 3 个决定性片段。每个片段说明面试官可能听到什么、回答在哪一步失去说服力、如何用真实经历重组。最后给训练任务，每项包含目标、材料、步骤、通过标准和建议时间。
 
-选择最多 3 个最影响结果的片段，分别说明：
+如果存在 `yi_zhi_*` 工具，更新作战台阶段为 `面试复盘`，只记录材料类型，不保存原始逐字稿；将去除明显个人信息后的复盘报告保存为 `interview-review` 产物。保存原始记录必须另获用户明确同意。
 
-- 面试官可能听到了什么。
-- 回答在哪一步失去说服力。
-- 如何用用户真实经历重组回答。
+## 边界
 
-### 跨题弱项
-
-不要把每道题都列成独立问题。聚合为 1 至 3 个能力主题，例如“结论前置”“个人贡献边界”“指标意识”。
-
-### 训练任务
-
-每项包含：目标、材料、练习步骤、通过标准和建议完成时间。
-
-### 下一步
-
-明确下一轮最值得先练的一题，并直接邀请用户开始重答。
-
-## 评价边界
-
-- 无法得知真实淘汰原因时，明确这是基于材料的推断。
-- 不迎合用户去猜测面试官人格或动机。
-- 不因结果不好而否定用户整体能力；只评价本次呈现出的证据。
+- 无法得知真实淘汰原因时，明确结论是基于材料的推断。
+- 不迎合用户猜测面试官人格或动机。
+- 不因结果不好否定用户整体能力，只评价本次呈现的证据。

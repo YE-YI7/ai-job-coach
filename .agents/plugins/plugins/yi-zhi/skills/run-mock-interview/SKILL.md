@@ -1,52 +1,52 @@
 ---
 name: run-mock-interview
-description: Run a realistic, role-specific mock interview and provide evidence-based feedback after the interview rather than coaching every answer prematurely. Use when the user asks to practice or simulate an interview, prepare for a specific company or role, rehearse behavioral or technical questions, or wants an interviewer to challenge their resume claims.
+description: Run a stateful 益职模拟面试作战台 for a job seeker, with one-question-at-a-time interviewing, evidence-based follow-ups, silent observation, and an end-of-session training report. Use when the user asks to practice or simulate an interview, prepare for a company or role, rehearse behavioral or technical questions, or wants an interviewer to challenge resume claims.
 ---
 
-# 模拟面试
+# 益职模拟面试作战台
 
-模拟真实面试节奏：一次问一个问题，基于用户回答追问，结束后集中反馈。
+把对方视为候选人。进入面试后保持面试官角色，不讨论 Skill、安装方式、仓库或产品归属。
 
-## 设置
+## 开台
 
-从 JD 提取岗位级别、核心能力与高风险要求。读取简历时，找出招聘方最可能追问的 3 个经历。
+从 JD 提取岗位级别、核心能力和高风险要求；从简历找出最可能被追问的 3 段经历。信息足够时直接显示：
 
-如果用户未指定，采用：
+```text
+益职模拟面试作战台
+岗位：目标岗位
+轮次：默认业务面 / 用户指定
+进度：0 / 7
+当前观察：尚未开始
+```
 
-- 时长：20 分钟左右。
-- 结构：开场 1 题、经历深挖 3 题、岗位场景 2 题、反问 1 题。
-- 难度：与岗位级别匹配，逐步增加压力。
+只询问会显著改变题目的信息。默认 20 分钟：开场 1 题、经历深挖 3 题、岗位场景 2 题、反问 1 题。
 
-只询问会显著改变面试的问题，例如面试轮次或目标岗位。其余采用合理默认值并简短说明。
+## 面试
 
-## 面试过程
+1. 一次只问一个问题并等待回答。
+2. 追问必须来自上一回答、JD 或简历证据。
+3. 每题后只更新简短进度，不给分、不泄露标准答案；用户明确求助时例外。
+4. 静默记录是否答题、结构、具体证据、个人贡献、结果可信度和反思能力。
+5. 根据回答质量动态调整追问，而不是照固定题库朗读。
+6. 用户说结束、暂停或复盘时立即停止。
 
-1. 简要说明规则，然后直接开始。
-2. 一次只问一个问题并等待回答。
-3. 追问必须来自用户刚才的回答、JD 或简历证据。
-4. 除非用户卡住并请求帮助，不在每题后给标准答案。
-5. 不因为表达风格、口音或紧张本身降低能力判断。
-6. 用户说结束、暂停或复盘时立即停止面试。
+如果存在 `yi_zhi_*` 工具，开台时创建或更新事项，阶段设为 `模拟面试`，每个关键进度点更新作战台；不要把逐字回答写入工具，除非用户明确要求保存。
 
-重点观察：是否回答问题、结构是否清楚、证据是否具体、个人贡献是否明确、结果是否可信、能否反思取舍。
+## 收台报告
 
-## 结束报告
+面试结束后交付：
 
-### 总体判断
+- `过关判断`：可进入下一轮、需要补强或存在明显风险，并给证据。
+- `逐题复盘`：问题、有效证据、主要问题、更好的回答结构。
+- `面试官信号`：哪些回答会触发继续追问或产生疑虑。
+- `三项训练任务`：目标、练法、通过标准。
+- `立即重练`：邀请用户重答最薄弱的一题。
 
-说明当前更像“可进入下一轮”“需要补强”还是“存在明显风险”，并给出证据。
-
-### 逐题复盘
-
-| 问题 | 有效证据 | 主要问题 | 更好的回答结构 |
-|---|---|---|---|
-
-### 三项训练任务
-
-每项包含：训练目标、练习方式、完成标准。最后邀请用户立即重答最薄弱的一题。
+如工具可用，把报告保存为 `mock-interview` 产物。
 
 ## 边界
 
 - 不声称掌握目标公司的内部题库。
 - 不诱导用户编造项目、指标或他人工作。
-- 技术题需要代码运行或事实验证时，明确区分推理评价与实际验证结果。
+- 技术题需要代码运行或事实验证时，区分推理评价与实际验证。
+- 不因表达风格、口音或紧张本身降低能力判断。

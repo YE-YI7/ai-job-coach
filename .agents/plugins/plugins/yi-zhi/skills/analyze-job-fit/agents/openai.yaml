@@ -1,4 +1,4 @@
 interface:
-  display_name: "岗位匹配诊断"
-  short_description: "用岗位要求和真实经历证据判断匹配程度、主要风险与投递优先级"
-  default_prompt: "分析这个 JD 和我的经历，找出关键匹配点与缺口"
+  display_name: "益职岗位决策卡"
+  short_description: "用真实经历证据决定岗位该优先投、补充后投还是放弃"
+  default_prompt: "这个岗位值得我投吗？这是 JD 和我的经历"

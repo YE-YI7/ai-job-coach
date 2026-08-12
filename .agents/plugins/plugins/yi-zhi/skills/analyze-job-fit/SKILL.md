@@ -1,54 +1,47 @@
 ---
 name: analyze-job-fit
-description: Analyze a job description against a candidate's actual experience and decide whether and how to apply. Use when the user shares a JD, asks about job fit or suitability, wants to compare roles, identify missing qualifications, prioritize applications, or prepare an evidence-based application strategy.
+description: Produce an evidence-based 益职岗位决策卡 by comparing a job description with a job seeker's actual experience. Use when the user shares a JD, asks whether a role is worth applying to, wants to compare roles, identify missing qualifications, prioritize applications, or decide what evidence to strengthen before applying.
 ---
 
-# 岗位匹配诊断
+# 益职岗位决策卡
 
-用“岗位要求 × 经历证据”判断，而不是按关键词数量给虚假分数。
+把对方视为求职者，直接帮助其做投递决策。不要展示内部 Skill 名称、仓库或安装信息，也不要暗示用户拥有益职产品。
 
-## 工作流
+## 执行
 
-1. 读取完整 JD，提取业务目标、硬门槛、核心职责、加分项和隐含风险。
-2. 从简历或用户陈述中提取可核验经历，不补写不存在的事实。
-3. 为每项要求标记：`强证据`、`弱证据`、`无证据`、`需确认`。
-4. 识别可补材料的表达缺口与短期无法弥补的能力缺口。
-5. 给出 `优先投递`、`补充后投递` 或 `暂不投入` 的建议及理由。
+1. 从 JD 提取业务目标、硬门槛、核心职责、加分项和隐含风险。
+2. 从简历或用户陈述提取可核验经历，不补写事实。
+3. 为每项要求标记 `强证据`、`弱证据`、`无证据` 或 `需确认`。
+4. 区分表达缺口、证据缺口和能力缺口。
+5. 给出 `优先投递`、`补充后投递` 或 `暂不投入`，并说明什么事实会改变结论。
 
-没有候选人材料时，先完成 JD 解构，再只询问能改变结论的 3 个以内问题。
+没有候选人材料时，先完成 JD 解构，再只问最多 3 个能改变结论的问题。
 
-## 证据标准
+## 交付
 
-- 强证据：用户说明了场景、动作和可观察结果，且与岗位要求直接相关。
-- 弱证据：方向相关，但缺少用户责任边界、复杂度或结果。
-- 无证据：用户材料没有支持，不等于用户一定不会。
-- 需确认：材料存在歧义，确认后可能改变投递判断。
+先给决策，不先解释方法：
 
-## 输出格式
+```text
+益职岗位决策卡
+目标岗位：公司 / 职位
+投递决策：优先投递 | 补充后投递 | 暂不投入
+最大胜算：一句话
+首要风险：一句话
+下一动作：一个动作
+```
 
-### 结论
+随后给出：
 
-用 2 至 4 句话说明是否值得投入，以及最大的机会和风险。不要把主观百分比当作精确结论。
-
-### 证据匹配矩阵
-
-| 岗位要求 | 重要度 | 用户证据 | 判断 | 面试风险 |
+| 岗位要求 | 重要度 | 经历证据 | 判断 | 面试风险 |
 |---|---:|---|---|---|
 
-### 三个关键缺口
+再列出最多 3 个决定性缺口，以及 30 分钟内可以完成的补证据动作。不要用主观百分比制造精确感。
 
-区分：
-
-- 表达缺口：已有经历，但当前材料没有讲清楚。
-- 证据缺口：可能做过，但缺少例子或结果。
-- 能力缺口：当前确实没有相关经历。
-
-### 下一步
-
-给出最多 3 个按优先级排序的动作，并以一个最值得执行的动作为结尾。
+如果存在 `yi_zhi_*` 工具，更新作战台阶段为 `岗位判断`，把 JD/简历记为已有材料，并将完整决策卡保存为 `job-fit` 产物。
 
 ## 边界
 
 - 不因学校、年龄、性别等信息替招聘方作歧视性筛选。
 - 不虚构技能、头衔、任职时间、项目规模或业务结果。
-- 如果岗位涉嫌诈骗、违法或要求提供不合理隐私信息，优先提示风险。
+- `无证据` 只表示当前材料未支持，不表示用户一定不会。
+- 岗位涉嫌诈骗、违法或索取不合理隐私时，优先提示风险。

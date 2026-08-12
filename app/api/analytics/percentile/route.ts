@@ -8,14 +8,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPercentileRank, getUserStageSummary } from "@/lib/analytics";
 import type { AnalyticsStage, MetricType } from "@/lib/analytics";
-
-function getUserId(request: NextRequest): string | null {
-  return request.cookies.get("sb-session-user-id")?.value || null;
-}
+import { getCurrentUserId } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserId(request);
+    const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }

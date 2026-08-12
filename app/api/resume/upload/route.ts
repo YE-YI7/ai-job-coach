@@ -4,21 +4,13 @@ import { saveResumeUpload } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import { validateResumeFileSize, validateResumeFileType } from "@/lib/resume-file-validation";
 
 // 使用 Node.js runtime（需要文件解析库）
 export const runtime = "nodejs";
 
 // 支持的文件类型
 const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
-const ALLOWED_MIME_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
-
-// 最大文件大小：10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
 // 解析后的简历数据结构
 interface ParsedResumeData {
   summary: string;
@@ -157,37 +149,6 @@ ${rawText}
 /**
  * 验证文件扩展名和MIME类型的匹配
  */
-function validateFileTypeMatch(filename: string, mimeType: string): boolean {
-  const lowerFilename = filename.toLowerCase();
-  
-  // 定义有效的扩展名和MIME类型组合
-  const validCombinations = [
-    { extensions: [".pdf"], mimeTypes: ["application/pdf"] },
-    { extensions: [".doc"], mimeTypes: ["application/msword"] },
-    { extensions: [".docx"], mimeTypes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] },
-  ];
-
-  // 检查是否存在匹配的组合
-  for (const combo of validCombinations) {
-    const hasMatchingExtension = combo.extensions.some(ext => lowerFilename.endsWith(ext));
-    const hasMatchingMimeType = combo.mimeTypes.includes(mimeType);
-    
-    // 如果扩展名和MIME类型都匹配这个组合，则有效
-    if (hasMatchingExtension && hasMatchingMimeType) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
- * 验证文件大小
- */
-function validateFileSize(size: number): boolean {
-  return size > 0 && size <= MAX_FILE_SIZE;
-}
-
 /**
  * POST /api/resume/upload
  * 处理简历文件上传、解析和存储
@@ -242,7 +203,7 @@ export async function POST(request: Request) {
     const filename = file.name || "";
     const mimeType = file.type || "";
     
-    if (!validateFileTypeMatch(filename, mimeType)) {
+    if (!validateResumeFileType(filename, mimeType)) {
       // 检查是扩展名问题还是MIME类型问题
       const lowerFilename = filename.toLowerCase();
       const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => lowerFilename.endsWith(ext));
@@ -270,7 +231,7 @@ export async function POST(request: Request) {
 
     // 5. 验证文件大小
     const fileSize = file.size;
-    if (!validateFileSize(fileSize)) {
+    if (!validateResumeFileSize(fileSize)) {
       if (fileSize === 0) {
         return NextResponse.json(
           {

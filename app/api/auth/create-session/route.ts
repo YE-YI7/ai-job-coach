@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
+import { createSessionToken, sessionCookie } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -126,11 +127,7 @@ export async function POST(request: Request) {
 
     // 4. 创建 session cookie
     const fakeEmail = `${trimmedCode}@invite.local`;
-    const sessionToken = Buffer.from(JSON.stringify({
-      userId,
-      email: fakeEmail,
-      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7),
-    })).toString("base64");
+    const sessionToken = await createSessionToken(userId, fakeEmail);
 
     const response = NextResponse.json({
       ok: true,
@@ -138,21 +135,8 @@ export async function POST(request: Request) {
       isNewUser,
     });
 
-    response.cookies.set("sb-access-token", sessionToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-
-    response.cookies.set("sb-session-user-id", userId, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
+    response.cookies.set(sessionCookie.name, sessionToken, sessionCookie.options);
+    response.cookies.set("sb-session-user-id", "", { ...sessionCookie.options, maxAge: 0 });
 
     return response;
   } catch (err) {

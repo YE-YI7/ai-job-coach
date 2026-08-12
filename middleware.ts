@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifySessionToken } from "@/lib/session";
 
 /**
  * Next.js Middleware - 认证拦截
@@ -31,6 +32,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname === "/llms.txt" || pathname === "/robots.txt" || pathname === "/sitemap.xml") {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
@@ -48,31 +53,7 @@ export async function middleware(request: NextRequest) {
   // ========== 需要认证的路径 ==========
 
   const sessionToken = request.cookies.get("sb-access-token")?.value;
-  const userId = request.cookies.get("sb-session-user-id")?.value;
-
-  let isValidSession = false;
-
-  // 验证 session cookie
-  if (sessionToken && userId) {
-    try {
-      const sessionData = JSON.parse(atob(sessionToken));
-      
-      // 检查是否过期且 userId 匹配
-      if (
-        sessionData.exp &&
-        sessionData.exp > Math.floor(Date.now() / 1000) &&
-        sessionData.userId === userId
-      ) {
-        // UUID 格式验证
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(userId)) {
-          isValidSession = true;
-        }
-      }
-    } catch {
-      // session token 解析失败，视为无效
-    }
-  }
+  const isValidSession = Boolean(await verifySessionToken(sessionToken));
 
   // 如果 session 无效，重定向到登录页
   if (!isValidSession) {

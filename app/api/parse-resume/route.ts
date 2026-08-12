@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import pdfParse from "pdf-parse";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 // 必须使用 Node.js runtime（因为需要文件解析库）
 export const runtime = "nodejs";
@@ -13,6 +14,9 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
+    if (!(await getCurrentUserFromRequest())) {
+      return NextResponse.json({ ok: false, error: "未授权访问" }, { status: 401 });
+    }
     const contentType = request.headers.get("content-type") || "";
     
     // 判断请求类型：FormData 或 JSON

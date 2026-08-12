@@ -8,15 +8,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import OpenAI from "openai";
-
-// 获取用户 ID
-function getUserId(request: NextRequest): string | null {
-  return request.cookies.get("sb-session-user-id")?.value || null;
-}
+import { getCurrentUserId } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserId(request);
+    const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }

@@ -5,14 +5,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
-
-function getUserId(request: NextRequest): string | null {
-  return request.cookies.get("sb-session-user-id")?.value || null;
-}
+import { getCurrentUserId } from "@/lib/auth";
 
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = getUserId(request);
+    const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }

@@ -30,10 +30,8 @@ export async function GET(request: Request) {
   const authorizeUrl = getWatchaAuthorizeUrl(state, baseUrl);
 
   console.log("[WATCHA OAuth] 发起授权:", {
-    authorizeUrl,
     baseUrl,
-    clientId: process.env.WATCHA_CLIENT_ID,
-    envBaseUrl: process.env.NEXT_PUBLIC_BASE_URL,
+    hasClientId: Boolean(process.env.WATCHA_CLIENT_ID),
   });
 
   const response = NextResponse.redirect(authorizeUrl);

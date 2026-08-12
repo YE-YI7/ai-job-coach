@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getCurrentUserFromRequest } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const text = body?.text?.trim();
     const mode = body?.mode || 'free';
+
+    if (mode === 'full' && !(await getCurrentUserFromRequest())) {
+      return NextResponse.json({ ok: false, error: '完整报告需要登录' }, { status: 401 });
+    }
 
     if (!text || text.length < 50) {
       return NextResponse.json(

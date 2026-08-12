@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM } from '@/lib/llm';
+import { getCurrentUserFromRequest } from '@/lib/auth';
 
 interface CompressRequest {
   resumeData: {
@@ -63,6 +64,9 @@ function getCompressionPrompt(level: 1 | 2 | 3, targetRatio: number): string {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!(await getCurrentUserFromRequest())) {
+      return NextResponse.json({ success: false, error: '未认证' }, { status: 401 });
+    }
     const body: CompressRequest = await request.json();
     const { resumeData, compressionLevel, targetRatio = 0.7 } = body;
 

@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 // ========== 类型定义 ==========
 
@@ -674,6 +675,10 @@ ${history}
 
 export async function POST(request: Request) {
   try {
+    const authenticatedUser = await getCurrentUserFromRequest();
+    if (!authenticatedUser) {
+      return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+    }
     // 解析请求体
     let body: any = null;
     try {
@@ -695,7 +700,8 @@ export async function POST(request: Request) {
 
     // 如果缺少 action，默认设为 "start_round"
     const action = body?.action || "start_round";
-    const { sessionId, userId, roundType, questionId, answer, recentMessages } = body;
+    const { sessionId, roundType, questionId, answer, recentMessages } = body;
+    const userId = authenticatedUser.id;
 
     const useStub = isStubMode();
 

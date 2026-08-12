@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
+import { createSessionToken, sessionCookie } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -21,38 +22,6 @@ function buildLoginRedirectUrl(baseUrl: string, errorMessage: string, redirectPa
 
   loginUrl.searchParams.set("error", errorMessage);
   return loginUrl.toString();
-}
-
-/**
- * 生成中间跳转 HTML 页面
- * 
- * 为什么不能直接 302 redirect + Set-Cookie？
- * 因为 OAuth 回调是从 watcha.cn 跳过来的跨站请求，
- * 浏览器可能不保存 302 响应中的 Set-Cookie（SameSite 限制）。
- * 所以先返回一个在我们域名下的 HTML 页面，
- * 用 JS 设置 cookie 后再 location.href 跳转。
- */
-function buildRedirectHtml(
-  sessionToken: string,
-  userId: string,
-  redirectPath: string
-): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>登录中...</title></head>
-<body>
-<p style="text-align:center;margin-top:40vh;color:#888;font-family:sans-serif;">正在登录，请稍候...</p>
-<script>
-  var maxAge = ${60 * 60 * 24 * 7};
-  var secure = location.protocol === 'https:' ? ';Secure' : '';
-  document.cookie = 'sb-access-token=${sessionToken};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
-  document.cookie = 'sb-session-user-id=${userId};path=/;max-age=' + maxAge + ';SameSite=Lax' + secure;
-  document.cookie = 'watcha_oauth_state=;path=/;max-age=0';
-  document.cookie = 'watcha_oauth_redirect=;path=/;max-age=0';
-  location.href = '${redirectPath}';
-</script>
-</body>
-</html>`;
 }
 
 /**
@@ -122,7 +91,7 @@ export async function GET(request: Request) {
       allCookies: cookieHeader.split(";").map(c => c.trim().split("=")[0])
     });
 
-    if (state && cookieState && state !== cookieState) {
+    if (!state || !cookieState || state !== cookieState) {
       console.warn("[WATCHA OAuth] state 不匹配，可能存在 CSRF 攻击");
       return NextResponse.redirect(
         buildLoginRedirectUrl(baseUrl, "安全验证失败，请重试", requestedRedirect)
@@ -248,13 +217,7 @@ export async function GET(request: Request) {
     }
 
     // Step 5: 生成 session token，返回中间页面设置 cookie
-    const sessionToken = Buffer.from(
-      JSON.stringify({
-        userId,
-        email: watchaEmail,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 天
-      })
-    ).toString("base64");
+    const sessionToken = await createSessionToken(userId, watchaEmail);
 
     const redirectPath = requestedRedirect
       ? (isNewUser && !requestedRedirect.startsWith("/resume-score")
@@ -266,21 +229,12 @@ export async function GET(request: Request) {
       `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`
     );
 
-    // 返回中间 HTML 页面，由前端 JS 设置 cookie 后跳转
-    const html = buildRedirectHtml(sessionToken, userId, redirectPath);
-    return new NextResponse(html, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        // 同时在 response header 中也设置 cookie（双保险）
-        "Set-Cookie": [
-          `sb-access-token=${sessionToken}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
-          `sb-session-user-id=${userId}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`,
-          `watcha_oauth_state=; Path=/; Max-Age=0`,
-          `watcha_oauth_redirect=; Path=/; Max-Age=0`,
-        ].join(", "),
-      },
-    });
+    const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
+    response.cookies.set(sessionCookie.name, sessionToken, sessionCookie.options);
+    response.cookies.set("sb-session-user-id", "", { ...sessionCookie.options, maxAge: 0 });
+    response.cookies.set("watcha_oauth_state", "", { ...sessionCookie.options, maxAge: 0 });
+    response.cookies.set("watcha_oauth_redirect", "", { ...sessionCookie.options, maxAge: 0 });
+    return response;
   } catch (err) {
     console.error("[WATCHA OAuth] 回调处理失败:", err);
     const cookieHeader = request.headers.get("cookie") || "";

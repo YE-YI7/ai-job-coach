@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { UserStage, StageNames, isValidStage } from "@/lib/stage";
 import { saveWhiteboard } from "@/lib/db";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 type Message = {
   role?: "user" | "assistant" | "system";
@@ -88,6 +89,8 @@ type WhiteboardData = {
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUserFromRequest();
+    if (!user) return NextResponse.json({ error: "未认证" }, { status: 401 });
     const body: RequestBody = await request.json().catch(() => ({}));
     
     // 阻止前端提交 key
@@ -433,7 +436,7 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
 
     // 异步保存白板数据（不阻塞响应）
     if (sessionId && Object.keys(whiteboardData).length > 0) {
-      saveWhiteboard(sessionId, whiteboardData).catch(err => {
+      saveWhiteboard(sessionId, whiteboardData, user.id).catch(err => {
         console.error('保存白板数据失败:', err);
         // 不抛出错误，避免影响响应
       });

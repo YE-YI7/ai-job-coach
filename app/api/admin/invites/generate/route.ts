@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { generateInviteCode } from "@/lib/inviteCode";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,15 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUserFromRequest();
+    const adminEmails = (process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+    if (!user?.email || !adminEmails.includes(user.email.toLowerCase())) {
+      return NextResponse.json({ ok: false, error: "无管理员权限" }, { status: 403 });
+    }
+
     let requestBody: any = {};
     try {
       requestBody = await request.json();

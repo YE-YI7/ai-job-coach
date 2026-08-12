@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getDbClient } from "./db";
+import { verifySessionToken } from "./session";
 
 export interface AuthResult {
   id: string;
@@ -16,27 +17,10 @@ export async function getCurrentUserFromRequest(): Promise<AuthResult | null> {
     
     // 尝试从不同的 cookie 中获取用户信息
     // 方法1: 使用 sb-session-user-id (当前系统使用的)
-    const userId = cookieStore.get("sb-session-user-id")?.value;
     const sessionToken = cookieStore.get("sb-access-token")?.value;
-    
-    if (userId && sessionToken) {
-      try {
-        // 验证 session token
-        const sessionData = JSON.parse(Buffer.from(sessionToken, 'base64').toString());
-        
-        // 检查是否过期
-        if (sessionData.exp && sessionData.exp > Math.floor(Date.now() / 1000)) {
-          // 验证 userId 匹配
-          if (sessionData.userId === userId) {
-            return {
-              id: userId,
-              email: sessionData.email || undefined,
-            };
-          }
-        }
-      } catch (err) {
-        console.error("解析 session token 失败:", err);
-      }
+    const session = await verifySessionToken(sessionToken);
+    if (session) {
+      return { id: session.userId, email: session.email };
     }
     
     // 方法2: 尝试使用 app_session_id (如果存在 sessions 表)

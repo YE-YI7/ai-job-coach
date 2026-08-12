@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 // 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+    if (!(await getCurrentUserFromRequest())) {
+      return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+    }
     // 解析请求体
     let body = null;
     try {
@@ -67,4 +71,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

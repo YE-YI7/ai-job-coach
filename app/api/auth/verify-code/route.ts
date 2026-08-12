@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getDbClient } from '@/lib/db';
+import { createSessionToken, sessionCookie } from '@/lib/session';
 
 export const runtime = 'nodejs';
 
 /**
  * 生成 session token 并设置 cookie 的通用函数
  */
-function buildSessionResponse(userId: string, email: string, isNewUser: boolean) {
-  const sessionToken = Buffer.from(JSON.stringify({
-    userId,
-    email,
-    exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7), // 7天
-  })).toString('base64');
+async function buildSessionResponse(userId: string, email: string, isNewUser: boolean) {
+  const sessionToken = await createSessionToken(userId, email);
 
   const response = NextResponse.json({
     ok: true,
@@ -20,21 +17,8 @@ function buildSessionResponse(userId: string, email: string, isNewUser: boolean)
     isNewUser,
   });
 
-  response.cookies.set('sb-access-token', sessionToken, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  });
-
-  response.cookies.set('sb-session-user-id', userId, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-  });
+  response.cookies.set(sessionCookie.name, sessionToken, sessionCookie.options);
+  response.cookies.set('sb-session-user-id', '', { ...sessionCookie.options, maxAge: 0 });
 
   return response;
 }
@@ -218,7 +202,7 @@ export async function POST(request: Request) {
       }
 
       console.log(`[AUTH] 邀请码登录: code=${code}, userId=${userId}, isNew=${isNewUser}`);
-      return buildSessionResponse(userId, email, isNewUser);
+      return await buildSessionResponse(userId, email, isNewUser);
     }
 
     // ========== 邀请码未命中，走验证码流程 ==========
@@ -296,7 +280,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return buildSessionResponse(userId, email, isNewUser);
+    return await buildSessionResponse(userId, email, isNewUser);
   } catch (err) {
     console.error('verify-code API Error:', err);
     return NextResponse.json(

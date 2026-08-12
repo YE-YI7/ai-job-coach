@@ -19,12 +19,13 @@ export async function getDbClient(): Promise<DbClient | null> {
   }
 
   // 只使用 Supabase（Vercel 部署：pg 在 Edge Runtime 不可用）
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
       // 创建 Supabase 客户端
       const supabaseClient = createClient(
         process.env.SUPABASE_URL,
-        process.env.SUPABASE_ANON_KEY
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { auth: { autoRefreshToken: false, persistSession: false } }
       );
       
       // 包装 SupabaseClient 为符合 DbClient 类型的对象
@@ -43,7 +44,7 @@ export async function getDbClient(): Promise<DbClient | null> {
 
   // 如果没有配置数据库，返回 null 而不是抛出错误
   // 这样可以让应用在没有数据库时也能运行（使用 localStorage）
-  console.warn('No database client available. Application will use localStorage for data persistence.');
+  console.warn('No server database client available. SUPABASE_SERVICE_ROLE_KEY is required.');
   return null;
 }
 
@@ -496,4 +497,3 @@ export async function getLatestResumeByUserId(userId: string): Promise<{
     created_at: data.created_at,
   };
 }
-

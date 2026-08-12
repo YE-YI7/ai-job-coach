@@ -85,7 +85,7 @@ describe("Resume Upload API - File Validation", () => {
       content = fileOptions.content;
     } else {
       // 创建指定大小的Buffer
-      content = Buffer.alloc(fileOptions.size, "a");
+      content = "a".repeat(fileOptions.size);
     }
 
     const file = new File(

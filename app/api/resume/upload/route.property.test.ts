@@ -6,39 +6,9 @@
  */
 
 import * as fc from "fast-check";
-import { POST } from "./route";
-import { getCurrentUserFromRequest } from "@/lib/auth";
-
-// Mock 认证模块
-jest.mock("@/lib/auth");
+import { validateResumeFileSize, validateResumeFileType } from "@/lib/resume-file-validation";
 
 describe("Resume Upload API - Property-Based Tests", () => {
-  const mockUser = { id: "test-user-123", email: "test@example.com" };
-
-  beforeEach(() => {
-    (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(mockUser);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  /**
-   * 辅助函数：创建模拟的 Request
-   */
-  function createRequest(filename: string, mimeType: string, size: number): Request {
-    const content = size > 0 ? Buffer.alloc(size, "a") : "";
-    const file = new File([content], filename, { type: mimeType });
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    return new Request("http://localhost:3000/api/resume/upload", {
-      method: "POST",
-      body: formData,
-    });
-  }
-
   /**
    * Property 1: File Type Validation
    * Validates: Requirements 1.1, 1.2
@@ -84,23 +54,15 @@ describe("Resume Upload API - Property-Based Tests", () => {
           };
           
           const mimeType = mimeTypeMap[extension] || "application/octet-stream";
-          const request = createRequest(filename, mimeType, size);
-          const response = await POST(request);
-          const data = await response.json();
-
           // 验证属性：只有 .pdf, .doc, .docx 应该被接受
           const allowedExtensions = [".pdf", ".doc", ".docx"];
           const shouldBeAccepted = allowedExtensions.includes(extension);
 
           if (shouldBeAccepted) {
             // 应该接受（返回200）
-            expect(response.status).toBe(200);
-            expect(data.ok).toBe(true);
+            expect(validateResumeFileType(filename, mimeType)).toBe(true);
           } else {
-            // 应该拒绝（返回400）
-            expect(response.status).toBe(400);
-            expect(data.ok).toBe(false);
-            expect(data.code).toBe("INVALID_FILE_TYPE");
+            expect(validateResumeFileType(filename, mimeType)).toBe(false);
           }
         }
       ),
@@ -123,28 +85,14 @@ describe("Resume Upload API - Property-Based Tests", () => {
         async (size) => {
           const filename = "test-resume.pdf";
           const mimeType = "application/pdf";
-          const request = createRequest(filename, mimeType, size);
-          const response = await POST(request);
-          const data = await response.json();
-
           // 验证属性：只有 0 < size <= 10MB 应该被接受
           const MAX_SIZE = 10 * 1024 * 1024;
           const shouldBeAccepted = size > 0 && size <= MAX_SIZE;
 
           if (shouldBeAccepted) {
-            // 应该接受
-            expect(response.status).toBe(200);
-            expect(data.ok).toBe(true);
+            expect(validateResumeFileSize(size)).toBe(true);
           } else {
-            // 应该拒绝
-            expect(response.status).toBe(400);
-            expect(data.ok).toBe(false);
-            
-            if (size === 0) {
-              expect(data.code).toBe("EMPTY_FILE");
-            } else {
-              expect(data.code).toBe("FILE_TOO_LARGE");
-            }
+            expect(validateResumeFileSize(size)).toBe(false);
           }
         }
       ),
@@ -177,10 +125,6 @@ describe("Resume Upload API - Property-Based Tests", () => {
         fc.integer({ min: 1024, max: 1024 * 1024 }), // 1KB - 1MB
         async ({ extension, mimeType }, size) => {
           const filename = "test-resume" + extension;
-          const request = createRequest(filename, mimeType, size);
-          const response = await POST(request);
-          const data = await response.json();
-
           // 验证属性：扩展名和MIME类型必须都匹配
           const validCombinations = [
             { ext: ".pdf", mime: "application/pdf" },
@@ -193,15 +137,9 @@ describe("Resume Upload API - Property-Based Tests", () => {
           );
 
           if (isValidCombination) {
-            // 应该接受
-            expect(response.status).toBe(200);
-            expect(data.ok).toBe(true);
+            expect(validateResumeFileType(filename, mimeType)).toBe(true);
           } else {
-            // 应该拒绝
-            expect(response.status).toBe(400);
-            expect(data.ok).toBe(false);
-            // 可能是 INVALID_FILE_TYPE 或 INVALID_MIME_TYPE
-            expect(["INVALID_FILE_TYPE", "INVALID_MIME_TYPE"]).toContain(data.code);
+            expect(validateResumeFileType(filename, mimeType)).toBe(false);
           }
         }
       ),

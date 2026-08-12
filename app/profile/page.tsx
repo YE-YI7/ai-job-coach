@@ -67,9 +67,8 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
-    document.cookie = 'sb-access-token=; path=/; max-age=0';
-    document.cookie = 'sb-session-user-id=; path=/; max-age=0';
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
     localStorage.removeItem('sessionId');
     localStorage.removeItem('inviteCode');
     localStorage.removeItem('userEmail');

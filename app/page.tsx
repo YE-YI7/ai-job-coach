@@ -13,17 +13,9 @@ export default function Home() {
 
   // 检查是否已有 session
   useEffect(() => {
-    const cookies = document.cookie.split(';');
-    const hasSessionCookie = cookies.some(cookie =>
-      cookie.trim().startsWith('sb-access-token=') ||
-      cookie.trim().startsWith('sb-session-user-id=')
-    );
-    const sessionId = localStorage.getItem("sessionId");
-    const inviteCode = localStorage.getItem("inviteCode");
-
-    if (hasSessionCookie || (sessionId && inviteCode)) {
-      router.push("/chat");
-    }
+    fetch("/api/auth/session", { cache: "no-store" }).then((response) => {
+      if (response.ok) router.push("/chat");
+    });
   }, [router]);
 
   // 用户数滚动计数动画

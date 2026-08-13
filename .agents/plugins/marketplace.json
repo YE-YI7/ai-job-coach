@@ -8,7 +8,7 @@
       "name": "yi-zhi",
       "source": {
         "source": "local",
-        "path": "./plugins/yi-zhi"
+        "path": "./.agents/plugins/plugins/yi-zhi"
       },
       "policy": {
         "installation": "AVAILABLE",

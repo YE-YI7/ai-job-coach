@@ -53,7 +53,7 @@ export default function RegisterForm({ onSubmit }: RegisterFormProps) {
     onSubmit?.(userData);
 
     // 跳转到聊天页面
-    router.push("/chat");
+    router.push("/cockpit");
   };
 
   return (
@@ -107,4 +107,3 @@ export default function RegisterForm({ onSubmit }: RegisterFormProps) {
     </form>
   );
 }
-

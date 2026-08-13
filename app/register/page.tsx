@@ -6,10 +6,8 @@ export default function RegisterPage() {
   return (
     <>
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
-        
         body {
-          font-family: 'Inter', 'Noto Sans SC', sans-serif;
+          font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
           background-color: #fffbeb;
           overflow: hidden;
         }
@@ -179,4 +177,3 @@ export default function RegisterPage() {
     </>
   );
 }
-

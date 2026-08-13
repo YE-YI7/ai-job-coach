@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "title": "Design System: 益职 AI",
+  "extensions": {
+    "colorMeta": {
+      "action-orange": { "role": "primary", "displayName": "行动橙", "canonical": "#eb6b2b", "tonalRamp": ["#fff0e7", "#eb6b2b", "#c94f17"] },
+      "guidance-blue": { "role": "secondary", "displayName": "引导蓝", "canonical": "#536fe8", "tonalRamp": ["#eef1ff", "#536fe8", "#4057b7"] },
+      "evidence-green": { "role": "tertiary", "displayName": "证据绿", "canonical": "#2d8a61", "tonalRamp": ["#eaf6ef", "#2d8a61", "#1f6848"] },
+      "ink": { "role": "neutral", "displayName": "清醒墨色", "canonical": "#24272f", "tonalRamp": ["#fbfaf8", "#69707d", "#24272f"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "岗位标题", "purpose": "当前机会的唯一一级标题。" },
+      "body": { "displayName": "工作台正文", "purpose": "证据、解释和行动原因。" }
+    },
+    "shadows": [
+      { "name": "mobile-drawer", "value": "18px 0 45px rgba(36, 39, 47, 0.14)", "purpose": "只用于移动端抽屉与内容层分离。" }
+    ],
+    "motion": [
+      { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "640px" },
+      { "name": "drawer", "value": "900px" },
+      { "name": "compact-desktop", "value": "1120px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "关键确认或开始动作。",
+      "html": "<button class=\"ds-btn-primary\">开始针对性模拟</button>",
+      "css": ".ds-btn-primary { min-height: 37px; padding: 0 14px; border: 1px solid #eb6b2b; border-radius: 10px; background: #eb6b2b; color: #fff; font: 700 12px system-ui, sans-serif; } .ds-btn-primary:hover { background: #df5f22; } .ds-btn-primary:focus-visible { outline: 3px solid rgba(235,107,43,.28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "description": "阶段与证据状态。",
+      "html": "<span class=\"ds-chip\">准备投递</span>",
+      "css": ".ds-chip { display: inline-flex; padding: 4px 9px; border: 1px solid #e0dff9; border-radius: 999px; background: #eef1ff; color: #4057b7; font: 700 10px system-ui, sans-serif; }"
+    },
+    {
+      "name": "Work Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "岗位判断、证据覆盖等主要阅读容器。",
+      "html": "<section class=\"ds-card\"><h3>当前判断</h3><p>结论基于已确认的真实证据。</p></section>",
+      "css": ".ds-card { padding: 25px 27px; border: 1px solid #e7e5e1; border-radius: 16px; background: #fff; color: #24272f; } .ds-card h3 { margin: 0 0 8px; font: 760 15px system-ui, sans-serif; } .ds-card p { margin: 0; color: #69707d; font: 400 12px/1.6 system-ui, sans-serif; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "岗位列表搜索。",
+      "html": "<input class=\"ds-input\" placeholder=\"搜索公司或岗位\" />",
+      "css": ".ds-input { height: 39px; padding: 0 12px; border: 1px solid #e7e5e1; border-radius: 11px; background: #fff; color: #24272f; font: 400 12px system-ui, sans-serif; } .ds-input:focus-visible { outline: 3px solid rgba(235,107,43,.28); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "温暖的求职作战桌",
+    "overview": "暖白环境降低压力，橙色推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。复杂信息依靠稳定网格、细边界和连续阅读顺序组织。",
+    "keyCharacteristics": ["暖白工作表面", "稀疏行动橙", "岗位机会主线", "证据状态可追溯"],
+    "rules": [
+      { "name": "Sparse Accent", "body": "橙色只服务当前行动和关键结论。", "section": "colors" },
+      { "name": "Border First", "body": "常规内容优先使用表面色差和 1px 边界，不默认加阴影。", "section": "elevation" }
+    ],
+    "dos": ["让首屏同时说明机会、判断和下一步。", "明确标记演示数据与待确认事实。"],
+    "donts": ["不要使用大面积渐变和装饰光斑。", "不要把每个信息块都做成阴影卡片。"]
+  }
+}

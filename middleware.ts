@@ -28,6 +28,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (process.env.NODE_ENV === "development" && pathname === "/cockpit/preview") {
+    return NextResponse.next();
+  }
+
   if (pathname === "/redeem" || pathname.startsWith("/redeem")) {
     return NextResponse.next();
   }

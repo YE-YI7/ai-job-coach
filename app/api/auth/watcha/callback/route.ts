@@ -208,7 +208,7 @@ export async function GET(request: Request) {
       ? (isNewUser && !requestedRedirect.startsWith("/resume-score")
           ? `/onboarding?redirect=${encodeURIComponent(requestedRedirect)}`
           : requestedRedirect)
-      : (isNewUser ? "/onboarding" : "/chat");
+      : (isNewUser ? "/onboarding" : "/cockpit");
 
     console.log(
       `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`

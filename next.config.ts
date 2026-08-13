@@ -12,8 +12,15 @@ const nextConfig: NextConfig = {
   // Turbopack 配置（Next.js 16 默认启用）
   turbopack: {},
 
-  // 全局安全头配置：CSP（与 app/layout.tsx 中的 meta tag CSP 保持一致）
+  // Next 16 默认会在开发时写入 AGENTS.md / CLAUDE.md；仓库已有自己的规则，不生成噪音文件。
+  agentRules: false,
+
+  // 全局安全头配置。CSP 只在响应头维护，避免 meta/header 策略漂移。
   async headers() {
+    const scriptSources = process.env.NODE_ENV === "development"
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+      : "script-src 'self' 'unsafe-inline'";
+
     return [
       {
         source: "/(.*)",
@@ -21,16 +28,27 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value: [
-              "default-src 'self' https:",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
-              "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+              "default-src 'self'",
+              scriptSources,
+              "style-src 'self' 'unsafe-inline'",
+              "font-src 'self' data:",
               "img-src 'self' data: blob: https:",
+              "worker-src 'self' blob:",
+              "media-src 'self' blob: https:",
               "connect-src 'self' https://*.supabase.co https://api.openai.com https://api.deepseek.com ws: wss:",
               "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
               "frame-ancestors 'self'",
             ].join("; "),
           },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          ...(process.env.NODE_ENV === "production"
+            ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]
+            : []),
         ],
       },
     ];

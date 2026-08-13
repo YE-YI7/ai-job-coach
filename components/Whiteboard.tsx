@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { UserStage, StageNames } from "@/lib/stage";
 import ProgressBar from "./ProgressBar";
 import InterviewCalendar from "./InterviewCalendar";
@@ -178,7 +179,7 @@ export default function Whiteboard({
           className="absolute top-4 left-4 z-10 w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-md hover:shadow-lg transition-all border border-gray-200"
           title={isVisible ? "收起白板" : "展开白板"}
         >
-          <i className={`fas ${isVisible ? 'fa-chevron-right' : 'fa-chevron-left'} text-gray-600 text-sm`}></i>
+          {isVisible ? <ChevronRight className="h-4 w-4 text-gray-600" /> : <ChevronLeft className="h-4 w-4 text-gray-600" />}
         </button>
       )}
       {/* 进度仪表盘 */}
@@ -317,7 +318,7 @@ export default function Whiteboard({
                       onClick={onTogglePreview}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-orange-600 hover:text-orange-700 hover:bg-orange-100 rounded-lg transition-colors"
                     >
-                      <i className={`fas ${isPreviewCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}`}></i>
+                      {isPreviewCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                       <span>{isPreviewCollapsed ? '展开预览' : '收起预览'}</span>
                     </button>
                     <div className="flex items-center gap-2">
@@ -566,4 +567,3 @@ export default function Whiteboard({
     </div>
   );
 }
-

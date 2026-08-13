@@ -14,7 +14,7 @@ export default function Home() {
   // 检查是否已有 session
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then((response) => {
-      if (response.ok) router.push("/chat");
+      if (response.ok) router.push("/cockpit");
     });
   }, [router]);
 

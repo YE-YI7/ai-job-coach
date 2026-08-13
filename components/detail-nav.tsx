@@ -7,7 +7,7 @@ interface DetailNavProps {
   backPath?: string;
 }
 
-export default function DetailNav({ title, backPath = "/chat" }: DetailNavProps) {
+export default function DetailNav({ title, backPath = "/cockpit" }: DetailNavProps) {
   const router = useRouter();
 
   return (
@@ -30,4 +30,3 @@ export default function DetailNav({ title, backPath = "/chat" }: DetailNavProps)
     </div>
   );
 }
-

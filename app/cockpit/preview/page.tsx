@@ -11,6 +11,7 @@ export default function CockpitPreviewPage() {
     <CockpitApp
       initialOpportunities={demoOpportunities}
       userEmail="cockpit-preview@example.com"
+      dataMode="demo"
     />
   );
 }

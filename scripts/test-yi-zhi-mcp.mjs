@@ -32,6 +32,7 @@ try {
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
     "yi_zhi_create_case",
     "yi_zhi_get_cockpit",
+    "yi_zhi_get_cockpit_url",
     "yi_zhi_update_cockpit",
     "yi_zhi_save_artifact"
   ]);
@@ -44,6 +45,8 @@ try {
   });
   const caseId = created.result.structuredContent.case.id;
   assert.match(caseId, /^case-/);
+  assert.match(created.result.structuredContent.cockpit_url, /^http:\/\/127\.0\.0\.1:\d+\/\?case=case-/);
+  assert.equal(created.result.content.some((item) => item.type === "resource_link"), true);
 
   const updated = await send({
     jsonrpc: "2.0",
@@ -65,6 +68,11 @@ try {
   const reopened = await send({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "yi_zhi_get_cockpit", arguments: {} } });
   assert.equal(reopened.result.structuredContent.case.id, caseId);
   assert.equal(reopened.result.structuredContent.case.artifacts.length, 1);
+
+  const browserLink = await send({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "yi_zhi_get_cockpit_url", arguments: { case_id: caseId } } });
+  const pageResponse = await fetch(browserLink.result.structuredContent.cockpit_url);
+  assert.equal(pageResponse.status, 200);
+  assert.match(await pageResponse.text(), /示例公司/);
 
   process.stdout.write("益职 MCP 闭环测试通过\n");
 } finally {

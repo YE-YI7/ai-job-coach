@@ -9,5 +9,5 @@ export default async function CockpitPage() {
   const user = await getCurrentUserFromRequest();
   if (!user) redirect("/login?redirect=%2Fcockpit");
 
-  return <CockpitApp initialOpportunities={demoOpportunities} userEmail={user.email} />;
+  return <CockpitApp initialOpportunities={demoOpportunities} userEmail={user.email} dataMode="demo" />;
 }

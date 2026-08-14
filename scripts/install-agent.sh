@@ -22,7 +22,7 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ "$TARGET" = "workbuddy" ] && ! command -v node >/dev/null 2>&1; then
+if ! command -v node >/dev/null 2>&1; then
   printf '安装失败：益职本地作战台需要 Node.js 18 或更高版本。\n' >&2
   exit 1
 fi
@@ -38,6 +38,9 @@ if [ -z "$SOURCE_ROOT" ]; then
   exit 1
 fi
 PLUGIN_ROOT="$(dirname "$SOURCE_ROOT")"
+YI_ZHI_ROOT="${YI_ZHI_HOME:-$HOME/.yi-zhi}"
+MCP_DESTINATION="$YI_ZHI_ROOT/mcp/server.mjs"
+NODE_COMMAND="$(command -v node)"
 
 mkdir -p "$DESTINATION"
 
@@ -53,17 +56,23 @@ for SOURCE_SKILL in "$SOURCE_ROOT"/*; do
   cp -R "$SOURCE_SKILL" "$TARGET_SKILL"
 done
 
+mkdir -p "$(dirname "$MCP_DESTINATION")"
+cp "$PLUGIN_ROOT/mcp/server.mjs" "$MCP_DESTINATION"
+
 if [ "$TARGET" = "workbuddy" ]; then
   WORKBUDDY_ROOT="${WORKBUDDY_HOME:-$HOME/.workbuddy}"
-  MCP_DESTINATION="$WORKBUDDY_ROOT/yi-zhi/mcp/server.mjs"
-  NODE_COMMAND="$(command -v node)"
-  mkdir -p "$(dirname "$MCP_DESTINATION")"
-  cp "$PLUGIN_ROOT/mcp/server.mjs" "$MCP_DESTINATION"
   "$NODE_COMMAND" "$INSTALL_TMP"/*/scripts/configure-workbuddy-mcp.mjs "$WORKBUDDY_ROOT/mcp.json" "$MCP_DESTINATION" "$NODE_COMMAND"
   printf '\n益职 Skills 已安装到 %s\n' "$DESTINATION"
+  printf '益职本地 MCP 已安装到 %s\n' "$MCP_DESTINATION"
   printf '益职本地求职作战台已配置到 %s\n' "$WORKBUDDY_ROOT/mcp.json"
-  printf '重新启动 WorkBuddy，然后说：我正在找工作，但不知道从哪开始。\n'
+  printf '重新启动 WorkBuddy，并让 Agent 验证本地作战盘链接。\n'
 else
   printf '\n益职 AI 已安装到 %s\n' "$DESTINATION"
-  printf '重新启动 Agent，然后说：我正在找工作，但不知道从哪开始。\n'
+  printf '益职本地 MCP 已准备到 %s\n' "$MCP_DESTINATION"
+  if [ "$TARGET" = "codex" ]; then
+    printf '推荐通过 Codex Marketplace 安装完整 Plugin；仅使用本脚本时，请把上面的 MCP 服务注册到 Codex。\n'
+  else
+    printf '请让当前 Agent 按 https://ai-job-coach.xin/agent 注册上面的 MCP 服务。\n'
+  fi
+  printf '重新启动或新建会话后，验证本地作战盘链接再开始第一个岗位。\n'
 fi

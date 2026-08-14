@@ -1,6 +1,14 @@
 # 益职 AI Agent 导航
 
-益职让求职者在常用 Agent 里直接使用求职作战台。默认在本地读取和处理材料，不要求注册；只有用户主动选择同步时才连接线上服务。
+益职免费版让求职者在自己的 Agent 里使用同一套求职作战方法，并在当前 Agent 的本地沙箱中建立可视作战盘。益职不收取模型费；分析和生成使用用户现有 Agent 的套餐或额度。默认不注册益职账号，也不上传求职材料。
+
+## 推荐入口：把一句话交给 Agent
+
+用户无需自己判断宿主和执行命令。把下面这句话复制给拥有终端权限的 Agent：
+
+> 请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。
+
+读取说明的 Agent 应自行识别宿主、执行对应安装、接通 MCP，并在返回 `http://127.0.0.1:端口` 的可访问作战盘链接后才能宣布安装完成。
 
 ## 一行安装
 
@@ -24,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy
 ```
 
-安装命令会把 Skills 放入 `~/.workbuddy/skills/`，并在 `~/.workbuddy/mcp.json` 中合并一个本地“益职求职作战台”连接器。它只在本机保存事项状态和 Markdown 产物，不调用远程模型，也不会上传简历。重启 WorkBuddy 后生效。
+安装命令会把 Skills 放入 `~/.workbuddy/skills/`，把 MCP 服务放入 `~/.yi-zhi/mcp/server.mjs`，并在 `~/.workbuddy/mcp.json` 中合并一个本地“益职求职作战台”连接器。它只在本机保存事项状态和 Markdown 产物，不调用益职远程模型，也不会上传简历。重启 WorkBuddy 后生效。
 
 ### 其他支持 Agent Skills 的工具
 
@@ -32,7 +40,7 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- agents
 ```
 
-安装脚本只下载本仓库 `backend` 分支中的 Skills，并写入对应的用户级 Skills 目录。如果已有同名 Skill，会先生成带时间戳的备份。
+安装脚本下载本仓库 `backend` 分支中的 Skills 与本地 MCP 服务。Skills 写入对应用户目录；MCP 服务统一写入 `~/.yi-zhi/mcp/server.mjs`。如果已有同名 Skill，会先生成带时间戳的备份。除 Codex 完整 Plugin 与 WorkBuddy 外，Agent 还需按自身宿主格式注册该 stdio MCP 服务。
 
 ## 从这里开始
 
@@ -56,13 +64,13 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 
 ## 本地可视作战盘
 
-WorkBuddy 和 Codex 插件会得到五个可见工具：创建求职事项、读取当前状态、打开浏览器作战盘、更新阶段、保存交付物。创建或继续一个岗位后，Agent 会返回一个只在本机可访问的作战盘链接；岗位、材料类型、当前行动和产物会在这里持续更新，不必在聊天里反复阅读长报告。
+完整接通 MCP 后，Agent 会得到五个可见工具：创建求职事项、读取当前状态、打开浏览器作战盘、更新阶段、保存交付物。创建或继续一个岗位后，Agent 会返回一个只在本机可访问的作战盘链接；岗位、材料类型、当前行动和产物会在这里持续更新，不必在聊天里反复阅读长报告。
 
 默认数据位置是 `~/.yi-zhi/`。本地页面随 Agent 连接启动，仅监听 `127.0.0.1`，不会公开到局域网或互联网。换一个对话仍可继续当前事项。
 
 ## 当前能力边界
 
-- 分析和生成仍使用用户当前 Agent 的模型，不调用益职远程模型额度。
+- 分析和生成使用用户当前 Agent 的模型，不调用益职远程模型额度；Agent 宿主本身可能按套餐或用量计费。
 - 默认不把求职材料同步到 `ai-job-coach.xin`。
 - 本地 MCP 和可视作战盘只保存事项元数据与用户选择保存的成品；面试逐字稿不会默认保存。
 - 线上历史、跨设备同步与账号体系仍需后续远程 MCP。

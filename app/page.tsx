@@ -1,415 +1,228 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
+import {
+  ArrowRight,
+  Check,
+  Clipboard,
+  Cloud,
+  Copy,
+  ExternalLink,
+  HardDrive,
+  LockKeyhole,
+  Monitor,
+  Sparkles,
+} from "lucide-react";
+import styles from "./Home.module.css";
 
-/**
- * 益职AI Landing Page — 品牌故事 + 数据展示
- */
+const AGENT_PROMPT = "请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。";
+
 export default function Home() {
-  const router = useRouter();
-  const [userCount, setUserCount] = useState(0);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
-  // 检查是否已有 session
-  useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" }).then((response) => {
-      if (response.ok) router.push("/cockpit");
-    });
-  }, [router]);
+  const legacyCopy = () => {
+    const textArea = document.createElement("textarea");
+    textArea.value = AGENT_PROMPT;
+    textArea.setAttribute("readonly", "");
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.select();
+    const succeeded = document.execCommand("copy");
+    textArea.remove();
+    return succeeded;
+  };
 
-  // 用户数滚动计数动画
-  useEffect(() => {
-    const target = 1286;
-    const duration = 2000;
-    const steps = 60;
-    const increment = target / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= target) {
-        setUserCount(target);
-        clearInterval(timer);
-      } else {
-        setUserCount(Math.floor(current));
+  const copyAgentPrompt = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await Promise.race([
+          navigator.clipboard.writeText(AGENT_PROMPT),
+          new Promise((_, reject) => window.setTimeout(() => reject(new Error("clipboard timeout")), 900)),
+        ]);
+      } else if (!legacyCopy()) {
+        throw new Error("clipboard unavailable");
       }
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, []);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 2800);
+    } catch {
+      if (legacyCopy()) {
+        setCopyState("copied");
+        window.setTimeout(() => setCopyState("idle"), 2800);
+      } else {
+        setCopyState("error");
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#fffbf5] via-white to-[#f8f6ff] overflow-hidden">
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-4 py-20">
-        {/* 背景装饰 */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-orange-100 rounded-full mix-blend-multiply filter blur-xl opacity-40 animate-blob" />
-          <div className="absolute top-40 right-10 w-72 h-72 bg-purple-100 rounded-full mix-blend-multiply filter blur-xl opacity-40 animate-blob animation-delay-2000" />
-          <div className="absolute bottom-20 left-1/3 w-72 h-72 bg-blue-100 rounded-full mix-blend-multiply filter blur-xl opacity-40 animate-blob animation-delay-4000" />
-        </div>
+    <main className={styles.page}>
+      <span
+        className={styles.contract}
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: "<!-- THESIS: 同一套求职作战方法，用户先选择它运行在益职网页还是自己的 Agent；拒绝通用导师型 Hero。 OWN-WORLD: 暖白作战桌、行动橙、引导蓝、墨色 Agent 沙箱，细边界与连续网格。 STORY: 三秒看懂两种版本的费用、模型、数据和作战盘差异，然后选一条立即开始。 FIRST VIEWPORT: 左侧价值主张，右侧一张上下分层的运行方式选择器，两个主动作首屏可见。 FORM: 精确指定的双运行时路由表，seed yi-zhi-home-two-runtime-20260814。 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md -->" }}
+      />
 
-        <motion.div
-          className="relative z-10 text-center max-w-4xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-        >
-          {/* Logo */}
-          <motion.div
-            className="inline-flex items-center justify-center w-20 h-20 mb-6"
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <img src="/logo.png" alt="益职 AI" className="w-full h-full object-contain rounded-2xl shadow-lg" />
-          </motion.div>
+      <header className={styles.header}>
+        <Link className={styles.brand} href="/" aria-label="益职 AI 首页">
+          <Image src="/logo.png" alt="" width={42} height={42} priority />
+          <span>益职</span>
+        </Link>
+        <nav className={styles.nav} aria-label="主导航">
+          <a href="#compare">版本区别</a>
+          <a href="#local-board">本地作战盘</a>
+          <Link href="/agent">Agent 说明</Link>
+        </nav>
+        <Link className={styles.headerAction} href="/login?redirect=%2Fcockpit">
+          登录网页版 <ArrowRight size={15} />
+        </Link>
+      </header>
 
-          {/* 品牌名 */}
-          <motion.h1
-            className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-amber-500 bg-clip-text text-transparent">
-              益职 AI
-            </span>
-          </motion.h1>
-
-          {/* Tagline */}
-          <motion.p
-            className="text-xl md:text-2xl text-slate-600 font-medium mb-4 leading-relaxed"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            求职路上，你不是一个人在战斗
-          </motion.p>
-
-          <motion.p
-            className="text-base md:text-lg text-slate-500 mb-10 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-          >
-            益老师是你的私人求职导师，从职业规划到Offer决策，<br className="hidden md:block" />
-            全程陪伴、智能引导，帮你把每一步都走对
-          </motion.p>
-
-          {/* CTA */}
-          <motion.div
-            className="flex flex-col sm:flex-row gap-4 items-center justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.7 }}
-          >
-            <button
-              onClick={() => router.push("/login")}
-              className="px-8 py-4 text-lg font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-lg shadow-orange-200/50 hover:shadow-xl hover:shadow-orange-300/50 hover:-translate-y-0.5 transition-all duration-300"
-            >
-              免费开始使用
-            </button>
-            <button
-              onClick={() => router.push("/resume-score")}
-              className="px-8 py-4 text-lg font-semibold text-orange-600 bg-white border-2 border-orange-200 rounded-2xl hover:bg-orange-50 hover:border-orange-300 transition-all duration-300"
-            >
-              先测测简历分数
-            </button>
-          </motion.div>
-        </motion.div>
-
-        {/* 向下滚动提示 */}
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5 }}
-        >
-          <div className="flex flex-col items-center gap-2 text-slate-400">
-            <span className="text-xs">向下探索</span>
-            <motion.div
-              animate={{ y: [0, 6, 0] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 13l5 5 5-5M7 6l5 5 5-5" />
-              </svg>
-            </motion.div>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* 数据展示 Section */}
-      <DataSection userCount={userCount} />
-
-      {/* 产品特色 Section */}
-      <FeaturesSection />
-
-      {/* 7大阶段 Section */}
-      <StagesSection />
-
-      {/* 益老师介绍 Section */}
-      <TeacherSection />
-
-      {/* 最终CTA Section */}
-      <section className="py-24 px-4 bg-gradient-to-br from-orange-50 to-amber-50">
-        <div className="max-w-3xl mx-auto text-center">
-          <motion.h2
-            className="text-3xl md:text-4xl font-bold text-slate-900 mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            准备好开始你的求职之旅了吗？
-          </motion.h2>
-          <motion.p
-            className="text-lg text-slate-600 mb-8"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-          >
-            益老师已就位，等你来聊
-          </motion.p>
-          <motion.button
-            onClick={() => router.push("/login")}
-            className="px-10 py-5 text-xl font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-xl shadow-orange-200/50 hover:shadow-2xl hover:shadow-orange-300/60 hover:-translate-y-1 transition-all duration-300"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            免费开始使用
-          </motion.button>
-          <p className="mt-4 text-sm text-slate-400">邮箱注册即可，无需下载</p>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-8 text-center text-slate-400 text-sm">
-        &copy; 2026 益职AI. 版权所有.
-      </footer>
-
-      {/* 动画样式 */}
-      <style jsx>{`
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(30px, -50px) scale(1.1); }
-          50% { transform: translate(-20px, 20px) scale(0.9); }
-          75% { transform: translate(20px, 50px) scale(1.05); }
-        }
-        .animate-blob { animation: blob 7s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-4000 { animation-delay: 4s; }
-      `}</style>
-    </div>
-  );
-}
-
-/* ========== 数据展示 ========== */
-function DataSection({ userCount }: { userCount: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-
-  const stats = [
-    { number: `${userCount.toLocaleString()}+`, label: "位求职者已加入", icon: "👥" },
-    { number: "23%", label: "平均面试通过率提升", icon: "📈" },
-    { number: "7", label: "大求职阶段全覆盖", icon: "🎯" },
-    { number: "24/7", label: "随时随地在线辅导", icon: "⏰" },
-  ];
-
-  return (
-    <section ref={ref} className="py-20 px-4 bg-white">
-      <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          {stats.map((stat, idx) => (
-            <motion.div
-              key={idx}
-              className="text-center"
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.5, delay: idx * 0.1 }}
-            >
-              <div className="text-3xl mb-2">{stat.icon}</div>
-              <div className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-1">{stat.number}</div>
-              <div className="text-sm text-slate-500">{stat.label}</div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ========== 产品特色 ========== */
-function FeaturesSection() {
-  const features = [
-    {
-      title: "不只是工具，更是导师",
-      desc: "益老师不会冷冰冰地甩给你一份模板。她会像真正的职业导师一样，先了解你，再给方案。",
-      icon: "💬",
-      color: "from-blue-50 to-blue-100",
-      border: "border-blue-200",
-    },
-    {
-      title: "智能白板，进度可视化",
-      desc: "对话中的关键信息自动沉淀到白板，你的求职画像、项目STAR、目标公司一目了然。",
-      icon: "📋",
-      color: "from-purple-50 to-purple-100",
-      border: "border-purple-200",
-    },
-    {
-      title: "跨阶段记忆，越聊越懂你",
-      desc: "益老师记得你说过的每一句话。在面试阶段提到的项目，她会自动关联到简历优化建议。",
-      icon: "🧠",
-      color: "from-green-50 to-green-100",
-      border: "border-green-200",
-    },
-    {
-      title: "AI 模拟面试，实战练兵",
-      desc: "真实面试官视角，逐题评分+详细反馈+可分享战报。面试不再是开盲盒。",
-      icon: "🎤",
-      color: "from-orange-50 to-orange-100",
-      border: "border-orange-200",
-    },
-  ];
-
-  return (
-    <section className="py-20 px-4 bg-gradient-to-b from-white to-slate-50">
-      <div className="max-w-5xl mx-auto">
-        <motion.div
-          className="text-center mb-16"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">为什么选择益职 AI？</h2>
-          <p className="text-lg text-slate-500">不是又一个AI聊天机器人，而是真正懂求职的伙伴</p>
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {features.map((f, idx) => (
-            <motion.div
-              key={idx}
-              className={`p-6 rounded-2xl bg-gradient-to-br ${f.color} border ${f.border} hover:shadow-lg transition-all duration-300`}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.1 }}
-            >
-              <div className="text-3xl mb-3">{f.icon}</div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">{f.title}</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ========== 7大阶段 ========== */
-function StagesSection() {
-  const stages = [
-    { name: "职业规划", desc: "明确方向，找到最适合你的赛道", icon: "🧭", color: "bg-blue-500" },
-    { name: "项目梳理", desc: "用STAR法则深挖亮点", icon: "📊", color: "bg-purple-500" },
-    { name: "简历优化", desc: "逐句打磨，让HR眼前一亮", icon: "📄", color: "bg-green-500" },
-    { name: "投递策略", desc: "精准匹配，提高每一次投递的命中率", icon: "🎯", color: "bg-amber-500" },
-    { name: "模拟面试", desc: "实战演练，告别面试焦虑", icon: "🎤", color: "bg-orange-500" },
-    { name: "薪资沟通", desc: "数据支撑，谈出你应得的价格", icon: "💰", color: "bg-indigo-500" },
-    { name: "Offer 决策", desc: "多维对比，做出不后悔的选择", icon: "🏆", color: "bg-emerald-500" },
-  ];
-
-  return (
-    <section className="py-20 px-4 bg-slate-50">
-      <div className="max-w-4xl mx-auto">
-        <motion.div
-          className="text-center mb-16"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">7 大阶段，全流程陪伴</h2>
-          <p className="text-lg text-slate-500">从迷茫到拿Offer，每一步都有益老师在你身边</p>
-        </motion.div>
-
-        <div className="relative">
-          {/* 连接线 */}
-          <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 via-orange-300 to-emerald-300 hidden md:block" />
-
-          <div className="space-y-6">
-            {stages.map((stage, idx) => (
-              <motion.div
-                key={idx}
-                className="flex items-start gap-6"
-                initial={{ opacity: 0, x: -30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
-              >
-                {/* 圆点 */}
-                <div className={`relative z-10 w-16 h-16 ${stage.color} rounded-2xl flex items-center justify-center text-2xl shadow-lg shrink-0`}>
-                  {stage.icon}
-                </div>
-                {/* 内容 */}
-                <div className="flex-1 bg-white rounded-2xl p-5 border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all duration-300">
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="text-xs font-bold text-slate-400">STEP {idx + 1}</span>
-                    <h3 className="text-lg font-bold text-slate-900">{stage.name}</h3>
-                  </div>
-                  <p className="text-sm text-slate-500">{stage.desc}</p>
-                </div>
-              </motion.div>
-            ))}
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <Image className={styles.heroLogo} src="/logo.png" alt="益职 AI" width={82} height={82} priority />
+          <h1>把求职变成一场有证据、可推进的作战。</h1>
+          <p>
+            益职把 JD、真实经历、一岗一版简历、面试练习和复盘放进同一个岗位机会。
+            你只需决定：让它运行在益职网页，还是你自己的 Agent 里。
+          </p>
+          <div className={styles.heroProof}>
+            <span><Check size={15} />不编造经历</span>
+            <span><Check size={15} />阶段结果相互复用</span>
+            <span><Check size={15} />每次只推进最重要的一步</span>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
 
-/* ========== 益老师介绍 ========== */
-function TeacherSection() {
-  return (
-    <section className="py-20 px-4 bg-white">
-      <div className="max-w-4xl mx-auto">
-        <motion.div
-          className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 rounded-3xl p-8 md:p-12 border border-orange-100"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-amber-400 rounded-3xl flex items-center justify-center text-5xl shadow-lg shrink-0">
-              🧑‍🏫
-            </div>
-            <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-                遇见「益老师」
-              </h2>
-              <p className="text-slate-600 leading-relaxed mb-4">
-                益老师不是一个冷冰冰的 AI，她是你求职路上最有耐心的伙伴。
-                她会记住你的每一段经历、每一个目标，在你迷茫时给方向，在你低谷时给鼓励，
-                在你冲刺面试时陪你一遍遍练习。
-              </p>
-              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-                <span className="px-3 py-1.5 bg-white rounded-full text-sm text-orange-600 border border-orange-200 font-medium">
-                  🧠 跨阶段记忆
-                </span>
-                <span className="px-3 py-1.5 bg-white rounded-full text-sm text-orange-600 border border-orange-200 font-medium">
-                  💡 个性化建议
-                </span>
-                <span className="px-3 py-1.5 bg-white rounded-full text-sm text-orange-600 border border-orange-200 font-medium">
-                  🎯 精准引导
-                </span>
-                <span className="px-3 py-1.5 bg-white rounded-full text-sm text-orange-600 border border-orange-200 font-medium">
-                  ❤️ 有温度的陪伴
-                </span>
+        <div className={styles.modeSelector} aria-label="选择益职使用方式">
+          <section className={styles.webMode}>
+            <div className={styles.modeIcon}><Cloud size={22} /></div>
+            <div className={styles.modeBody}>
+              <div className={styles.modeTitleLine}>
+                <h2>网页端直接使用</h2>
+                <span className={styles.paidTag}>付费</span>
+              </div>
+              <p>由益职提供模型、账号与托管作战盘。打开网页就能用，使用时消耗益职额度。</p>
+              <div className={styles.modeFacts}>
+                <span>益职模型</span><span>云端作战盘</span><span>跨设备</span>
               </div>
             </div>
+            <Link className={styles.webAction} href="/login?redirect=%2Fcockpit">
+              进入网页版 <ArrowRight size={16} />
+            </Link>
+          </section>
+
+          <div className={styles.orDivider}><span>或</span></div>
+
+          <section className={styles.agentMode}>
+            <div className={styles.modeIcon}><HardDrive size={22} /></div>
+            <div className={styles.modeBody}>
+              <div className={styles.modeTitleLine}>
+                <h2>在我的 Agent 中使用</h2>
+                <span className={styles.freeTag}>益职免费</span>
+              </div>
+              <p>把下面这句话交给 Codex、WorkBuddy 或其他支持 MCP 的 Agent。模型在你的 Agent 中运行，作战盘建在它的本地沙箱。</p>
+            </div>
+            <div className={styles.promptBox}>
+              <textarea aria-label="给 Agent 的安装指令" readOnly value={AGENT_PROMPT} />
+              <button onClick={copyAgentPrompt} type="button">
+                {copyState === "copied" ? <Check size={16} /> : <Copy size={16} />}
+                {copyState === "copied" ? "已复制" : "复制给我的 Agent"}
+              </button>
+              {copyState === "error" && <span className={styles.promptError} role="alert">复制受限，请在左侧指令中全选并复制。</span>}
+            </div>
+            <div className={styles.agentFoot}>
+              <span><LockKeyhole size={14} />求职材料默认留在本机</span>
+              <Link href="/agent">先看执行说明 <ExternalLink size={13} /></Link>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.compareSection} id="compare">
+        <div className={styles.sectionHeading}>
+          <h2>区别只在它运行在哪里</h2>
+          <p>两个版本使用同一套益职求职方法；模型、数据和作战盘所在地不同。</p>
+        </div>
+        <div className={styles.comparison} role="table" aria-label="网页版与 Agent 版对比">
+          <div className={`${styles.compareRow} ${styles.compareHeader}`} role="row">
+            <span role="columnheader">对比项</span>
+            <strong role="columnheader">网页版</strong>
+            <strong role="columnheader">Agent 版</strong>
           </div>
-        </motion.div>
-      </div>
-    </section>
+          {[
+            ["模型由谁提供", "益职", "你的 Agent"],
+            ["益职费用", "消耗益职额度", "益职免费"],
+            ["作战盘在哪里", "益职云端", "Agent 本地沙箱"],
+            ["材料默认在哪里", "按任务需要提交给益职", "留在当前 Agent 环境"],
+            ["适合谁", "想打开网页就用", "已有常用 Agent，更在意本地与自由度"],
+          ].map(([label, web, agent]) => (
+            <div className={styles.compareRow} role="row" key={label}>
+              <span role="cell">{label}</span>
+              <span role="cell">{web}</span>
+              <span role="cell">{agent}</span>
+            </div>
+          ))}
+        </div>
+        <p className={styles.costNote}>Agent 版的“益职免费”指益职不收取模型费；你使用的 Agent 仍按它自身套餐或额度计费。</p>
+      </section>
+
+      <section className={styles.localSection} id="local-board">
+        <div className={styles.localCopy}>
+          <h2>免费版不是一组提示词。<br />它会在你的 Agent 里建起作战盘。</h2>
+          <p>安装完成后，Agent 会创建岗位机会、保存已完成产物，并返回一个只在本机可访问的作战盘链接。换一个对话，仍然可以继续同一个岗位。</p>
+          <ol className={styles.localSteps}>
+            <li><span>1</span><div><strong>复制一句话</strong><p>Agent 自己读取官网说明并识别当前宿主。</p></div></li>
+            <li><span>2</span><div><strong>安装与验证</strong><p>加载益职方法和本地作战盘工具。</p></div></li>
+            <li><span>3</span><div><strong>交给它一个真实岗位</strong><p>对话保留进度，复杂结果回到可视作战盘。</p></div></li>
+          </ol>
+          <button className={styles.copyLarge} onClick={copyAgentPrompt} type="button">
+            <Clipboard size={17} />{copyState === "copied" ? "指令已复制" : "复制安装指令"}
+          </button>
+        </div>
+
+        <div className={styles.boardDemo} aria-label="益职本地作战盘示意">
+          <div className={styles.boardTopbar}>
+            <span><Image src="/logo.png" alt="" width={28} height={28} />益职</span>
+            <small><HardDrive size={13} />127.0.0.1 · 本地私密工作区</small>
+          </div>
+          <div className={styles.boardGrid}>
+            <aside>
+              <strong>岗位机会</strong>
+              <div className={styles.boardActive}><small>示例科技</small><b>AI 产品经理</b><span>准备投递</span></div>
+              <div><small>本地生活</small><b>策略产品</b><span>等待回复</span></div>
+            </aside>
+            <article>
+              <small>示例科技 · AI 产品经理</small>
+              <h3>先确认商业化结果，再决定是否投递。</h3>
+              <div className={styles.evidenceLine}><span>强证据 4</span><span>弱证据 2</span><span>待确认 1</span></div>
+              <div className={styles.artifactLine}><Sparkles size={15} /><span><strong>岗位决策卡</strong><small>已保存到本地产物</small></span></div>
+              <div className={styles.artifactLine}><Monitor size={15} /><span><strong>岗位简历 V1</strong><small>2 处待你审阅</small></span></div>
+            </article>
+            <aside className={styles.boardNext}>
+              <strong>下一步</strong>
+              <small>今天</small>
+              <b>补充一条可核实的结果指标</b>
+              <p>这会直接改变投递判断。</p>
+            </aside>
+          </div>
+          <p className={styles.demoCaption}>界面为功能示意，公司与内容均为演示数据。</p>
+        </div>
+      </section>
+
+      <section className={styles.finalSection}>
+        <h2>选好它运行在哪里，就从一个真实岗位开始。</h2>
+        <div>
+          <Link className={styles.finalWeb} href="/login?redirect=%2Fcockpit">使用付费网页版 <ArrowRight size={16} /></Link>
+          <button className={styles.finalAgent} onClick={copyAgentPrompt} type="button"><Copy size={16} />{copyState === "copied" ? "已复制给 Agent" : "复制免费版指令"}</button>
+        </div>
+      </section>
+
+      <footer className={styles.footer}>
+        <span>© 2026 益职 AI</span>
+        <div><Link href="/privacy">隐私说明</Link><Link href="/agent">Agent 执行说明</Link><a href="https://github.com/YE-YI7/ai-job-coach" target="_blank" rel="noreferrer">GitHub</a></div>
+      </footer>
+    </main>
   );
 }

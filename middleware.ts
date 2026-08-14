@@ -15,6 +15,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ========== 允许匿名访问的路径 ==========
+
+  if (pathname === "/" || pathname === "/agent" || pathname.startsWith("/agent/")) {
+    return NextResponse.next();
+  }
   
   if (pathname === "/login" || pathname.startsWith("/login")) {
     return NextResponse.next();

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "generatedAt": "2026-08-14T14:40:17+08:00",
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
@@ -56,17 +56,26 @@
       "description": "岗位列表搜索。",
       "html": "<input class=\"ds-input\" placeholder=\"搜索公司或岗位\" />",
       "css": ".ds-input { height: 39px; padding: 0 12px; border: 1px solid #e7e5e1; border-radius: 11px; background: #fff; color: #24272f; font: 400 12px system-ui, sans-serif; } .ds-input:focus-visible { outline: 3px solid rgba(235,107,43,.28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Two-runtime Chooser",
+      "kind": "custom",
+      "description": "首页专用的连续运行时选择表面；托管网页与本地 Agent 共享一组真实边界事实。",
+      "html": "<section class=\"ds-runtime\"><div class=\"ds-runtime-web\"><strong>网页端直接使用</strong><span>付费 · 益职模型 · 云端作战盘</span><button>进入网页版</button></div><div class=\"ds-runtime-agent\"><strong>在我的 Agent 中使用</strong><span>益职免费 · 你的 Agent · 本地沙箱</span><button>复制给我的 Agent</button></div></section>",
+      "css": ".ds-runtime { overflow: hidden; border: 1px solid #d8d2c9; border-radius: 20px; background: #fff; color: #24272f; font-family: system-ui, sans-serif; box-shadow: 0 24px 60px rgba(51,45,39,.11); } .ds-runtime > div { padding: 24px; display: grid; gap: 10px; } .ds-runtime strong { font-size: 18px; letter-spacing: -.02em; } .ds-runtime span { font-size: 11px; line-height: 1.6; } .ds-runtime button { width: fit-content; min-height: 38px; padding: 0 12px; border: 0; border-radius: 10px; font: 800 10px system-ui, sans-serif; cursor: pointer; } .ds-runtime button:focus-visible { outline: 3px solid rgba(233,103,45,.3); outline-offset: 3px; } .ds-runtime-web { background: #fff0e7; } .ds-runtime-web span { color: #70635b; } .ds-runtime-web button { background: #e9672d; color: #fff; } .ds-runtime-web button:hover { background: #d95a22; } .ds-runtime-agent { background: #24272f; color: #fff; } .ds-runtime-agent span { color: #c1c5ce; } .ds-runtime-agent button { background: #fff; color: #24272f; } .ds-runtime-agent button:hover { background: #f2f0ec; }"
     }
   ],
   "narrative": {
     "northStar": "温暖的求职作战桌",
-    "overview": "暖白环境降低压力，橙色推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。复杂信息依靠稳定网格、细边界和连续阅读顺序组织。",
-    "keyCharacteristics": ["暖白工作表面", "稀疏行动橙", "岗位机会主线", "证据状态可追溯"],
+    "overview": "益职不是营销落地页，也不是游戏化闯关。它像一张整理有序、持续更新的求职作战桌：暖白环境降低压力，橙色只推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。",
+    "keyCharacteristics": ["暖白底、白色工作表面、深色正文。", "橙色负责行动，蓝绿负责信息和证据语义。", "中等圆角、细边界、克制阴影。", "岗位机会是所有页面和状态的主线。", "公开首页与执行手册可以扩大字号、拉开明暗对比，但不得改变颜色语义或工作台的证据优先级。"],
     "rules": [
       { "name": "Sparse Accent", "body": "橙色只服务当前行动和关键结论。", "section": "colors" },
+      { "name": "Semantic Continuity", "body": "公开路由可以调节同一色族的明度与对比，但橙、蓝、绿仍分别只表达行动、引导与证据。", "section": "colors" },
+      { "name": "Route Intent", "body": "大字号只属于需要先说服或建立执行上下文的公开路由；进入作战盘后回到紧凑、可扫描的信息尺度。", "section": "typography" },
       { "name": "Border First", "body": "常规内容优先使用表面色差和 1px 边界，不默认加阴影。", "section": "elevation" }
     ],
-    "dos": ["让首屏同时说明机会、判断和下一步。", "明确标记演示数据与待确认事实。"],
-    "donts": ["不要使用大面积渐变和装饰光斑。", "不要把每个信息块都做成阴影卡片。"]
+    "dos": ["让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。", "用暖白表面、细边界和稳定留白组织高密度信息。", "为演示数据、待确认事实和真实用户数据提供清晰标签。", "在首页把模型提供方、益职费用、材料位置和作战盘位置作为完整证据组呈现。", "让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。"],
+    "donts": ["使用大面积彩色渐变、光斑或营销式玻璃效果。", "用游戏关卡、虚假精确分数或夸张成功率制造激励。", "把每个信息块都做成带阴影的卡片，也不要嵌套卡片。", "把首页的墨色运行时平面或超大标题无条件带入高密度作战盘。", "把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。"]
   }
 }

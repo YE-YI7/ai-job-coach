@@ -5,8 +5,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "益职 AI - 求职作战盘",
-  description: "让你的 Agent 和你共同管理岗位、证据、简历与面试。",
+  title: "益职 AI｜网页求职作战盘与本地 Agent 免费版",
+  description: "在益职网页直接管理求职作战盘，或让自己的 Agent 在本地沙箱中免费运行。",
   icons: {
     icon: '/logo.png',
   },

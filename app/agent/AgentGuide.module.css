@@ -1,0 +1,91 @@
+.page {
+  --ink: #24272f;
+  --muted: #666d79;
+  --line: #e3dfd8;
+  --paper: #fbfaf8;
+  --orange: #e9672d;
+  --orange-soft: #fff0e7;
+  --blue: #536fe8;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.page * { box-sizing: border-box; }
+.page a { color: inherit; }
+.page a:focus-visible, .page summary:focus-visible { outline: 3px solid rgba(233, 103, 45, .3); outline-offset: 3px; }
+.header { max-width: 1180px; height: 72px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 17px; font-weight: 800; }
+.brand img { border-radius: 11px; }
+.back { display: inline-flex; align-items: center; gap: 7px; color: var(--muted) !important; text-decoration: none; font-size: 11px; font-weight: 700; }
+
+.hero { max-width: 1124px; margin: 0 auto; padding: 86px 0 70px; border-bottom: 1px solid var(--ink); }
+.hero h1 { max-width: 9em; margin: 0; font-size: clamp(48px, 6.2vw, 80px); line-height: 1.05; letter-spacing: -.04em; text-wrap: balance; }
+.noBreak { white-space: nowrap; }
+.hero > p { max-width: 62ch; margin: 30px 0 0; color: var(--muted); font-size: 14px; line-height: 1.85; }
+.boundaryGrid { margin-top: 48px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); background: #fff; }
+.boundaryGrid > div { min-height: 94px; padding: 20px; display: flex; align-items: center; gap: 13px; border-right: 1px solid var(--line); }
+.boundaryGrid > div:last-child { border-right: 0; }
+.boundaryGrid svg { flex: 0 0 auto; color: var(--blue); }
+.boundaryGrid span { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; }
+.boundaryGrid strong { color: var(--ink); font-size: 12px; }
+
+.layout { max-width: 1124px; margin: 0 auto; padding: 75px 0 110px; display: grid; grid-template-columns: 210px minmax(0, 730px); justify-content: space-between; gap: 80px; }
+.rail { position: sticky; top: 25px; height: fit-content; display: flex; flex-direction: column; gap: 14px; }
+.rail strong { margin-bottom: 7px; font-size: 10px; }
+.rail a { color: var(--muted); text-decoration: none; font-size: 10px; }
+.rail a:hover { color: var(--orange); }
+.guide { min-width: 0; }
+.guide section { padding: 0 0 78px; scroll-margin-top: 30px; }
+.guide section + section { padding-top: 78px; border-top: 1px solid var(--line); }
+.step { display: block; margin-bottom: 18px; color: var(--orange); font-size: 10px; font-weight: 850; }
+.guide h2 { margin: 0 0 22px; font-size: clamp(28px, 3.4vw, 42px); line-height: 1.18; letter-spacing: -.035em; }
+.guide > section > p { margin: 0 0 24px; color: var(--muted); font-size: 12px; line-height: 1.85; }
+.guide code { font-family: monospace; }
+.ruleBox { margin: 0 0 25px; padding: 20px; display: grid; grid-template-columns: auto 1fr; gap: 13px; border: 1px solid #e8bda7; background: var(--orange-soft); }
+.ruleBox svg { margin-top: 2px; color: #b94719; }
+.ruleBox p { margin: 0; color: #66554d; font-size: 11px; line-height: 1.75; }
+.ruleBox strong { color: var(--ink); }
+.hostList { border-top: 1px solid var(--ink); }
+.hostList details { border-bottom: 1px solid var(--line); }
+.hostList summary { padding: 18px 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; cursor: pointer; list-style: none; }
+.hostList summary::-webkit-details-marker { display: none; }
+.hostList summary span { font-size: 13px; font-weight: 800; }
+.hostList summary small { color: var(--muted); font-size: 9px; }
+.hostList details[open] summary small { color: var(--orange); }
+.hostList details > p { margin: 0 0 18px; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.command, .config { overflow-x: auto; margin: 0 0 14px; padding: 17px; border-radius: 10px; background: var(--ink); color: #f4f2ef; font-size: 10px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.config { margin-bottom: 14px; white-space: pre; }
+.micro { font-size: 9px !important; }
+.checklist { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
+.checklist li { min-height: 65px; padding: 16px 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); color: #4d535e; font-size: 11px; line-height: 1.7; }
+.checklist svg { color: #287a57; }
+.failureBox { margin-top: 21px; padding: 17px; border: 1px solid #e8bda7; background: #f4f1ec; color: #555b65; font-size: 10px; line-height: 1.7; }
+.guide blockquote { margin: 25px 0 0; padding: 23px 25px; border: 1px solid #cad1f8; background: #f0f2ff; color: #394a98; font-size: 13px; line-height: 1.8; }
+.footer { min-height: 100px; padding: 20px max(28px, calc((100vw - 1124px) / 2)); display: flex; align-items: center; justify-content: space-between; gap: 30px; border-top: 1px solid var(--line); background: #fff; color: var(--muted); }
+.footer > div { display: flex; align-items: center; gap: 10px; font-size: 9px; }
+.footer img { border-radius: 9px; }
+.footer a { color: var(--ink); text-decoration: none; font-size: 10px; font-weight: 800; }
+
+@media (max-width: 1180px) {
+  .hero, .layout { margin-left: 28px; margin-right: 28px; }
+}
+
+@media (max-width: 760px) {
+  .header { height: 62px; padding: 0 17px; }
+  .brand img { width: 36px; height: 36px; }
+  .hero { margin: 0 17px; padding: 57px 0 45px; }
+  .hero h1 { max-width: none; font-size: 41px; }
+  .hero > p { font-size: 12px; }
+  .boundaryGrid { grid-template-columns: 1fr; }
+  .boundaryGrid > div { min-height: 76px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .boundaryGrid > div:last-child { border-bottom: 0; }
+  .layout { margin: 0 17px; padding: 55px 0 80px; grid-template-columns: 1fr; gap: 0; }
+  .rail { display: none; }
+  .guide section { padding-bottom: 58px; }
+  .guide section + section { padding-top: 58px; }
+  .guide h2 { font-size: 32px; }
+  .hostList summary { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .footer { padding: 25px 17px; align-items: flex-start; flex-direction: column; }
+}

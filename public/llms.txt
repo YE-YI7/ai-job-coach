@@ -4,8 +4,13 @@
 
 Website: https://ai-job-coach.xin
 Source: https://github.com/YE-YI7/ai-job-coach
-Agent guide: https://github.com/YE-YI7/ai-job-coach/blob/backend/docs/agent-usage.md
+Agent guide: https://ai-job-coach.xin/agent
 Privacy: https://ai-job-coach.xin/privacy
+
+## Two ways to use 益职
+
+- Hosted web version: 益职 provides the model, account, and cloud cockpit; usage consumes 益职 credits.
+- Local Agent version: the user's own Agent provides the model and creates a private cockpit in its local sandbox. 益职 does not charge model fees, while the Agent host may still charge for its own plan or usage.
 
 ## Agent capabilities
 
@@ -28,7 +33,7 @@ Privacy: https://ai-job-coach.xin/privacy
 
 ## Recommended first prompt
 
-    帮我选择下一步最值得做的求职任务。
+    请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。
 
 ## Data policy
 

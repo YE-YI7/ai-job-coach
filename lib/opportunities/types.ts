@@ -35,7 +35,7 @@ export interface OpportunityAction {
 
 export interface OpportunityActivity {
   id: string;
-  actor: "agent" | "user" | "system";
+  actor: "analysis" | "user" | "system";
   title: string;
   detail: string;
   timeLabel: string;
@@ -68,6 +68,8 @@ export interface Opportunity {
   priority: "high" | "medium" | "low";
   sourceLabel: string;
   capturedAtLabel: string;
+  jdText?: string;
+  resumeText?: string;
   nextEventLabel: string | null;
   recommendation: OpportunityRecommendation;
   recommendationLabel: string;

@@ -9,7 +9,7 @@ export const demoOpportunities: Opportunity[] = [
     stage: "preparing_application",
     stageLabel: "准备投递",
     priority: "high",
-    sourceLabel: "Agent 导入的 JD 快照",
+    sourceLabel: "示例 JD 快照",
     capturedAtLabel: "今天 09:42",
     nextEventLabel: "建议今天完成简历 V1",
     recommendation: "prepare_then_apply",
@@ -75,7 +75,7 @@ export const demoOpportunities: Opportunity[] = [
       {
         id: "action-2",
         title: "审阅岗位简历 V1 的 3 处修改",
-        reason: "Agent 已完成初稿，其中一处涉及职责边界，需要你确认。",
+        reason: "初稿中有一处涉及职责边界，需要你确认。",
         dueLabel: "今天",
         priority: "high",
         status: "todo",
@@ -92,7 +92,7 @@ export const demoOpportunities: Opportunity[] = [
     activities: [
       {
         id: "activity-1",
-        actor: "agent",
+        actor: "analysis",
         title: "完成岗位要求拆解",
         detail: "识别出 5 条关键要求，并关联到 4 条已确认经历。",
         timeLabel: "12 分钟前",
@@ -106,7 +106,7 @@ export const demoOpportunities: Opportunity[] = [
       },
       {
         id: "activity-3",
-        actor: "agent",
+        actor: "analysis",
         title: "生成岗位简历 V1",
         detail: "建议调整项目顺序，并修改 3 处经历表述。",
         timeLabel: "6 分钟前",

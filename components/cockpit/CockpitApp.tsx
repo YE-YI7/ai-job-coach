@@ -1,17 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Bot,
   BriefcaseBusiness,
   Check,
   ChevronRight,
   CircleAlert,
   CircleCheck,
   Clock3,
-  Copy,
   FileCheck2,
   FileText,
   ListTodo,
@@ -51,7 +50,16 @@ const strengthMeta: Record<EvidenceStrength, { label: string; className: string 
   unverified: { label: "待确认", className: styles.statusUnverified },
 };
 
-const capturePrompt = "请用益职创建一个岗位机会。读取我接下来提供的 JD 和简历，先判断是否值得投，再把证据、结论和下一步写入作战盘。";
+const LOCAL_OPPORTUNITIES_KEY = "yi-zhi-web-opportunities-v1";
+
+function Brand() {
+  return (
+    <div className={styles.brand}>
+      <Image className={styles.brandLogo} src="/logo.png" alt="益职 Logo" width={36} height={36} priority />
+      <span>益职</span>
+    </div>
+  );
+}
 
 function compactAccountLabel(email?: string) {
   if (!email) return "求职者";
@@ -81,6 +89,30 @@ export function CockpitApp({
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
   const [questionSnoozed, setQuestionSnoozed] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [localIds, setLocalIds] = useState<string[]>([]);
+  const [localLoaded, setLocalLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(LOCAL_OPPORTUNITIES_KEY) || "[]") as Opportunity[];
+      const valid = stored.filter((item) => item?.id && item?.company && item?.role);
+      if (valid.length) {
+        setOpportunities((current) => [...valid, ...current.filter((item) => !valid.some((saved) => saved.id === item.id))]);
+        setLocalIds(valid.map((item) => item.id));
+      }
+    } catch {
+      window.localStorage.removeItem(LOCAL_OPPORTUNITIES_KEY);
+    } finally {
+      setLocalLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!localLoaded) return;
+    const local = opportunities.filter((item) => localIds.includes(item.id));
+    window.localStorage.setItem(LOCAL_OPPORTUNITIES_KEY, JSON.stringify(local));
+  }, [localIds, localLoaded, opportunities]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const filtered = useMemo(() => {
@@ -96,15 +128,6 @@ export function CockpitApp({
     window.setTimeout(() => setNotice(""), 2600);
   };
 
-  const copyForAgent = async (prompt: string, success = "已复制，回到 Agent 粘贴即可") => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      announce(success);
-    } catch {
-      announce("浏览器没有开放剪贴板权限，请手动复制页面中的指令");
-    }
-  };
-
   const completeAction = (actionId: string) => {
     if (!active) return;
     setOpportunities((current) => current.map((opportunity) =>
@@ -113,7 +136,92 @@ export function CockpitApp({
             action.id === actionId ? { ...action, status: "done" as const } : action) }
         : opportunity
     ));
-    announce(dataMode === "demo" ? "示例行动已完成；刷新后会恢复" : "行动已完成");
+    announce(localIds.includes(active.id) ? "行动已保存到当前浏览器" : "示例行动已完成；刷新后会恢复");
+  };
+
+  const createOpportunity = async (input: NewOpportunityInput) => {
+    let analysis: Partial<Opportunity> | null = null;
+    try {
+      const response = await fetch("/api/opportunities/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const result = await response.json();
+      if (response.ok && result.ok) analysis = result.analysis;
+    } catch {
+      analysis = null;
+    }
+
+    const id = `web-${Date.now()}`;
+    const opportunity: Opportunity = {
+      id,
+      company: input.company.trim(),
+      role: input.role.trim(),
+      location: input.location.trim() || "地点待确认",
+      stage: "evaluating",
+      stageLabel: "评估中",
+      priority: "medium",
+      sourceLabel: "网页手动录入",
+      capturedAtLabel: "刚刚",
+      jdText: input.jdText.trim(),
+      resumeText: input.resumeText.trim(),
+      nextEventLabel: "今天完成投递判断",
+      recommendation: analysis?.recommendation ?? "prepare_then_apply",
+      recommendationLabel: analysis?.recommendationLabel ?? "等待完成分析",
+      recommendationReason: analysis?.recommendationReason ?? "岗位已收录。当前未形成可靠结论，请继续补充真实经历。",
+      evidenceCoverage: analysis?.evidenceCoverage ?? { strong: 0, weak: 0, missing: 1, unverified: 0 },
+      requirements: analysis?.requirements ?? [{
+        id: `${id}-req-1`,
+        requirement: "将 JD 关键要求与真实经历建立对应",
+        importance: "critical",
+        strength: "missing",
+        evidence: input.resumeText.trim() ? "分析暂未完成，简历原文已保存。" : "尚未提供简历或经历证据。",
+        source: input.resumeText.trim() ? "网页提供的简历" : null,
+        verified: Boolean(input.resumeText.trim()),
+      }],
+      actions: analysis?.actions ?? [{ id: `${id}-action-1`, title: input.resumeText.trim() ? "核对简历与 JD 的对应证据" : "补充简历或经历概览", reason: "没有真实经历证据，不能判断这个岗位是否值得投。", dueLabel: "今天", priority: "urgent", status: "todo" }],
+      activities: [{ id: `${id}-activity-1`, actor: "user", title: "在网页创建岗位机会", detail: `已收录 ${input.company.trim()} · ${input.role.trim()} 的 JD。`, timeLabel: "刚刚" }],
+      resumeChanges: [],
+      interviewFocus: analysis?.interviewFocus ?? [],
+    };
+    setOpportunities((current) => [opportunity, ...current]);
+    setLocalIds((current) => [id, ...current]);
+    setActiveId(id);
+    setActiveTab("overview");
+    setCreating(false);
+    announce(analysis ? "岗位已创建并完成初步分析" : "岗位已保存，分析暂未完成");
+  };
+
+  const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
+    if (!active) return;
+    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, status } : change) } : item));
+    announce(status === "accepted" ? "已接受这处修改" : "已保留原文");
+  };
+
+  const saveQuestionAnswer = (answer: string) => {
+    if (!active) return;
+    const target = active.requirements.find((item) => item.strength === "unverified");
+    setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
+      ...item,
+      requirements: item.requirements.map((requirement) => requirement.id === target?.id ? { ...requirement, evidence: `用户补充：${answer}`, source: "网页回答 · 刚刚", verified: true, strength: "weak" as const } : requirement),
+      evidenceCoverage: target ? { ...item.evidenceCoverage, weak: item.evidenceCoverage.weak + 1, unverified: Math.max(0, item.evidenceCoverage.unverified - 1) } : item.evidenceCoverage,
+      actions: item.actions.map((action) => action.id === "action-1" ? { ...action, status: "done" as const } : action),
+      activities: [{ id: `${item.id}-answer-${Date.now()}`, actor: "user" as const, title: "补充一条关键事实", detail: answer, timeLabel: "刚刚" }, ...item.activities],
+    }));
+    announce("已记录回答，并保留为待复核证据");
+  };
+
+  const saveReview = (notes: string) => {
+    if (!active) return;
+    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "user", title: "提交面试复盘材料", detail: notes, timeLabel: "刚刚" }, ...item.activities] } : item));
+    announce("复盘材料已保存到这个岗位");
+  };
+
+  const saveInterviewAnswer = (question: string, answer: string) => {
+    if (!active) return;
+    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-practice-${Date.now()}`, actor: "user", title: `练习面试题：${question}`, detail: answer, timeLabel: "刚刚" }, ...item.activities] } : item));
+    announce("练习回答已保存到这个岗位");
   };
 
   const logout = async () => {
@@ -122,20 +230,15 @@ export function CockpitApp({
     router.refresh();
   };
 
-  if (!active) {
-    return <EmptyCockpit userEmail={userEmail} onCopy={() => copyForAgent(capturePrompt)} onLogout={logout} />;
-  }
+  if (!active && !creating) return <EmptyCockpit userEmail={userEmail} onCreate={() => setCreating(true)} onLogout={logout} />;
 
   return (
     <main className={styles.shell}>
       <header className={styles.topbar}>
-        <div className={styles.brand}>
-          <span className={styles.brandMark} aria-hidden="true">益</span>
-          <span>益职</span>
-        </div>
+        <Brand />
         <div className={styles.topbarContext}>
           <span className={dataMode === "demo" ? styles.demoState : styles.liveState}>
-            {dataMode === "demo" ? "示例工作区" : "已连接 Agent"}
+            {creating ? "新建岗位" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
           </span>
           <span>{compactAccountLabel(userEmail)}</span>
           <button className={styles.iconButton} onClick={logout} aria-label="退出登录" title="退出登录">
@@ -150,19 +253,21 @@ export function CockpitApp({
 
       <div className={styles.workspace}>
         <OpportunityRail
-          activeId={active.id}
+          activeId={active?.id ?? ""}
           opportunities={filtered}
           totalCount={opportunities.length}
           query={query}
           mobileOpen={mobileRail === "opportunities"}
           onQueryChange={setQuery}
-          onSelect={(id) => { setActiveId(id); setActiveTab("overview"); setMobileRail(null); }}
-          onCopy={() => copyForAgent(capturePrompt)}
+          localCount={localIds.length}
+          onSelect={(id) => { setCreating(false); setActiveId(id); setActiveTab("overview"); setQuestionSnoozed(false); setMobileRail(null); }}
+          onCreate={() => { setCreating(true); setMobileRail(null); }}
           onClose={() => setMobileRail(null)}
         />
 
-        <section className={styles.document} aria-label={`${active.company} ${active.role}作战档案`}>
-          {dataMode === "demo" && <DemoNotice onCopy={() => copyForAgent(capturePrompt)} />}
+        <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
+          {creating ? <NewOpportunityForm onCreate={createOpportunity} onCancel={() => setCreating(false)} /> : active && <>
+          {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => setCreating(true)} />}
           <OpportunityHeader opportunity={active} />
           <nav className={styles.tabs} aria-label="岗位机会内容">
             {tabs.map((tab) => (
@@ -181,22 +286,23 @@ export function CockpitApp({
           <div className={styles.documentBody}>
             {activeTab === "overview" && <OverviewTab opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} onCopy={copyForAgent} />}
-            {activeTab === "interview" && <InterviewTab opportunity={active} onCopy={copyForAgent} />}
-            {activeTab === "review" && <ReviewTab opportunity={active} onCopy={copyForAgent} />}
+            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} />}
+            {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} />}
+            {activeTab === "review" && <ReviewTab onSave={saveReview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
-          </div>
+          </div></>}
         </section>
 
-        <ActionRail
+        {creating ? <CreationRail /> : active && <ActionRail
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           questionSnoozed={questionSnoozed}
           onComplete={completeAction}
-          onAnswer={() => copyForAgent(`关于「${active.company} · ${active.role}」：商业化项目上线后，我可以公开写入简历的结果是：`)}
-          onSnooze={() => { setQuestionSnoozed(true); announce("已暂时收起；真实连接后会在明天再次提醒"); }}
+          onAnswer={saveQuestionAnswer}
+          onSnooze={() => { setQuestionSnoozed(true); announce("已暂时收起这个问题"); }}
+          isLocal={localIds.includes(active.id)}
           onClose={() => setMobileRail(null)}
-        />
+        />}
       </div>
       {mobileRail && <button className={styles.mobileScrim} onClick={() => setMobileRail(null)} aria-label="关闭侧栏" />}
       <div className={`${styles.toast} ${notice ? styles.toastVisible : ""}`} role="status" aria-live="polite">{notice}</div>
@@ -204,48 +310,50 @@ export function CockpitApp({
   );
 }
 
-function EmptyCockpit({ userEmail, onCopy, onLogout }: { userEmail?: string; onCopy: () => void; onLogout: () => void }) {
+type NewOpportunityInput = { company: string; role: string; location: string; jdText: string; resumeText: string };
+
+function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: () => void; onLogout: () => void }) {
   return (
     <main className={styles.shell}>
       <header className={styles.topbar}>
-        <div className={styles.brand}><span className={styles.brandMark}>益</span><span>益职</span></div>
+        <Brand />
         <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
       </header>
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>
           <span className={styles.emptyIcon}><BriefcaseBusiness size={24} /></span>
           <h1>从一个真实岗位开始</h1>
-          <p>不用在网页里重复填表。让你的 Agent 读取 JD 和简历，益职会把判断、证据和下一步整理到同一个机会里。</p>
-          <button className={styles.primaryButton} onClick={onCopy}><Copy size={16} />复制给 Agent 的指令</button>
+          <p>粘贴 JD，选择性补充简历。益职会把投递判断、真实证据和下一步整理在这个网页里。</p>
+          <button className={styles.primaryButton} onClick={onCreate}><Plus size={16} />新建岗位机会</button>
         </div>
         <ol className={styles.onboardingSteps}>
-          <li><strong>把 JD 和简历交给 Agent</strong><span>本地材料只读取完成任务所需的内容。</span></li>
-          <li><strong>Agent 创建岗位机会</strong><span>结论、证据和产物不再散落在聊天里。</span></li>
-          <li><strong>回到作战盘做决定</strong><span>只处理待确认事实和今天最重要的行动。</span></li>
+          <li><strong>收录岗位</strong><span>公司、职位和 JD 一次建档。</span></li>
+          <li><strong>核对真实证据</strong><span>数字和职责边界由你确认，不会被擅自补全。</span></li>
+          <li><strong>在网页里继续推进</strong><span>审简历、练面试、做复盘，不需要跳回聊天。</span></li>
         </ol>
       </section>
     </main>
   );
 }
 
-function DemoNotice({ onCopy }: { onCopy: () => void }) {
+function DemoNotice({ onCreate }: { onCreate: () => void }) {
   return (
     <section className={styles.demoNotice} aria-label="示例工作区说明">
       <div><strong>你正在查看示例机会</strong><p>这些公司、经历和结果都不是你的数据；页面操作仅用于体验，刷新后恢复。</p></div>
-      <button onClick={onCopy}><Copy size={15} />用我的岗位开始</button>
+      <button onClick={onCreate}><Plus size={15} />新建我的岗位</button>
     </section>
   );
 }
 
-function OpportunityRail({ activeId, opportunities, totalCount, query, onQueryChange, onSelect, onCopy, mobileOpen, onClose }: {
+function OpportunityRail({ activeId, opportunities, totalCount, localCount, query, onQueryChange, onSelect, onCreate, mobileOpen, onClose }: {
   activeId: string; opportunities: Opportunity[]; totalCount: number; query: string;
-  onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCopy: () => void;
+  localCount: number; onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCreate: () => void;
   mobileOpen: boolean; onClose: () => void;
 }) {
   return (
     <aside className={`${styles.opportunityRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="岗位机会">
       <div className={styles.railHeading}>
-        <div><h2>机会</h2><p>{totalCount} 个示例岗位</p></div>
+        <div><h2>机会</h2><p>{localCount ? `${localCount} 个我的 · ${totalCount - localCount} 个示例` : `${totalCount} 个示例岗位`}</p></div>
         <button className={styles.mobileClose} onClick={onClose} aria-label="关闭机会列表"><X size={19} /></button>
       </div>
       <label className={styles.searchBox}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索公司或岗位</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索公司或岗位" /></label>
@@ -259,9 +367,36 @@ function OpportunityRail({ activeId, opportunities, totalCount, query, onQueryCh
         ))}
         {opportunities.length === 0 && <div className={styles.emptySearch}><Search size={18} /><span>没有匹配的岗位</span><button onClick={() => onQueryChange("")}>清除搜索</button></div>}
       </div>
-      <button className={styles.addOpportunity} onClick={onCopy}><Plus size={16} /><span><strong>收录新岗位</strong><small>复制指令，让 Agent 创建</small></span></button>
+      <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>新建岗位</strong><small>直接粘贴 JD 开始</small></span></button>
     </aside>
   );
+}
+
+function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (input: NewOpportunityInput) => Promise<void>; onCancel: () => void }) {
+  const [input, setInput] = useState<NewOpportunityInput>({ company: "", role: "", location: "", jdText: "", resumeText: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const canSubmit = input.company.trim() && input.role.trim() && input.jdText.trim();
+  const update = (key: keyof NewOpportunityInput, value: string) => setInput((current) => ({ ...current, [key]: value }));
+  return (
+    <div className={styles.createPage}>
+      <div className={styles.createIntro}><span>新岗位</span><h1>先把机会建起来</h1><p>仅公司、职位和 JD 是必填项。简历可以之后再补，不用一次填完所有资料。</p></div>
+      <form className={styles.createForm} onSubmit={async (event) => { event.preventDefault(); if (!canSubmit || submitting) return; setSubmitting(true); await onCreate(input); setSubmitting(false); }}>
+        <div className={styles.formGrid}>
+          <label><span>公司</span><input required value={input.company} onChange={(event) => update("company", event.target.value)} placeholder="例如：字节跳动" /></label>
+          <label><span>职位</span><input required value={input.role} onChange={(event) => update("role", event.target.value)} placeholder="例如：AI 产品经理" /></label>
+        </div>
+        <label><span>地点 <i>可选</i></span><input value={input.location} onChange={(event) => update("location", event.target.value)} placeholder="例如：北京 · 混合办公" /></label>
+        <label><span>岗位 JD</span><textarea required value={input.jdText} onChange={(event) => update("jdText", event.target.value)} placeholder="粘贴完整职位描述…" rows={9} /></label>
+        <label><span>简历或经历概览 <i>可选</i></span><textarea value={input.resumeText} onChange={(event) => update("resumeText", event.target.value)} placeholder="粘贴和这个岗位相关的经历；也可稍后再补。" rows={6} /></label>
+        <p className={styles.localDataNote}><ShieldCheck size={16} />新建岗位会保存在当前浏览器。账号云同步尚未开启。</p>
+        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>取消</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在分析…" : "创建并分析"}<ArrowRight size={16} /></button></div>
+      </form>
+    </div>
+  );
+}
+
+function CreationRail() {
+  return <aside className={styles.actionRail}><div className={styles.railHeading}><div><h2>这一步做什么</h2><p>只收录判断必需的信息</p></div></div><ol className={styles.creationGuide}><li><strong>填完公司、职位和 JD</strong><span>先建立岗位档案。</span></li><li><strong>有简历就一起粘贴</strong><span>没有也不会阻断创建。</span></li><li><strong>完成后直接进入作战盘</strong><span>后续补证据、审简历和面试都在网页里做。</span></li></ol></aside>;
 }
 
 function OpportunityHeader({ opportunity }: { opportunity: Opportunity }) {
@@ -279,6 +414,7 @@ function OpportunityHeader({ opportunity }: { opportunity: Opportunity }) {
 function OverviewTab({ opportunity, onOpenEvidence }: { opportunity: Opportunity; onOpenEvidence: () => void }) {
   const total = coverageTotal(opportunity);
   const strongRatio = total ? Math.round((opportunity.evidenceCoverage.strong / total) * 100) : 0;
+  const decisiveGap = opportunity.requirements.find((item) => item.strength === "unverified" || item.strength === "missing");
   return (
     <div className={styles.overviewFlow}>
       <section className={styles.decisionSection}>
@@ -295,15 +431,17 @@ function OverviewTab({ opportunity, onOpenEvidence }: { opportunity: Opportunity
         <div className={styles.sectionHeading}><div><h2>决定性要求</h2><p>先处理最可能改变投递判断的证据。</p></div><button className={styles.textButton} onClick={onOpenEvidence}>查看全部 <ArrowRight size={15} /></button></div>
         <div className={styles.evidencePreviewList}>{opportunity.requirements.slice(0, 3).map((item) => <EvidenceRow key={item.id} item={item} compact />)}</div>
       </section>
-      <section className={styles.agentNote}><span className={styles.agentGlyph}><Bot size={18} /></span><div><strong>为什么现在问你</strong><p>商业化结果是唯一可能改变投递结论的事实。先确认它，比继续润色简历更有价值。</p></div></section>
+      {decisiveGap && <section className={styles.insightNote}><span className={styles.insightGlyph}><CircleAlert size={18} /></span><div><strong>{decisiveGap.strength === "unverified" ? "为什么现在需要确认" : "当前最大的证据缺口"}</strong><p>{decisiveGap.strength === "unverified" ? `「${decisiveGap.requirement}」可能改变投递结论。先确认事实，比继续润色简历更有价值。` : `还缺少能证明「${decisiveGap.requirement}」的真实经历。先补材料，再做投递判断。`}</p></div></section>}
     </div>
   );
 }
 
 function EvidenceTab({ opportunity }: { opportunity: Opportunity }) {
+  const [showJd, setShowJd] = useState(false);
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>JD 要求与真实证据</h2><p>每条判断都能回到材料来源；待确认内容不会进入最终简历。</p></div><button className={styles.secondaryButton} disabled title="示例机会没有保存原始 JD"><FileText size={16} />示例无原始 JD</button></div>
+      <div className={styles.pageIntro}><div><h2>JD 要求与真实证据</h2><p>每条判断都能回到材料来源；待确认内容不会进入最终简历。</p></div><button className={styles.secondaryButton} disabled={!opportunity.jdText} title={opportunity.jdText ? undefined : "这个机会没有保存原始 JD"} onClick={() => setShowJd((value) => !value)}><FileText size={16} />{opportunity.jdText ? showJd ? "收起原始 JD" : "查看原始 JD" : "无原始 JD"}</button></div>
+      {showJd && opportunity.jdText && <pre className={styles.rawJd}>{opportunity.jdText}</pre>}
       <div className={styles.evidenceTableHeader} aria-hidden="true"><span>岗位要求</span><span>证据判断</span><span>来源</span></div>
       <div className={styles.fullEvidenceList}>{opportunity.requirements.length ? opportunity.requirements.map((item) => <EvidenceRow key={item.id} item={item} />) : <EmptySection label="这个示例还没有证据矩阵。" />}</div>
     </section>
@@ -321,58 +459,67 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, onCopy }: { opportunity: Opportunity; onCopy: (prompt: string, success?: string) => void }) {
+function ResumeTab({ opportunity, onUpdate }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void }) {
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>岗位简历 V1</h2><p>这里只显示相对基础简历的修改，不会覆盖原文件。</p></div><button className={styles.primaryButton} onClick={() => onCopy(`请在益职中继续审阅「${opportunity.company} · ${opportunity.role}」的岗位简历，逐项向我确认待审阅修改。`)}><FileCheck2 size={16} />回到 Agent 审阅</button></div>
+      <div className={styles.pageIntro}><div><h2>岗位简历 V1</h2><p>逐项审阅修改，已接受内容也不会覆盖你的原简历文件。</p></div><span className={styles.reviewHint}><FileCheck2 size={16} />{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待你确认</span></div>
       <div className={styles.versionLine}><span>当前版本 V1</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
       <div className={styles.resumeChangeList}>{opportunity.resumeChanges.length ? opportunity.resumeChanges.map((change) => (
         <article key={change.id} className={styles.resumeChange}>
           <header><strong>{change.section}</strong><span>{change.status === "accepted" ? "已接受" : "待审阅"}</span></header>
           <div className={styles.diffGrid}><div><span>原文</span><p>{change.before}</p></div><div><span>建议</span><p>{change.after}</p></div></div>
           <footer><p>{change.reason}</p><span>{change.evidenceId ? "已关联证据" : "需要补证据"}</span></footer>
+          {change.status === "pending" && <div className={styles.changeActions}><button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />接受修改</button><button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button></div>}
         </article>
       )) : <EmptySection label="这个机会还没有岗位简历。" />}</div>
     </section>
   );
 }
 
-function InterviewTab({ opportunity, onCopy }: { opportunity: Opportunity; onCopy: (prompt: string, success?: string) => void }) {
+function InterviewTab({ opportunity, onSave }: { opportunity: Opportunity; onSave: (question: string, answer: string) => void }) {
+  const [practicing, setPracticing] = useState(false);
+  const [answer, setAnswer] = useState("");
+  const currentQuestion = opportunity.interviewFocus[0];
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div><button className={styles.primaryButton} onClick={() => onCopy(`请针对益职中的「${opportunity.company} · ${opportunity.role}」开始一轮模拟面试。一次只问一个问题，优先追问证据薄弱处。`)}><MessageSquareText size={16} />开始模拟</button></div>
+      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div>{currentQuestion && <button className={styles.primaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />开始模拟</button>}</div>
+      {practicing && currentQuestion && <section className={styles.practicePanel}><span>第 1 题 · 深挖薄弱证据</span><h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" /><div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>结束本轮</button><button className={styles.primaryButton} disabled={!answer.trim()} onClick={() => { onSave(currentQuestion.question, answer.trim()); setAnswer(""); }}>保存练习回答</button></div></section>}
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>
-      )) : <EmptySection label="进入面试阶段后，Agent 会从当前证据生成追问链。" />}</div>
+      )) : <EmptySection label="进入面试阶段后，这里会根据当前证据生成追问链。" />}</div>
     </section>
   );
 }
 
-function ReviewTab({ opportunity, onCopy }: { opportunity: Opportunity; onCopy: (prompt: string, success?: string) => void }) {
-  return <EmptySection icon={<Sparkles size={22} />} label="面试结束后，把转写、笔记或零散回忆交给 Agent。复盘结果会继续更新这个岗位。" actionLabel="复制复盘指令" onAction={() => onCopy(`请复盘我刚结束的「${opportunity.company} · ${opportunity.role}」面试。先逐步帮我还原问题，再把决定性片段和训练任务写回益职。`)} />;
+function ReviewTab({ onSave }: { onSave: (notes: string) => void }) {
+  const [notes, setNotes] = useState("");
+  return <section><div className={styles.pageIntro}><div><h2>面试复盘</h2><p>转写、笔记和零散回忆都可以，先还原发生了什么。</p></div></div><div className={styles.reviewComposer}><Sparkles size={22} /><h3>把这次面试留在岗位档案里</h3><p>可以直接粘贴逐字稿，也可只写你记得的问题和回答。</p><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={10} placeholder="例如：面试官先问了项目背景，然后追问准确率和转人工率如何取舍…" /><button className={styles.primaryButton} disabled={!notes.trim()} onClick={() => { onSave(notes.trim()); setNotes(""); }}>保存复盘材料<ArrowRight size={16} /></button></div></section>;
 }
 
 function ActivityTab({ opportunity }: { opportunity: Opportunity }) {
   return (
-    <section><div className={styles.pageIntro}><div><h2>岗位动态</h2><p>用户、Agent 和系统对这个机会的关键操作记录。</p></div></div><div className={styles.activityList}>{opportunity.activities.length ? opportunity.activities.map((activity) => (
-      <article key={activity.id}><span className={styles.activityIcon}>{activity.actor === "agent" ? <Bot size={16} /> : activity.actor === "system" ? <Clock3 size={16} /> : <BriefcaseBusiness size={16} />}</span><div><strong>{activity.title}</strong><p>{activity.detail}</p></div><time>{activity.timeLabel}</time></article>
+    <section><div className={styles.pageIntro}><div><h2>岗位动态</h2><p>你与益职对这个机会的关键操作记录。</p></div></div><div className={styles.activityList}>{opportunity.activities.length ? opportunity.activities.map((activity) => (
+      <article key={activity.id}><span className={styles.activityIcon}>{activity.actor === "analysis" ? <Sparkles size={16} /> : activity.actor === "system" ? <Clock3 size={16} /> : <BriefcaseBusiness size={16} />}</span><div><strong>{activity.title}</strong><p>{activity.detail}</p></div><time>{activity.timeLabel}</time></article>
     )) : <EmptySection label="这个机会还没有动态。" />}</div></section>
   );
 }
 
-function ActionRail({ opportunity, onComplete, onAnswer, onSnooze, questionSnoozed, mobileOpen, onClose }: {
-  opportunity: Opportunity; onComplete: (id: string) => void; onAnswer: () => void; onSnooze: () => void;
-  questionSnoozed: boolean; mobileOpen: boolean; onClose: () => void;
+function ActionRail({ opportunity, onComplete, onAnswer, onSnooze, questionSnoozed, isLocal, mobileOpen, onClose }: {
+  opportunity: Opportunity; onComplete: (id: string) => void; onAnswer: (answer: string) => void; onSnooze: () => void;
+  questionSnoozed: boolean; isLocal: boolean; mobileOpen: boolean; onClose: () => void;
 }) {
   const todo = opportunity.actions.filter((action) => action.status !== "done");
   const doneCount = opportunity.actions.length - todo.length;
+  const evidenceToConfirm = opportunity.requirements.find((item) => item.strength === "unverified");
+  const [answering, setAnswering] = useState(false);
+  const [answer, setAnswer] = useState("");
   return (
     <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="下一步">
       <div className={styles.railHeading}><div><h2>下一步</h2><p>按影响排序，不是全部待办</p></div><button className={styles.mobileClose} onClick={onClose} aria-label="关闭下一步"><X size={19} /></button></div>
-      <div className={styles.actionList}>{todo.map((action) => <ActionItem key={action.id} action={action} onComplete={onComplete} />)}{!todo.length && <div className={styles.allDone} role="status"><CircleCheck size={24} /><strong>关键行动已完成</strong><p>新的变化出现时，Agent 会更新这里。</p></div>}</div>
+      <div className={styles.actionList}>{todo.map((action) => <ActionItem key={action.id} action={action} onComplete={onComplete} />)}{!todo.length && <div className={styles.allDone} role="status"><CircleCheck size={24} /><strong>关键行动已完成</strong><p>岗位出现新变化时，这里会给出新的下一步。</p></div>}</div>
       {doneCount > 0 && <p className={styles.doneCount}>{doneCount} 项已完成</p>}
-      {!questionSnoozed && <section className={styles.activeQuestion}><div className={styles.questionLabel}><Bot size={15} /> Agent 想确认</div><strong>商业化项目上线后，有可以公开写入简历的结果指标吗？</strong><p>这条事实会直接影响投递判断。没有也可以明确回答“没有”。</p><div className={styles.questionActions}><button onClick={onAnswer}>去回答</button><button onClick={onSnooze}>明天再问</button></div></section>}
-      <section className={styles.privacyNote}><ShieldCheck size={17} /><p><strong>示例与真实数据分开</strong><br />当前操作不会写入你的简历或账号数据。</p></section>
+      {!questionSnoozed && evidenceToConfirm && <section className={styles.activeQuestion}><div className={styles.questionLabel}><CircleAlert size={15} /> 需要你确认</div><strong>{evidenceToConfirm.id === "req-4" ? "商业化项目上线后，有可以公开写入简历的结果指标吗？" : `请补充能证明「${evidenceToConfirm.requirement}」的真实经历、职责和结果。`}</strong><p>这条事实会直接影响投递判断。没有也可以明确回答“没有”。</p>{answering ? <div className={styles.answerComposer}><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={5} placeholder="写下可以公开的结果、时间范围和你的职责。" autoFocus /><div className={styles.questionActions}><button disabled={!answer.trim()} onClick={() => { onAnswer(answer.trim()); setAnswer(""); setAnswering(false); }}>保存回答</button><button onClick={() => setAnswering(false)}>取消</button></div></div> : <div className={styles.questionActions}><button onClick={() => setAnswering(true)}>直接回答</button><button onClick={onSnooze}>稍后处理</button></div>}</section>}
+      <section className={styles.privacyNote}><ShieldCheck size={17} /><p><strong>{isLocal ? "保存在当前浏览器" : "你正在体验示例机会"}</strong><br />{isLocal ? "清除浏览器数据会同时删除这个岗位；云同步尚未开启。" : "示例操作不会写入你的账号数据。"}</p></section>
     </aside>
   );
 }

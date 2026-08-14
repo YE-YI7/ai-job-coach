@@ -45,6 +45,7 @@ web
 ## Evidence on Hand
 
 - 正式产品规格：`docs/product/agent-job-cockpit-v1-spec.md`
+- V2 竞品、用户焦虑与 AI 能力讨论稿：`docs/product/agent-job-cockpit-v2-spec.md`
 - 当前线上产品和既有登录、Supabase、简历及面试代码可供迁移，但旧七阶段聊天信息架构不再作为新版本依据。
 - 当前没有可公开使用的真实成功率、用户数量、客户 Logo 或付费证明；界面不得虚构。
 - 第一条前端纵切允许使用明确标注的演示机会数据验证信息架构。

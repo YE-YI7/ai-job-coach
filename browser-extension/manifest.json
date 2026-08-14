@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "益职 · 网申副驾驶",
+  "version": "0.1.0",
+  "description": "在当前网申页面读取和填写字段；提交前始终由用户确认。",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_title": "打开益职网申副驾驶" },
+  "side_panel": { "default_path": "sidepanel.html" }
+}

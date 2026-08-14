@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { CockpitApp } from "@/components/cockpit/CockpitApp";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { demoOpportunities } from "@/lib/opportunities/demo";
+import { listCockpitOpportunities } from "@/lib/coach-harness/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -9,5 +9,6 @@ export default async function CockpitPage() {
   const user = await getCurrentUserFromRequest();
   if (!user) redirect("/login?redirect=%2Fcockpit");
 
-  return <CockpitApp initialOpportunities={demoOpportunities} userEmail={user.email} dataMode="demo" />;
+  const opportunities = await listCockpitOpportunities(user.id).catch(() => []);
+  return <CockpitApp initialOpportunities={opportunities} userEmail={user.email} dataMode="live" />;
 }

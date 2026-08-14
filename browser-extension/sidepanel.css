@@ -1,0 +1,11 @@
+:root { color-scheme: light; --ink:#26211e; --muted:#776e68; --line:#e9e1dc; --accent:#c95725; --paper:#fffaf7; }
+* { box-sizing:border-box; }
+body { margin:0; background:#fff; color:var(--ink); font:13px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif; }
+header { height:64px; padding:12px 16px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line); background:var(--paper); }
+.mark { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:var(--accent); color:#fff; font-weight:800; }
+header div { min-width:0; display:flex; flex-direction:column; } header strong { font-size:14px; } header small { overflow:hidden; color:var(--muted); text-overflow:ellipsis; white-space:nowrap; }
+main { padding:18px 16px 28px; }.intro { padding-bottom:18px; border-bottom:1px solid var(--line); }.intro h1 { margin:0 0 7px; font-size:22px; letter-spacing:-.04em; }.intro p { margin:0 0 14px; color:var(--muted); }
+button { width:100%; min-height:40px; border:0; border-radius:9px; cursor:pointer; font:inherit; font-weight:750; }.primary { background:var(--accent); color:#fff; } button:disabled { opacity:.5; cursor:wait; }
+#status { padding:12px 0; color:var(--muted); font-size:12px; }
+#fields { display:flex; flex-direction:column; gap:11px; }.field { padding:12px; border:1px solid var(--line); border-radius:11px; }.field label { display:flex; justify-content:space-between; gap:8px; font-weight:700; }.field label span { color:var(--accent); font-size:10px; }.field input,.field textarea { width:100%; margin-top:8px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; }.field textarea { min-height:72px; resize:vertical; }.field.sensitive { background:#faf8f6; }.field.sensitive input,.field.sensitive textarea { display:none; }.field small { display:block; margin-top:5px; color:var(--muted); }
+footer { position:sticky; bottom:0; margin:18px -16px -28px; padding:14px 16px 18px; border-top:1px solid var(--line); background:rgba(255,255,255,.96); } footer p { margin:8px 0 0; color:var(--muted); font-size:10px; text-align:center; }

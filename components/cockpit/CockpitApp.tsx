@@ -11,7 +11,6 @@ import {
   CircleAlert,
   CircleCheck,
   Clock3,
-  FileCheck2,
   FileText,
   ListTodo,
   LogOut,
@@ -90,6 +89,7 @@ export function CockpitApp({
   const [notice, setNotice] = useState("");
   const [questionSnoozed, setQuestionSnoozed] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [generatingResume, setGeneratingResume] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
 
@@ -113,6 +113,20 @@ export function CockpitApp({
     const local = opportunities.filter((item) => localIds.includes(item.id));
     window.localStorage.setItem(LOCAL_OPPORTUNITIES_KEY, JSON.stringify(local));
   }, [localIds, localLoaded, opportunities]);
+
+  useEffect(() => {
+    if (!localLoaded || dataMode !== "live") return;
+    const timer = window.setTimeout(() => {
+      for (const opportunity of opportunities.filter((item) => !localIds.includes(item.id))) {
+        fetch("/api/coach/opportunities", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ opportunity }),
+        }).catch(() => undefined);
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [dataMode, localIds, localLoaded, opportunities]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const filtered = useMemo(() => {
@@ -153,9 +167,8 @@ export function CockpitApp({
       analysis = null;
     }
 
-    const id = `web-${Date.now()}`;
-    const opportunity: Opportunity = {
-      id,
+    const localId = `web-${Date.now()}`;
+    const opportunityDraft: Omit<Opportunity, "id"> = {
       company: input.company.trim(),
       role: input.role.trim(),
       location: input.location.trim() || "地点待确认",
@@ -172,7 +185,7 @@ export function CockpitApp({
       recommendationReason: analysis?.recommendationReason ?? "岗位已收录。当前未形成可靠结论，请继续补充真实经历。",
       evidenceCoverage: analysis?.evidenceCoverage ?? { strong: 0, weak: 0, missing: 1, unverified: 0 },
       requirements: analysis?.requirements ?? [{
-        id: `${id}-req-1`,
+        id: `${localId}-req-1`,
         requirement: "将 JD 关键要求与真实经历建立对应",
         importance: "critical",
         strength: "missing",
@@ -180,23 +193,68 @@ export function CockpitApp({
         source: input.resumeText.trim() ? "网页提供的简历" : null,
         verified: Boolean(input.resumeText.trim()),
       }],
-      actions: analysis?.actions ?? [{ id: `${id}-action-1`, title: input.resumeText.trim() ? "核对简历与 JD 的对应证据" : "补充简历或经历概览", reason: "没有真实经历证据，不能判断这个岗位是否值得投。", dueLabel: "今天", priority: "urgent", status: "todo" }],
-      activities: [{ id: `${id}-activity-1`, actor: "user", title: "在网页创建岗位机会", detail: `已收录 ${input.company.trim()} · ${input.role.trim()} 的 JD。`, timeLabel: "刚刚" }],
+      actions: analysis?.actions ?? [{ id: `${localId}-action-1`, title: input.resumeText.trim() ? "核对简历与 JD 的对应证据" : "补充简历或经历概览", reason: "没有真实经历证据，不能判断这个岗位是否值得投。", dueLabel: "今天", priority: "urgent", status: "todo" }],
+      activities: [{ id: `${localId}-activity-1`, actor: "user", title: "在网页创建岗位机会", detail: `已收录 ${input.company.trim()} · ${input.role.trim()} 的 JD。`, timeLabel: "刚刚" }],
       resumeChanges: [],
       interviewFocus: analysis?.interviewFocus ?? [],
     };
+    let opportunity: Opportunity = { ...opportunityDraft, id: localId };
+    try {
+      const response = await fetch("/api/coach/opportunities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity: opportunityDraft }) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "同步失败");
+      opportunity = result.opportunity;
+    } catch {
+      setLocalIds((current) => [localId, ...current]);
+    }
     setOpportunities((current) => [opportunity, ...current]);
-    setLocalIds((current) => [id, ...current]);
-    setActiveId(id);
+    setActiveId(opportunity.id);
     setActiveTab("overview");
     setCreating(false);
-    announce(analysis ? "岗位已创建并完成初步分析" : "岗位已保存，分析暂未完成");
+    announce(opportunity.id === localId ? "岗位已保存到当前浏览器，云同步稍后重试" : analysis ? "岗位已同步并完成初步分析" : "岗位已同步，分析暂未完成");
   };
 
   const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, status } : change) } : item));
     announce(status === "accepted" ? "已接受这处修改" : "已保留原文");
+  };
+
+  const generateResumeDraft = async () => {
+    if (!active?.resumeText || !active.jdText || generatingResume) {
+      announce("请先补充简历和 JD");
+      return;
+    }
+    setGeneratingResume(true);
+    try {
+      const response = await fetch("/api/coach/resume-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeText: active.resumeText, jobDescription: active.jdText }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "生成失败");
+      setOpportunities((current) => current.map((item) => item.id === active.id ? {
+        ...item,
+        resumeChanges: result.changes,
+        activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已通过事实校验。`, timeLabel: "刚刚" }, ...item.activities],
+      } : item));
+      announce(`${result.changes.length} 处建议已生成并完成事实校验`);
+    } catch (error) {
+      announce(error instanceof Error ? error.message : "简历生成失败");
+    } finally {
+      setGeneratingResume(false);
+    }
+  };
+
+  const openInterviewRoundtable = () => {
+    if (!active?.jdText) return announce("请先补充 JD");
+    window.localStorage.setItem("interview_role", active.jdText);
+    window.localStorage.setItem("interview_round", "业务面");
+    window.localStorage.setItem("interview_questionCount", "3");
+    window.localStorage.setItem("yi-zhi-interview-opportunity-id", active.id);
+    window.localStorage.removeItem("interview_messages");
+    router.push("/interview/start?from=cockpit");
   };
 
   const saveQuestionAnswer = (answer: string) => {
@@ -286,8 +344,8 @@ export function CockpitApp({
           <div className={styles.documentBody}>
             {activeTab === "overview" && <OverviewTab opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} />}
-            {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} />}
+            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} generating={generatingResume} />}
+            {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
             {activeTab === "review" && <ReviewTab onSave={saveReview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
           </div></>}
@@ -459,10 +517,10 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, onUpdate }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void }) {
+function ResumeTab({ opportunity, onUpdate, onGenerate, generating }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onGenerate: () => void; generating: boolean }) {
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>岗位简历 V1</h2><p>逐项审阅修改，已接受内容也不会覆盖你的原简历文件。</p></div><span className={styles.reviewHint}><FileCheck2 size={16} />{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待你确认</span></div>
+      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 只能改写可追溯到原简历的事实；数字不一致会被拦截。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : opportunity.resumeChanges.length ? "重新生成" : "AI 生成岗位版本"}</button></div>
       <div className={styles.versionLine}><span>当前版本 V1</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
       <div className={styles.resumeChangeList}>{opportunity.resumeChanges.length ? opportunity.resumeChanges.map((change) => (
         <article key={change.id} className={styles.resumeChange}>
@@ -471,18 +529,18 @@ function ResumeTab({ opportunity, onUpdate }: { opportunity: Opportunity; onUpda
           <footer><p>{change.reason}</p><span>{change.evidenceId ? "已关联证据" : "需要补证据"}</span></footer>
           {change.status === "pending" && <div className={styles.changeActions}><button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />接受修改</button><button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button></div>}
         </article>
-      )) : <EmptySection label="这个机会还没有岗位简历。" />}</div>
+      )) : <EmptySection label={opportunity.resumeText ? "还没有生成岗位简历。" : "先在岗位档案补充简历，AI 才能开始。"} actionLabel={opportunity.resumeText ? "生成岗位版本" : undefined} onAction={opportunity.resumeText ? onGenerate : undefined} />}</div>
     </section>
   );
 }
 
-function InterviewTab({ opportunity, onSave }: { opportunity: Opportunity; onSave: (question: string, answer: string) => void }) {
+function InterviewTab({ opportunity, onSave, onOpenRoundtable }: { opportunity: Opportunity; onSave: (question: string, answer: string) => void; onOpenRoundtable: () => void }) {
   const [practicing, setPracticing] = useState(false);
   const [answer, setAnswer] = useState("");
   const currentQuestion = opportunity.interviewFocus[0];
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div>{currentQuestion && <button className={styles.primaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />开始模拟</button>}</div>
+      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />快速练一题</button>}<button className={styles.primaryButton} onClick={onOpenRoundtable}><Sparkles size={16} />AI 模拟面试圆桌</button></div></div>
       {practicing && currentQuestion && <section className={styles.practicePanel}><span>第 1 题 · 深挖薄弱证据</span><h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" /><div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>结束本轮</button><button className={styles.primaryButton} disabled={!answer.trim()} onClick={() => { onSave(currentQuestion.question, answer.trim()); setAnswer(""); }}>保存练习回答</button></div></section>}
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>

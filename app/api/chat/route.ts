@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { StageNames, UserStage, getNextStage } from "@/lib/stage";
 import { runOrchestrator } from "@/lib/orchestrator";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 
 // 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ function knowledgeTaskForStage(stage: string): AgentKnowledgeTask {
 }
 
 export async function POST(req: Request) {
+  let reservation: QuotaReservation | null = null;
   try {
     // 认证检查
     const auth = await getCurrentUserFromRequest();
@@ -64,6 +66,11 @@ export async function POST(req: Request) {
     }
 
     const stage = body?.stage || "career_planning";
+    const requestId = String(body?.requestId || crypto.randomUUID()).slice(0, 180);
+    reservation = await reserveQuota(userId, "chat", `chat:${requestId}`);
+    if (!reservation) {
+      return NextResponse.json({ ok: false, error: "今日免费对话额度已用完", needUpgrade: true }, { status: 403 });
+    }
 
     // ===== 跨阶段记忆注入 =====
     // 构建记忆上下文，注入到消息中（作为额外的 system context）
@@ -166,10 +173,14 @@ export async function POST(req: Request) {
     });
 
     // 返回 AI 回复
+    await finalizeQuota(reservation, true);
+    const quota = { source: reservation.source, remaining: reservation.remaining };
+    reservation = null;
     return NextResponse.json({
       ok: true,
       result: reply,
       structured: orchestratorResult.structured,
+      quota,
       ...(stageEval ? {
         stageEval: {
           completion: stageEval.completion,
@@ -179,6 +190,7 @@ export async function POST(req: Request) {
       } : {}),
     });
   } catch (err) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Chat quota refund failed", refundError));
     console.error("API Error:", err);
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },

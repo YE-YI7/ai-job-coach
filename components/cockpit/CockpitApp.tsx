@@ -76,7 +76,7 @@ function coverageTotal(opportunity: Opportunity) {
   return strong + weak + missing + unverified;
 }
 
-function useQuotaLabel(type: "resume" | "interview") {
+function useQuotaLabel(type: "chat" | "resume" | "interview") {
   const [label, setLabel] = useState("1 次额度");
   useEffect(() => {
     let active = true;
@@ -219,14 +219,16 @@ export function CockpitApp({
   const createOpportunity = async (intake: OpportunityIntake) => {
     if (dataMode === "live") trackProductEvent("material_intake_started", { input_type: intake.file ? "file" : "text_or_link" });
     const requestBody = intake.file ? new FormData() : null;
+    const requestId = crypto.randomUUID();
     if (requestBody) {
+      requestBody.set("requestId", requestId);
       requestBody.set("file", intake.file as File);
       if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
     }
     const response = await fetch("/api/opportunities/analyze", {
       method: "POST",
       headers: requestBody ? undefined : { "Content-Type": "application/json" },
-      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText }),
+      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId }),
     });
     const result = await response.json();
     if (!response.ok || !result.ok || !result.input) {
@@ -542,6 +544,7 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  const quotaLabel = useQuotaLabel("chat");
   const canSubmit = Boolean(sourceText.trim() || file);
 
   const chooseFile = (candidate?: File) => {
@@ -605,7 +608,7 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
           <p><strong>我会先替你判断：</strong>这是岗位、简历还是求职目标，再建对应档案，只追问会影响下一步的内容。</p>
         </div>
         {error && <p className={styles.intakeError} role="alert">{error}</p>}
-        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在读材料…" : "让导师整理"}<ArrowRight size={16} /></button></div>
+        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在读材料…" : `让导师整理 · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
       </form>
     </div>
   );

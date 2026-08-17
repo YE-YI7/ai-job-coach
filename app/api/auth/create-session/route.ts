@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { createSessionToken, sessionCookie } from "@/lib/session";
+import { consumePublicRateLimit, rateLimitedResponse } from "@/lib/public-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
     }
 
     const trimmedCode = inviteCode.trim();
+    const limit = await consumePublicRateLimit({ request, scope: "auth-invite-session", subject: trimmedCode, limit: 10, windowSeconds: 3600 });
+    if (!limit.allowed) return rateLimitedResponse(limit);
 
     // 1. 查询邀请码
     const { data: invite, error: inviteError } = await client

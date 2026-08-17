@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbClient } from '@/lib/db';
 import { sendVerificationEmail } from '@/lib/email';
+import { consumePublicRateLimit, rateLimitedResponse } from '@/lib/public-rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -31,6 +32,13 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const [addressLimit, emailLimit] = await Promise.all([
+      consumePublicRateLimit({ request, scope: 'auth-send-code-ip', limit: 20, windowSeconds: 3600 }),
+      consumePublicRateLimit({ request, scope: 'auth-send-code-email', subject: email, limit: 5, windowSeconds: 3600 }),
+    ]);
+    if (!addressLimit.allowed) return rateLimitedResponse(addressLimit);
+    if (!emailLimit.allowed) return rateLimitedResponse(emailLimit);
 
     const client = await getDbClient();
     if (!client) {

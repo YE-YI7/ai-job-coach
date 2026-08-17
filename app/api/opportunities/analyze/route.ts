@@ -6,6 +6,7 @@ import pdfParse from "pdf-parse";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -138,10 +139,12 @@ async function readIntake(request: Request) {
   const contentType = request.headers.get("content-type") || "";
   let sourceText = "";
   let sourceLabel = "粘贴内容";
+  let requestId = "";
   let structured = { company: "", role: "", location: "", jdText: "", resumeText: "" };
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
+    requestId = String(form.get("requestId") || "").trim();
     const file = form.get("file");
     sourceText = String(form.get("sourceText") || "").trim();
     if (file instanceof File && file.size > 0) {
@@ -152,6 +155,7 @@ async function readIntake(request: Request) {
     }
   } else {
     const body = await request.json();
+    requestId = String(body.requestId || "").trim();
     sourceText = String(body.sourceText || "").trim();
     structured = {
       company: String(body.company || "").trim(),
@@ -162,7 +166,7 @@ async function readIntake(request: Request) {
     };
   }
 
-  if (structured.company && structured.role && structured.jdText) return { ...structured, sourceLabel: "网页填写" };
+  if (structured.company && structured.role && structured.jdText) return { ...structured, requestId, sourceLabel: "网页填写" };
   if (!sourceText) throw new Error("请粘贴岗位、简历或求职目标，或选择一份文件");
 
   if (/^https?:\/\/\S+$/i.test(sourceText.trim())) {
@@ -170,15 +174,23 @@ async function readIntake(request: Request) {
     sourceText = `来源链接：${page.finalUrl}\n\n${page.text}`;
     sourceLabel = "岗位链接导入";
   }
-  return { ...structured, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
+  return { ...structured, requestId, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
 }
 
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
 
+  let reservation: QuotaReservation | null = null;
   try {
     const intake = await readIntake(request);
+    const requestId = intake.requestId && /^[a-zA-Z0-9_-]{8,180}$/.test(intake.requestId)
+      ? intake.requestId
+      : crypto.randomUUID();
+    reservation = await reserveQuota(user.id, "chat", `opportunity-analysis:${requestId}`);
+    if (!reservation) {
+      return NextResponse.json({ ok: false, error: "今日免费分析额度已用完", needUpgrade: true }, { status: 403 });
+    }
     const knowledge = await buildAgentKnowledgeContext({
       task: "job_analysis",
       company: intake.company,
@@ -233,6 +245,8 @@ export async function POST(request: Request) {
     const resumeText = String(parsed.resumeText || intake.resumeText || (materialKind === "resume" ? intake.jdText : "")).trim().slice(0, MAX_SOURCE_LENGTH);
     const profileText = workspaceType === "preparation" ? intake.jdText.trim().slice(0, MAX_SOURCE_LENGTH) : "";
     if (!company || !role || (workspaceType === "job" && !jdText)) {
+      await finalizeQuota(reservation, false);
+      reservation = null;
       return NextResponse.json({ ok: false, error: "这份材料还不足以建立档案。请补充岗位内容、简历经历或目标方向。" }, { status: 422 });
     }
 
@@ -278,8 +292,12 @@ export async function POST(request: Request) {
     }) : [];
     const recommendationValue = String(parsed.recommendation || "prepare_then_apply") as OpportunityRecommendation;
     const recommendation = recommendations.has(recommendationValue) ? recommendationValue : "prepare_then_apply";
+    await finalizeQuota(reservation, true);
+    const quota = { source: reservation.source, remaining: reservation.remaining };
+    reservation = null;
     return NextResponse.json({
       ok: true,
+      quota,
       input: { workspaceType, company, role, location, jdText, resumeText, profileText, sourceLabel: intake.sourceLabel },
       analysis: {
         recommendation,
@@ -292,6 +310,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Opportunity quota refund failed", refundError));
     console.error("Opportunity analysis failed", error);
     const message = error instanceof Error && /请|不能|不支持|无法|没有|太大/.test(error.message)
       ? error.message

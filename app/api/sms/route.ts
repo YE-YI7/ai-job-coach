@@ -22,6 +22,9 @@ function getTimestamp(): string {
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NODE_ENV === "production" && process.env.ENABLE_SMS_LOGIN !== "1") {
+      return NextResponse.json({ success: false, error: "短信登录暂未开放，请使用邮箱或邀请码" }, { status: 410 });
+    }
     const body = await request.json().catch(() => null);
     
     // 阻止前端提交 key
@@ -49,8 +52,6 @@ export async function POST(request: Request) {
     }
 
     const code = generateCode();
-    console.log(`[SMS] 为 ${phone} 生成验证码: ${code}`);
-
     setCachedCode(phone, code);
 
     const params: Record<string, string> = {
@@ -113,10 +114,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "短信发送异常" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, code, response: aliyunResponse });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("短信接口错误:", error);
     return NextResponse.json({ success: false, error: "内部错误" }, { status: 500 });
   }
 }
-

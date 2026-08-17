@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getDbClient } from '@/lib/db';
 import { createSessionToken, sessionCookie } from '@/lib/session';
+import { consumePublicRateLimit, rateLimitedResponse } from '@/lib/public-rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -151,6 +152,13 @@ export async function POST(request: Request) {
     const code = body.code.trim();
     const referralCode = body.referralCode?.trim() || null;
 
+    const [addressLimit, accountLimit] = await Promise.all([
+      consumePublicRateLimit({ request, scope: 'auth-verify-ip', limit: 30, windowSeconds: 900 }),
+      consumePublicRateLimit({ request, scope: 'auth-verify-account', subject: email, limit: 10, windowSeconds: 900 }),
+    ]);
+    if (!addressLimit.allowed) return rateLimitedResponse(addressLimit);
+    if (!accountLimit.allowed) return rateLimitedResponse(accountLimit);
+
     const client = await getDbClient();
     if (!client) {
       return NextResponse.json(
@@ -201,7 +209,6 @@ export async function POST(request: Request) {
         }
       }
 
-      console.log(`[AUTH] 邀请码登录: code=${code}, userId=${userId}, isNew=${isNewUser}`);
       return await buildSessionResponse(userId, email, isNewUser);
     }
 

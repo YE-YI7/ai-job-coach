@@ -6,7 +6,7 @@ import type {
   ContextBundle,
 } from "./types";
 
-const NUMBER_PATTERN = /(?<![\p{L}\p{N}])(?:\d+(?:\.\d+)?%?|\d{4}[.-]\d{1,2})(?![\p{L}\p{N}])/gu;
+const NUMBER_PATTERN = /(?<![\p{L}\p{N}])(?:[¥￥$]?\d+(?:[.,]\d+)?(?:%|万|亿|[kK]|人|次|个月|年|天|元)?|\d{4}[.-]\d{1,2})(?![\p{L}\p{N}])/gu;
 
 function numberTokens(value: string) {
   return new Set((value.match(NUMBER_PATTERN) || []).map((token) => token.replaceAll("，", "")));
@@ -77,6 +77,15 @@ export function validateArtifactDraft(draft: ArtifactDraft, bundle: ContextBundl
           path: section.path,
           claimIds: [claimId],
           message: `事实「${claim.displayText}」与其他记录冲突。`,
+        });
+      }
+      if ((draft.visibility === "public" || draft.visibility === "recruiter_safe") && claim.visibility === "private") {
+        issues.push({
+          code: "private_claim_exposure",
+          severity: "error",
+          path: section.path,
+          claimIds: [claimId],
+          message: `私密事实「${claim.displayText}」不能用于对外材料。`,
         });
       }
       for (const token of claimNumberTokens(claim)) allowedNumbers.add(token);

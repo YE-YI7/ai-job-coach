@@ -8,9 +8,17 @@ import { callLLM } from "@/lib/llm";
 import { createClient } from "@supabase/supabase-js";
 import { StageNames, UserStage, getNextStage } from "@/lib/stage";
 import { runOrchestrator } from "@/lib/orchestrator";
+import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 
 // 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
+
+function knowledgeTaskForStage(stage: string): AgentKnowledgeTask {
+  if (stage === "resume_optimization") return "resume_tailoring";
+  if (stage === "interview") return "mock_interview";
+  if (stage === "application_strategy") return "job_analysis";
+  return "career_coaching";
+}
 
 export async function POST(req: Request) {
   try {
@@ -70,11 +78,26 @@ export async function POST(req: Request) {
       console.warn('[Memory] 记忆上下文构建失败，降级为无记忆模式:', memErr);
     }
 
+    let knowledgeContextText = "";
+    try {
+      const latestUserMessage = [...body.messages].reverse().find((message: any) => message.role === "user")?.content || "";
+      const knowledge = await buildAgentKnowledgeContext({
+        task: knowledgeTaskForStage(stage),
+        query: latestUserMessage,
+        limit: 5,
+      });
+      knowledgeContextText = knowledge.contextText;
+    } catch (knowledgeError) {
+      console.warn("[Knowledge] 求职知识库检索失败，降级为无知识库模式:", knowledgeError);
+    }
+
+    const backgroundContextText = [memoryContextText, knowledgeContextText].filter(Boolean).join("\n\n");
+
     // 构建给编排器的消息（只包含 user/assistant 消息）
     const chatMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
 
     // 如果有记忆上下文，作为第一条 user 消息的前缀注入
-    if (memoryContextText) {
+    if (backgroundContextText) {
       const firstUserIdx = body.messages.findIndex((m: any) => m.role === "user");
       for (let i = 0; i < body.messages.length; i++) {
         const m = body.messages[i];
@@ -82,7 +105,7 @@ export async function POST(req: Request) {
         if (i === firstUserIdx && m.role === "user") {
           chatMessages.push({
             role: "user",
-            content: `[背景信息]\n${memoryContextText}\n\n[用户消息]\n${m.content}`,
+            content: `[背景信息]\n${backgroundContextText}\n\n[用户消息]\n${m.content}`,
           });
         } else {
           chatMessages.push({

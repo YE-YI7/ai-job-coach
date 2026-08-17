@@ -45,4 +45,28 @@ describe("coach harness consistency", () => {
       claim({ id: "claim-2", value: { result: "转化率提升 21%" }, displayText: "转化率提升 21%" }),
     ])).toHaveLength(1);
   });
+
+  test("blocks Chinese quantities that are not present in the cited claim", () => {
+    const bundle = compileContextBundle({ task: "resume_workshop", userId: "user-1", claims: [claim()] });
+    const report = validateArtifactDraft({
+      artifactType: "resume",
+      visibility: "recruiter_safe",
+      sections: [{ path: "experience.0", content: "覆盖 30万 用户并带领 8人 团队，转化率提升 18%", claimIds: ["claim-1"] }],
+    }, bundle);
+    expect(report.issues.filter((item) => item.code === "unsupported_number").map((item) => item.token)).toEqual(expect.arrayContaining(["30万", "8人"]));
+  });
+
+  test("blocks private claims from recruiter-facing artifacts", () => {
+    const bundle = compileContextBundle({
+      task: "resume_workshop",
+      userId: "user-1",
+      claims: [claim({ visibility: "private" })],
+    });
+    const report = validateArtifactDraft({
+      artifactType: "resume",
+      visibility: "recruiter_safe",
+      sections: [{ path: "experience.0", content: "推动项目 A，转化率提升 18%", claimIds: ["claim-1"] }],
+    }, bundle);
+    expect(report.issues.map((item) => item.code)).toContain("private_claim_exposure");
+  });
 });

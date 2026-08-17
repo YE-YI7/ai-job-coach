@@ -4,12 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "prebuild": "npm run knowledge:build",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test": "jest"
+    "test": "jest",
+    "knowledge:build": "node scripts/compile-knowledge-base.mjs && node scripts/report-knowledge-quality.mjs"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@supabase/auth-helpers-nextjs": "^0.14.0",
     "@supabase/supabase-js": "^2.39.0",
     "@tiptap/extension-color": "^3.20.0",

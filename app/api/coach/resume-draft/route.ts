@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { compileContextBundle, validateArtifactDraft, type CareerClaim } from "@/lib/coach-harness";
 import { callLLM } from "@/lib/llm";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -14,11 +15,15 @@ function parseJson(text: string) {
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+  let reservation: QuotaReservation | null = null;
   try {
     const body = await request.json();
     const resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     const jobDescription = String(body.jobDescription || "").trim().slice(0, 30_000);
     if (!resumeText || !jobDescription) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
+    const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
+    reservation = await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
+    if (!reservation) return NextResponse.json({ ok: false, error: "简历生成额度不足", needUpgrade: true }, { status: 403 });
 
     const lines = resumeText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
     const claims: CareerClaim[] = lines.map((line, index) => ({
@@ -47,7 +52,7 @@ export async function POST(request: Request) {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => context.allowedClaimIds.includes(id)) : [];
       const after = String(raw.after || "").trim().slice(0, 2000);
       const before = String(raw.before || "").trim().slice(0, 2000);
-      const report = validateArtifactDraft({ artifactType: "target_resume", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
+      const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       if (!after || !before || !report.ok) {
         rejected.push({ index, reasons: report.issues.map((issue) => issue.message) });
         return [];
@@ -62,9 +67,17 @@ export async function POST(request: Request) {
         status: "pending" as const,
       }];
     });
-    if (!changes.length) return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，请补充更完整的经历" }, { status: 422 });
-    return NextResponse.json({ ok: true, changes, rejectedCount: rejected.length, contextFingerprint: context.fingerprint });
+    if (!changes.length) {
+      await finalizeQuota(reservation, false);
+      reservation = null;
+      return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，请补充更完整的经历；本次未扣额度" }, { status: 422 });
+    }
+    await finalizeQuota(reservation, true);
+    const quota = { source: reservation.source, remaining: reservation.remaining };
+    reservation = null;
+    return NextResponse.json({ ok: true, changes, rejectedCount: rejected.length, contextFingerprint: context.fingerprint, quota });
   } catch (error) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Resume quota refund failed", refundError));
     console.error("Resume draft failed", error);
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "简历生成失败" }, { status: 500 });
   }

@@ -328,7 +328,8 @@ export async function generateInterviewQuestions(
   roundType: RoundType,
   count: number,
   sessionId?: string,
-  resumeText?: string
+  resumeText?: string,
+  knowledgeContext?: string,
 ): Promise<InterviewQuestion[]> {
   // 检查是否使用 stub 模式（显式启用 stub）
   const useStub = process.env.LLM_STUB === "1";
@@ -366,6 +367,8 @@ ${roundType}
 
 【候选人过往记录】
 ${candidateRecord}
+
+${knowledgeContext || ""}
 
 ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有针对性的个性化面试问题。重点追问简历中的项目经历、技能匹配度和潜在的弱点。" : ""}
 请生成 ${count} 个针对性的面试问题，每个问题都要有完整的 tips 信息。
@@ -564,12 +567,14 @@ export async function evaluateAnswer({
   answer,
   roundType,
   resumeText,
+  knowledgeContext,
 }: {
   question: string;
   jd: string;
   answer: string;
   roundType: RoundType;
   resumeText?: string;
+  knowledgeContext?: string;
 }): Promise<any> {
   // 检查是否使用 stub 模式（显式启用 stub）
   const useStub = process.env.LLM_STUB === "1";
@@ -616,6 +621,8 @@ ${answer}
 
 【候选人过往记录】
 ${candidateRecordForEval}
+
+${knowledgeContext || ""}
 
 ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完整性和匹配度。" : ""}
 请基于以上信息进行专业评估，返回严格 JSON 格式：
@@ -1092,4 +1099,3 @@ ${assessmentsStr}
     return generateFallbackSummary(assessments);
   }
 }
-

@@ -73,7 +73,8 @@ export function getMultiRoleDiscussionPrompt(
   roleIds: ReviewRoleId[],
   resumeText?: string,
   questionIndex?: number,
-  jobDescription?: string
+  jobDescription?: string,
+  knowledgeContext?: string,
 ): string {
   const rolesSection = getRoleList(roleIds);
   const speakerNames = getSpeakerNames(roleIds);
@@ -101,7 +102,7 @@ export function getMultiRoleDiscussionPrompt(
 9. ${roleIds.length * 2}-${roleIds.length * 2 + 2}条对话，以一句简短共识收尾
 10. 每条对话控制在40-100字，简洁有力
 11. 只输出纯文本内容，不要使用 markdown 格式
-${resumeSection}${jdSection}
+${resumeSection}${jdSection}${knowledgeContext ? `\n${knowledgeContext}\n` : ""}
 【面试题 Q${questionIndex ?? ""}】
 ${question}
 
@@ -130,7 +131,8 @@ export function getAnswerRewritePrompt(
   originalAnswer: string,
   discussionSummary: string,
   resumeText?: string,
-  jobDescription?: string
+  jobDescription?: string,
+  knowledgeContext?: string,
 ): string {
   const resumeSection = resumeText
     ? `\n【候选人简历/项目经历】\n${resumeText}\n`
@@ -159,7 +161,7 @@ ${originalAnswer || "（未提供回答）"}
 
 【顾问讨论要点摘要】
 ${discussionSummary}
-${resumeSection}${jdSection}
+${resumeSection}${jdSection}${knowledgeContext ? `\n${knowledgeContext}\n` : ""}
 【输出要求】
 1. 先给出回答骨架（3-5个关键要点，每个10字以内）
 2. 再给出完整的改写回答（200-400字，口语化）
@@ -238,7 +240,8 @@ export function getCoachSummaryPrompt(
   company: string,
   round: string,
   jobDescription?: string,
-  resumeText?: string
+  resumeText?: string,
+  knowledgeContext?: string,
 ): string {
   const questionsSection = questionsData
     .map((q, i) => `Q${i + 1}[${q.score}][${q.tags.join(",")}]: ${q.question}\n  关键问题: ${q.key_issues}`)
@@ -256,7 +259,7 @@ export function getCoachSummaryPrompt(
 【面试信息】
 公司：${company || "未知"}
 轮次：${round || "未知"}
-${jdSection}${resumeSection}
+${jdSection}${resumeSection}${knowledgeContext ? `\n${knowledgeContext}\n` : ""}
 【逐题分析结果】
 ${questionsSection}
 
@@ -326,7 +329,8 @@ export function getQuestionScorePrompt(
   question: string,
   answer: string,
   discussionContent: string,
-  jobDescription?: string
+  jobDescription?: string,
+  knowledgeContext?: string,
 ): string {
   const jdHint = jobDescription
     ? `\n注意：结合目标岗位JD要求进行评分，如果回答与岗位需求高度匹配可适当加分。\n`
@@ -343,6 +347,8 @@ ${answer || "（未提供）"}
 
 【顾问讨论要点】
 ${discussionContent}
+
+${knowledgeContext || ""}
 
 【评级标准】
 - S：完美回答，远超预期

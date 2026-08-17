@@ -60,6 +60,7 @@ export interface InterviewFocus {
 
 export interface Opportunity {
   id: string;
+  workspaceType?: "job" | "preparation";
   company: string;
   role: string;
   location: string;
@@ -70,7 +71,9 @@ export interface Opportunity {
   capturedAtLabel: string;
   jdText?: string;
   resumeText?: string;
+  profileText?: string;
   nextEventLabel: string | null;
+  scheduledInterviewAt?: string | null;
   recommendation: OpportunityRecommendation;
   recommendationLabel: string;
   recommendationReason: string;
@@ -85,4 +88,5 @@ export interface Opportunity {
   activities: OpportunityActivity[];
   resumeChanges: ResumeChange[];
   interviewFocus: InterviewFocus[];
+  mentorSnoozes?: Array<{ actionId: string; until: string }>;
 }

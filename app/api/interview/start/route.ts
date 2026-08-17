@@ -23,7 +23,9 @@ export const preferredRegion = "iad1";
 import { getDbClient, getLatestResumeByUserId } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { generateInterviewQuestions, formatResumeForPrompt } from "@/lib/interview/llm";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { v4 as uuidv4 } from "uuid";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import type {
   StartInterviewRequest,
   StartInterviewResponse,
@@ -31,6 +33,7 @@ import type {
 } from "@/lib/interview/types";
 
 export async function POST(request: Request) {
+  let reservation: QuotaReservation | null = null;
   try {
     // 1. 鉴权：检查用户是否登录
     const auth = await getCurrentUserFromRequest();
@@ -102,6 +105,13 @@ export async function POST(request: Request) {
       );
     }
 
+    reservation = await reserveQuota(userId, "interview", `interview-start:${String((body as any).requestId || crypto.randomUUID()).slice(0, 180)}`);
+    if (!reservation) {
+      return new Response(JSON.stringify({ ok: false, error: "模拟面试额度不足", needUpgrade: true }), {
+        status: 403, headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // 5. 查询用户简历数据（用于个性化出题）
     let resumeText = "";
     if (useResume) {
@@ -115,6 +125,12 @@ export async function POST(request: Request) {
         console.warn("查询简历数据失败（非关键错误）:", err);
       }
     }
+
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "mock_interview",
+      query: `${roundType} ${jd.slice(0, 240)}`,
+      limit: 6,
+    });
 
     // 6. 创建面试会话
     const sessionId = uuidv4();
@@ -130,6 +146,8 @@ export async function POST(request: Request) {
       });
 
     if (sessionError) {
+      await finalizeQuota(reservation, false);
+      reservation = null;
       console.error("创建面试会话失败:", sessionError);
       return new Response(
         JSON.stringify({ ok: false, error: "创建面试会话失败" }),
@@ -141,7 +159,7 @@ export async function POST(request: Request) {
     }
 
     // 7. 生成面试题（可能耗时 30-120 秒）
-    const questions = await generateInterviewQuestions(jd, roundType, questionCount, sessionId, resumeText);
+    const questions = await generateInterviewQuestions(jd, roundType, questionCount, sessionId, resumeText, knowledge.contextText);
 
     // 8. 保存题目到数据库
     if (questions.length > 0) {
@@ -169,11 +187,15 @@ export async function POST(request: Request) {
       questions: questions,
     };
 
+    await finalizeQuota(reservation, true);
+    reservation = null;
+
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Interview quota refund failed", refundError));
     console.error("API Error:", error);
     return new Response(
       JSON.stringify({

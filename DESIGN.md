@@ -22,6 +22,12 @@ typography:
     fontWeight: 760
     lineHeight: 1.08
     letterSpacing: "-0.035em"
+  editorial:
+    fontFamily: "Songti SC, Noto Serif SC, STSong, serif"
+    fontSize: "clamp(32px, 3.4vw, 42px)"
+    fontWeight: 700
+    lineHeight: 1.18
+    letterSpacing: "-0.025em"
   title:
     fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "15px"
@@ -115,13 +121,15 @@ components:
 ## Typography
 
 **Display Font:** Noto Sans SC（PingFang SC / Microsoft YaHei / system sans 回退）
+**Editorial Font:** Songti SC（Noto Serif SC / STSong / serif 回退）
 **Body Font:** Noto Sans SC（同回退）
 
-**Character:** 中文标题紧凑、坚定；正文清晰克制。依靠字号、字重和留白建立层级，不依赖全大写或装饰字体。
+**Character:** 中文标题紧凑、坚定；正文清晰克制。宋体只用于当天最重要任务和导师建议，用编辑感拉开“判断”与“控件”的语气；导航、数据、按钮和普通区域标题继续使用无衬线字体。
 
 ### Hierarchy
 
 - **Display**（760，28–42px，1.08）：岗位名称，一屏只出现一次。
+- **Editorial**（700，32–42px，1.18）：当天核心任务，以及导师建议中的一句关键判断。
 - **Title**（760，15px）：区域标题和栏标题。
 - **Body**（400，11–12px，1.6）：解释、证据与行动原因。
 - **Label**（700，9–10px）：状态、来源和辅助元数据。

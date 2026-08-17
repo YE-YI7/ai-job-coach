@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.artifacts/
 
 # next.js
 /.next/
@@ -43,6 +44,7 @@ next-env.d.ts
 
 # npm cache
 .npm-cache/
+.agents/plugins/plugins/yi-zhi/knowledge/job-search-experiences.json
 
 # codebuddy
 .codebuddy/

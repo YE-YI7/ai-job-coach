@@ -24,6 +24,8 @@ export function compileContextBundle(input: {
   opportunity?: OpportunityContext | null;
   claims: CareerClaim[];
   artifacts?: ArtifactReference[];
+  knowledge?: ContextBundle["knowledge"];
+  knowledgeContext?: string;
   now?: Date;
 }): ContextBundle {
   const relevantTypes = TASK_CLAIM_TYPES[input.task];
@@ -32,6 +34,7 @@ export function compileContextBundle(input: {
     .filter((claim) => claim.status !== "withdrawn")
     .sort((a, b) => `${a.entityType}:${a.entityKey}:${a.id}`.localeCompare(`${b.entityType}:${b.entityKey}:${b.id}`));
   const artifacts = [...(input.artifacts || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const knowledge = [...(input.knowledge || [])].sort((a, b) => a.id.localeCompare(b.id));
   const compiledAt = (input.now || new Date()).toISOString();
   const fingerprintPayload = {
     task: input.task,
@@ -40,6 +43,7 @@ export function compileContextBundle(input: {
       : null,
     claims: claims.map((claim) => [claim.id, claim.status, claim.updatedAt || ""]),
     artifacts: artifacts.map((artifact) => [artifact.id, artifact.version, artifact.status]),
+    knowledge: knowledge.map((item) => item.id),
   };
 
   return {
@@ -49,6 +53,8 @@ export function compileContextBundle(input: {
     opportunity: input.opportunity || null,
     claims,
     artifacts,
+    knowledge,
+    knowledgeContext: input.knowledgeContext || "",
     allowedClaimIds: claims.filter((claim) => claim.status === "confirmed").map((claim) => claim.id),
     unverifiedClaimIds: claims.filter((claim) => claim.status === "unverified").map((claim) => claim.id),
     conflicts: findClaimConflicts(claims),

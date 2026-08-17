@@ -53,6 +53,16 @@ export interface ContextBundle {
   opportunity: OpportunityContext | null;
   claims: CareerClaim[];
   artifacts: ArtifactReference[];
+  knowledge: Array<{
+    id: string;
+    title: string;
+    description: string;
+    goal: string;
+    scope: string;
+    confidence: "low" | "medium" | "high";
+    evidenceUrls: string[];
+  }>;
+  knowledgeContext: string;
   allowedClaimIds: string[];
   unverifiedClaimIds: string[];
   conflicts: Array<{ entityKey: string; claimIds: string[] }>;
@@ -68,11 +78,12 @@ export interface ArtifactSectionDraft {
 
 export interface ArtifactDraft {
   artifactType: string;
+  visibility?: ClaimVisibility;
   sections: ArtifactSectionDraft[];
 }
 
 export interface ConsistencyIssue {
-  code: "unknown_claim" | "unconfirmed_claim" | "conflicted_claim" | "unsupported_number" | "empty_provenance";
+  code: "unknown_claim" | "unconfirmed_claim" | "conflicted_claim" | "unsupported_number" | "empty_provenance" | "private_claim_exposure";
   severity: "error" | "warning";
   path: string;
   message: string;

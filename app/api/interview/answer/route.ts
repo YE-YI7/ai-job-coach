@@ -23,6 +23,7 @@ export const preferredRegion = "iad1";
 import { getDbClient, getLatestResumeByUserId } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { evaluateAnswer, formatResumeForPrompt } from "@/lib/interview/llm";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { v4 as uuidv4 } from "uuid";
 import type {
   AnswerQuestionRequest,
@@ -157,6 +158,12 @@ export async function POST(request: Request) {
       console.warn("查询简历数据失败（非关键错误）:", err);
     }
 
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "answer_assessment",
+      query: `${session.round_type} ${question.question_text} ${session.jd.slice(0, 180)}`,
+      limit: 5,
+    });
+
     // 8. 评估答案（可能耗时 20-60 秒）
     const assessment = await evaluateAnswer({
       question: question.question_text,
@@ -164,6 +171,7 @@ export async function POST(request: Request) {
       answer: answer.trim(),
       roundType: session.round_type as any,
       resumeText: resumeText || undefined,
+      knowledgeContext: knowledge.contextText || undefined,
     });
 
     // 9. 保存答案和评估到数据库

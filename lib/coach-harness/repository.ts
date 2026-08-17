@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { compileContextBundle } from "./context";
 import type { ArtifactReference, CareerClaim, CoachActionType, CoachExecutor, ContextBundle, OpportunityContext } from "./types";
 import type { Opportunity } from "@/lib/opportunities/types";
+import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 
 function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
   if (!db) throw new Error("数据库不可用");
@@ -10,6 +11,14 @@ function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
 }
 
 type DbRow = Record<string, unknown>;
+
+function knowledgeTask(task: CoachActionType): AgentKnowledgeTask {
+  if (task === "job_decision" || task === "application_assist") return "job_analysis";
+  if (task === "resume_workshop") return "resume_tailoring";
+  if (task === "mock_interview") return "mock_interview";
+  if (task === "interview_review") return "interview_review";
+  return "career_coaching";
+}
 
 function mapClaim(row: DbRow): CareerClaim {
   return {
@@ -80,12 +89,30 @@ export async function getContextBundleForUser(input: {
     status: String(row.status), content: row.content, claimIds: claimLinks[String(row.id)] || [], createdAt: String(row.created_at),
   }));
 
+  const knowledge = await buildAgentKnowledgeContext({
+    task: knowledgeTask(input.task),
+    company: opportunity?.company,
+    role: opportunity?.role,
+    query: [opportunity?.company, opportunity?.role, opportunity?.jdText?.slice(0, 180), input.task].filter(Boolean).join(" "),
+    limit: 6,
+  });
+
   return compileContextBundle({
     task: input.task,
     userId: input.userId,
     opportunity,
     claims: relevantClaims.map(mapClaim),
     artifacts,
+    knowledge: knowledge.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      goal: item.goal,
+      scope: item.scope,
+      confidence: item.confidence,
+      evidenceUrls: item.evidence.map((source) => source.url),
+    })),
+    knowledgeContext: knowledge.contextText,
   });
 }
 
@@ -150,6 +177,7 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
       sourceLabel: metadata.sourceLabel || "网页端",
       capturedAtLabel: metadata.capturedAtLabel || "已同步",
       nextEventLabel: metadata.nextEventLabel || null,
+      scheduledInterviewAt: row.scheduled_interview_at ? String(row.scheduled_interview_at) : metadata.scheduledInterviewAt || null,
       recommendation: metadata.recommendation || "prepare_then_apply",
       recommendationLabel: metadata.recommendationLabel || "补充后投递",
       recommendationReason: metadata.recommendationReason || "等待补充证据。",
@@ -165,13 +193,14 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
 
 export async function createCockpitOpportunity(userId: string, opportunity: Omit<Opportunity, "id">) {
   const db = requireDb(await getDbClient());
-  const { jdText, company, role, stage, ...metadata } = opportunity;
+  const { jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
   const { data, error } = await db.from("coach_opportunities").insert({
     user_id: userId,
     company,
     role,
     stage,
     jd_text: jdText || null,
+    scheduled_interview_at: scheduledInterviewAt || null,
     metadata,
   }).select("*").single();
   if (error) throw error;
@@ -180,7 +209,8 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
   const sources = [
     jdText ? { type: "jd", title: `${company} · ${role} JD`, content: jdText } : null,
     opportunity.resumeText ? { type: "resume", title: `${role} 使用的简历`, content: opportunity.resumeText } : null,
-  ].filter(Boolean) as Array<{ type: "jd" | "resume"; title: string; content: string }>;
+    opportunity.profileText && !opportunity.resumeText ? { type: "other", title: "求职准备材料", content: opportunity.profileText } : null,
+  ].filter(Boolean) as Array<{ type: "jd" | "resume" | "other"; title: string; content: string }>;
 
   for (const source of sources) {
     const hash = createHash("sha256").update(source.content).digest("hex");
@@ -209,9 +239,10 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
 
 export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity) {
   const db = requireDb(await getDbClient());
-  const { id, jdText, company, role, stage, ...metadata } = opportunity;
+  const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
   const { error } = await db.from("coach_opportunities").update({
-    company, role, stage, jd_text: jdText || null, metadata, updated_at: new Date().toISOString(),
+    company, role, stage, jd_text: jdText || null, scheduled_interview_at: scheduledInterviewAt || null,
+    metadata, updated_at: new Date().toISOString(),
   }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
 }

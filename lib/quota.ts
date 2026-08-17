@@ -13,6 +13,42 @@ export interface UserQuota {
   last_free_reset: string;
 }
 
+export interface QuotaReservation {
+  id: string;
+  source: string;
+  remaining: number | null;
+}
+
+export async function reserveQuota(
+  userId: string,
+  type: 'chat' | 'resume' | 'interview',
+  idempotencyKey: string
+): Promise<QuotaReservation | null> {
+  const client = await getDbClient();
+  if (!client) return { id: `offline-${idempotencyKey}`, source: 'offline', remaining: null };
+  const { data, error } = await client.rpc('reserve_user_quota', {
+    p_user_id: userId,
+    p_quota_type: type,
+    p_idempotency_key: idempotencyKey,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.allowed || !row.reservation_id) return null;
+  return { id: String(row.reservation_id), source: String(row.source_field || 'unknown'), remaining: row.remaining == null ? null : Number(row.remaining) };
+}
+
+export async function finalizeQuota(reservation: QuotaReservation | null, success: boolean) {
+  if (!reservation || reservation.id.startsWith('offline-')) return true;
+  const client = await getDbClient();
+  if (!client) return false;
+  const { data, error } = await client.rpc('finalize_user_quota', {
+    p_reservation_id: reservation.id,
+    p_success: success,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
 const DEFAULT_FREE_CHAT = 3;
 const DEFAULT_FREE_RESUME = 1;
 

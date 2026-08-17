@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,12 @@ export async function POST(req: Request) {
       );
     }
 
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "resume_tailoring",
+      query: String(jobDescription).slice(0, 240),
+      limit: 5,
+    });
+
     const systemPrompt = `你是一位资深简历优化专家。用户将提供自己的简历内容和目标岗位的JD（职位描述）。
 你的任务是根据JD的核心要求，针对性地调整简历内容，使简历更匹配该岗位。
 
@@ -31,6 +38,7 @@ export async function POST(req: Request) {
 4. 保持事实准确，不虚构经历，只调整表达方式和侧重点
 5. 量化指标尽量保留并强化
 6. 语气专业但不夸张
+7. 内部知识库只能帮助理解岗位表达和常见筛选点，不能把外部案例写进用户简历
 
 ⚠️ 极其重要的输出规则：
 - personalInfo、education、campusExperience、projects、workExperience、selfEvaluation 这6个字段的值必须是【完整的简历正文内容】
@@ -81,6 +89,8 @@ ${resumeData.selfEvaluation || "(空)"}
 ## 目标岗位JD
 
 ${jobDescription}
+
+${knowledge.contextText ? `---\n\n${knowledge.contextText}` : ""}
 
 ---
 

@@ -1,9 +1,9 @@
 {
   "name": "yi-zhi",
-  "version": "0.3.0",
-  "description": "A private visual job-search cockpit with evidence-based workflows, persistent local cases, and saved deliverables.",
+  "version": "0.5.0+codex.20260817144623",
+  "description": "A proactive private job-search mentor with a local visual cockpit, source-grounded knowledge, persistent cases, and evidence-based workflows.",
   "author": {
-    "name": "益职 AI",
+    "name": "\u76ca\u804c AI",
     "url": "https://ai-job-coach.xin"
   },
   "homepage": "https://ai-job-coach.xin",
@@ -21,18 +21,22 @@
   "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "interface": {
-    "displayName": "益职 AI",
-    "shortDescription": "把岗位、简历与面试变成可执行的求职作战计划",
-    "longDescription": "面向真实求职任务的 Agent 工作流：用经历证据诊断岗位匹配度，针对 JD 定制简历，进行模拟面试，并把真实面试复盘成弱项、训练任务和下一步行动。默认在本地处理材料，只有在用户明确同意后才同步到线上作战台。",
-    "developerName": "益职 AI",
+    "displayName": "\u76ca\u804c AI",
+    "shortDescription": "\u628a\u5c97\u4f4d\u3001\u7b80\u5386\u4e0e\u9762\u8bd5\u53d8\u6210\u53ef\u6267\u884c\u7684\u6c42\u804c\u4f5c\u6218\u8ba1\u5212",
+    "longDescription": "\u9762\u5411\u771f\u5b9e\u6c42\u804c\u4efb\u52a1\u7684 Agent \u5de5\u4f5c\u6d41\uff1a\u7528\u7ecf\u5386\u8bc1\u636e\u8bca\u65ad\u5c97\u4f4d\u5339\u914d\u5ea6\uff0c\u9488\u5bf9 JD \u5b9a\u5236\u7b80\u5386\uff0c\u8fdb\u884c\u6a21\u62df\u9762\u8bd5\uff0c\u5e76\u628a\u771f\u5b9e\u9762\u8bd5\u590d\u76d8\u6210\u5f31\u9879\u3001\u8bad\u7ec3\u4efb\u52a1\u548c\u4e0b\u4e00\u6b65\u884c\u52a8\u3002\u9ed8\u8ba4\u5728\u672c\u5730\u5904\u7406\u6750\u6599\uff0c\u53ea\u6709\u5728\u7528\u6237\u660e\u786e\u540c\u610f\u540e\u624d\u540c\u6b65\u5230\u7ebf\u4e0a\u4f5c\u6218\u53f0\u3002",
+    "developerName": "\u76ca\u804c AI",
     "category": "Productivity",
-    "capabilities": ["Read", "Interactive", "Write"],
+    "capabilities": [
+      "Read",
+      "Interactive",
+      "Write"
+    ],
     "websiteURL": "https://ai-job-coach.xin",
     "privacyPolicyURL": "https://ai-job-coach.xin/privacy",
     "defaultPrompt": [
-      "帮我判断现在最值得做的求职任务",
-      "分析这个 JD 和我的经历，找出关键匹配点与缺口",
-      "复盘这次面试，并生成下一轮训练计划"
+      "\u5e2e\u6211\u5224\u65ad\u73b0\u5728\u6700\u503c\u5f97\u505a\u7684\u6c42\u804c\u4efb\u52a1",
+      "\u5206\u6790\u8fd9\u4e2a JD \u548c\u6211\u7684\u7ecf\u5386\uff0c\u627e\u51fa\u5173\u952e\u5339\u914d\u70b9\u4e0e\u7f3a\u53e3",
+      "\u590d\u76d8\u8fd9\u6b21\u9762\u8bd5\uff0c\u5e76\u751f\u6210\u4e0b\u4e00\u8f6e\u8bad\u7ec3\u8ba1\u5212"
     ],
     "brandColor": "#F97316"
   }

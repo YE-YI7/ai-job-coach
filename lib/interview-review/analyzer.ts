@@ -48,6 +48,7 @@ export async function generateDiscussion(
   roleIds: ReviewRoleId[],
   resumeText?: string,
   jobDescription?: string,
+  knowledgeContext?: string,
 ): Promise<DiscussionResult> {
   const discussionRaw = await callLLM(
     [
@@ -55,7 +56,7 @@ export async function generateDiscussion(
       {
         role: "user",
         content: getMultiRoleDiscussionPrompt(
-          q.question, q.answer, roleIds, resumeText, q.index, jobDescription
+          q.question, q.answer, roleIds, resumeText, q.index, jobDescription, knowledgeContext
         ),
       },
     ],
@@ -93,6 +94,7 @@ export async function scoreAndRewrite(
   discussionSummary: string,
   resumeText?: string,
   jobDescription?: string,
+  knowledgeContext?: string,
 ): Promise<{ score: string; answerSkeleton: string[]; rewrittenAnswer: string }> {
   const [scoreRaw, rewriteRaw] = await Promise.all([
     callLLM(
@@ -100,7 +102,7 @@ export async function scoreAndRewrite(
         { role: "system", content: "你是面试评分专家。只输出评级字母。" },
         {
           role: "user",
-          content: getQuestionScorePrompt(q.question, q.answer, discussionSummary, jobDescription),
+          content: getQuestionScorePrompt(q.question, q.answer, discussionSummary, jobDescription, knowledgeContext),
         },
       ],
       { temperature: 0.2, maxTokens: 10, provider: "deepseek" }
@@ -111,7 +113,7 @@ export async function scoreAndRewrite(
         {
           role: "user",
           content: getAnswerRewritePrompt(
-            q.question, q.answer, discussionSummary, resumeText, jobDescription
+            q.question, q.answer, discussionSummary, resumeText, jobDescription, knowledgeContext
           ),
         },
       ],
@@ -143,16 +145,17 @@ export async function analyzeQuestion(
   q: ParsedQuestion,
   roleIds: ReviewRoleId[],
   resumeText?: string,
-  jobDescription?: string
+  jobDescription?: string,
+  knowledgeContext?: string,
 ): Promise<QuestionAnalysisResult> {
   // Step 1: 多角色讨论
   const { discussion, discussionSummary } = await generateDiscussion(
-    q, roleIds, resumeText, jobDescription
+    q, roleIds, resumeText, jobDescription, knowledgeContext
   );
 
   // Step 2: 并行打分 + 改写
   const { score, answerSkeleton, rewrittenAnswer } = await scoreAndRewrite(
-    q, discussionSummary, resumeText, jobDescription
+    q, discussionSummary, resumeText, jobDescription, knowledgeContext
   );
 
   // 从讨论中提取训练建议
@@ -196,6 +199,7 @@ export async function generateSummary(
   round: string,
   jobDescription?: string,
   resumeText?: string,
+  knowledgeContext?: string,
 ): Promise<ReviewSummary> {
   const summaryInput = buildSummaryInput(analysisResults);
 
@@ -204,7 +208,7 @@ export async function generateSummary(
       { role: "system", content: "你是面试复盘总教练。严格输出JSON。" },
       {
         role: "user",
-        content: getCoachSummaryPrompt(summaryInput, company, round, jobDescription, resumeText),
+        content: getCoachSummaryPrompt(summaryInput, company, round, jobDescription, resumeText, knowledgeContext),
       },
     ],
     { temperature: 0.4, maxTokens: 1000, provider: "deepseek" }

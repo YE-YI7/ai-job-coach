@@ -1,0 +1,59 @@
+{
+  "generated_at": "2026-08-17T00:00:00.000Z",
+  "current": {
+    "sources": 27,
+    "documents": 12,
+    "companies": 4,
+    "retrieval_evaluations": 30,
+    "documents_with_three_sources": 7,
+    "three_source_ratio": 0.583,
+    "by_platform": {
+      "github": 2,
+      "linkedin": 9,
+      "nowcoder": 7,
+      "reddit": 9
+    },
+    "by_confidence": {
+      "low": 5,
+      "medium": 7,
+      "high": 0
+    }
+  },
+  "practical_grade_target": {
+    "sources": 300,
+    "documents": 80,
+    "companies": 10,
+    "retrieval_evaluations": 100,
+    "three_source_ratio": 0.7
+  },
+  "thin_documents": [
+    {
+      "id": "pm.transition-from-engineering.v1",
+      "evidence_count": 2,
+      "confidence": "medium"
+    },
+    {
+      "id": "pm.job-search-funnel.v1",
+      "evidence_count": 2,
+      "confidence": "low"
+    },
+    {
+      "id": "pm.interview-core.v1",
+      "evidence_count": 2,
+      "confidence": "low"
+    },
+    {
+      "id": "swe.first-job-evidence.v1",
+      "evidence_count": 1,
+      "confidence": "medium"
+    },
+    {
+      "id": "pm.role-due-diligence.v1",
+      "evidence_count": 1,
+      "confidence": "low"
+    }
+  ],
+  "missing_requested_platforms": [
+    "xiaohongshu"
+  ]
+}

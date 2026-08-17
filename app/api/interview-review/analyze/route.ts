@@ -18,6 +18,7 @@ import {
   type QuestionAnalysisResult,
 } from "@/lib/interview-review/types";
 import { saveAnalysisResult } from "@/lib/interview-review/db";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 
 export const runtime = "nodejs";
 
@@ -48,17 +49,23 @@ export async function POST(req: Request) {
 
     // 选择参与角色
     const roleIds = selectRolesForRound(round || "", tags || []);
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "interview_review",
+      company,
+      query: `${round || ""} ${job_description?.slice(0, 180) || questions.slice(0, 2).map((item) => item.question).join(" ")}`,
+      limit: 6,
+    });
 
     // 逐题分析（串行，避免 API 限流）
     const analysisResults: QuestionAnalysisResult[] = [];
     for (const q of questions) {
-      const result = await analyzeQuestion(q, roleIds, resume_text, job_description);
+      const result = await analyzeQuestion(q, roleIds, resume_text, job_description, knowledge.contextText);
       analysisResults.push(result);
     }
 
     // 生成整场汇总
     const summary = await generateSummary(
-      analysisResults, company || "", round || "", job_description, resume_text
+      analysisResults, company || "", round || "", job_description, resume_text, knowledge.contextText
     );
 
     const rolesUsed = buildRolesUsed(roleIds);

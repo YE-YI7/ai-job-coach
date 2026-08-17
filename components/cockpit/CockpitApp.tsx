@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -13,6 +13,7 @@ import {
   Clock3,
   FileText,
   ListTodo,
+  Link2,
   LogOut,
   Menu,
   MessageSquareText,
@@ -20,6 +21,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  UploadCloud,
   X,
 } from "lucide-react";
 import type {
@@ -28,6 +30,8 @@ import type {
   OpportunityAction,
   RequirementEvidence,
 } from "@/lib/opportunities/types";
+import { TodayCoach } from "./TodayCoach";
+import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
@@ -71,6 +75,20 @@ function coverageTotal(opportunity: Opportunity) {
   return strong + weak + missing + unverified;
 }
 
+function useQuotaLabel(type: "resume" | "interview") {
+  const [label, setLabel] = useState("1 次额度");
+  useEffect(() => {
+    let active = true;
+    fetch("/api/quota/check").then((response) => response.json()).then((result) => {
+      const check = result?.checks?.[type];
+      if (!active || !check) return;
+      setLabel(check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [type]);
+  return label;
+}
+
 export function CockpitApp({
   initialOpportunities,
   userEmail,
@@ -84,16 +102,22 @@ export function CockpitApp({
   const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<CockpitTab>("overview");
+  const [surface, setSurface] = useState<"today" | "opportunity">("today");
   const [query, setQuery] = useState("");
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
   const [questionSnoozed, setQuestionSnoozed] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
 
   useEffect(() => {
+    if (dataMode === "demo") {
+      setLocalLoaded(true);
+      return;
+    }
     try {
       const stored = JSON.parse(window.localStorage.getItem(LOCAL_OPPORTUNITIES_KEY) || "[]") as Opportunity[];
       const valid = stored.filter((item) => item?.id && item?.company && item?.role);
@@ -106,13 +130,13 @@ export function CockpitApp({
     } finally {
       setLocalLoaded(true);
     }
-  }, []);
+  }, [dataMode]);
 
   useEffect(() => {
-    if (!localLoaded) return;
+    if (!localLoaded || dataMode === "demo") return;
     const local = opportunities.filter((item) => localIds.includes(item.id));
     window.localStorage.setItem(LOCAL_OPPORTUNITIES_KEY, JSON.stringify(local));
-  }, [localIds, localLoaded, opportunities]);
+  }, [dataMode, localIds, localLoaded, opportunities]);
 
   useEffect(() => {
     if (!localLoaded || dataMode !== "live") return;
@@ -153,33 +177,64 @@ export function CockpitApp({
     announce(localIds.includes(active.id) ? "行动已保存到当前浏览器" : "示例行动已完成；刷新后会恢复");
   };
 
-  const createOpportunity = async (input: NewOpportunityInput) => {
-    let analysis: Partial<Opportunity> | null = null;
-    try {
-      const response = await fetch("/api/opportunities/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const result = await response.json();
-      if (response.ok && result.ok) analysis = result.analysis;
-    } catch {
-      analysis = null;
+  const snoozeMentorAction = () => {
+    const focus = getTodayMentorPlan(opportunities).focus;
+    if (!focus?.opportunityId) {
+      announce("没有可延后的行动");
+      return;
     }
+    const until = new Date();
+    until.setDate(until.getDate() + 1);
+    until.setHours(10, 0, 0, 0);
+    setOpportunities((current) => current.map((opportunity) => opportunity.id !== focus.opportunityId ? opportunity : {
+      ...opportunity,
+      mentorSnoozes: [
+        ...(opportunity.mentorSnoozes || []).filter((item) => item.actionId !== focus.id),
+        { actionId: focus.id, until: until.toISOString() },
+      ],
+      activities: [{
+        id: `${opportunity.id}-snooze-${Date.now()}`,
+        actor: "user" as const,
+        title: "将导师行动延后到明天",
+        detail: focus.title,
+        timeLabel: "刚刚",
+      }, ...opportunity.activities],
+    }));
+    announce("已延后到明天 10:00；导师会先安排其他更紧急的事");
+  };
+
+  const createOpportunity = async (intake: OpportunityIntake) => {
+    const requestBody = intake.file ? new FormData() : null;
+    if (requestBody) {
+      requestBody.set("file", intake.file as File);
+      if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
+    }
+    const response = await fetch("/api/opportunities/analyze", {
+      method: "POST",
+      headers: requestBody ? undefined : { "Content-Type": "application/json" },
+      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok || !result.input) throw new Error(result.error || "材料暂时读不了，请重试");
+
+    const input = result.input as NewOpportunityInput;
+    const analysis = result.analysis as Partial<Opportunity>;
 
     const localId = `web-${Date.now()}`;
     const opportunityDraft: Omit<Opportunity, "id"> = {
+      workspaceType: input.workspaceType || "job",
       company: input.company.trim(),
       role: input.role.trim(),
       location: input.location.trim() || "地点待确认",
       stage: "evaluating",
-      stageLabel: "评估中",
+      stageLabel: input.workspaceType === "preparation" ? "准备中" : "评估中",
       priority: "medium",
-      sourceLabel: "网页手动录入",
+      sourceLabel: input.sourceLabel || "网页材料导入",
       capturedAtLabel: "刚刚",
       jdText: input.jdText.trim(),
       resumeText: input.resumeText.trim(),
-      nextEventLabel: "今天完成投递判断",
+      profileText: input.profileText?.trim(),
+      nextEventLabel: input.workspaceType === "preparation" ? "今天完成第一步" : "今天完成投递判断",
       recommendation: analysis?.recommendation ?? "prepare_then_apply",
       recommendationLabel: analysis?.recommendationLabel ?? "等待完成分析",
       recommendationReason: analysis?.recommendationReason ?? "岗位已收录。当前未形成可靠结论，请继续补充真实经历。",
@@ -230,7 +285,7 @@ export function CockpitApp({
       const response = await fetch("/api/coach/resume-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeText: active.resumeText, jobDescription: active.jdText }),
+        body: JSON.stringify({ resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "生成失败");
@@ -239,7 +294,7 @@ export function CockpitApp({
         resumeChanges: result.changes,
         activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已通过事实校验。`, timeLabel: "刚刚" }, ...item.activities],
       } : item));
-      announce(`${result.changes.length} 处建议已生成并完成事实校验`);
+      announce(`${result.changes.length} 处建议已生成并完成事实校验${typeof result.quota?.remaining === "number" ? ` · 剩余 ${result.quota.remaining} 次` : ""}`);
     } catch (error) {
       announce(error instanceof Error ? error.message : "简历生成失败");
     } finally {
@@ -270,10 +325,10 @@ export function CockpitApp({
     announce("已记录回答，并保留为待复核证据");
   };
 
-  const saveReview = (notes: string) => {
+  const saveReview = (round: string, notes: string) => {
     if (!active) return;
-    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "user", title: "提交面试复盘材料", detail: notes, timeLabel: "刚刚" }, ...item.activities] } : item));
-    announce("复盘材料已保存到这个岗位");
+    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "user", title: `提交${round}复盘材料`, detail: notes, timeLabel: "刚刚" }, ...item.activities] } : item));
+    announce(`${round}复盘材料已保存到这个岗位`);
   };
 
   const saveInterviewAnswer = (question: string, answer: string) => {
@@ -288,12 +343,35 @@ export function CockpitApp({
     router.refresh();
   };
 
-  if (!active && !creating) return <EmptyCockpit userEmail={userEmail} onCreate={() => setCreating(true)} onLogout={logout} />;
+  const openFromToday = (tab: CockpitTab) => {
+    setActiveTab(tab);
+    setCreating(false);
+    setSurface("opportunity");
+  };
+
+  if (surface === "today" && !creating) {
+    return (
+      <TodayCoach
+        opportunities={opportunities}
+        activeId={active?.id ?? ""}
+        accountLabel={compactAccountLabel(userEmail)}
+        notice={notice}
+        onSelect={(id) => { setActiveId(id); setQuestionSnoozed(false); }}
+        onOpenTab={openFromToday}
+        onCreate={() => { setCreateOrigin("today"); setCreating(true); setSurface("opportunity"); }}
+        onSnooze={snoozeMentorAction}
+        onFeedback={() => announce("已记录你的纠正；导师会重新检查判断依据")}
+        onShowRules={() => announce("跟踪、提醒与一致性检查免费；生成和模拟面试执行前明示额度")}
+      />
+    );
+  }
+
+  if (!active && !creating) return <EmptyCockpit userEmail={userEmail} onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} onLogout={logout} />;
 
   return (
     <main className={styles.shell}>
       <header className={styles.topbar}>
-        <Brand />
+        <div className={styles.detailBrand}><Brand /><button type="button" onClick={() => { setCreating(false); setSurface("today"); }}>返回今日</button></div>
         <div className={styles.topbarContext}>
           <span className={dataMode === "demo" ? styles.demoState : styles.liveState}>
             {creating ? "新建岗位" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
@@ -319,13 +397,13 @@ export function CockpitApp({
           onQueryChange={setQuery}
           localCount={localIds.length}
           onSelect={(id) => { setCreating(false); setActiveId(id); setActiveTab("overview"); setQuestionSnoozed(false); setMobileRail(null); }}
-          onCreate={() => { setCreating(true); setMobileRail(null); }}
+          onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
           onClose={() => setMobileRail(null)}
         />
 
         <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
-          {creating ? <NewOpportunityForm onCreate={createOpportunity} onCancel={() => setCreating(false)} /> : active && <>
-          {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => setCreating(true)} />}
+          {creating ? <NewOpportunityForm onCreate={createOpportunity} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
+          {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
           <OpportunityHeader opportunity={active} />
           <nav className={styles.tabs} aria-label="岗位机会内容">
             {tabs.map((tab) => (
@@ -335,7 +413,7 @@ export function CockpitApp({
                 aria-current={activeTab === tab.id ? "page" : undefined}
                 onClick={() => setActiveTab(tab.id)}
               >
-                {tab.label}
+                {active.workspaceType === "preparation" && tab.id === "evidence" ? "经历证据" : active.workspaceType === "preparation" && tab.id === "resume" ? "基础简历" : tab.label}
                 {tab.id === "evidence" && <span>{coverageTotal(active)}</span>}
                 {tab.id === "resume" && active.resumeChanges.length > 0 && <span>{active.resumeChanges.length}</span>}
               </button>
@@ -368,7 +446,8 @@ export function CockpitApp({
   );
 }
 
-type NewOpportunityInput = { company: string; role: string; location: string; jdText: string; resumeText: string };
+type NewOpportunityInput = { workspaceType?: "job" | "preparation"; company: string; role: string; location: string; jdText: string; resumeText: string; profileText?: string; sourceLabel?: string };
+type OpportunityIntake = { sourceText: string; file: File | null };
 
 function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: () => void; onLogout: () => void }) {
   return (
@@ -380,14 +459,14 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>
           <span className={styles.emptyIcon}><BriefcaseBusiness size={24} /></span>
-          <h1>从一个真实岗位开始</h1>
-          <p>粘贴 JD，选择性补充简历。益职会把投递判断、真实证据和下一步整理在这个网页里。</p>
-          <button className={styles.primaryButton} onClick={onCreate}><Plus size={16} />新建岗位机会</button>
+          <h1>把你手头的材料交给导师</h1>
+          <p>岗位链接、简历、经历材料或求职目标都可以。先不用整理格式，益职会识别你现在处于哪一步。</p>
+          <button className={styles.primaryButton} onClick={onCreate}><Plus size={16} />交一份现有材料</button>
         </div>
         <ol className={styles.onboardingSteps}>
-          <li><strong>收录岗位</strong><span>公司、职位和 JD 一次建档。</span></li>
-          <li><strong>核对真实证据</strong><span>数字和职责边界由你确认，不会被擅自补全。</span></li>
-          <li><strong>在网页里继续推进</strong><span>审简历、练面试、做复盘，不需要跳回聊天。</span></li>
+          <li><strong>你只管给原始材料</strong><span>链接、文字或文件，任选一种。</span></li>
+          <li><strong>导师先判断阶段</strong><span>识别岗位、简历或准备目标。</span></li>
+          <li><strong>只问真正影响判断的问题</strong><span>不确定的事实再向你确认。</span></li>
         </ol>
       </section>
     </main>
@@ -425,36 +504,89 @@ function OpportunityRail({ activeId, opportunities, totalCount, localCount, quer
         ))}
         {opportunities.length === 0 && <div className={styles.emptySearch}><Search size={18} /><span>没有匹配的岗位</span><button onClick={() => onQueryChange("")}>清除搜索</button></div>}
       </div>
-      <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>新建岗位</strong><small>直接粘贴 JD 开始</small></span></button>
+      <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>添加材料</strong><small>岗位、简历或目标</small></span></button>
     </aside>
   );
 }
 
-function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (input: NewOpportunityInput) => Promise<void>; onCancel: () => void }) {
-  const [input, setInput] = useState<NewOpportunityInput>({ company: "", role: "", location: "", jdText: "", resumeText: "" });
+function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: OpportunityIntake) => Promise<void>; onCancel: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [sourceText, setSourceText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const canSubmit = input.company.trim() && input.role.trim() && input.jdText.trim();
-  const update = (key: keyof NewOpportunityInput, value: string) => setInput((current) => ({ ...current, [key]: value }));
+  const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState("");
+  const canSubmit = Boolean(sourceText.trim() || file);
+
+  const chooseFile = (candidate?: File) => {
+    if (!candidate) return;
+    const supported = /\.(pdf|docx|txt|md)$/i.test(candidate.name);
+    if (!supported) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
+    if (candidate.size > 10 * 1024 * 1024) return setError("文件不能超过 10MB");
+    setFile(candidate);
+    setError("");
+  };
+
   return (
     <div className={styles.createPage}>
-      <div className={styles.createIntro}><span>新岗位</span><h1>先把机会建起来</h1><p>仅公司、职位和 JD 是必填项。简历可以之后再补，不用一次填完所有资料。</p></div>
-      <form className={styles.createForm} onSubmit={async (event) => { event.preventDefault(); if (!canSubmit || submitting) return; setSubmitting(true); await onCreate(input); setSubmitting(false); }}>
-        <div className={styles.formGrid}>
-          <label><span>公司</span><input required value={input.company} onChange={(event) => update("company", event.target.value)} placeholder="例如：字节跳动" /></label>
-          <label><span>职位</span><input required value={input.role} onChange={(event) => update("role", event.target.value)} placeholder="例如：AI 产品经理" /></label>
+      <div className={styles.createIntro}>
+        <h1>把你手头的东西交给我。</h1>
+        <p>岗位链接、JD、简历、经历材料或求职目标都可以。我先识别你在哪一步，再安排下一步。</p>
+      </div>
+      <form
+        className={styles.createForm}
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (!canSubmit || submitting) return;
+          setSubmitting(true);
+          setError("");
+          try {
+            await onCreate({ sourceText, file });
+          } catch (submitError) {
+            setError(submitError instanceof Error ? submitError.message : "材料暂时读不了，请重试");
+          } finally {
+            setSubmitting(false);
+          }
+        }}
+      >
+        <div
+          className={`${styles.intakeComposer} ${dragging ? styles.intakeDragging : ""}`}
+          onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
+          onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files[0]); }}
+        >
+          <div className={styles.intakePrompt}><Link2 size={18} /><span>链接、文字或文件</span></div>
+          <textarea
+            value={sourceText}
+            onChange={(event) => { setSourceText(event.target.value); setError(""); }}
+            rows={8}
+            aria-label="求职材料内容"
+            placeholder="粘贴岗位链接、JD、简历片段，或直接写：我想找 AI 产品经理……"
+            autoFocus
+          />
+          {file && <div className={styles.fileChip}><UploadCloud size={16} /><span>{file.name}</span><button type="button" onClick={() => { setFile(null); if (inputRef.current) inputRef.current.value = ""; }} aria-label={`移除 ${file.name}`}><X size={14} /></button></div>}
+          <div className={styles.intakeFooter}>
+            <label className={styles.attachButton}>
+              <UploadCloud size={16} />选择文件
+              <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => chooseFile(event.target.files?.[0])} />
+            </label>
+            <span>也可以直接拖进来 · 10MB 以内</span>
+          </div>
         </div>
-        <label><span>地点 <i>可选</i></span><input value={input.location} onChange={(event) => update("location", event.target.value)} placeholder="例如：北京 · 混合办公" /></label>
-        <label><span>岗位 JD</span><textarea required value={input.jdText} onChange={(event) => update("jdText", event.target.value)} placeholder="粘贴完整职位描述…" rows={9} /></label>
-        <label><span>简历或经历概览 <i>可选</i></span><textarea value={input.resumeText} onChange={(event) => update("resumeText", event.target.value)} placeholder="粘贴和这个岗位相关的经历；也可稍后再补。" rows={6} /></label>
-        <p className={styles.localDataNote}><ShieldCheck size={16} />新建岗位会保存在当前浏览器。账号云同步尚未开启。</p>
-        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>取消</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在分析…" : "创建并分析"}<ArrowRight size={16} /></button></div>
+        <div className={styles.mentorPromise}>
+          <ShieldCheck size={18} />
+          <p><strong>我会先替你判断：</strong>这是岗位、简历还是求职目标，再建对应档案，只追问会影响下一步的内容。</p>
+        </div>
+        {error && <p className={styles.intakeError} role="alert">{error}</p>}
+        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在读材料…" : "让导师整理"}<ArrowRight size={16} /></button></div>
       </form>
     </div>
   );
 }
 
 function CreationRail() {
-  return <aside className={styles.actionRail}><div className={styles.railHeading}><div><h2>这一步做什么</h2><p>只收录判断必需的信息</p></div></div><ol className={styles.creationGuide}><li><strong>填完公司、职位和 JD</strong><span>先建立岗位档案。</span></li><li><strong>有简历就一起粘贴</strong><span>没有也不会阻断创建。</span></li><li><strong>完成后直接进入作战盘</strong><span>后续补证据、审简历和面试都在网页里做。</span></li></ol></aside>;
+  return <aside className={styles.actionRail}><div className={styles.railHeading}><div><h2>不用先整理</h2><p>原始材料就够了</p></div></div><ol className={styles.creationGuide}><li><strong>你提供</strong><span>一个公开链接、一段 JD 或一份文件。</span></li><li><strong>导师处理</strong><span>识别信息，拆要求，建立岗位档案。</span></li><li><strong>需要时再问</strong><span>只追问会改变投递判断的事实。</span></li></ol></aside>;
 }
 
 function OpportunityHeader({ opportunity }: { opportunity: Opportunity }) {
@@ -498,7 +630,7 @@ function EvidenceTab({ opportunity }: { opportunity: Opportunity }) {
   const [showJd, setShowJd] = useState(false);
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>JD 要求与真实证据</h2><p>每条判断都能回到材料来源；待确认内容不会进入最终简历。</p></div><button className={styles.secondaryButton} disabled={!opportunity.jdText} title={opportunity.jdText ? undefined : "这个机会没有保存原始 JD"} onClick={() => setShowJd((value) => !value)}><FileText size={16} />{opportunity.jdText ? showJd ? "收起原始 JD" : "查看原始 JD" : "无原始 JD"}</button></div>
+      <div className={styles.pageIntro}><div><h2>{opportunity.workspaceType === "preparation" ? "已有经历与准备缺口" : "JD 要求与真实证据"}</h2><p>{opportunity.workspaceType === "preparation" ? "先建立真实经历底稿；拿到岗位后再逐条匹配 JD。" : "每条判断都能回到材料来源；待确认内容不会进入最终简历。"}</p></div>{opportunity.workspaceType !== "preparation" && <button className={styles.secondaryButton} disabled={!opportunity.jdText} title={opportunity.jdText ? undefined : "这个机会没有保存原始 JD"} onClick={() => setShowJd((value) => !value)}><FileText size={16} />{opportunity.jdText ? showJd ? "收起原始 JD" : "查看原始 JD" : "无原始 JD"}</button>}</div>
       {showJd && opportunity.jdText && <pre className={styles.rawJd}>{opportunity.jdText}</pre>}
       <div className={styles.evidenceTableHeader} aria-hidden="true"><span>岗位要求</span><span>证据判断</span><span>来源</span></div>
       <div className={styles.fullEvidenceList}>{opportunity.requirements.length ? opportunity.requirements.map((item) => <EvidenceRow key={item.id} item={item} />) : <EmptySection label="这个示例还没有证据矩阵。" />}</div>
@@ -518,9 +650,18 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
 }
 
 function ResumeTab({ opportunity, onUpdate, onGenerate, generating }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onGenerate: () => void; generating: boolean }) {
+  const quotaLabel = useQuotaLabel("resume");
+  if (opportunity.workspaceType === "preparation") {
+    return (
+      <section>
+        <div className={styles.pageIntro}><div><h2>基础简历</h2><p>这是后续所有岗位版本的事实底稿；拿到 JD 后再生成针对性版本。</p></div></div>
+        {opportunity.resumeText ? <pre className={styles.rawJd}>{opportunity.resumeText}</pre> : <EmptySection label="还没有识别到完整简历。继续添加经历材料，导师会合并到事实底稿。" />}
+      </section>
+    );
+  }
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 只能改写可追溯到原简历的事实；数字不一致会被拦截。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : opportunity.resumeChanges.length ? "重新生成" : "AI 生成岗位版本"}</button></div>
+      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 只能改写可追溯到原简历的事实；数字不一致会被拦截。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成" : "AI 生成岗位版本"} · ${quotaLabel}`}</button></div>
       <div className={styles.versionLine}><span>当前版本 V1</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
       <div className={styles.resumeChangeList}>{opportunity.resumeChanges.length ? opportunity.resumeChanges.map((change) => (
         <article key={change.id} className={styles.resumeChange}>
@@ -535,12 +676,13 @@ function ResumeTab({ opportunity, onUpdate, onGenerate, generating }: { opportun
 }
 
 function InterviewTab({ opportunity, onSave, onOpenRoundtable }: { opportunity: Opportunity; onSave: (question: string, answer: string) => void; onOpenRoundtable: () => void }) {
+  const quotaLabel = useQuotaLabel("interview");
   const [practicing, setPracticing] = useState(false);
   const [answer, setAnswer] = useState("");
   const currentQuestion = opportunity.interviewFocus[0];
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />快速练一题</button>}<button className={styles.primaryButton} onClick={onOpenRoundtable}><Sparkles size={16} />AI 模拟面试圆桌</button></div></div>
+      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />快速练一题（免费）</button>}<button className={styles.primaryButton} onClick={onOpenRoundtable}><Sparkles size={16} />AI 模拟面试圆桌 · {quotaLabel}</button></div></div>
       {practicing && currentQuestion && <section className={styles.practicePanel}><span>第 1 题 · 深挖薄弱证据</span><h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" /><div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>结束本轮</button><button className={styles.primaryButton} disabled={!answer.trim()} onClick={() => { onSave(currentQuestion.question, answer.trim()); setAnswer(""); }}>保存练习回答</button></div></section>}
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>
@@ -549,9 +691,27 @@ function InterviewTab({ opportunity, onSave, onOpenRoundtable }: { opportunity: 
   );
 }
 
-function ReviewTab({ onSave }: { onSave: (notes: string) => void }) {
+const interviewRounds = ["电话初筛", "一面", "二面", "三面", "终面", "HR 面"];
+
+function ReviewTab({ onSave }: { onSave: (round: string, notes: string) => void }) {
   const [notes, setNotes] = useState("");
-  return <section><div className={styles.pageIntro}><div><h2>面试复盘</h2><p>转写、笔记和零散回忆都可以，先还原发生了什么。</p></div></div><div className={styles.reviewComposer}><Sparkles size={22} /><h3>把这次面试留在岗位档案里</h3><p>可以直接粘贴逐字稿，也可只写你记得的问题和回答。</p><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={10} placeholder="例如：面试官先问了项目背景，然后追问准确率和转人工率如何取舍…" /><button className={styles.primaryButton} disabled={!notes.trim()} onClick={() => { onSave(notes.trim()); setNotes(""); }}>保存复盘材料<ArrowRight size={16} /></button></div></section>;
+  const [round, setRound] = useState("一面");
+  return (
+    <section>
+      <div className={styles.pageIntro}><div><h2>面试复盘</h2><p>先标记面试轮次，再记录发生了什么。</p></div></div>
+      <div className={styles.reviewComposer}>
+        <Sparkles size={22} />
+        <h3>这是第几面？</h3>
+        <p>轮次会和这次复盘一起留在岗位档案里。</p>
+        <div className={styles.roundPicker} role="group" aria-label="选择面试轮次">
+          {interviewRounds.map((item) => <button key={item} type="button" aria-pressed={round === item} onClick={() => setRound(item)}>{item}</button>)}
+        </div>
+        <label className={styles.reviewNotesLabel} htmlFor="review-notes">面试记录</label>
+        <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={10} placeholder="粘贴逐字稿，或写下你记得的问题和回答…" />
+        <button className={styles.primaryButton} disabled={!notes.trim()} onClick={() => { onSave(round, notes.trim()); setNotes(""); }}>保存{round}复盘<ArrowRight size={16} /></button>
+      </div>
+    </section>
+  );
 }
 
 function ActivityTab({ opportunity }: { opportunity: Opportunity }) {

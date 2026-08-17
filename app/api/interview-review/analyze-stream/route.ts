@@ -27,6 +27,7 @@ import {
   type QuestionAnalysisResult,
 } from "@/lib/interview-review/types";
 import { saveAnalysisResult } from "@/lib/interview-review/db";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 
 export const runtime = "nodejs";
 
@@ -77,6 +78,12 @@ export async function POST(req: Request) {
 
   // 选择参与角色
   const roleIds = selectRolesForRound(round || "", tags || []);
+  const knowledge = await buildAgentKnowledgeContext({
+    task: "interview_review",
+    company,
+    query: `${round || ""} ${job_description?.slice(0, 180) || questions.slice(0, 2).map((item) => item.question).join(" ")}`,
+    limit: 6,
+  });
 
   // 创建 SSE 流
   const stream = new ReadableStream({
@@ -104,7 +111,7 @@ export async function POST(req: Request) {
 
           // Step 1: 讨论
           const { discussion, discussionSummary } = await generateDiscussion(
-            q, roleIds, resume_text, job_description
+            q, roleIds, resume_text, job_description, knowledge.contextText
           );
 
           // 逐条推送讨论气泡
@@ -114,7 +121,7 @@ export async function POST(req: Request) {
 
           // Step 2: 打分 + 改写
           const { score, answerSkeleton, rewrittenAnswer } = await scoreAndRewrite(
-            q, discussionSummary, resume_text, job_description
+            q, discussionSummary, resume_text, job_description, knowledge.contextText
           );
 
           // 从讨论中提取训练建议
@@ -143,7 +150,7 @@ export async function POST(req: Request) {
 
         // 3. 生成并推送整场汇总
         const summary = await generateSummary(
-          analysisResults, company || "", round || "", job_description, resume_text
+          analysisResults, company || "", round || "", job_description, resume_text, knowledge.contextText
         );
         send("summary", summary);
 

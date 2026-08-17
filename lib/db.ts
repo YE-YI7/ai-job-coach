@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // 根据环境变量选择数据库客户端
 type DbClient = 
-  | { type: 'supabase'; from: (table: string) => any; [key: string]: any };
+  | { type: 'supabase'; from: (table: string) => any; rpc: (fn: string, args?: Record<string, unknown>) => any; [key: string]: any };
 
 let dbClient: DbClient | null = null;
 
@@ -32,7 +32,8 @@ export async function getDbClient(): Promise<DbClient | null> {
       // 添加 type: "supabase" 属性以满足自定义类型要求，同时保留所有原生功能（from 方法等）
       dbClient = {
         ...supabaseClient,
-        from: supabaseClient.from, // 显式包含 from 方法，确保类型检查通过
+        from: supabaseClient.from.bind(supabaseClient),
+        rpc: supabaseClient.rpc.bind(supabaseClient),
         type: 'supabase' as const,
       };
       return dbClient;

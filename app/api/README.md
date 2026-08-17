@@ -541,75 +541,9 @@ curl -X POST http://localhost:3000/api/interview \
 
 #### `/api/interview/assess` (POST)
 
-**功能**：评估单个面试回答
+**状态**：已停用（HTTP 410）。旧接口只按字数和关键词生成固定分数，不能作为真实 AI 面试评估。
 
-**请求体**：
-```json
-{
-  "round": "业务面",
-  "question": "请介绍一下你最近负责的一个产品项目",
-  "answer": "我负责了一个用户增长项目，通过优化注册流程，将转化率提升了30%。"
-}
-```
-
-**返回**：
-```json
-{
-  "score": 75,
-  "breakdown": {
-    "accuracy": 75,
-    "completeness": 80,
-    "logic": 70,
-    "communication": 85
-  },
-  "feedback": {
-    "strengths": [
-      "回答较为详细，展现了良好的表达能力",
-      "回答切题，抓住了关键点"
-    ],
-    "improvements": [
-      "可以增加更多细节和具体案例"
-    ],
-    "overall": "回答基本符合要求，但仍有提升空间。"
-  },
-  "tips": {
-    "intent": "考察项目管理和执行能力，以及结果导向思维",
-    "keypoints": [
-      "项目背景",
-      "个人职责",
-      "关键成果",
-      "数据指标",
-      "复盘反思"
-    ]
-  }
-}
-```
-
-**cURL 测试代码**：
-```bash
-curl -X POST http://localhost:3000/api/interview/assess \
-  -H "Content-Type: application/json" \
-  -d '{
-    "round": "业务面",
-    "question": "请介绍一下你最近负责的一个产品项目",
-    "answer": "我负责了一个用户增长项目，通过优化注册流程，将转化率提升了30%。"
-  }'
-```
-
-**JavaScript/Fetch 测试代码**：
-```javascript
-const response = await fetch('/api/interview/assess', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    round: "业务面",
-    question: "请介绍一下你最近负责的一个产品项目",
-    answer: "我负责了一个用户增长项目，通过优化注册流程，将转化率提升了30%。"
-  })
-});
-const data = await response.json();
-console.log(data);
-```
+请改用 `/api/interview/start` 创建有岗位、轮次和简历上下文的会话，再通过 `/api/interview/answer` 提交回答。后者包含登录校验、知识库检索、AI 评估、并发幂等和额度记录。
 
 ---
 

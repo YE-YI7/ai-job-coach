@@ -38,7 +38,7 @@ export default function DynamicBoard({ parsedData, onUpdate }: DynamicBoardProps
   };
 
   const handleInterviewClick = (round: string) => {
-    router.push(`/chat/interview/${round}`);
+    router.push(`/interview/start?round=${encodeURIComponent(round)}&from=dynamic-board`);
   };
 
   // 如果没有数据，显示空状态
@@ -243,4 +243,3 @@ export default function DynamicBoard({ parsedData, onUpdate }: DynamicBoardProps
     </div>
   );
 }
-

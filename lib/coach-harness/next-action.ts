@@ -78,6 +78,17 @@ function actionCandidate(opportunity: Opportunity, action: OpportunityAction): M
 
 function interviewCandidate(opportunity: Opportunity, now: Date): MentorNextAction | null {
   if (opportunity.stage !== "interviewing") return null;
+  const scheduledTimestamp = opportunity.scheduledInterviewAt ? new Date(opportunity.scheduledInterviewAt).getTime() : null;
+  if (scheduledTimestamp !== null && Number.isFinite(scheduledTimestamp) && scheduledTimestamp < now.getTime()) {
+    return {
+      id: `${opportunity.id}:interview-review`, opportunityId: opportunity.id,
+      company: opportunity.company, role: opportunity.role,
+      title: "先复盘刚结束的面试",
+      reason: "趁记忆仍然清晰，先保存真实问题、回答和卡点，再安排下一轮训练。",
+      dueLabel: "现在", priority: 132,
+      actionType: "interview_review", tab: "review", cost: "credits", source: "system",
+    };
+  }
   const days = daysUntil(opportunity.scheduledInterviewAt, now);
   const label = days === null ? opportunity.nextEventLabel || "面试前" : days <= 0 ? "今天" : days === 1 ? "明天" : `${days} 天后`;
   const needsEvidence = opportunity.requirements.find((item) =>
@@ -151,6 +162,7 @@ export function planMentorActions(opportunities: Opportunity[], now = new Date()
   }
 
   const candidates = opportunities.flatMap((opportunity) => {
+    if (["won", "lost", "withdrawn", "archived"].includes(opportunity.stage)) return [];
     const interview = interviewCandidate(opportunity, now);
     const pending = opportunity.actions.filter((action) => action.status === "todo").map((action) => actionCandidate(opportunity, action));
     const fallback = pending.length || interview ? [] : [fallbackCandidate(opportunity)].filter(Boolean) as MentorNextAction[];

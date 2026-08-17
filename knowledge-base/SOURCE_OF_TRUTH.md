@@ -21,6 +21,11 @@
 | 内容社区产品 | `domains/product-management/content-community-product.md` | 内容机制、指标诊断、AIGC 治理 |
 | 本地服务与旅游产品 | `domains/product-management/local-service-and-travel-product.md` | 滴滴、携程、美团样本，覆盖线下履约 |
 | HR 面与职业选择 | `domains/product-management/hr-round-and-career-choice.md` | 动机、方向、短板与跨材料一致性 |
+| AI 产品项目答辩 | `domains/product-management/ai-product-project-defense.md` | 需求、责任、方案、评测、上线与复盘的端到端证据 |
+| 搜索推荐与广告 | `domains/product-management/search-recommendation-and-ads.md` | 供给、召回、排序、转化与生态护栏 |
+| 实验与指标诊断 | `domains/product-management/experiment-and-metric-diagnosis.md` | 指标口径、实验决策、归因与异动排查 |
+| 群面与方案答辩 | `domains/product-management/group-interview-and-defense.md` | 有效贡献、估算、协作决策与方案质询 |
+| 创作者生态与内容治理 | `domains/product-management/creator-ecosystem-and-content-governance.md` | 创作、分发、消费、商业化与治理取舍 |
 | 产品案例面 | `domains/product-management/case-interview-live-reasoning.md` | 首版，3 个来源 |
 | 角色定位与故事库 | `domains/product-management/story-bank-and-positioning.md` | 首版，5 个来源 |
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |

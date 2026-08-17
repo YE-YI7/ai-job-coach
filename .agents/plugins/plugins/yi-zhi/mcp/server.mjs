@@ -493,7 +493,7 @@ async function handle(message) {
       return response(message.id, {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yi-zhi", version: "0.5.2" },
+        serverInfo: { name: "yi-zhi", version: "0.5.5" },
         instructions: "Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product."
       });
     }

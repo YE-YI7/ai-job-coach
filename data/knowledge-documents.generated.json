@@ -1783,6 +1783,509 @@
           "summary": "快手商业化产品旧样本，围绕线索跟进、广告主与达人撮合平台、岗位优势和业务理解；用于生成商业平台能力追问。"
         }
       ]
+    },
+    {
+      "id": "pm.ai-product-project-defense.v1",
+      "title": "AI 产品项目的端到端答辩",
+      "path": "domains/product-management/ai-product-project-defense.md",
+      "description": "从需求、责任、方案、数据、评测、上线和复盘检查 AI 产品项目是否真实完整。",
+      "goal": "让 Agent 主动发现 AI 项目叙述中的证据缺口，并按端到端链路组织追问。",
+      "scope": "适用于 AI 产品、平台和解决方案岗位；不把演示、课程作业或内部试用升级为正式业务上线。",
+      "roles": [
+        "AI产品经理",
+        "大模型产品经理",
+        "平台产品经理",
+        "AI解决方案产品经理"
+      ],
+      "companies": [
+        "字节跳动",
+        "快手",
+        "美团"
+      ],
+      "stages": [
+        "简历",
+        "一面",
+        "二面",
+        "三面",
+        "业务面",
+        "技术面",
+        "模拟面试"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "AI 项目只讲模型和提示词",
+        "项目责任边界不清",
+        "评测集和数据来源说不清",
+        "无法证明真实业务使用"
+      ],
+      "do_not_use_when": [
+        "替用户编造指标或上线规模",
+        "把算法团队成果写成候选人责任",
+        "把单篇面经当固定题库"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/774942038419697664",
+        "https://www.nowcoder.com/discuss/796798981492711424",
+        "https://www.nowcoder.com/discuss/754731664261079040",
+        "https://ac.nowcoder.com/discuss/1607778?type=0",
+        "https://www.nowcoder.com/discuss/746067298896695296",
+        "https://www.nowcoder.com/feed/main/detail/19aa4b715471401c8392cfc9d3862a1b"
+      ],
+      "content": "# AI 产品项目的端到端答辩\n\nAI 产品面试通常不会停在“用了什么模型”。公开样本反复追问为什么做、数据从哪里来、为何选择该方案、如何评测、异常如何定位、是否真实进入业务以及候选人承担了什么责任。\n\n## Agent 先核对的事实\n\n1. 目标用户、场景和原始问题是否来自真实观察，而不是看到模型能力后反推需求。\n2. 候选人负责需求、数据、提示词、评测、交付或运营中的哪些部分，哪些由算法或工程负责。\n3. 为什么选择当前模型、RAG、提示词或工作流；试过哪些替代方案，边界是什么。\n4. 数据集的来源、规模、标注方式、切分方式和代表性是否可以说明。\n5. 离线评测、线上指标、失败样本和人工接管是否形成闭环。\n6. 产品是否上线、谁在使用、使用频率和反馈是什么；没有真实业务量时必须明确说明。\n\n## 回答结构\n\n- 问题：用户在什么任务中遇到什么损失。\n- 判断：为什么 AI 适合，为什么规则或人工不足。\n- 方案：模型、上下文、工具和交互如何分工。\n- 验证：评测集、指标、基线、坏案例和上线护栏。\n- 结果：只陈述能核验的使用或质量结果。\n- 复盘：最关键的失败、原因和下一轮实验。\n\n## 常见失分\n\n- 只讲模型名和提示词，没有用户问题。\n- 把算法团队的工作写成自己的产品责任。\n- 只报准确率，没有说明样本、口径、基线和风险。\n- 把演示、课程作业或内部试用描述成正式业务上线。\n- 面对失败样本只说“继续调 Prompt”，没有分层定位。\n\nAgent 应继续追问缺失事实，不替用户补项目规模、指标或责任边界。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/774942038419697664",
+          "title": "字节跳动大模型产品多轮面试实录",
+          "company": "字节跳动",
+          "published_at": "2025-07-16",
+          "summary": "字节大模型产品岗位个人多轮记录，从 AI 对话体验指标、评测集和模型选型，追问到标注质量、交付问题、业务使用量与豆包竞品判断。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/796798981492711424",
+          "title": "字节飞书大模型产品面试",
+          "company": "字节跳动",
+          "published_at": "2025-09-14",
+          "summary": "字节飞书相关大模型产品面经，围绕实习深挖、LLM 能力边界、企业协作场景、AI 伙伴评测集和 AI 原生功能设计。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/754731664261079040",
+          "title": "快手大模型 AIGC 平台产品一面",
+          "company": "快手",
+          "published_at": "2025-05-21",
+          "summary": "快手 AIGC 平台产品个人凉经，集中追问工具需求、需求验证、生成效果量化与指标设计，作者复盘认为逻辑深度和数据指标准备不足。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interviewer_guide",
+          "url": "https://ac.nowcoder.com/discuss/1607778?type=0",
+          "title": "面试官视角的大模型产品面试准备",
+          "company": null,
+          "published_at": null,
+          "summary": "自述业务面试官按三轮流程解释 AI 项目、提示词、评测、RAG 与微调、Agent、数据集和跨部门协作的追问重点；属于个人经验而非统一标准。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_guide",
+          "url": "https://www.nowcoder.com/discuss/746067298896695296",
+          "title": "AI 产品面试总结",
+          "company": null,
+          "published_at": "2025-04-30",
+          "summary": "AI 产品岗位准备总结，强调技术概念只是基础，回答仍需结合目标公司的业务方向、场景、商业价值和候选人的真实项目。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/feed/main/detail/19aa4b715471401c8392cfc9d3862a1b",
+          "title": "美团大模型方向产品经理面试",
+          "company": "美团",
+          "published_at": "2025-09-04",
+          "summary": "美团大模型方向个人面经，覆盖多产品优先级、跨团队带量、增长未达预期后的诊断，以及文生图默认比例和多轮内容一致性。"
+        }
+      ]
+    },
+    {
+      "id": "pm.search-recommendation-and-ads.v1",
+      "title": "搜索、推荐与广告产品的链路判断",
+      "path": "domains/product-management/search-recommendation-and-ads.md",
+      "description": "拆解搜索、推荐和广告的供给、召回、排序、展示、转化与治理链路。",
+      "goal": "让 Agent 检查候选人能否定位链路问题，并同时说明核心指标、体验和生态护栏。",
+      "scope": "适用于内容、电商、搜索、推荐和广告产品岗位；公开样本不代表平台当前算法或策略。",
+      "roles": [
+        "搜索产品经理",
+        "推荐产品经理",
+        "策略产品经理",
+        "广告产品经理",
+        "商业化产品经理",
+        "电商产品经理"
+      ],
+      "companies": [
+        "京东",
+        "百度",
+        "哔哩哔哩"
+      ],
+      "stages": [
+        "岗位判断",
+        "业务面",
+        "数据面",
+        "案例面试",
+        "面试准备"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备搜广推或流量策略岗位",
+        "只会报点击率和转化率",
+        "无法解释局部优化的长期风险",
+        "需要比较内容或电商平台"
+      ],
+      "do_not_use_when": [
+        "推测公司内部算法细节",
+        "把单一指标当唯一目标",
+        "编造平台流量或收入数据"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/799669364025720832",
+        "https://www.nowcoder.com/discuss/782665469810552832",
+        "https://www.nowcoder.com/discuss/717368",
+        "https://www.nowcoder.com/discuss/353155889081294848",
+        "https://www.nowcoder.com/discuss/353157114082304000"
+      ],
+      "content": "# 搜索、推荐与广告产品的链路判断\n\n搜索、推荐和广告岗位会把“懂指标”继续追问到供给、召回、排序、展示、转化和商业约束。面试回答需要明确优化的是哪段链路，以及局部提升是否伤害用户体验、内容生态或长期收入。\n\n## 链路拆解\n\n1. 目标：用户找内容、找商品、消费内容，还是广告主获得有效转化。\n2. 供给：内容或商品是否足够、质量如何、标签与结构化信息是否可用。\n3. 召回：哪些候选集进入，覆盖、相关性和新内容机会如何平衡。\n4. 排序：优化点击、停留、完播、转化、GMV 或收入中的哪些指标。\n5. 展示：列表、单列、双列、广告样式和解释信息如何影响行为。\n6. 治理：低质、误导、版权、过度商业化和冷启动如何处理。\n\n## 指标与护栏\n\n- 搜索：成功率、无结果率、改写率、点击与后续转化。\n- 内容推荐：有效消费、停留、完播、互动、负反馈和创作者覆盖。\n- 电商推荐：曝光、点击、成交、客单、退款、履约和复购。\n- 广告：有效转化、收入、相关性、跳出、负反馈和自然内容损失。\n\n不能因为点击率小幅上升就直接全量。Agent 要追问样本量、实验时长、用户分层、核心护栏和波动区间。\n\n## 场景题答法\n\n先定义用户与商业目标，再定位链路问题，提出一到两个机制改动，说明实验、灰度和停止条件。若题目要求比较平台，应从用户、供给、分发、交易或商业模式解释差异，不用“更年轻”“体验更好”等空泛描述。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/799669364025720832",
+          "title": "京东 JDS 电商技术产品一面",
+          "company": "京东",
+          "published_at": "2025-09-22",
+          "summary": "京东 JDS 搜索电商方向个人面经，覆盖搜广推系统、内容与货架电商、即时零售竞争、策略冲突和候选人的业务方向稳定性。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/782665469810552832",
+          "title": "百度产品经理商业模式三面",
+          "company": "百度",
+          "published_at": "2025-08-07",
+          "summary": "百度产品岗位个人三面记录，弱化简历基础题，集中讨论资讯、社交、工具、内容付费、搜索广告和 B/C 端商业模式。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/717368",
+          "title": "B 站流量策略产品社招面试",
+          "company": "哔哩哔哩",
+          "published_at": "2021-08-23",
+          "summary": "B 站流量策略产品旧样本，讨论视频与图文推荐差异、标签准确率、内容破圈、竞品定位和推荐标签体系。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353155889081294848",
+          "title": "B 站数据产品与实验面试",
+          "company": "哔哩哔哩",
+          "published_at": "2019-11-11",
+          "summary": "B 站产品旧样本，包含数据可视化、产品价值、A/B 实验决策、版本舆情、增长归因和 GMV 异动分析。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157114082304000",
+          "title": "B 站商业产品经理多轮面试",
+          "company": "哔哩哔哩",
+          "published_at": "2020-10-28",
+          "summary": "B 站商业产品旧样本，从岗位相关实习、商业化理解、广告联盟、平台竞品和 offer 选择验证业务理解与动机。"
+        }
+      ]
+    },
+    {
+      "id": "pm.experiment-and-metric-diagnosis.v1",
+      "title": "产品实验与指标异动诊断",
+      "path": "domains/product-management/experiment-and-metric-diagnosis.md",
+      "description": "把指标定义、实验决策、归因和异动诊断组织成可验证的分析路径。",
+      "goal": "让 Agent 阻止用户用模糊指标或共同变化证明项目结果，并生成有顺序的数据追问。",
+      "scope": "适用于产品、数据产品、增长和策略岗位；公开案例数值不作为行业基准。",
+      "roles": [
+        "产品经理",
+        "数据产品经理",
+        "增长产品经理",
+        "策略产品经理",
+        "AI产品经理"
+      ],
+      "companies": [
+        "哔哩哔哩",
+        "京东",
+        "字节跳动"
+      ],
+      "stages": [
+        "简历",
+        "业务面",
+        "数据面",
+        "案例面试",
+        "模拟面试",
+        "复盘"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "简历指标无法解释口径与归因",
+        "实验小幅提升就想全量",
+        "指标下降时只会罗列原因",
+        "AI 评测结果与预期不符"
+      ],
+      "do_not_use_when": [
+        "替用户补实验结果",
+        "把相关性写成因果",
+        "忽略样本量和数据质量"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/353155889081294848",
+        "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/774942038419697664",
+        "https://www.nowcoder.com/discuss/353157468702318592"
+      ],
+      "content": "# 产品实验与指标异动诊断\n\n产品面试中的数据题通常验证三件事：指标是否由目标推出、实验是否足以支持决策、结果不符合预期时能否定位到具体环节。\n\n## 指标定义\n\n- 先写业务或用户目标，再选一个核心指标。\n- 将核心指标拆成可行动的过程指标，明确分子、分母、时间窗口和去重方式。\n- 同时设置质量、风险和长期行为护栏。\n- 不把多个同期动作的共同变化分别归功于每个动作。\n\n## 实验判断\n\n1. 写清假设、目标人群和预期变化。\n2. 确认随机分流、样本量、周期和实验污染。\n3. 比较核心指标、护栏、不同用户层和波动。\n4. 结果显著也不等于可全量；仍需检查业务价值、成本和长期风险。\n5. 结果不显著时，区分假设错误、方案弱、触达不足、样本不足或数据异常。\n\n## 异动诊断\n\n先排数据口径和埋点，再按人群、渠道、场景、版本、时间和漏斗环节分层。定位异常层后，结合同期产品、运营、供给和外部事件提出可验证假设。\n\n回答“指标下降怎么办”时，不要直接列几十个原因。先说最短诊断路径、需要查看的数据、下一步实验和停止条件。\n\n## 证据边界\n\n公开面经中的数值和案例属于个体回答，不能作为行业基准。用户简历里的提升数字必须能说明口径、时间和归因，否则标记为待核验。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353155889081294848",
+          "title": "B 站数据产品与实验面试",
+          "company": "哔哩哔哩",
+          "published_at": "2019-11-11",
+          "summary": "B 站产品旧样本，包含数据可视化、产品价值、A/B 实验决策、版本舆情、增长归因和 GMV 异动分析。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+          "title": "京东产品经理面经：完整功能闭环",
+          "company": "京东",
+          "published_at": "2025-09-12",
+          "summary": "京东产品岗位近期个人复盘，用背景、需求来源、价值评估、功能设计、研发协作和上线指标讲一个功能；属于候选人方法总结，不代表官方评分标准。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/774942038419697664",
+          "title": "字节跳动大模型产品多轮面试实录",
+          "company": "字节跳动",
+          "published_at": "2025-07-16",
+          "summary": "字节大模型产品岗位个人多轮记录，从 AI 对话体验指标、评测集和模型选型，追问到标注质量、交付问题、业务使用量与豆包竞品判断。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157468702318592",
+          "title": "B 站直播后台产品多轮面试",
+          "company": "哔哩哔哩",
+          "published_at": "2021-01-09",
+          "summary": "B 站直播后台产品旧样本，讨论 UP 主生态、研发协作、实验和成本测算、直播商业化以及 B 端方向动机。"
+        }
+      ]
+    },
+    {
+      "id": "pm.group-interview-and-defense.v1",
+      "title": "产品群面与方案答辩",
+      "path": "domains/product-management/group-interview-and-defense.md",
+      "description": "训练群面中的有效贡献、协作决策、估算和方案质询，而不是机械抢角色。",
+      "goal": "让 Agent 能按贡献质量、结构、取舍和答辩表现进行模拟与复盘。",
+      "scope": "适用于产品群面、产培和方案答辩；不同公司流程会变化，需以当次通知为准。",
+      "roles": [
+        "产品经理",
+        "产品经理培训生",
+        "产品策划",
+        "产品运营"
+      ],
+      "companies": [
+        "腾讯"
+      ],
+      "stages": [
+        "群面",
+        "一面",
+        "案例面试",
+        "方案答辩",
+        "面试准备",
+        "复盘"
+      ],
+      "tasks": [
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备无领导群面",
+        "需要做方案 PPT 答辩",
+        "估算题只报数字",
+        "讨论中抢角色但没有有效贡献"
+      ],
+      "do_not_use_when": [
+        "保证必须抢 leader 或 reporter",
+        "预测具体群面题",
+        "用攻击性替代方案质询"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/658256692651520000",
+        "https://www.nowcoder.com/discuss/353158042537631744",
+        "https://www.nowcoder.com/discuss/353158363330584576",
+        "https://www.nowcoder.com/discuss/353155297189502976"
+      ],
+      "content": "# 产品群面与方案答辩\n\n产品群面不是抢到 leader、timer 或 reporter 就能通过。公开复盘更稳定的信号是：对题目有有效贡献、能纠偏、能推进决策，并在方案答辩中解释依据、取舍和成本。\n\n## 读题后的最小框架\n\n1. 目标：题目最终要求改善什么。\n2. 用户与场景：谁在什么情况下遇到什么问题。\n3. 约束：时间、成本、资源、合规和技术边界。\n4. 方案：先满足核心需求，再讨论增强项。\n5. 决策：说明优先级标准，而不是只投票。\n6. 验证：核心指标、风险护栏和下一步实验。\n\n## 讨论中的有效动作\n\n- 提出能改变方案质量的新事实或新框架。\n- 当讨论偏离题目时回到目标和约束。\n- 总结已经达成的共识、仍有争议的点和剩余时间。\n- 质疑方案时指出具体假设，并给可执行替代方案。\n- 不为了展示存在感重复他人的结论。\n\n## 方案答辩\n\n陈述顺序应是结论、依据、取舍、风险和验证。估算题重点是变量、口径和推导；信息不足时给区间并指出最敏感假设。面对反方追问，先复述争议点，再说明哪些证据会让自己改变判断。\n\nAgent 做模拟群面时，应评价贡献质量、协作、决策和答辩，不给“必须抢角色”的机械建议。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/658256692651520000",
+          "title": "腾讯产品经理培训生群面与方案面",
+          "company": "腾讯",
+          "published_at": "2024-09-01",
+          "summary": "腾讯产培个人凉经，记录群面后以 PPT 再次阐述方案、候选人相互质询、成本估算和方向选择，重点在论证而非抢角色。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_guide",
+          "url": "https://www.nowcoder.com/discuss/353158042537631744",
+          "title": "产品岗位群面与专业面攻略",
+          "company": null,
+          "published_at": "2021-01-01",
+          "summary": "产品岗位旧版面试攻略，主张群面以有效贡献、纠偏、推进和总结为核心，并给出用户、场景、需求、优先级和运营的方案框架。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353158363330584576",
+          "title": "腾讯云 AI 产品群面与商业估算",
+          "company": "腾讯",
+          "published_at": "2021-10-22",
+          "summary": "腾讯云 AI 业务旧样本，以司机人脸识别项目测算收入和行业复制性，要求候选人识别客户需求、调用频率、方案差异、成本和安全约束。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353155297189502976",
+          "title": "腾讯产品培训生方案答辩",
+          "company": "腾讯",
+          "published_at": "2019-08-25",
+          "summary": "腾讯产培旧样本，记录短视频方案 PPT 对抗、候选人互相质询和面试官追问，暴露方案内容、逻辑、定位和商业化取舍。"
+        }
+      ]
+    },
+    {
+      "id": "pm.creator-ecosystem-and-content-governance.v1",
+      "title": "创作者生态与内容治理",
+      "path": "domains/product-management/creator-ecosystem-and-content-governance.md",
+      "description": "从创作、理解、分发、消费、关系、商业和治理解释内容平台的生态取舍。",
+      "goal": "让 Agent 在内容岗位训练中同时考虑消费者、创作者、平台和治理团队。",
+      "scope": "当前证据集中在 B 站公开个人面经；只用于机制推理，不代表 B 站当前策略。",
+      "roles": [
+        "内容产品经理",
+        "社区产品经理",
+        "推荐产品经理",
+        "直播产品经理",
+        "商业化产品经理",
+        "AI产品经理"
+      ],
+      "companies": [
+        "哔哩哔哩"
+      ],
+      "stages": [
+        "岗位判断",
+        "业务面",
+        "数据面",
+        "案例面试",
+        "面试准备"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备内容社区或创作者平台岗位",
+        "破圈方案只看用户增长",
+        "标签或 AIGC 内容缺少治理",
+        "商业化忽略社区体验"
+      ],
+      "do_not_use_when": [
+        "预测平台当前题目",
+        "编造创作者收入和平台数据",
+        "只从消费者一侧评价生态"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/717368",
+        "https://www.nowcoder.com/discuss/612740271159209984",
+        "https://www.nowcoder.com/discuss/630011520683925504",
+        "https://www.nowcoder.com/discuss/353157468702318592",
+        "https://www.nowcoder.com/discuss/353157114082304000"
+      ],
+      "content": "# 创作者生态与内容治理\n\n内容社区产品不只服务消费者，也服务创作者、运营、商业团队和治理团队。增长、分发、商业化或 AIGC 改动都可能改变创作者激励和社区心智。\n\n## 生态链路\n\n- 创作：门槛、工具、版权、激励和反馈。\n- 理解：标签、质量、主题、风险和时效。\n- 分发：关注、搜索、推荐、冷启动和多样性。\n- 消费：点击、停留、完播、互动、收藏和负反馈。\n- 关系：用户与创作者、社区圈层和平台信任。\n- 商业：广告、直播、交易、付费和创作者收入。\n\n## 常见场景题\n\n### 破圈\n\n先明确想扩展的用户和内容供给，再设计入口与分发实验。护栏至少包含核心用户留存、负反馈、创作者覆盖和社区质量，不能只看新增或播放。\n\n### 标签准确率不足\n\n低准确率标签不应直接决定强分发。可通过模型与人工复核、创作者补充、弱特征使用、置信度阈值和申诉机制降低伤害。\n\n### AIGC 内容\n\n区分辅助创作与全生成，明确标识、版权、质量、重复内容和创作者激励。生成量不是成功指标，仍需观察有效消费、负反馈和治理成本。\n\n### 商业化\n\n商业内容必须与用户场景和社区规则匹配。收入提升同时要看自然内容损失、用户反感、创作者收益和长期留存。\n\n公开公司面经只用于提示可能的业务追问，不代表公司的当前策略或固定题目。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/717368",
+          "title": "B 站流量策略产品社招面试",
+          "company": "哔哩哔哩",
+          "published_at": "2021-08-23",
+          "summary": "B 站流量策略产品旧样本，讨论视频与图文推荐差异、标签准确率、内容破圈、竞品定位和推荐标签体系。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/612740271159209984",
+          "title": "B 站产品经理社区业务一面",
+          "company": "哔哩哔哩",
+          "published_at": "2024-04-24",
+          "summary": "B 站产品个人面经，重点验证平台使用深度、用户等级、内容偏好、破圈中的大众与小众平衡，以及视频版权治理。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/630011520683925504",
+          "title": "B 站产品经理 AIGC 与社区一面",
+          "company": "哔哩哔哩",
+          "published_at": "2024-06-11",
+          "summary": "B 站产品岗位个人记录，从 AIGC 项目和指标深挖转到平台使用、内容品类及与小红书的差异，体现 AI 能力与社区理解的交叉考察。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157468702318592",
+          "title": "B 站直播后台产品多轮面试",
+          "company": "哔哩哔哩",
+          "published_at": "2021-01-09",
+          "summary": "B 站直播后台产品旧样本，讨论 UP 主生态、研发协作、实验和成本测算、直播商业化以及 B 端方向动机。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157114082304000",
+          "title": "B 站商业产品经理多轮面试",
+          "company": "哔哩哔哩",
+          "published_at": "2020-10-28",
+          "summary": "B 站商业产品旧样本，从岗位相关实习、商业化理解、广告联盟、平台竞品和 offer 选择验证业务理解与动机。"
+        }
+      ]
     }
   ]
 }

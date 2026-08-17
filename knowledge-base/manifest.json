@@ -479,6 +479,125 @@
         "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
         "https://www.nowcoder.com/discuss/353157046684033024"
       ]
+    },
+    {
+      "id": "pm.ai-product-project-defense.v1",
+      "title": "AI 产品项目的端到端答辩",
+      "path": "domains/product-management/ai-product-project-defense.md",
+      "description": "从需求、责任、方案、数据、评测、上线和复盘检查 AI 产品项目是否真实完整。",
+      "goal": "让 Agent 主动发现 AI 项目叙述中的证据缺口，并按端到端链路组织追问。",
+      "scope": "适用于 AI 产品、平台和解决方案岗位；不把演示、课程作业或内部试用升级为正式业务上线。",
+      "roles": ["AI产品经理", "大模型产品经理", "平台产品经理", "AI解决方案产品经理"],
+      "companies": ["字节跳动", "快手", "美团"],
+      "stages": ["简历", "一面", "二面", "三面", "业务面", "技术面", "模拟面试"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["AI 项目只讲模型和提示词", "项目责任边界不清", "评测集和数据来源说不清", "无法证明真实业务使用"],
+      "do_not_use_when": ["替用户编造指标或上线规模", "把算法团队成果写成候选人责任", "把单篇面经当固定题库"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/774942038419697664",
+        "https://www.nowcoder.com/discuss/796798981492711424",
+        "https://www.nowcoder.com/discuss/754731664261079040",
+        "https://ac.nowcoder.com/discuss/1607778?type=0",
+        "https://www.nowcoder.com/discuss/746067298896695296",
+        "https://www.nowcoder.com/feed/main/detail/19aa4b715471401c8392cfc9d3862a1b"
+      ]
+    },
+    {
+      "id": "pm.search-recommendation-and-ads.v1",
+      "title": "搜索、推荐与广告产品的链路判断",
+      "path": "domains/product-management/search-recommendation-and-ads.md",
+      "description": "拆解搜索、推荐和广告的供给、召回、排序、展示、转化与治理链路。",
+      "goal": "让 Agent 检查候选人能否定位链路问题，并同时说明核心指标、体验和生态护栏。",
+      "scope": "适用于内容、电商、搜索、推荐和广告产品岗位；公开样本不代表平台当前算法或策略。",
+      "roles": ["搜索产品经理", "推荐产品经理", "策略产品经理", "广告产品经理", "商业化产品经理", "电商产品经理"],
+      "companies": ["京东", "百度", "哔哩哔哩"],
+      "stages": ["岗位判断", "业务面", "数据面", "案例面试", "面试准备"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备搜广推或流量策略岗位", "只会报点击率和转化率", "无法解释局部优化的长期风险", "需要比较内容或电商平台"],
+      "do_not_use_when": ["推测公司内部算法细节", "把单一指标当唯一目标", "编造平台流量或收入数据"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/799669364025720832",
+        "https://www.nowcoder.com/discuss/782665469810552832",
+        "https://www.nowcoder.com/discuss/717368",
+        "https://www.nowcoder.com/discuss/353155889081294848",
+        "https://www.nowcoder.com/discuss/353157114082304000"
+      ]
+    },
+    {
+      "id": "pm.experiment-and-metric-diagnosis.v1",
+      "title": "产品实验与指标异动诊断",
+      "path": "domains/product-management/experiment-and-metric-diagnosis.md",
+      "description": "把指标定义、实验决策、归因和异动诊断组织成可验证的分析路径。",
+      "goal": "让 Agent 阻止用户用模糊指标或共同变化证明项目结果，并生成有顺序的数据追问。",
+      "scope": "适用于产品、数据产品、增长和策略岗位；公开案例数值不作为行业基准。",
+      "roles": ["产品经理", "数据产品经理", "增长产品经理", "策略产品经理", "AI产品经理"],
+      "companies": ["哔哩哔哩", "京东", "字节跳动"],
+      "stages": ["简历", "业务面", "数据面", "案例面试", "模拟面试", "复盘"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["简历指标无法解释口径与归因", "实验小幅提升就想全量", "指标下降时只会罗列原因", "AI 评测结果与预期不符"],
+      "do_not_use_when": ["替用户补实验结果", "把相关性写成因果", "忽略样本量和数据质量"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/353155889081294848",
+        "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/774942038419697664",
+        "https://www.nowcoder.com/discuss/353157468702318592"
+      ]
+    },
+    {
+      "id": "pm.group-interview-and-defense.v1",
+      "title": "产品群面与方案答辩",
+      "path": "domains/product-management/group-interview-and-defense.md",
+      "description": "训练群面中的有效贡献、协作决策、估算和方案质询，而不是机械抢角色。",
+      "goal": "让 Agent 能按贡献质量、结构、取舍和答辩表现进行模拟与复盘。",
+      "scope": "适用于产品群面、产培和方案答辩；不同公司流程会变化，需以当次通知为准。",
+      "roles": ["产品经理", "产品经理培训生", "产品策划", "产品运营"],
+      "companies": ["腾讯"],
+      "stages": ["群面", "一面", "案例面试", "方案答辩", "面试准备", "复盘"],
+      "tasks": ["mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备无领导群面", "需要做方案 PPT 答辩", "估算题只报数字", "讨论中抢角色但没有有效贡献"],
+      "do_not_use_when": ["保证必须抢 leader 或 reporter", "预测具体群面题", "用攻击性替代方案质询"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/658256692651520000",
+        "https://www.nowcoder.com/discuss/353158042537631744",
+        "https://www.nowcoder.com/discuss/353158363330584576",
+        "https://www.nowcoder.com/discuss/353155297189502976"
+      ]
+    },
+    {
+      "id": "pm.creator-ecosystem-and-content-governance.v1",
+      "title": "创作者生态与内容治理",
+      "path": "domains/product-management/creator-ecosystem-and-content-governance.md",
+      "description": "从创作、理解、分发、消费、关系、商业和治理解释内容平台的生态取舍。",
+      "goal": "让 Agent 在内容岗位训练中同时考虑消费者、创作者、平台和治理团队。",
+      "scope": "当前证据集中在 B 站公开个人面经；只用于机制推理，不代表 B 站当前策略。",
+      "roles": ["内容产品经理", "社区产品经理", "推荐产品经理", "直播产品经理", "商业化产品经理", "AI产品经理"],
+      "companies": ["哔哩哔哩"],
+      "stages": ["岗位判断", "业务面", "数据面", "案例面试", "面试准备"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备内容社区或创作者平台岗位", "破圈方案只看用户增长", "标签或 AIGC 内容缺少治理", "商业化忽略社区体验"],
+      "do_not_use_when": ["预测平台当前题目", "编造创作者收入和平台数据", "只从消费者一侧评价生态"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/717368",
+        "https://www.nowcoder.com/discuss/612740271159209984",
+        "https://www.nowcoder.com/discuss/630011520683925504",
+        "https://www.nowcoder.com/discuss/353157468702318592",
+        "https://www.nowcoder.com/discuss/353157114082304000"
+      ]
     }
   ]
 }

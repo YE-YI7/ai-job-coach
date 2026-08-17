@@ -98,5 +98,20 @@
   {"id":"job-agent-memory","task":"career_coaching","query":"求职Agent如何用长期事实岗位记忆和近期上下文保持跨阶段一致","role":"AI产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1"]},
   {"id":"job-agent-proactive-reminder","task":"career_coaching","query":"面试临近时Agent应该主动发现缺口推荐模拟面试并只给一个今日任务","role":"产品经理","stage":"面试准备","expected_any":["pm.ai-assisted-job-search-system.v1"]},
   {"id":"china-ai-work-sample","task":"resume_tailoring","query":"国内AI产品岗位如何用真实可访问原型技术选择评测和个人贡献证明能力","role":"AI产品经理","stage":"简历","expected_any":["pm.china-ai-pm-company-signals.v1","pm.ai-pm-technical-business-loop.v1"]},
-  {"id":"xiaomi-ai-retail","task":"mock_interview","query":"小米门店AI销售工具如何同时衡量效率准确率消费者体验和销售结果","role":"AI产品经理","company":"小米","stage":"案例面试","expected_any":["pm.platform-and-service-product.v1"]}
+  {"id":"xiaomi-ai-retail","task":"mock_interview","query":"小米门店AI销售工具如何同时衡量效率准确率消费者体验和销售结果","role":"AI产品经理","company":"小米","stage":"案例面试","expected_any":["pm.platform-and-service-product.v1"]},
+  {"id":"ai-defense-responsibility","task":"answer_assessment","query":"AI项目讲了模型能力但说不清自己的责任边界、决策和协作","role":"AI产品经理","stage":"业务面","expected_any":["pm.ai-product-project-defense.v1"]},
+  {"id":"ai-defense-eval-data","task":"mock_interview","query":"AI产品项目的评测集从哪里来，如何覆盖坏例和失败成本","role":"大模型产品经理","stage":"技术面","expected_any":["pm.ai-product-project-defense.v1"]},
+  {"id":"ai-defense-demo-boundary","task":"resume_tailoring","query":"课程作业和内部演示不能写成正式上线，简历如何准确呈现AI项目证据","role":"AI产品经理","stage":"简历","expected_any":["pm.ai-product-project-defense.v1"]},
+  {"id":"search-chain-diagnosis","task":"mock_interview","query":"搜索转化下降如何沿供给召回排序展示和下游转化定位问题","role":"搜索产品经理","stage":"案例面试","expected_any":["pm.search-recommendation-and-ads.v1"]},
+  {"id":"recommendation-guardrails","task":"answer_assessment","query":"推荐策略只优化点击率会伤害哪些长期体验和生态指标","role":"推荐产品经理","stage":"数据面","expected_any":["pm.search-recommendation-and-ads.v1"]},
+  {"id":"ads-trust-tradeoff","task":"job_analysis","query":"广告商业化增长如何同时考虑收入、用户信任和内容生态","role":"广告产品经理","stage":"岗位判断","expected_any":["pm.search-recommendation-and-ads.v1"]},
+  {"id":"experiment-causality","task":"answer_assessment","query":"简历说改版后指标上涨，但没有实验对照和归因证据怎么办","role":"增长产品经理","stage":"简历","expected_any":["pm.experiment-and-metric-diagnosis.v1"]},
+  {"id":"metric-drop-order","task":"mock_interview","query":"核心指标突然下降，先核对口径还是先猜用户需求变化，排查顺序是什么","role":"数据产品经理","stage":"数据面","expected_any":["pm.experiment-and-metric-diagnosis.v1"]},
+  {"id":"experiment-small-uplift","task":"answer_assessment","query":"AB实验小幅提升是否应该立刻全量，需要检查哪些样本质量和护栏","role":"产品经理","stage":"业务面","expected_any":["pm.experiment-and-metric-diagnosis.v1"]},
+  {"id":"group-interview-contribution","task":"mock_interview","query":"无领导群面不抢leader也能通过哪些有效贡献推动团队决策","role":"产品经理培训生","stage":"群面","expected_any":["pm.group-interview-and-defense.v1"]},
+  {"id":"group-estimation","task":"answer_assessment","query":"群面估算题不能只报一个数字，如何说明口径假设和校验","role":"产品经理","stage":"群面","expected_any":["pm.group-interview-and-defense.v1"]},
+  {"id":"defense-opposition","task":"mock_interview","query":"产品方案答辩如何预判反方质询并解释商业化与产品定位的取舍","role":"产品经理培训生","stage":"方案答辩","expected_any":["pm.group-interview-and-defense.v1"]},
+  {"id":"creator-ecosystem","task":"mock_interview","query":"内容平台产品方案如何同时考虑消费者创作者平台和治理团队","role":"内容产品经理","stage":"业务面","expected_any":["pm.creator-ecosystem-and-content-governance.v1"]},
+  {"id":"creator-aigc-governance","task":"job_analysis","query":"创作者平台引入AIGC如何处理低质供给版权真实性和分发公平","role":"AI产品经理","stage":"岗位判断","expected_any":["pm.creator-ecosystem-and-content-governance.v1"]},
+  {"id":"creator-commercialization","task":"answer_assessment","query":"内容社区商业化方案只讲收入，没有创作者激励和社区体验护栏","role":"商业化产品经理","stage":"案例面试","expected_any":["pm.creator-ecosystem-and-content-governance.v1"]}
 ]

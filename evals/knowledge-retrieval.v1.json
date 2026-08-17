@@ -28,5 +28,20 @@
   {"id":"ai-role-realness","task":"job_analysis","query":"这个AI产品经理岗位到底有没有评测、发布和迭代决策权","role":"AI产品经理","stage":"反向面试","expected_any":["pm.ai-commercial-judgment.v1","pm.role-due-diligence.v1"]},
   {"id":"ai-cost-tradeoff","task":"job_analysis","query":"AI推理成本、延迟和错误率会不会抵消产品价值","role":"技术产品经理","stage":"岗位判断","expected_any":["pm.ai-commercial-judgment.v1"]},
   {"id":"ai-technical-explanation","task":"mock_interview","query":"从数据、检索、上下文、模型到反馈解释一个上线AI产品","role":"AI产品经理","stage":"技术面","expected_any":["pm.ai-product-interview-basics.v1","pm.ai-evaluation-and-operations.v1"]},
-  {"id":"ai-compliance","task":"mock_interview","query":"金融AI助手输出不合规内容后如何处理并防止回归","role":"AI产品经理","company":"Eltropy","stage":"一面","expected_any":["pm.ai-evaluation-and-operations.v1"]}
+  {"id":"ai-compliance","task":"mock_interview","query":"金融AI助手输出不合规内容后如何处理并防止回归","role":"AI产品经理","company":"Eltropy","stage":"一面","expected_any":["pm.ai-evaluation-and-operations.v1"]},
+  {"id":"pm-design-one-user","task":"mock_interview","query":"产品设计题怎么先选择一个核心用户和真实痛点","role":"产品经理","company":"Google","stage":"案例面试","expected_any":["pm.product-design-interview-reasoning.v1"]},
+  {"id":"pm-design-guardrail","task":"answer_assessment","query":"案例题只有北极星指标，没有护栏指标和失败信号","role":"APM","stage":"二面","expected_any":["pm.product-design-interview-reasoning.v1"]},
+  {"id":"pm-design-priority","task":"mock_interview","query":"用户痛点很多，面试现场如何说明优先级和取舍","role":"高级产品经理","stage":"案例面试","expected_any":["pm.product-design-interview-reasoning.v1"]},
+  {"id":"pm-design-ai-first","task":"mock_interview","query":"AI-first 产品设计题不能先讲模型，应该怎么展开","role":"AI产品经理","stage":"案例面试","expected_any":["pm.product-design-interview-reasoning.v1","pm.ai-commercial-judgment.v1"]},
+  {"id":"ai-pm-full-loop","task":"answer_assessment","query":"AI项目只讲了RAG和模型，没有场景、评测、上线和商业结果","role":"AI产品经理","stage":"业务面","expected_any":["pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"ai-pm-spec","task":"mock_interview","query":"怎样把模糊AI需求写成输入输出权限失败路径和验收标准","role":"大模型产品经理","stage":"技术面","expected_any":["pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"ai-pm-rag-agent","task":"mock_interview","query":"RAG MCP 和 Agent 分别解决什么产品问题，如何说明边界","role":"AI产品经理","stage":"技术面","expected_any":["pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"ai-pm-xhs-content","task":"job_analysis","query":"小红书大模型应用产品经理需要哪些内容社区场景和跨团队证据","role":"AI产品经理","company":"小红书","stage":"岗位判断","expected_any":["pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"ai-pm-devtool","task":"job_analysis","query":"代码生成和测试Agent产品经理如何证明研发效能产品能力","role":"开发者工具产品经理","company":"小红书","stage":"岗位判断","expected_any":["pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"ai-pm-pmf","task":"mock_interview","query":"AI产品PMF怎么判断，如何避免把新鲜感当成留存","role":"AI产品经理","stage":"业务面","expected_any":["pm.ai-pm-technical-business-loop.v1","pm.ai-commercial-judgment.v1"]},
+  {"id":"ai-pm-roi","task":"answer_assessment","query":"如何把人工成本、任务效率和新增收入写成AI产品ROI","role":"AI产品经理","stage":"业务面","expected_any":["pm.ai-pm-technical-business-loop.v1","pm.ai-commercial-judgment.v1"]},
+  {"id":"job-system-facts","task":"career_coaching","query":"我的简历故事和面试记录散落在多个对话，怎么保持事实一致","role":"产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1","pm.story-bank-and-positioning.v1"]},
+  {"id":"job-system-feedback","task":"interview_review","query":"真实面试问题如何回流到岗位档案并形成下一轮训练","role":"AI产品经理","stage":"复盘","expected_any":["pm.ai-assisted-job-search-system.v1"]},
+  {"id":"job-system-today","task":"career_coaching","query":"不要给我一堆待办，根据截止时间和证据缺口只安排今天最重要一步","role":"产品经理","stage":"投递","expected_any":["pm.ai-assisted-job-search-system.v1","shared.evidence-driven-job-search.v1"]},
+  {"id":"job-system-cost","task":"career_coaching","query":"求职Agent哪些跟踪能力应免费，哪些生成和模拟面试需要额度","role":"AI产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1"]}
 ]

@@ -877,6 +877,307 @@
           "summary": "AI 产品经理一面个人复盘，问题覆盖错误与不合规响应、上线后性能下降、少标注数据、发布节奏以及成功指标。属于单个公司和候选人的公开样本。"
         }
       ]
+    },
+    {
+      "id": "pm.product-design-interview-reasoning.v1",
+      "title": "产品设计案例面的现场判断",
+      "path": "domains/product-management/product-design-interview-reasoning.md",
+      "description": "训练产品设计案例中的用户选择、痛点定位、优先级、方案、指标和护栏，而不是背固定框架。",
+      "goal": "让 Agent 运行可追问的产品设计案例，并定位候选人在现场判断中的跳步和假设。",
+      "scope": "适用于产品设计、产品改进和 AI-first 产品案例；不预测具体公司的必考题。",
+      "roles": [
+        "产品经理",
+        "AI产品经理",
+        "APM",
+        "高级产品经理"
+      ],
+      "companies": [
+        "Google"
+      ],
+      "stages": [
+        "一面",
+        "二面",
+        "案例面试",
+        "模拟面试",
+        "复盘"
+      ],
+      "tasks": [
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "案例题一上来就堆功能",
+        "用户细分没有选择依据",
+        "指标没有护栏",
+        "需要训练时间压力下的结构化表达"
+      ],
+      "do_not_use_when": [
+        "把流程背成逐字答案",
+        "声称 Google 固定使用相同题目"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/lawrencehua_productmanagement-aiproductmanagement-activity-7425199511582535680-jrcI",
+        "https://www.linkedin.com/posts/prince-bhatt_productmanagement-apm-google-activity-7432063476732420097-Mcbt",
+        "https://www.reddit.com/r/ProductManagement/comments/1jh1yq3/is_pm_interviewing_going_the_leetcode_way/",
+        "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/"
+      ],
+      "content": "# 产品设计案例面的现场判断\n\n## 核心知识\n\n产品设计案例面首先验证“怎样选择问题”，其次才是“能想到什么功能”。可靠回答应在有限时间里收敛用户、目标和约束，再让优先级、方案、指标和风险互相对应。\n\n## 回答结构\n\n1. **澄清目标**：确认业务范围、主要用户、使用情境与不可违反的约束。\n2. **选择用户**：明确首要用户群和选择理由，不罗列所有可能人群。\n3. **定位痛点**：从完整任务路径中找阻断目标的关键问题，并区分证据与假设。\n4. **排列优先级**：说明影响、覆盖、信心和成本之间的取舍。\n5. **提出方案**：每个功能必须对应一个已选择的问题；先给最小闭环。\n6. **验证结果**：定义北极星指标、护栏指标、失败信号和下一轮实验。\n\n## Agent 应主动追问\n\n- 你为什么先服务这类用户，而不是其他用户？\n- 这个痛点来自观察、数据还是假设？\n- 如果只能做一项，为什么它最可能改变目标？\n- 哪个护栏指标能防止方案伤害体验或商业结果？\n\n## 边界\n\n公司流程和面试题会随团队、层级与时间变化。知识用于训练推理步骤，不用于背诵固定框架或预测 Google 等公司的必考题。",
+      "evidence": [
+        {
+          "platform": "linkedin",
+          "source_kind": "interview_experience",
+          "url": "https://www.linkedin.com/posts/lawrencehua_productmanagement-aiproductmanagement-activity-7425199511582535680-jrcI",
+          "title": "Google APM interview lessons",
+          "company": "Google",
+          "published_at": null,
+          "summary": "Google APM 候选人的多轮面试复盘，强调先选择一个清晰用户和真实痛点，再定义目标、北极星指标和护栏指标。属于单一候选人和流程样本。"
+        },
+        {
+          "platform": "linkedin",
+          "source_kind": "interview_experience",
+          "url": "https://www.linkedin.com/posts/prince-bhatt_productmanagement-apm-google-activity-7432063476732420097-Mcbt",
+          "title": "Google APM 2026 interview process",
+          "company": "Google",
+          "published_at": null,
+          "summary": "Google APM 2026 候选人的五轮流程复盘，一面直接进入产品设计问题，后续提高用户细分、优先级和取舍要求，并关注 AI-first 产品思考。"
+        },
+        {
+          "platform": "reddit",
+          "source_kind": "discussion",
+          "url": "https://www.reddit.com/r/ProductManagement/comments/1jh1yq3/is_pm_interviewing_going_the_leetcode_way/",
+          "title": "Is PM interviewing going the LeetCode way?",
+          "company": null,
+          "published_at": "2025-03-22",
+          "summary": "产品经理社区讨论不同公司案例面、跨职能 panel 和负责人面差异，提醒不要把单一框架或题库当成统一流程。"
+        },
+        {
+          "platform": "reddit",
+          "source_kind": "discussion",
+          "url": "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/",
+          "title": "Preparing for a product manager interview",
+          "company": null,
+          "published_at": null,
+          "summary": "产品经理社区围绕案例题、行为题和职业叙事的准备讨论。较稳定的做法是维护按能力分类的故事库，把框架作为思路导航而不是背诵脚本。"
+        }
+      ]
+    },
+    {
+      "id": "pm.ai-pm-technical-business-loop.v1",
+      "title": "AI 产品岗位的技术与商业闭环",
+      "path": "domains/product-management/ai-pm-technical-business-loop.md",
+      "description": "把 AI 产品岗位需要的场景选择、技术链路、产品规格、评测发布、商业结果和跨团队推进连成闭环。",
+      "goal": "让 Agent 判断候选人的 AI 项目是否形成从问题到上线结果的完整产品证据。",
+      "scope": "适用于 AI 产品、AIGC 产品、大模型应用和开发者工具岗位；面经与官方岗位要求必须区分。",
+      "roles": [
+        "AI产品经理",
+        "大模型产品经理",
+        "AIGC产品经理",
+        "开发者工具产品经理"
+      ],
+      "companies": [
+        "字节跳动",
+        "小红书",
+        "理想汽车",
+        "Interview Kickstart"
+      ],
+      "stages": [
+        "岗位判断",
+        "简历",
+        "业务面",
+        "技术面",
+        "终面",
+        "模拟面试"
+      ],
+      "tasks": [
+        "career_coaching",
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "项目只有模型名词没有产品闭环",
+        "岗位同时要求技术与商业判断",
+        "需要解释 RAG 或 Agent 的产品责任",
+        "准备 AI 产品多轮面试"
+      ],
+      "do_not_use_when": [
+        "编造项目技术深度",
+        "把岗位描述当成面经",
+        "把旧面经描述成近期固定流程"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/raj-aryan-62172a260_productmanager-interview-productmanager-activity-7431702987846295553-T0qH",
+        "https://www.reddit.com/r/ProductManagement/comments/1lp9tch/sr_product_manager_aialm/",
+        "https://www.nowcoder.com/discuss/891328632507932672?sourceSSR=enterprise",
+        "https://www.nowcoder.com/feed/main/detail/4884f587d071409696d32698fd8cb8a8?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/544891293344763904",
+        "https://job.xiaohongshu.com/campus/position/17465?referer_code=EJOZXFQLXGQA",
+        "https://job.xiaohongshu.com/social/position/17108"
+      ],
+      "content": "# AI 产品岗位的技术与商业闭环\n\n## 核心知识\n\nAI 产品岗位不是把传统 PM 题目加上模型名词。公开岗位与面试样本共同指向一条闭环：选择真实场景，理解数据和模型边界，把需求转成可实现规格，设计评测与发布机制，再用用户结果、业务结果、风险和成本决定是否继续。\n\n## 证据维度\n\n1. **场景选择**：说明任务为什么需要生成、理解或自主执行能力，并比较规则、人工和普通软件。\n2. **技术链路**：能解释数据、检索、上下文、模型、工具、Agent 循环与反馈分别解决什么问题。\n3. **产品规格**：把模糊需求转成输入、输出、权限、失败路径、人工接管和验收标准。\n4. **评测发布**：同时覆盖离线评测、在线任务完成、风险、延迟和单位任务成本。\n5. **商业结果**：说明 PMF、留存、付费、效率、成本或新增收入如何验证价值。\n6. **跨职能推进**：与算法、工程、设计、运营和合规共同处理可行性与上线取舍。\n\n## Agent 应主动追问\n\n- 项目里哪个判断确实由你负责，哪个由算法或工程负责？\n- 如果不用 AI，当前基线是什么，为什么仍值得做？\n- 模型升级后如何判断可以发布，失败时如何回滚？\n- 技术指标如何传导到用户任务和商业结果？\n\n## 边界\n\n面经属于个人经历，官方招聘页只说明岗位要求。两类证据可以交叉确认能力域，但不能据此声称某家公司所有团队使用相同流程、题目或评分标准。",
+      "evidence": [
+        {
+          "platform": "linkedin",
+          "source_kind": "interview_experience",
+          "url": "https://www.linkedin.com/posts/raj-aryan-62172a260_productmanager-interview-productmanager-activity-7431702987846295553-T0qH",
+          "title": "AI and ML product manager interview journey",
+          "company": "Interview Kickstart",
+          "published_at": null,
+          "summary": "AI/ML 产品岗位多轮面试复盘，覆盖项目与研究经历、指标和 prompt、机器学习基础、RAG、系统设计以及 LLM 现场原型。属于单个岗位样本。"
+        },
+        {
+          "platform": "reddit",
+          "source_kind": "discussion",
+          "url": "https://www.reddit.com/r/ProductManagement/comments/1lp9tch/sr_product_manager_aialm/",
+          "title": "Senior product manager AI and ML interview preparation",
+          "company": null,
+          "published_at": "2025-07-01",
+          "summary": "资深产品经理社区讨论 AI 岗位技术深度，包含模型定价、RAG、MCP、Agent 路由等准备焦虑；高赞回复提醒先判断问题是否真的需要 AI。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "guide",
+          "url": "https://www.nowcoder.com/discuss/891328632507932672?sourceSSR=enterprise",
+          "title": "AI 产品经理面经汇总与回答思路",
+          "company": null,
+          "published_at": "2026-06-03",
+          "summary": "牛客整理的 AI 产品岗位知识域，覆盖 PMF、AI 产品分层、A/B 测试、护城河和 ROI。属于平台汇总，不作为任何公司的固定题库。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/feed/main/detail/4884f587d071409696d32698fd8cb8a8?sourceSSR=dynamic",
+          "title": "理想 AI 产品经理面经",
+          "company": "理想汽车",
+          "published_at": null,
+          "summary": "理想汽车 AI 产品岗位公开面经拆解，包含岗位理解和职责等追问。只作为单一候选人样本，具体团队和时间需再次核验。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/544891293344763904",
+          "title": "字节 AIGC 产品经理四轮面试",
+          "company": "字节跳动",
+          "published_at": null,
+          "summary": "字节 AIGC 产品岗位 offer 候选人的四轮面试复盘，问题深度和侧重点随轮次变化，并追问真实 AIGC 项目和行业方向。发布时间较早，需与近期材料交叉使用。"
+        },
+        {
+          "platform": "xiaohongshu",
+          "source_kind": "official_job_posting",
+          "url": "https://job.xiaohongshu.com/campus/position/17465?referer_code=EJOZXFQLXGQA",
+          "title": "小红书 AI 产品经理实习生（大模型应用方向）",
+          "company": "小红书",
+          "published_at": null,
+          "summary": "小红书官方岗位描述，职责覆盖大模型、Agent、RAG、内容生成、推荐与社交场景，强调需求洞察、竞品与用户研究、PRD 和跨算法工程协作。它是岗位要求，不是面经。"
+        },
+        {
+          "platform": "xiaohongshu",
+          "source_kind": "official_job_posting",
+          "url": "https://job.xiaohongshu.com/social/position/17108",
+          "title": "小红书研效大模型产品经理",
+          "company": "小红书",
+          "published_at": null,
+          "summary": "小红书官方研效大模型产品岗位，负责 IDE 插件、代码生成、测试 Agent 与研发流程提效，要求技术产品理解、数据分析和真实业务落地。它是岗位要求，不是面经。"
+        }
+      ]
+    },
+    {
+      "id": "pm.ai-assisted-job-search-system.v1",
+      "title": "AI 辅助的岗位化求职系统",
+      "path": "domains/product-management/ai-assisted-job-search-system.md",
+      "description": "用统一事实底稿连接岗位、故事库、简历、模拟面试、真实反馈和主动下一步。",
+      "goal": "让 Agent 把每次求职动作沉淀为可复用状态，避免一次性对话和前后说法冲突。",
+      "scope": "适用于产品经理和 AI 产品经理的准备、投递、面试与复盘；不自动代替用户求职或保证结果。",
+      "roles": [
+        "AI产品经理",
+        "技术产品经理",
+        "产品经理"
+      ],
+      "companies": [
+        "Waymo"
+      ],
+      "stages": [
+        "准备",
+        "投递",
+        "简历",
+        "模拟面试",
+        "复盘"
+      ],
+      "tasks": [
+        "career_coaching",
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "材料分散在多个对话",
+        "模拟面试没有回到真实岗位",
+        "简历和面试说法冲突",
+        "需要主动安排今日动作"
+      ],
+      "do_not_use_when": [
+        "用 AI 批量生成虚构答案",
+        "把个人 offer 数字当成普遍效果"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/alexhadik_lessons-from-an-11-month-job-search-how-activity-7439788006519222272-GrLB",
+        "https://www.linkedin.com/posts/ericcheng26_aipm-productmanagement-aijobs-activity-7442608766174453760-Uwlz",
+        "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/",
+        "https://www.linkedin.com/posts/matthewpenti_jobsearch-hiring-recruiting-activity-7369053365072236547-JDze"
+      ],
+      "content": "# AI 辅助的岗位化求职系统\n\n## 核心知识\n\nAI 对求职最有价值的用法不是批量生成泛化答案，而是维持同一组真实事实，把岗位要求、故事库、模拟问题、真实面试反馈和下一步训练连接起来。每次使用都应留下可复用产物，而不是只完成一次对话。\n\n## 工作方式\n\n1. **事实底稿**：先保存职责、动作、结果、时间范围与证据状态；不确定内容不得自动补齐。\n2. **岗位工作区**：每个岗位保存 JD、证据匹配、版本化简历、面试重点和阶段。\n3. **定向训练**：模拟问题来自岗位要求与薄弱证据，并根据回答继续追问。\n4. **真实反馈回流**：把真实面试问题、回答、结果和招聘方反馈放回同一岗位。\n5. **主动下一步**：根据截止时间、证据缺口和阶段损耗只推荐一个最高价值动作。\n6. **成本边界**：跟踪和一致性检查可低成本运行；生成与模拟面试在执行前显示额度。\n\n## Agent 应主动追问\n\n- 这次输出应该保存到哪个岗位或长期事实底稿？\n- 新材料是否与已有简历或面试说法冲突？\n- 真实面试暴露了哪个重复失败模式？\n- 今天哪一个动作最可能改变投递或面试结果？\n\n## 边界\n\nAI 可以帮助整理、追问和复盘，但不能代替候选人参加面试、伪造经历或保证 offer。个人公开求职数字只用于启发过程设计，不作为行业成功率。",
+      "evidence": [
+        {
+          "platform": "linkedin",
+          "source_kind": "job_search_story",
+          "url": "https://www.linkedin.com/posts/alexhadik_lessons-from-an-11-month-job-search-how-activity-7439788006519222272-GrLB",
+          "title": "Lessons from an 11-month PM job search",
+          "company": "Waymo",
+          "published_at": null,
+          "summary": "从 Amazon 转到 Waymo 的技术产品经理分享长期求职复盘，强调把 AI 工具用于准备效率和问题思考，而不是替代候选人的判断。具体经验属于个人样本。"
+        },
+        {
+          "platform": "linkedin",
+          "source_kind": "job_search_story",
+          "url": "https://www.linkedin.com/posts/ericcheng26_aipm-productmanagement-aijobs-activity-7442608766174453760-Uwlz",
+          "title": "AI PM job-search playbook",
+          "company": null,
+          "published_at": null,
+          "summary": "转述一名 AI 产品经理候选人的求职系统：把分散经历整理成故事、按岗位生成模拟问题、将真实面试反馈回系统继续训练。投递与 offer 数字仅视为个人样本。"
+        },
+        {
+          "platform": "reddit",
+          "source_kind": "discussion",
+          "url": "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/",
+          "title": "Preparing for a product manager interview",
+          "company": null,
+          "published_at": null,
+          "summary": "产品经理社区围绕案例题、行为题和职业叙事的准备讨论。较稳定的做法是维护按能力分类的故事库，把框架作为思路导航而不是背诵脚本。"
+        },
+        {
+          "platform": "linkedin",
+          "source_kind": "job_search_story",
+          "url": "https://www.linkedin.com/posts/matthewpenti_jobsearch-hiring-recruiting-activity-7369053365072236547-JDze",
+          "title": "Five-month product manager job-search funnel",
+          "company": null,
+          "published_at": null,
+          "summary": "公开的五个月产品岗位求职漏斗：51 次选择性投递中，内推和岗位新鲜度是重要变量，只有一份冷投带来面试。数据是个人样本，适合用于提出假设而非普遍结论。"
+        }
+      ]
     }
   ]
 }

@@ -264,6 +264,78 @@
         "https://www.reddit.com/r/ProductManagement/comments/1ix613h/what_does_ai_product_managermean/",
         "https://www.linkedin.com/posts/sakshiimehrotra10_aiproductmanager-productmanagement-interviewexperience-activity-7457831660370165760-t0VA"
       ]
+    },
+    {
+      "id": "pm.product-design-interview-reasoning.v1",
+      "title": "产品设计案例面的现场判断",
+      "path": "domains/product-management/product-design-interview-reasoning.md",
+      "description": "训练产品设计案例中的用户选择、痛点定位、优先级、方案、指标和护栏，而不是背固定框架。",
+      "goal": "让 Agent 运行可追问的产品设计案例，并定位候选人在现场判断中的跳步和假设。",
+      "scope": "适用于产品设计、产品改进和 AI-first 产品案例；不预测具体公司的必考题。",
+      "roles": ["产品经理", "AI产品经理", "APM", "高级产品经理"],
+      "companies": ["Google"],
+      "stages": ["一面", "二面", "案例面试", "模拟面试", "复盘"],
+      "tasks": ["mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["案例题一上来就堆功能", "用户细分没有选择依据", "指标没有护栏", "需要训练时间压力下的结构化表达"],
+      "do_not_use_when": ["把流程背成逐字答案", "声称 Google 固定使用相同题目"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/lawrencehua_productmanagement-aiproductmanagement-activity-7425199511582535680-jrcI",
+        "https://www.linkedin.com/posts/prince-bhatt_productmanagement-apm-google-activity-7432063476732420097-Mcbt",
+        "https://www.reddit.com/r/ProductManagement/comments/1jh1yq3/is_pm_interviewing_going_the_leetcode_way/",
+        "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/"
+      ]
+    },
+    {
+      "id": "pm.ai-pm-technical-business-loop.v1",
+      "title": "AI 产品岗位的技术与商业闭环",
+      "path": "domains/product-management/ai-pm-technical-business-loop.md",
+      "description": "把 AI 产品岗位需要的场景选择、技术链路、产品规格、评测发布、商业结果和跨团队推进连成闭环。",
+      "goal": "让 Agent 判断候选人的 AI 项目是否形成从问题到上线结果的完整产品证据。",
+      "scope": "适用于 AI 产品、AIGC 产品、大模型应用和开发者工具岗位；面经与官方岗位要求必须区分。",
+      "roles": ["AI产品经理", "大模型产品经理", "AIGC产品经理", "开发者工具产品经理"],
+      "companies": ["字节跳动", "小红书", "理想汽车", "Interview Kickstart"],
+      "stages": ["岗位判断", "简历", "业务面", "技术面", "终面", "模拟面试"],
+      "tasks": ["career_coaching", "job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["项目只有模型名词没有产品闭环", "岗位同时要求技术与商业判断", "需要解释 RAG 或 Agent 的产品责任", "准备 AI 产品多轮面试"],
+      "do_not_use_when": ["编造项目技术深度", "把岗位描述当成面经", "把旧面经描述成近期固定流程"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/raj-aryan-62172a260_productmanager-interview-productmanager-activity-7431702987846295553-T0qH",
+        "https://www.reddit.com/r/ProductManagement/comments/1lp9tch/sr_product_manager_aialm/",
+        "https://www.nowcoder.com/discuss/891328632507932672?sourceSSR=enterprise",
+        "https://www.nowcoder.com/feed/main/detail/4884f587d071409696d32698fd8cb8a8?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/544891293344763904",
+        "https://job.xiaohongshu.com/campus/position/17465?referer_code=EJOZXFQLXGQA",
+        "https://job.xiaohongshu.com/social/position/17108"
+      ]
+    },
+    {
+      "id": "pm.ai-assisted-job-search-system.v1",
+      "title": "AI 辅助的岗位化求职系统",
+      "path": "domains/product-management/ai-assisted-job-search-system.md",
+      "description": "用统一事实底稿连接岗位、故事库、简历、模拟面试、真实反馈和主动下一步。",
+      "goal": "让 Agent 把每次求职动作沉淀为可复用状态，避免一次性对话和前后说法冲突。",
+      "scope": "适用于产品经理和 AI 产品经理的准备、投递、面试与复盘；不自动代替用户求职或保证结果。",
+      "roles": ["AI产品经理", "技术产品经理", "产品经理"],
+      "companies": ["Waymo"],
+      "stages": ["准备", "投递", "简历", "模拟面试", "复盘"],
+      "tasks": ["career_coaching", "job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["材料分散在多个对话", "模拟面试没有回到真实岗位", "简历和面试说法冲突", "需要主动安排今日动作"],
+      "do_not_use_when": ["用 AI 批量生成虚构答案", "把个人 offer 数字当成普遍效果"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.linkedin.com/posts/alexhadik_lessons-from-an-11-month-job-search-how-activity-7439788006519222272-GrLB",
+        "https://www.linkedin.com/posts/ericcheng26_aipm-productmanagement-aijobs-activity-7442608766174453760-Uwlz",
+        "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/",
+        "https://www.linkedin.com/posts/matthewpenti_jobsearch-hiring-recruiting-activity-7369053365072236547-JDze"
+      ]
     }
   ]
 }

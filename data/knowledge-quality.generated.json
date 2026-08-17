@@ -1,21 +1,22 @@
 {
   "generated_at": "2026-08-17T00:00:00.000Z",
   "current": {
-    "sources": 27,
-    "documents": 12,
-    "companies": 4,
-    "retrieval_evaluations": 30,
-    "documents_with_three_sources": 7,
-    "three_source_ratio": 0.583,
+    "sources": 39,
+    "documents": 15,
+    "companies": 8,
+    "retrieval_evaluations": 45,
+    "documents_with_three_sources": 10,
+    "three_source_ratio": 0.667,
     "by_platform": {
       "github": 2,
-      "linkedin": 9,
-      "nowcoder": 7,
-      "reddit": 9
+      "linkedin": 14,
+      "nowcoder": 10,
+      "reddit": 11,
+      "xiaohongshu": 2
     },
     "by_confidence": {
       "low": 5,
-      "medium": 7,
+      "medium": 10,
       "high": 0
     }
   },
@@ -53,7 +54,5 @@
       "confidence": "low"
     }
   ],
-  "missing_requested_platforms": [
-    "xiaohongshu"
-  ]
+  "missing_requested_platforms": []
 }

@@ -18,15 +18,21 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = body.opportunity as Omit<Opportunity, "id">;
-    if (!input || !String(input.company || "").trim() || !String(input.role || "").trim() || !String(input.jdText || "").trim()) {
+    const workspaceType = input?.workspaceType === "preparation" ? "preparation" : "job";
+    const hasPreparationMaterial = Boolean(String(input?.resumeText || input?.profileText || "").trim());
+    const hasJobDescription = Boolean(String(input?.jdText || "").trim());
+    if (!input || !String(input.company || "").trim() || !String(input.role || "").trim()
+      || (workspaceType === "job" ? !hasJobDescription : !hasPreparationMaterial)) {
       return NextResponse.json({ ok: false, error: "岗位字段不完整" }, { status: 400 });
     }
     const opportunity = await createCockpitOpportunity(user.id, {
       ...input,
+      workspaceType,
       company: String(input.company).trim().slice(0, 120),
       role: String(input.role).trim().slice(0, 160),
       jdText: String(input.jdText).trim().slice(0, 30_000),
       resumeText: String(input.resumeText || "").trim().slice(0, 30_000),
+      profileText: String(input.profileText || "").trim().slice(0, 30_000),
     });
     return NextResponse.json({ ok: true, opportunity }, { status: 201 });
   } catch (error) {

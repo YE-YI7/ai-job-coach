@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type {
   EvidenceStrength,
+  InterviewReviewReport,
   Opportunity,
   OpportunityAction,
   RequirementEvidence,
@@ -111,6 +112,7 @@ export function CockpitApp({
   const [creating, setCreating] = useState(false);
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [reviewingInterview, setReviewingInterview] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
   const viewTracked = useRef(false);
@@ -186,7 +188,11 @@ export function CockpitApp({
         : opportunity
     ));
     if (dataMode === "live") trackProductEvent("today_action_completed", { opportunity_id: active.id, action_id: actionId });
-    announce(localIds.includes(active.id) ? "行动已保存到当前浏览器" : "示例行动已完成；刷新后会恢复");
+    announce(localIds.includes(active.id)
+      ? "行动已保存到当前浏览器"
+      : dataMode === "live"
+        ? "行动已同步到个人工作区"
+        : "示例行动已完成；刷新后会恢复");
   };
 
   const snoozeMentorAction = () => {
@@ -351,11 +357,52 @@ export function CockpitApp({
     announce("已记录回答，并保留为待复核证据");
   };
 
-  const saveReview = (round: string, notes: string) => {
-    if (!active) return;
-    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "user", title: `提交${round}复盘材料`, detail: notes, timeLabel: "刚刚" }, ...item.activities] } : item));
-    if (dataMode === "live") trackProductEvent("interview_review_saved", { opportunity_id: active.id, round });
-    announce(`${round}复盘材料已保存到这个岗位`);
+  const analyzeReview = async (round: string, notes: string) => {
+    if (!active || reviewingInterview) return;
+    setReviewingInterview(true);
+    const requestId = crypto.randomUUID();
+    if (dataMode === "live") trackProductEvent("interview_review_started", { opportunity_id: active.id, round });
+    try {
+      const response = await fetch("/api/interview/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-idempotency-key": requestId },
+        body: JSON.stringify({
+          interviewContent: notes,
+          company: active.company,
+          role: active.role,
+          round,
+          resumeText: active.resumeText || "",
+          jobDescription: active.jdText || "",
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok || !result.analysis) throw new Error(result.error || "复盘失败");
+      const analysis = result.analysis as Record<string, unknown>;
+      const report: InterviewReviewReport = {
+        id: `review-${Date.now()}`,
+        round,
+        grade: String(analysis.overall_grade || "待复核").slice(0, 20),
+        overallComment: String(analysis.overall_comment || "已完成复盘。").slice(0, 1200),
+        strengths: Array.isArray(analysis.key_strengths) ? analysis.key_strengths.map(String).slice(0, 5) : [],
+        improvements: Array.isArray(analysis.key_improvements) ? analysis.key_improvements.map(String).slice(0, 5) : [],
+        actions: Array.isArray(analysis.action_items) ? analysis.action_items.map(String).slice(0, 5) : [],
+        sourceNotes: notes.slice(0, 30_000),
+        createdAt: new Date().toISOString(),
+      };
+      setOpportunities((current) => current.map((item) => item.id === active.id ? {
+        ...item,
+        reviewReports: [report, ...(item.reviewReports || [])],
+        activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "analysis", title: `完成${round} AI 复盘`, detail: `${report.grade} · ${report.overallComment}`, timeLabel: "刚刚" }, ...item.activities],
+      } : item));
+      if (dataMode === "live") trackProductEvent("interview_review_completed", { opportunity_id: active.id, round, grade: report.grade });
+      announce(`${round}复盘完成${response.headers.get("x-yi-zhi-quota-remaining") ? ` · 剩余 ${response.headers.get("x-yi-zhi-quota-remaining")} 次` : ""}`);
+    } catch (error) {
+      if (dataMode === "live") trackProductEvent("interview_review_failed", { opportunity_id: active.id, round });
+      announce(error instanceof Error ? error.message : "复盘失败");
+      throw error;
+    } finally {
+      setReviewingInterview(false);
+    }
   };
 
   const saveInterviewAnswer = (question: string, answer: string) => {
@@ -452,7 +499,7 @@ export function CockpitApp({
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
             {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} generating={generatingResume} />}
             {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
-            {activeTab === "review" && <ReviewTab onSave={saveReview} />}
+            {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} analyzing={reviewingInterview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
           </div></>}
         </section>
@@ -464,7 +511,7 @@ export function CockpitApp({
           onComplete={completeAction}
           onAnswer={saveQuestionAnswer}
           onSnooze={() => { setQuestionSnoozed(true); announce("已暂时收起这个问题"); }}
-          isLocal={localIds.includes(active.id)}
+          storageMode={localIds.includes(active.id) ? "local" : dataMode === "live" ? "cloud" : "demo"}
           onClose={() => setMobileRail(null)}
         />}
       </div>
@@ -722,9 +769,11 @@ function InterviewTab({ opportunity, onSave, onOpenRoundtable }: { opportunity: 
 
 const interviewRounds = ["电话初筛", "一面", "二面", "三面", "终面", "HR 面"];
 
-function ReviewTab({ onSave }: { onSave: (round: string, notes: string) => void }) {
+function ReviewTab({ opportunity, onAnalyze, analyzing }: { opportunity: Opportunity; onAnalyze: (round: string, notes: string) => Promise<void>; analyzing: boolean }) {
   const [notes, setNotes] = useState("");
   const [round, setRound] = useState("一面");
+  const quotaLabel = useQuotaLabel("interview");
+  const reports = opportunity.reviewReports || [];
   return (
     <section>
       <div className={styles.pageIntro}><div><h2>面试复盘</h2><p>先标记面试轮次，再记录发生了什么。</p></div></div>
@@ -737,8 +786,20 @@ function ReviewTab({ onSave }: { onSave: (round: string, notes: string) => void 
         </div>
         <label className={styles.reviewNotesLabel} htmlFor="review-notes">面试记录</label>
         <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={10} placeholder="粘贴逐字稿，或写下你记得的问题和回答…" />
-        <button className={styles.primaryButton} disabled={!notes.trim()} onClick={() => { onSave(round, notes.trim()); setNotes(""); }}>保存{round}复盘<ArrowRight size={16} /></button>
+        <button className={styles.primaryButton} disabled={!notes.trim() || analyzing} onClick={async () => { try { await onAnalyze(round, notes.trim()); setNotes(""); } catch { /* toast already explains the failure */ } }}>{analyzing ? "导师正在复盘…" : `AI 复盘${round} · ${quotaLabel}`}<ArrowRight size={16} /></button>
       </div>
+      <div className={styles.reviewReportList}>{reports.map((report) => (
+        <article key={report.id} className={styles.reviewReport}>
+          <header><div><span>{report.round}</span><time dateTime={report.createdAt}>{new Date(report.createdAt).toLocaleDateString("zh-CN")}</time></div><strong>{report.grade}</strong></header>
+          <p>{report.overallComment}</p>
+          <div className={styles.reviewColumns}>
+            <section><h3>保留的优势</h3>{report.strengths.length ? <ul>{report.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <span>本次没有识别到稳定优势</span>}</section>
+            <section><h3>下一轮先改</h3>{report.improvements.length ? <ul>{report.improvements.map((item) => <li key={item}>{item}</li>)}</ul> : <span>暂无明确改进项</span>}</section>
+          </div>
+          {report.actions.length > 0 && <footer><h3>训练任务</h3><ol>{report.actions.map((item) => <li key={item}>{item}</li>)}</ol></footer>}
+          <details><summary>查看原始面试记录</summary><pre>{report.sourceNotes}</pre></details>
+        </article>
+      ))}</div>
     </section>
   );
 }
@@ -751,9 +812,9 @@ function ActivityTab({ opportunity }: { opportunity: Opportunity }) {
   );
 }
 
-function ActionRail({ opportunity, onComplete, onAnswer, onSnooze, questionSnoozed, isLocal, mobileOpen, onClose }: {
+function ActionRail({ opportunity, onComplete, onAnswer, onSnooze, questionSnoozed, storageMode, mobileOpen, onClose }: {
   opportunity: Opportunity; onComplete: (id: string) => void; onAnswer: (answer: string) => void; onSnooze: () => void;
-  questionSnoozed: boolean; isLocal: boolean; mobileOpen: boolean; onClose: () => void;
+  questionSnoozed: boolean; storageMode: "cloud" | "local" | "demo"; mobileOpen: boolean; onClose: () => void;
 }) {
   const todo = opportunity.actions.filter((action) => action.status !== "done");
   const doneCount = opportunity.actions.length - todo.length;
@@ -766,7 +827,7 @@ function ActionRail({ opportunity, onComplete, onAnswer, onSnooze, questionSnooz
       <div className={styles.actionList}>{todo.map((action) => <ActionItem key={action.id} action={action} onComplete={onComplete} />)}{!todo.length && <div className={styles.allDone} role="status"><CircleCheck size={24} /><strong>关键行动已完成</strong><p>岗位出现新变化时，这里会给出新的下一步。</p></div>}</div>
       {doneCount > 0 && <p className={styles.doneCount}>{doneCount} 项已完成</p>}
       {!questionSnoozed && evidenceToConfirm && <section className={styles.activeQuestion}><div className={styles.questionLabel}><CircleAlert size={15} /> 需要你确认</div><strong>{evidenceToConfirm.id === "req-4" ? "商业化项目上线后，有可以公开写入简历的结果指标吗？" : `请补充能证明「${evidenceToConfirm.requirement}」的真实经历、职责和结果。`}</strong><p>这条事实会直接影响投递判断。没有也可以明确回答“没有”。</p>{answering ? <div className={styles.answerComposer}><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={5} placeholder="写下可以公开的结果、时间范围和你的职责。" autoFocus /><div className={styles.questionActions}><button disabled={!answer.trim()} onClick={() => { onAnswer(answer.trim()); setAnswer(""); setAnswering(false); }}>保存回答</button><button onClick={() => setAnswering(false)}>取消</button></div></div> : <div className={styles.questionActions}><button onClick={() => setAnswering(true)}>直接回答</button><button onClick={onSnooze}>稍后处理</button></div>}</section>}
-      <section className={styles.privacyNote}><ShieldCheck size={17} /><p><strong>{isLocal ? "保存在当前浏览器" : "你正在体验示例机会"}</strong><br />{isLocal ? "清除浏览器数据会同时删除这个岗位；云同步尚未开启。" : "示例操作不会写入你的账号数据。"}</p></section>
+      <section className={styles.privacyNote}><ShieldCheck size={17} /><p><strong>{storageMode === "cloud" ? "已同步到个人工作区" : storageMode === "local" ? "暂存在当前浏览器" : "你正在体验示例机会"}</strong><br />{storageMode === "cloud" ? "岗位、证据、简历修改和复盘会在登录后继续保留。" : storageMode === "local" ? "网络恢复后会自动重试云同步；暂时不要清除浏览器数据。" : "示例操作不会写入你的账号数据。"}</p></section>
     </aside>
   );
 }

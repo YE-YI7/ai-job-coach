@@ -58,6 +58,18 @@ export interface InterviewFocus {
   readiness: "ready" | "practice" | "missing";
 }
 
+export interface InterviewReviewReport {
+  id: string;
+  round: string;
+  grade: string;
+  overallComment: string;
+  strengths: string[];
+  improvements: string[];
+  actions: string[];
+  sourceNotes: string;
+  createdAt: string;
+}
+
 export interface Opportunity {
   id: string;
   workspaceType?: "job" | "preparation";
@@ -88,5 +100,6 @@ export interface Opportunity {
   activities: OpportunityActivity[];
   resumeChanges: ResumeChange[];
   interviewFocus: InterviewFocus[];
+  reviewReports?: InterviewReviewReport[];
   mentorSnoozes?: Array<{ actionId: string; until: string }>;
 }

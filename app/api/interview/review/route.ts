@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
+import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { runWithGenerationContext } from "@/lib/generation-context";
 
 export const runtime = "nodejs";
 
@@ -13,7 +15,14 @@ async function handlePost(req: Request) {
     }
 
     const body = await req.json();
-    const { interviewContent, context, followUpQuestion } = body;
+    const interviewContent = String(body.interviewContent || "").trim().slice(0, 30_000);
+    const context = String(body.context || "").trim().slice(0, 12_000);
+    const followUpQuestion = String(body.followUpQuestion || "").trim().slice(0, 4_000);
+    const company = String(body.company || "").trim().slice(0, 120);
+    const role = String(body.role || "").trim().slice(0, 160);
+    const round = String(body.round || "").trim().slice(0, 80);
+    const resumeText = String(body.resumeText || "").trim().slice(0, 20_000);
+    const jobDescription = String(body.jobDescription || "").trim().slice(0, 20_000);
 
     if (!interviewContent && !followUpQuestion) {
       return NextResponse.json(
@@ -45,7 +54,22 @@ ${context}
     }
 
     // 初始分析模式
-    const systemPrompt = `你是一位温柔但有锋芒的面试复盘教练。用户将提供真实的面试对话记录（可能是文本粘贴或录音转文字），你需要深度分析面试表现。
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "interview_review",
+      company,
+      role,
+      stage: round,
+      query: [company, role, round, jobDescription.slice(0, 240), interviewContent.slice(0, 240)].filter(Boolean).join(" "),
+      limit: 6,
+    });
+
+    const systemPrompt = `你是益职的面试复盘教练。用户将提供真实的面试对话记录或回忆，你需要基于当前岗位、用户简历和可追溯知识做复盘。
+
+事实边界：
+1. 面试记录没有出现的内容，不得写成用户说过或做过的事实。
+2. 知识库只用于解释常见考察方向，不能当成该公司的固定题库或内部事实。
+3. 无法判断时写明“记录不足”，不要推测录用概率。
+4. 改进建议必须能转成下一轮可执行训练任务，不写空泛鼓励。
 
 分析维度：
 1. 面试官可能的考察意图（每个问题背后想考什么）
@@ -76,15 +100,36 @@ ${context}
   "action_items": ["具体行动1", "具体行动2"]
 }
 
-只返回JSON，不要包含markdown标记。注意：如果面试内容不完整或格式混乱，尽力分析，在overall_comment中说明。`;
+只返回JSON，不要包含markdown标记。面试内容不完整时，在 overall_comment 中明确证据边界。`;
 
-    const result = await callLLM(
+    const userPrompt = `公司：${company || "未提供"}
+岗位：${role || "未提供"}
+轮次：${round || "未提供"}
+
+岗位 JD：
+${jobDescription || "未提供"}
+
+用户简历或经历底稿：
+${resumeText || "未提供"}
+
+真实面试记录：
+${interviewContent}
+
+${knowledge.contextText}`;
+
+    const requestId = req.headers.get("x-idempotency-key")?.trim() || crypto.randomUUID();
+    const result = await runWithGenerationContext({
+      userId: auth.id,
+      operation: "interview_answer_review",
+      requestId,
+      knowledgeDocumentIds: knowledge.items.map((item) => item.id),
+    }, () => callLLM(
       [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `以下是我的面试记录：\n\n${interviewContent}` },
+        { role: "user", content: userPrompt },
       ],
       { temperature: 0.4, maxTokens: 3000, provider: "deepseek" }
-    );
+    ));
 
     let parsed: any = {};
     try {
@@ -103,6 +148,7 @@ ${context}
     return NextResponse.json({
       ok: true,
       analysis: parsed,
+      knowledge_document_ids: knowledge.items.map((item) => item.id),
     });
   } catch (err) {
     console.error("Interview review error:", err);

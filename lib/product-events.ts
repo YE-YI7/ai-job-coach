@@ -13,6 +13,9 @@ export const PRODUCT_EVENT_NAMES = [
   "mock_interview_started",
   "interview_practice_saved",
   "interview_review_saved",
+  "interview_review_started",
+  "interview_review_completed",
+  "interview_review_failed",
 ] as const;
 
 export type ProductEventName = (typeof PRODUCT_EVENT_NAMES)[number];

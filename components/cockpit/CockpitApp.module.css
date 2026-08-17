@@ -169,6 +169,22 @@
 .reviewNotesLabel { display: block; margin-bottom: 8px; color: var(--ink); font-size: 11px; font-weight: 750; }
 .reviewComposer textarea { padding: 15px; }
 .reviewComposer > button { margin-top: 12px; }
+.reviewReportList { display: grid; gap: 18px; }
+.reviewReport { padding: 24px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.reviewReport > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.reviewReport > header div { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 10px; }
+.reviewReport > header span { color: var(--ink); font-weight: 750; }
+.reviewReport > header strong { font-family: "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 28px; line-height: 1; }
+.reviewReport > p { max-width: 72ch; margin: 18px 0 0; color: var(--ink); font-size: 13px; line-height: 1.8; }
+.reviewColumns { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.reviewColumns section { padding-top: 15px; border-top: 1px solid var(--line); }
+.reviewReport h3 { margin: 0 0 9px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.reviewReport ul, .reviewReport ol { margin: 0; padding-left: 18px; }
+.reviewReport li, .reviewColumns span { color: var(--ink); font-size: 11px; line-height: 1.75; }
+.reviewReport footer { margin-top: 22px; padding: 17px 19px; border-radius: 11px; background: var(--accent-soft); }
+.reviewReport details { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
+.reviewReport summary { color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 700; }
+.reviewReport details pre { max-height: 280px; margin: 13px 0 0; padding: 14px; overflow: auto; border-radius: 10px; background: var(--paper); color: var(--ink); font: 11px/1.7 "Noto Sans SC", "PingFang SC", sans-serif; white-space: pre-wrap; }
 .activityList article { min-height: 74px; display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; border-bottom: 1px solid var(--line); }
 .activityList strong { font-size: 11px; } .activityList p { margin: 4px 0 0; color: var(--muted); font-size: 10px; } .activityList time { color: var(--muted); font-size: 9px; }
 
@@ -292,6 +308,8 @@
   .focusItem > span:last-child { grid-column: 2; }
   .activityList article { grid-template-columns: auto 1fr; padding: 13px 0; }
   .activityList time { grid-column: 2; }
+  .reviewColumns { grid-template-columns: 1fr; gap: 14px; }
+  .reviewReport { padding: 19px; }
   .insightNote { grid-template-columns: 1fr; }
   .createPage { padding: 40px 18px 60px; }
   .createIntro h1 { font-size: 36px; }

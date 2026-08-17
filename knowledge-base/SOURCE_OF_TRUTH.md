@@ -15,6 +15,7 @@
 | AI 产品岗位面试 | `domains/product-management/ai-product-interview-basics.md` | 首版，低置信度，继续扩证据 |
 | AI 产品评测与失败恢复 | `domains/product-management/ai-evaluation-and-operations.md` | 3 个来源，中置信度 |
 | AI 产品商业判断 | `domains/product-management/ai-commercial-judgment.md` | 3 个来源，中置信度 |
+| 国内 AI 产品公司信号 | `domains/product-management/china-ai-pm-company-signals.md` | 美团、腾讯、阿里、百度公开样本，带时效边界 |
 | 产品案例面 | `domains/product-management/case-interview-live-reasoning.md` | 首版，3 个来源 |
 | 角色定位与故事库 | `domains/product-management/story-bank-and-positioning.md` | 首版，5 个来源 |
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |

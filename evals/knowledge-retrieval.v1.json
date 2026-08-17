@@ -43,5 +43,17 @@
   {"id":"job-system-facts","task":"career_coaching","query":"我的简历故事和面试记录散落在多个对话，怎么保持事实一致","role":"产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1","pm.story-bank-and-positioning.v1"]},
   {"id":"job-system-feedback","task":"interview_review","query":"真实面试问题如何回流到岗位档案并形成下一轮训练","role":"AI产品经理","stage":"复盘","expected_any":["pm.ai-assisted-job-search-system.v1"]},
   {"id":"job-system-today","task":"career_coaching","query":"不要给我一堆待办，根据截止时间和证据缺口只安排今天最重要一步","role":"产品经理","stage":"投递","expected_any":["pm.ai-assisted-job-search-system.v1","shared.evidence-driven-job-search.v1"]},
-  {"id":"job-system-cost","task":"career_coaching","query":"求职Agent哪些跟踪能力应免费，哪些生成和模拟面试需要额度","role":"AI产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1"]}
+  {"id":"job-system-cost","task":"career_coaching","query":"求职Agent哪些跟踪能力应免费，哪些生成和模拟面试需要额度","role":"AI产品经理","stage":"准备","expected_any":["pm.ai-assisted-job-search-system.v1"]},
+  {"id":"meituan-ai-product-proof","task":"job_analysis","query":"美团AI产品经理筛选怎么证明我真的用过模型API和AI编程工具","role":"AI产品经理","company":"美团","stage":"筛选","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"meituan-ai-portfolio","task":"resume_tailoring","query":"美团AI产品岗位希望看到独立作品，简历怎么呈现链接原型和个人贡献","role":"AI产品经理","company":"美团","stage":"简历","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"tencent-ai-alternative","task":"mock_interview","query":"腾讯AI产品面试追问为什么选这个算法而不是替代方案","role":"AI产品经理","company":"腾讯","stage":"技术面","expected_any":["pm.china-ai-pm-company-signals.v1","pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"tencent-ai-value","task":"answer_assessment","query":"腾讯AI行业产品回答只有技术实现，没有客户价值和收入估算假设","role":"AI产品经理","company":"腾讯","stage":"业务面","expected_any":["pm.china-ai-pm-company-signals.v1","pm.ai-commercial-judgment.v1"]},
+  {"id":"tencent-cloud-competition","task":"mock_interview","query":"腾讯云AI产品如何比较竞品并说明B端和C端差异","role":"云产品经理","company":"腾讯","stage":"业务面","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"alibaba-ai-lifecycle","task":"mock_interview","query":"阿里巴巴AI产品二面如何从实现推广迭代到复盘完整讲项目","role":"AI产品经理","company":"阿里巴巴","stage":"二面","expected_any":["pm.china-ai-pm-company-signals.v1","pm.ai-pm-technical-business-loop.v1"]},
+  {"id":"alibaba-ai-tech-product","task":"answer_assessment","query":"阿里AI产品面试如何说明技术学习真正帮助了产品设计","role":"AI产品经理","company":"阿里巴巴","stage":"业务面","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"aliyun-b2b","task":"job_analysis","query":"阿里云产品经理岗位需要哪些ToB多角色和交付约束证据","role":"云产品经理","company":"阿里云","stage":"岗位判断","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"aliyun-transition","task":"mock_interview","query":"阿里云一面问为什么转产品，怎么用真实项目支持动机","role":"产品经理","company":"阿里云","stage":"一面","expected_any":["pm.china-ai-pm-company-signals.v1","pm.transition-from-engineering.v1"]},
+  {"id":"baidu-ai-definition","task":"mock_interview","query":"百度AI产品经理面试如何解释AI产品和AI产品经理的区别","role":"AI产品经理","company":"百度","stage":"一面","expected_any":["pm.china-ai-pm-company-signals.v1","pm.ai-product-interview-basics.v1"]},
+  {"id":"baidu-ai-internship","task":"answer_assessment","query":"百度面试追问实习里怎么实际应用AI，不能只说会用工具","role":"AI产品经理","company":"百度","stage":"二面","expected_any":["pm.china-ai-pm-company-signals.v1"]},
+  {"id":"china-ai-pm-old-source-boundary","task":"interview_review","query":"网上的腾讯AI产品旧面经能否直接当成今年的固定题库","role":"AI产品经理","company":"腾讯","stage":"复盘","expected_any":["pm.china-ai-pm-company-signals.v1"]}
 ]

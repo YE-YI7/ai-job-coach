@@ -336,6 +336,31 @@
         "https://www.reddit.com/r/ProductManagement/comments/1itdxmq/fyi_preparing_for_a_pm_interview/",
         "https://www.linkedin.com/posts/matthewpenti_jobsearch-hiring-recruiting-activity-7369053365072236547-JDze"
       ]
+    },
+    {
+      "id": "pm.china-ai-pm-company-signals.v1",
+      "title": "国内 AI 产品岗位的公司信号与准备重点",
+      "path": "domains/product-management/china-ai-pm-company-signals.md",
+      "description": "汇总美团、腾讯、阿里巴巴、阿里云和百度公开面试样本中反复出现的 AI 产品证据要求，并保留时效边界。",
+      "goal": "让 Agent 用公司信号生成更贴近目标岗位的追问，同时坚持以当前 JD 和用户真实事实为准。",
+      "scope": "适用于国内 AI 产品、云产品和技术产品岗位的岗位判断与面试准备；不是公司题库或招聘流程说明。",
+      "roles": ["AI产品经理", "云产品经理", "技术产品经理", "产品经理", "产品策划"],
+      "companies": ["美团", "腾讯", "阿里巴巴", "阿里云", "百度"],
+      "stages": ["筛选", "一面", "二面", "业务面", "技术面", "面试准备"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备美团腾讯阿里或百度 AI 产品岗位", "需要从公司样本生成追问", "项目缺少技术替代方案或商业结果", "需要检查可验证作品"],
+      "do_not_use_when": ["预测公司必问题目", "把旧面经当作当前流程", "补写用户没有的指标或作品"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-17",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/799699818510647296?sourceSSR=post",
+        "https://www.nowcoder.com/discuss/544892074110324736?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/353159644359106560?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/630771565646319616",
+        "https://www.nowcoder.com/discuss/628557901778444288",
+        "https://www.nowcoder.com/discuss/353157160542609408"
+      ]
     }
   ]
 }

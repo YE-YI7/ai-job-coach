@@ -30,6 +30,21 @@ describe("knowledge document repository", () => {
     expect(documents[0]?.doNotUseWhen.join(" ")).toContain("真实商业项目");
   });
 
+  it("ranks the current problem above an unrelated round from the same company", () => {
+    const documents = retrieveKnowledgeDocuments({
+      task: "job_analysis",
+      query: "快手 AIGC 平台产品 真实性 治理",
+      company: "快手",
+      role: "AI 产品经理",
+      limit: 3,
+    });
+
+    expect(documents[0]?.id).toBe("pm.content-community-product.v1");
+    expect(documents.map((document) => document.id)).not.toEqual(
+      expect.arrayContaining(["pm.hr-round-and-career-choice.v1"]),
+    );
+  });
+
   it("builds bounded Agent context with the knowledge base Description and Goal", async () => {
     const context = await buildAgentKnowledgeContext({
       task: "interview_review",

@@ -11,6 +11,10 @@ function normalized(value?: string | null) {
   return (value || "").trim().toLocaleLowerCase("zh-CN").replace(/\s+/g, " ");
 }
 
+function normalizedTag(value?: string | null) {
+  return normalized(value).replace(/[\s·._/-]+/g, "");
+}
+
 function queryTerms(value?: string | null) {
   const text = normalized(value);
   const weighted = new Map<string, number>();
@@ -30,8 +34,8 @@ function queryTerms(value?: string | null) {
 }
 
 function includesEither(left: string, right: string) {
-  const normalizedLeft = normalized(left);
-  const normalizedRight = normalized(right);
+  const normalizedLeft = normalizedTag(left);
+  const normalizedRight = normalizedTag(right);
   return Boolean(normalizedLeft && normalizedRight && (
     normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft)
   ));
@@ -95,9 +99,6 @@ function scoreDocument(document: CompiledDocument, input: {
     document.description,
     document.goal,
     document.scope,
-    ...document.roles,
-    ...document.companies,
-    ...document.stages,
     ...document.use_when,
     document.content,
   ].join(" "));

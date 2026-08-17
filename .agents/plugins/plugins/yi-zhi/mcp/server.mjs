@@ -201,6 +201,10 @@ function normalized(value) {
   return cleanText(value).toLocaleLowerCase("zh-CN").replace(/\s+/g, " ");
 }
 
+function normalizedTag(value) {
+  return normalized(value).replace(/[\s·._/-]+/g, "");
+}
+
 function queryTerms(value) {
   const text = normalized(value);
   const weighted = new Map();
@@ -220,27 +224,24 @@ function queryTerms(value) {
 }
 
 function scoreKnowledge(item, args) {
-  const company = normalized(args.company);
-  const role = normalized(args.role);
-  const stage = normalized(args.stage);
+  const company = normalizedTag(args.company);
+  const role = normalizedTag(args.role);
+  const stage = normalizedTag(args.stage);
   const haystack = normalized([
     item.title,
     item.description,
     item.goal,
     item.scope,
-    ...(item.companies || []),
-    ...(item.roles || []),
-    ...(item.stages || []),
     ...(item.use_when || []),
     item.content
   ].filter(Boolean).join(" "));
   let score = 0;
-  if (company && (item.companies || []).some((entry) => normalized(entry).includes(company) || company.includes(normalized(entry)))) score += 24;
+  if (company && (item.companies || []).some((entry) => normalizedTag(entry).includes(company) || company.includes(normalizedTag(entry)))) score += 24;
   else if (company && (item.companies || []).length) score -= 6;
-  const roleMatches = role && (item.roles || []).some((entry) => normalized(entry).includes(role) || role.includes(normalized(entry)));
+  const roleMatches = role && (item.roles || []).some((entry) => normalizedTag(entry).includes(role) || role.includes(normalizedTag(entry)));
   if (roleMatches) score += 16;
   else if (role && (item.roles || []).length) return Number.NEGATIVE_INFINITY;
-  if (stage && (item.stages || []).some((entry) => normalized(entry).includes(stage) || stage.includes(normalized(entry)))) score += 10;
+  if (stage && (item.stages || []).some((entry) => normalizedTag(entry).includes(stage) || stage.includes(normalizedTag(entry)))) score += 10;
   let lexicalScore = 0;
   for (const { term, weight } of queryTerms(args.query)) {
     if (haystack.includes(term)) lexicalScore += weight;

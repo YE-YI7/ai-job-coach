@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-17",
+  "updated_at": "2026-08-18",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy": "# Agent 使用规则\n\n## Description\n\n本规则用于指导益职 Agent 在岗位分析、简历定制、模拟面试、回答点评和面试复盘中正确使用公共求职知识。\n\n## Goal\n\n让 Agent 的建议有可追溯依据，同时确保公共案例不会覆盖用户事实、制造虚假经历或被误解为公司官方规则。\n\n## 使用顺序\n\n1. 先读取当前任务、JD、用户简历、项目经历、面试轮次和历史记录。\n2. 检索与岗位、公司、阶段和任务相符的知识文档。\n3. 用知识文档补充追问、检查遗漏和校准建议。\n4. 只有结论依赖外部知识或用户追问时，才自然说明来源。\n\n## 证据优先级\n\n1. 用户刚刚提供的真实材料和明确纠正。\n2. 当前岗位 JD 与真实招聘流程信息。\n3. 用户长期记忆中已确认的事实。\n4. 多来源支持的知识文档。\n5. 单条公开经历或社区讨论。\n\n## 禁止事项\n\n- 不把面经当成固定题库或招聘承诺。\n- 不把外部案例、职责、数字和结果写进用户简历。\n- 不因公共样本与用户不同而否定用户事实。\n- 不向用户倾倒知识列表；知识必须服务于当前行动。\n- 证据不足时不输出伪精确概率、分数或成功率。\n\n## 冲突处理\n\n当知识文档之间或知识与用户材料冲突时，Agent 必须指出冲突来源，优先采用更贴近当前岗位、更新且证据更多的一方；仍无法判断时提出一个能改变结论的最小问题。",
@@ -1292,6 +1292,495 @@
           "company": "百度",
           "published_at": null,
           "summary": "百度产品岗位多轮面试旧样本，追问 AI 产品理解、技术替代方案、实习中如何应用 AI、目标业务和职业规划。仅用于能力域，不代表当前流程。"
+        }
+      ]
+    },
+    {
+      "id": "pm.ecommerce-product-interview.v1",
+      "title": "电商产品岗位的业务机制与案例准备",
+      "path": "domains/product-management/ecommerce-product-interview.md",
+      "description": "从用户、供给、交易、履约和商业约束准备电商产品案例，并检查指标与生态护栏。",
+      "goal": "让 Agent 把电商岗位追问落到业务机制、个人贡献和可验证结果，而不是产品功能背诵。",
+      "scope": "适用于京东、拼多多等电商产品岗位的岗位判断和业务面；跨团队跨年份样本不构成固定题库。",
+      "roles": [
+        "电商产品经理",
+        "产品经理",
+        "技术产品经理",
+        "产品管培生"
+      ],
+      "companies": [
+        "京东",
+        "拼多多"
+      ],
+      "stages": [
+        "岗位判断",
+        "一面",
+        "二面",
+        "业务面",
+        "案例面试",
+        "面试准备"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备电商产品岗位",
+        "案例只列功能没有交易机制",
+        "需要解释搜索推荐增长或直播电商",
+        "项目指标缺少生态护栏"
+      ],
+      "do_not_use_when": [
+        "预测公司必问题目",
+        "把平台指标当成用户个人经历",
+        "脱离目标团队泛谈电商"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/415893253616087040",
+        "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+        "https://www.nowcoder.com/discuss/353156747856650240",
+        "https://www.nowcoder.com/discuss/798542749975760896"
+      ],
+      "content": "# 电商产品岗位的业务机制与案例准备\n\n## 核心判断\n\n电商产品面试不是让候选人背平台功能，而是检查能否把用户、供给、交易、履约、增长和商业目标连成一条可验证的机制。当前公开样本来自京东与拼多多的不同团队和年份，只能用于准备能力域。\n\n## 证据结构\n\n1. **业务对象**：先明确消费者、商家、内容创作者、运营或内部系统用户，不能把所有人写成一个“用户”。\n2. **核心任务**：说明用户在什么场景完成搜索、决策、交易或履约，以及当前阻断点。\n3. **产品机制**：功能如何改变供需匹配、信息质量、信任或交易成本。\n4. **商业约束**：同时考虑收入、补贴、履约成本、商家健康度和长期留存。\n5. **验证**：核心指标之外至少给出质量或风险护栏，避免单独追求点击与转化。\n\n## Agent 应主动追问\n\n- 这个功能服务交易链路中的哪一段，最大的损耗在哪里？\n- 你的指标变化能否排除活动、渠道和季节因素？\n- 如果提高转化伤害了用户信任或商家生态，如何发现？\n- 你真实负责了需求、方案、协作、上线和复盘中的哪些部分？\n\n## 边界\n\n不得把旧面经当作当前团队题库。公司和团队判断必须以当前 JD、产品现状与用户已有事实为准。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+          "title": "京东产品经理面经：完整功能闭环",
+          "company": "京东",
+          "published_at": "2025-09-12",
+          "summary": "京东产品岗位近期个人复盘，用背景、需求来源、价值评估、功能设计、研发协作和上线指标讲一个功能；属于候选人方法总结，不代表官方评分标准。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/415893253616087040",
+          "title": "京东物流技术产品经理多轮面试",
+          "company": "京东",
+          "published_at": "2022-12-19",
+          "summary": "京东物流商家接入域个人面经，围绕 WMS/TMS/OMS 系统理解、跨系统交互、事故责任和多部门协作，并在 HR 面继续核验项目角色与职业选择。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+          "title": "京东软件产品经理完整面试复盘",
+          "company": "京东",
+          "published_at": "2020-09-18",
+          "summary": "京东软件产品岗位 offer 候选人旧样本，项目深挖包含目标用户、竞品差异、用户路径、漏斗、个人价值和跨产品运营协作；仅用于能力域。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353156747856650240",
+          "title": "京东校招产品经理面经",
+          "company": "京东",
+          "published_at": "2020-09-16",
+          "summary": "京东校招产品岗位 offer 旧样本，覆盖推荐策略差异、资源冲突、时间压力、转岗动机、短板和行业判断；不能推断当前流程。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/798542749975760896",
+          "title": "拼多多产品管培生电商案例",
+          "company": "拼多多",
+          "published_at": "2025-09-19",
+          "summary": "拼多多产品管培生近期公开题目列表，涉及用户增长、低价高质、下沉市场、搜索指标、直播电商和公私域；来源缺少完整回答，应低置信使用。"
+        }
+      ]
+    },
+    {
+      "id": "pm.platform-and-service-product.v1",
+      "title": "平台与服务产品的多角色设计",
+      "path": "domains/product-management/platform-and-service-product.md",
+      "description": "拆解平台产品的服务对象、公共能力、接入治理、失败路径以及自助与人工协作。",
+      "goal": "让 Agent 检查候选人是否真正理解平台边界、复用价值和服务质量，而不是只会设计后台页面。",
+      "scope": "适用于 AI 平台、内部系统、客服平台与 ToB 技术产品；岗位 ownership 仍需根据当前 JD 核验。",
+      "roles": [
+        "平台产品经理",
+        "AI产品经理",
+        "技术产品经理",
+        "客服产品经理",
+        "ToB产品经理"
+      ],
+      "companies": [
+        "快手",
+        "京东",
+        "小红书",
+        "小米"
+      ],
+      "stages": [
+        "岗位判断",
+        "业务面",
+        "技术面",
+        "案例面试",
+        "面试准备"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备平台或内部系统岗位",
+        "需要说明多角色和公共能力",
+        "客服自助和转人工没有失败路径",
+        "AI 平台只讲模型能力"
+      ],
+      "do_not_use_when": [
+        "根据平台岗位名称推断决策权",
+        "把内部效率等同于外部用户价值",
+        "忽略权限稳定性和治理"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/485698837575757824",
+        "https://www.nowcoder.com/discuss/415893253616087040",
+        "https://www.nowcoder.com/discuss/799670315189030912",
+        "https://job.xiaohongshu.com/social/position/17108"
+      ],
+      "content": "# 平台与服务产品的多角色设计\n\n## 核心判断\n\n平台与服务产品同时面对外部用户、内部业务方、运营与技术团队。面试中的关键不是画更多后台页面，而是说明服务边界、接入规则、失败路径、效率与质量之间的取舍。\n\n## 证据结构\n\n1. **服务对象**：区分最终用户、调用方、运营方和平台维护方，各自成功标准不同。\n2. **能力边界**：哪些能力由平台统一提供，哪些由业务方配置，哪些需要人工处理。\n3. **接入与治理**：包含权限、数据、接口、版本、SLA、审核与异常恢复。\n4. **自助与人工**：自助服务必须识别失败和高风险场景，并提供清晰转人工路径。\n5. **平台价值**：复用率、接入时长、任务成功率、运营成本和用户满意度应共同验证。\n\n## Agent 应主动追问\n\n- 平台服务哪些团队，最小公共能力是什么？\n- 业务方提出特殊需求时，如何判断配置、扩展或拒绝？\n- 用户坚持人工服务时，自助流程的退出条件是什么？\n- 一次平台故障如何发现、隔离、降级和复盘？\n\n## 边界\n\n平台产品职责随组织架构差异很大。Agent 不得根据岗位名称推断用户拥有平台决策权，应在反向面试中核验。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+          "title": "快手 AIGC 平台产品面经",
+          "company": "快手",
+          "published_at": "2025-09-15",
+          "summary": "快手平台产品近期个人面经，比较内部 AI 平台与 C 端 AI 功能，讨论 AIGC 对短剧、直播和本地生活的赋能，以及真实感、滥用与平台治理风险。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/485698837575757824",
+          "title": "快手客服平台产品经理三轮面试",
+          "company": "快手",
+          "published_at": "2023-05-10",
+          "summary": "快手客服平台产品岗位个人复盘，多轮现场拆解自助服务、转人工、无预案客询以及个人实际收益，体现服务效率与用户诉求的取舍。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/415893253616087040",
+          "title": "京东物流技术产品经理多轮面试",
+          "company": "京东",
+          "published_at": "2022-12-19",
+          "summary": "京东物流商家接入域个人面经，围绕 WMS/TMS/OMS 系统理解、跨系统交互、事故责任和多部门协作，并在 HR 面继续核验项目角色与职业选择。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/799670315189030912",
+          "title": "小米产品经理 AI 销售工具案例面",
+          "company": "小米",
+          "published_at": "2025-09-22",
+          "summary": "小米产品岗位近期 offer 个人复盘，用门店 AI 销售工具考察问题识别、效率指标、准确率护栏、销售效果和实验设计。"
+        },
+        {
+          "platform": "xiaohongshu",
+          "source_kind": "official_job_posting",
+          "url": "https://job.xiaohongshu.com/social/position/17108",
+          "title": "小红书研效大模型产品经理",
+          "company": "小红书",
+          "published_at": null,
+          "summary": "小红书官方研效大模型产品岗位，负责 IDE 插件、代码生成、测试 Agent 与研发流程提效，要求技术产品理解、数据分析和真实业务落地。它是岗位要求，不是面经。"
+        }
+      ]
+    },
+    {
+      "id": "pm.content-community-product.v1",
+      "title": "内容社区产品的机制、指标与治理",
+      "path": "domains/product-management/content-community-product.md",
+      "description": "从生产、分发、消费、互动与治理解释内容社区产品机制，并为 AIGC 场景补充质量和安全护栏。",
+      "goal": "让 Agent 训练内容产品的机制推理、指标诊断和生态取舍，而不是停在界面对比。",
+      "scope": "当前主要依据快手不同团队和年份的公开个人样本；不代表任何团队当前流程。",
+      "roles": [
+        "内容产品经理",
+        "社区产品经理",
+        "AI产品经理",
+        "商业化产品经理",
+        "产品经理"
+      ],
+      "companies": [
+        "快手"
+      ],
+      "stages": [
+        "一面",
+        "二面",
+        "业务面",
+        "案例面试",
+        "面试准备"
+      ],
+      "tasks": [
+        "job_analysis",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备内容社区或短视频岗位",
+        "指标下降缺少诊断顺序",
+        "AIGC 方案缺少真实性和治理",
+        "只会比较界面差异"
+      ],
+      "do_not_use_when": [
+        "预测快手题目",
+        "把 DAU 当唯一成功指标",
+        "忽略创作者和消费者的利益冲突"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/353157046684033024",
+        "https://www.nowcoder.com/discuss/250457",
+        "https://www.nowcoder.com/discuss/353157012156522496"
+      ],
+      "content": "# 内容社区产品的机制、指标与治理\n\n## 核心判断\n\n内容社区案例需要同时解释内容生产、分发、消费、互动和治理。只比较界面或 DAU 不足以证明产品判断，候选人要说明某个机制如何改变创作者与消费者行为。\n\n## 现场推理顺序\n\n1. 明确目标用户和内容场景，不把创作者与消费者混成一个群体。\n2. 定位供给不足、分发不准、消费效率低、互动弱或信任风险中的主要问题。\n3. 说明机制改变：例如排序、激励、工具、审核或交易如何影响行为。\n4. 选择核心指标，并补充内容质量、生态集中度、投诉或误伤等护栏。\n5. 从数据异常、版本、渠道、供给、分发和用户分层排查指标下降。\n\n## AI 场景\n\nAIGC 可以降低生产成本、提升编辑效率或支持互动，但必须同时设计真实性标识、版权、滥用、低质供给和人工处置。内部生成平台的成功标准是跨业务复用和质量稳定，不等同于单个 C 端功能的使用量。\n\n## 边界\n\n快手公开样本跨越多个团队和年份。Agent 可以训练机制推理，不能预测具体团队必问题目。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+          "title": "快手 AIGC 平台产品面经",
+          "company": "快手",
+          "published_at": "2025-09-15",
+          "summary": "快手平台产品近期个人面经，比较内部 AI 平台与 C 端 AI 功能，讨论 AIGC 对短剧、直播和本地生活的赋能，以及真实感、滥用与平台治理风险。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157046684033024",
+          "title": "快手商业化产品经理面经",
+          "company": "快手",
+          "published_at": "2020-09-23",
+          "summary": "快手商业化产品旧样本，围绕线索跟进、广告主与达人撮合平台、岗位优势和业务理解；用于生成商业平台能力追问。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/250457",
+          "title": "快手产品多轮面试与指标诊断",
+          "company": "快手",
+          "published_at": "2019-10-22",
+          "summary": "快手产品 offer 旧样本，包含 DAU 下跌诊断、社区指标设计、竞品差异和功能改进；只用于训练诊断顺序与指标推理。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157012156522496",
+          "title": "快手产品经理多轮面试",
+          "company": "快手",
+          "published_at": "2020-10-03",
+          "summary": "快手产品岗位 offer 旧样本，围绕实习贡献、快手与抖音差异、版本改版、单列与双列信息流以及职业意愿；用于训练内容机制比较。"
+        }
+      ]
+    },
+    {
+      "id": "pm.local-service-and-travel-product.v1",
+      "title": "本地服务、出行与旅游产品的场景诊断",
+      "path": "domains/product-management/local-service-and-travel-product.md",
+      "description": "用场景、供给、匹配、履约与风险分析本地服务产品，并把抽象体验转成可观察信号。",
+      "goal": "让 Agent 生成贴近线下履约约束的业务追问，并阻止候选人直接套用增长框架。",
+      "scope": "适用于滴滴、携程、美团等出行旅游和本地服务岗位；公司样本需与当前团队资料交叉。",
+      "roles": [
+        "用户产品经理",
+        "增长产品经理",
+        "旅游产品经理",
+        "本地生活产品经理",
+        "产品经理"
+      ],
+      "companies": [
+        "滴滴",
+        "携程",
+        "美团"
+      ],
+      "stages": [
+        "岗位判断",
+        "一面",
+        "二面",
+        "业务面",
+        "案例面试"
+      ],
+      "tasks": [
+        "job_analysis",
+        "resume_tailoring",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备本地服务出行或旅游岗位",
+        "体验目标过于抽象",
+        "推荐和增长忽略履约",
+        "需要分析供需和线下风险"
+      ],
+      "do_not_use_when": [
+        "把单一城市或团队经验泛化",
+        "编造平台供给数据",
+        "只追转化不看安全投诉和履约"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/503276015075020800",
+        "https://www.nowcoder.com/discuss/469147585089970176",
+        "https://www.nowcoder.com/discuss/353156490544488448?sourceSSR=subject",
+        "https://www.nowcoder.com/discuss/938218",
+        "https://www.nowcoder.com/discuss/796077147080130560?sourceSSR=post"
+      ],
+      "content": "# 本地服务、出行与旅游产品的场景诊断\n\n## 核心判断\n\n本地服务类产品连接线上决策和线下履约，面试会检查候选人能否从具体场景、供给约束和服务风险出发，而不是直接套增长框架。\n\n## 推理框架\n\n1. **场景**：时间、地点、同行人、预算和风险偏好会改变用户选择。\n2. **供给**：运力、酒店、路线或门店有容量、时效、价格与质量差异。\n3. **匹配**：推荐和排序既要提高决策效率，也要避免错误承诺和信息不透明。\n4. **履约**：支付完成不是终点，取消、延误、安全、投诉和补救都属于产品结果。\n5. **增长**：先验证需求存在，再选择渠道、补贴或场景触发；不要把曝光直接当作价值。\n\n## Agent 应主动追问\n\n- “舒适”“方便”“安全”分别如何转成可观察信号？\n- 用户为什么会在此时改变出行或预订方式？\n- 推荐榜单的核心指标与质量护栏是什么？\n- 失败履约如何被发现、补救并回流到产品？\n\n## 边界\n\n当前证据来自滴滴、携程和美团不同年份的个人样本。具体公司结论必须由当前 JD 与业务资料复核。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/503276015075020800",
+          "title": "滴滴用户产品实习面经",
+          "company": "滴滴",
+          "published_at": "2023-07-04",
+          "summary": "滴滴用户产品实习个人复盘，围绕组合出行、竞品、渠道、舒适度指标和需求空间，作者强调先验证需求、把抽象概念拆成可观测信号。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/469147585089970176",
+          "title": "滴滴会员产品经理面经",
+          "company": "滴滴",
+          "published_at": "2023-03-25",
+          "summary": "滴滴会员产品个人复盘，面试官对新用户促留和手机号登录成功率持续追问，要求把流程排查、具体改动和指标变化连接起来。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353156490544488448?sourceSSR=subject",
+          "title": "滴滴产品经理实习面经",
+          "company": "滴滴",
+          "published_at": "2020-06-04",
+          "summary": "滴滴产品实习旧样本，追问未上线项目、目标用户、流失、安全与再次迭代，体现诚实说明失败并提出更小验证范围的价值。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/938218",
+          "title": "携程产品经理实习多轮面试",
+          "company": "携程",
+          "published_at": "2022-04-21",
+          "summary": "携程产品实习 offer 旧样本，一面检查产品工作流，二面深挖指标、用户痛点、推广和推荐榜单评估，并用旅游业务场景验证迁移能力。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/796077147080130560?sourceSSR=post",
+          "title": "美团产品经理面经：0 到 1 与研发质疑",
+          "company": "美团",
+          "published_at": "2025-09-12",
+          "summary": "美团产品岗位近期个人复盘，围绕实习观察、0 到 1 项目、研发质疑、优先级、收益和 PRD 完整性；建议需视为候选人复盘而非公司结论。"
+        }
+      ]
+    },
+    {
+      "id": "pm.hr-round-and-career-choice.v1",
+      "title": "产品岗位 HR 面的动机与选择一致性",
+      "path": "domains/product-management/hr-round-and-career-choice.md",
+      "description": "校验岗位动机、方向选择、优势短板、团队偏好和 offer 决策与真实经历是否一致。",
+      "goal": "让 Agent 复用事实底稿准备 HR 面，并主动发现简历、业务面和职业选择之间的冲突。",
+      "scope": "适用于产品与 AI 产品岗位 HR 面和终面；不帮助用户编造热爱、offer 或隐私情况。",
+      "roles": [
+        "产品经理",
+        "AI产品经理",
+        "平台产品经理",
+        "技术产品经理"
+      ],
+      "companies": [
+        "美团",
+        "京东",
+        "快手"
+      ],
+      "stages": [
+        "HR面",
+        "终面",
+        "面试准备",
+        "复盘"
+      ],
+      "tasks": [
+        "career_coaching",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备 HR 面或终面",
+        "为什么做产品回答空泛",
+        "公司选择标准前后冲突",
+        "优势短板没有证据"
+      ],
+      "do_not_use_when": [
+        "虚构 offer 或求职动机",
+        "代替用户披露隐私",
+        "用受保护属性做筛选建议"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/650738535007256576?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/353156747856650240",
+        "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+        "https://www.nowcoder.com/discuss/353157046684033024"
+      ],
+      "content": "# 产品岗位 HR 面的动机与选择一致性\n\n## 核心判断\n\nHR 面不是把业务面答案再说一遍，而是验证候选人的岗位动机、方向选择、稳定性、短板、团队偏好和 offer 决策是否与过往行动一致。\n\n## 一致性检查\n\n1. **为什么做产品**：答案要能回到真实经历中的判断、协作和结果，不能只说兴趣或性格。\n2. **为什么这个方向**：B/C 端、平台、AI 或商业化的偏好应有实际体验支持。\n3. **为什么这家公司**：使用当前业务、团队职责和自身能力交集作答，不背使命愿景。\n4. **优势与不足**：优势需要证据；不足要说明岗位风险、已采取行动和当前边界。\n5. **如何选择 offer**：把业务、成长、团队、地点与回报按真实优先级说明，避免与前述动机冲突。\n\n## Agent 应主动校验\n\n- 简历、自我介绍、业务面和 HR 面对同一经历的角色与结果是否一致？\n- 候选人声称偏好的方向，过去是否做过相关选择或准备？\n- 职业规划是可执行的下一阶段，还是空泛的长期头衔？\n\n## 边界\n\n不得帮助用户编造热爱、offer 或家庭情况。对于隐私与受保护属性，Agent 不应代替用户披露，也不应据此做歧视性建议。",
+      "evidence": [
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/650738535007256576?sourceSSR=dynamic",
+          "title": "美团产品经理 HR 面",
+          "company": "美团",
+          "published_at": "2024-08-07",
+          "summary": "美团产品岗位 HR 面个人记录，核验细分方向、岗位优势、不足、行业关注、公司选择标准、团队偏好和成就经历。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353156747856650240",
+          "title": "京东校招产品经理面经",
+          "company": "京东",
+          "published_at": "2020-09-16",
+          "summary": "京东校招产品岗位 offer 旧样本，覆盖推荐策略差异、资源冲突、时间压力、转岗动机、短板和行业判断；不能推断当前流程。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+          "title": "京东软件产品经理完整面试复盘",
+          "company": "京东",
+          "published_at": "2020-09-18",
+          "summary": "京东软件产品岗位 offer 候选人旧样本，项目深挖包含目标用户、竞品差异、用户路径、漏斗、个人价值和跨产品运营协作；仅用于能力域。"
+        },
+        {
+          "platform": "nowcoder",
+          "source_kind": "interview_experience",
+          "url": "https://www.nowcoder.com/discuss/353157046684033024",
+          "title": "快手商业化产品经理面经",
+          "company": "快手",
+          "published_at": "2020-09-23",
+          "summary": "快手商业化产品旧样本，围绕线索跟进、广告主与达人撮合平台、岗位优势和业务理解；用于生成商业平台能力追问。"
         }
       ]
     }

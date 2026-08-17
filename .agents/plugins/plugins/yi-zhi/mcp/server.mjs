@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline";
-import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -14,10 +14,13 @@ const ARTIFACT_DIR = join(DATA_DIR, "artifacts");
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const KNOWLEDGE_FILENAME = join("knowledge", "knowledge-documents.json");
 const KNOWLEDGE_FILE = process.env.YI_ZHI_KNOWLEDGE_FILE || join(PLUGIN_ROOT, KNOWLEDGE_FILENAME);
+const KNOWLEDGE_REFRESH_MS = Math.max(Number(process.env.YI_ZHI_KNOWLEDGE_REFRESH_MS ?? 15_000), 0);
 const MAX_TEXT = 200_000;
 let cockpitOrigin = "";
 let cockpitServer;
 let knowledgeCache;
+let knowledgeCachePath = "";
+let knowledgeCheckedAt = 0;
 
 const toolDefinitions = [
   {
@@ -142,7 +145,10 @@ function safeFilename(value) {
 }
 
 async function loadKnowledge() {
-  if (knowledgeCache) return knowledgeCache;
+  const now = Date.now();
+  if (knowledgeCache && now - knowledgeCheckedAt < KNOWLEDGE_REFRESH_MS) return knowledgeCache;
+  knowledgeCheckedAt = now;
+
   const candidates = [KNOWLEDGE_FILE];
   const versionRoot = dirname(PLUGIN_ROOT);
 
@@ -151,7 +157,7 @@ async function loadKnowledge() {
   if (versionRoot.includes(join(".codex", "plugins", "cache"))) {
     try {
       const siblings = await readdir(versionRoot, { withFileTypes: true });
-      for (const sibling of siblings.filter((entry) => entry.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
+      for (const sibling of siblings.filter((entry) => entry.isDirectory())) {
         const candidate = join(versionRoot, sibling.name, KNOWLEDGE_FILENAME);
         if (!candidates.includes(candidate)) candidates.push(candidate);
       }
@@ -160,20 +166,34 @@ async function loadKnowledge() {
     }
   }
 
+  const available = [];
   let lastError;
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile(candidate, "utf8"));
-      if (!Array.isArray(parsed?.documents) || !parsed.description || !parsed.goal) {
-        throw new Error("Invalid 益职 knowledge base.");
-      }
-      knowledgeCache = parsed;
-      return knowledgeCache;
+      available.push({ path: candidate, modifiedAt: (await stat(candidate)).mtimeMs });
     } catch (error) {
       lastError = error;
       if (error?.code !== "ENOENT") throw error;
     }
   }
+
+  available.sort((a, b) => b.modifiedAt - a.modifiedAt || b.path.localeCompare(a.path));
+  for (const candidate of available) {
+    try {
+      if (knowledgeCache && candidate.path === knowledgeCachePath) return knowledgeCache;
+      const parsed = JSON.parse(await readFile(candidate.path, "utf8"));
+      if (!Array.isArray(parsed?.documents) || !parsed.description || !parsed.goal) {
+        throw new Error("Invalid 益职 knowledge base.");
+      }
+      knowledgeCache = parsed;
+      knowledgeCachePath = candidate.path;
+      return knowledgeCache;
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== "ENOENT" && !knowledgeCache) throw error;
+    }
+  }
+  if (knowledgeCache) return knowledgeCache;
   throw new Error(`益职知识库文件不可用：${lastError?.message || "not found"}`);
 }
 
@@ -472,7 +492,7 @@ async function handle(message) {
       return response(message.id, {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yi-zhi", version: "0.5.1" },
+        serverInfo: { name: "yi-zhi", version: "0.5.2" },
         instructions: "Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product."
       });
     }

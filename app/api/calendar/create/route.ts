@@ -7,10 +7,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
-import OpenAI from "openai";
 import { getCurrentUserId } from "@/lib/auth";
+import { callLLM } from "@/lib/llm";
+import { runWithGenerationContext } from "@/lib/generation-context";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 
 export async function POST(request: NextRequest) {
+  let reservation: QuotaReservation | null = null;
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
@@ -18,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { company, position, interviewDate } = body;
+    const { company, position, interviewDate, useAI = false } = body;
 
     if (!company || !position || !interviewDate) {
       return NextResponse.json(
@@ -44,18 +47,21 @@ export async function POST(request: NextRequest) {
 
     // AI 生成备考计划
     let prepPlan = generateDefaultPrepPlan(daysUntil, company, position);
-    
-    try {
-      const apiKey = process.env.DEEPSEEK_API_KEY;
-      if (apiKey) {
-        const openai = new OpenAI({
-          apiKey,
-          baseURL: "https://api.deepseek.com",
-        });
+    let aiPlanStatus: "not_requested" | "generated" | "quota_required" | "fallback" = "not_requested";
+    let quota: { source: string; remaining: number | null } | null = null;
 
-        const completion = await openai.chat.completions.create({
-          model: "deepseek-chat",
-          messages: [
+    if (useAI === true) {
+      const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
+      reservation = await reserveQuota(userId, "chat", `calendar-plan:${requestId}`);
+      if (!reservation) {
+        aiPlanStatus = "quota_required";
+      } else {
+        try {
+          const content = await runWithGenerationContext({
+            userId,
+            operation: "calendar_interview_plan",
+            requestId,
+          }, () => callLLM([
             {
               role: "system",
               content: `你是一位资深求职辅导专家。根据用户提供的面试信息，生成一个结构化的面试备考计划。
@@ -78,24 +84,30 @@ export async function POST(request: NextRequest) {
               role: "user",
               content: `我将在 ${daysUntil} 天后（${interviewDate}）在 ${company} 面试 ${position} 岗位。请为我生成个性化的备考计划。`
             }
-          ],
+          ], {
+          provider: "deepseek",
           temperature: 0.7,
-          max_tokens: 1500,
-        });
+          maxTokens: 1500,
+          timeoutMs: 45_000,
+          maxRetries: 1,
+        }));
 
-        const content = completion.choices[0]?.message?.content;
         if (content) {
           // 清理 markdown 代码块标记
           const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          try {
-            prepPlan = JSON.parse(cleaned);
-          } catch {
-            // AI 输出解析失败，使用默认计划
-          }
+          prepPlan = JSON.parse(cleaned);
+        }
+          await finalizeQuota(reservation, true);
+          quota = { source: reservation.source, remaining: reservation.remaining };
+          reservation = null;
+          aiPlanStatus = "generated";
+        } catch (aiError) {
+          await finalizeQuota(reservation, false).catch(() => false);
+          reservation = null;
+          aiPlanStatus = "fallback";
+          console.warn("AI 生成备考计划失败，使用默认计划:", aiError);
         }
       }
-    } catch (aiError) {
-      console.warn("AI 生成备考计划失败，使用默认计划:", aiError);
     }
 
     // 存入数据库
@@ -121,8 +133,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "创建失败" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data, aiPlanStatus, quota });
   } catch (err: any) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Calendar quota refund failed", refundError));
     console.error("Calendar create error:", err);
     return NextResponse.json({ error: err.message || "服务器错误" }, { status: 500 });
   }

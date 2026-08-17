@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { setTimeout as setTimeoutPromise } from "timers/promises";
+import { getGenerationContext } from "./generation-context";
+import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationUsage, recordGenerationEvent } from "./llm-telemetry";
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -11,7 +13,7 @@ type Message = {
  */
 async function callWithTimeoutAndRetry(
   clientCallFn: () => Promise<any>,
-  opts: { timeoutMs?: number; maxRetries?: number } = {}
+  opts: { timeoutMs?: number; maxRetries?: number; onRetry?: (attempt: number) => void } = {}
 ) {
   const timeoutMs = opts.timeoutMs ?? 30000; // 默认 30 秒超时
   const maxRetries = opts.maxRetries ?? 2;
@@ -54,6 +56,7 @@ async function callWithTimeoutAndRetry(
       // retry for timeouts / network errors
       attempt++;
       if (attempt > maxRetries) break;
+      opts.onRetry?.(attempt);
       const backoff = 500 * attempt; // 500ms, 1000ms...
       console.warn(
         `LLM request failed, retry ${attempt}/${maxRetries}, backoff ${backoff}ms`,
@@ -95,22 +98,57 @@ export async function callLLM(
     throw new Error("Invalid messages");
   }
 
+  const provider = options?.provider || "deepseek";
+  const model = options?.model || (provider === "deepseek" ? "deepseek-v4-flash" : "gpt-3.5-turbo");
+  const trace = getGenerationContext();
+  const startedAt = Date.now();
+  let retryCount = 0;
+
   // ========== STUB 模式检查（最高优先级，在 apiKey 校验之前）==========
   // stub only if env explicitly enabled
   const useStub = process.env.LLM_STUB === "1";
   if (useStub) {
     console.warn("Using LLM stub mode (LLM_STUB=1)");
+    await recordGenerationEvent({
+      userId: trace?.userId,
+      operation: trace?.operation || "unclassified",
+      requestId: trace?.requestId,
+      provider,
+      model,
+      status: "stub",
+      latencyMs: Date.now() - startedAt,
+      retryCount: 0,
+      usage: normalizeGenerationUsage(null),
+      estimatedCostUsd: 0,
+      pricingVersion: null,
+      knowledgeDocumentIds: trace?.knowledgeDocumentIds,
+    }).catch((error) => console.warn("LLM telemetry write failed:", error));
     // 直接返回 mock 响应，不走真实 deepseek 请求，不触发 timeout 逻辑
     return "Hello! 👋 How can I help you today?";
   }
 
-  const provider = options?.provider || "deepseek";
   const apiKey = provider === "deepseek" 
     ? process.env.DEEPSEEK_API_KEY 
     : process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
-    throw new Error(`${provider.toUpperCase()}_API_KEY not found in environment variables`);
+    const error = new Error(`${provider.toUpperCase()}_API_KEY not found in environment variables`);
+    await recordGenerationEvent({
+      userId: trace?.userId,
+      operation: trace?.operation || "unclassified",
+      requestId: trace?.requestId,
+      provider,
+      model,
+      status: "error",
+      latencyMs: Date.now() - startedAt,
+      retryCount: 0,
+      usage: normalizeGenerationUsage(null),
+      estimatedCostUsd: null,
+      pricingVersion: null,
+      failureType: "configuration",
+      knowledgeDocumentIds: trace?.knowledgeDocumentIds,
+    }).catch((telemetryError) => console.warn("LLM telemetry write failed:", telemetryError));
+    throw error;
   }
 
   const client = new OpenAI({
@@ -124,7 +162,7 @@ export async function callLLM(
   // wrapper to call SDK
   const clientCall = async () => {
     return await client.chat.completions.create({
-      model: options?.model || (provider === "deepseek" ? "deepseek-chat" : "gpt-3.5-turbo"),
+      model,
       messages,
       temperature: options?.temperature ?? 0.7,
       max_tokens: options?.maxTokens ?? 2000, // 增加到 2000，支持更长的回复
@@ -136,6 +174,7 @@ export async function callLLM(
     const completion = await callWithTimeoutAndRetry(clientCall, {
       timeoutMs: options?.timeoutMs ?? options?.timeout ?? 60000, // 增加到60秒
       maxRetries: options?.maxRetries ?? 2,
+      onRetry: () => { retryCount += 1; },
     });
 
     const content = completion.choices[0]?.message?.content;
@@ -143,8 +182,40 @@ export async function callLLM(
       throw new Error("Empty response from LLM");
     }
 
+    const usage = normalizeGenerationUsage(completion.usage as Record<string, unknown> | undefined);
+    const cost = estimateGenerationCost(provider, model, usage);
+    await recordGenerationEvent({
+      userId: trace?.userId,
+      operation: trace?.operation || "unclassified",
+      requestId: trace?.requestId,
+      provider,
+      model,
+      status: "success",
+      latencyMs: Date.now() - startedAt,
+      retryCount,
+      usage,
+      estimatedCostUsd: cost.estimatedCostUsd,
+      pricingVersion: cost.pricingVersion,
+      knowledgeDocumentIds: trace?.knowledgeDocumentIds,
+    }).catch((error) => console.warn("LLM telemetry write failed:", error));
+
     return content;
   } catch (e: any) {
+    await recordGenerationEvent({
+      userId: trace?.userId,
+      operation: trace?.operation || "unclassified",
+      requestId: trace?.requestId,
+      provider,
+      model,
+      status: "error",
+      latencyMs: Date.now() - startedAt,
+      retryCount,
+      usage: normalizeGenerationUsage(null),
+      estimatedCostUsd: null,
+      pricingVersion: null,
+      failureType: classifyGenerationFailure(e),
+      knowledgeDocumentIds: trace?.knowledgeDocumentIds,
+    }).catch((error) => console.warn("LLM telemetry write failed:", error));
     console.error("LLM 调用失败：", e?.message || e, e?.cause || "");
 
     // 详细的错误处理
@@ -159,4 +230,3 @@ export async function callLLM(
     }
   }
 }
-

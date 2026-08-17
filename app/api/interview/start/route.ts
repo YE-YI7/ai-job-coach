@@ -26,6 +26,7 @@ import { generateInterviewQuestions, formatResumeForPrompt } from "@/lib/intervi
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { v4 as uuidv4 } from "uuid";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { runWithGenerationContext } from "@/lib/generation-context";
 import type {
   StartInterviewRequest,
   StartInterviewResponse,
@@ -105,7 +106,8 @@ export async function POST(request: Request) {
       );
     }
 
-    reservation = await reserveQuota(userId, "interview", `interview-start:${String((body as any).requestId || crypto.randomUUID()).slice(0, 180)}`);
+    const requestId = String((body as any).requestId || crypto.randomUUID()).slice(0, 180);
+    reservation = await reserveQuota(userId, "interview", `interview-start:${requestId}`);
     if (!reservation) {
       return new Response(JSON.stringify({ ok: false, error: "模拟面试额度不足", needUpgrade: true }), {
         status: 403, headers: { "Content-Type": "application/json" },
@@ -159,7 +161,12 @@ export async function POST(request: Request) {
     }
 
     // 7. 生成面试题（可能耗时 30-120 秒）
-    const questions = await generateInterviewQuestions(jd, roundType, questionCount, sessionId, resumeText, knowledge.contextText);
+    const questions = await runWithGenerationContext({
+      userId,
+      operation: "mock_interview_start",
+      requestId,
+      knowledgeDocumentIds: knowledge.items.map((item) => item.id),
+    }, () => generateInterviewQuestions(jd, roundType, questionCount, sessionId, resumeText, knowledge.contextText));
 
     // 8. 保存题目到数据库
     if (questions.length > 0) {

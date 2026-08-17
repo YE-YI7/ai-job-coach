@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -99,14 +99,12 @@ const newRoot = join(cacheRoot, ".codex", "plugins", "cache", "yi-zhi", "yi-zhi"
 const sourceKnowledge = new URL("../.agents/plugins/plugins/yi-zhi/knowledge/knowledge-documents.json", import.meta.url);
 await mkdir(join(oldRoot, "mcp"), { recursive: true });
 await mkdir(join(oldRoot, "knowledge"), { recursive: true });
-await mkdir(join(newRoot, "knowledge"), { recursive: true });
 await cp(serverPath, join(oldRoot, "mcp", "server.mjs"));
 await cp(sourceKnowledge, join(oldRoot, "knowledge", "knowledge-documents.json"));
-await cp(sourceKnowledge, join(newRoot, "knowledge", "knowledge-documents.json"));
 
 const upgradeDataDir = await mkdtemp(join(tmpdir(), "yi-zhi-mcp-upgrade-test-"));
 const upgradeChild = spawn(process.execPath, [join(oldRoot, "mcp", "server.mjs")], {
-  env: { ...process.env, YI_ZHI_DATA_DIR: upgradeDataDir },
+  env: { ...process.env, YI_ZHI_DATA_DIR: upgradeDataDir, YI_ZHI_KNOWLEDGE_REFRESH_MS: "0" },
   stdio: ["pipe", "pipe", "inherit"]
 });
 const upgradeLines = createInterface({ input: upgradeChild.stdout, crlfDelay: Infinity });
@@ -121,16 +119,32 @@ function sendUpgrade(message) {
 
 try {
   await sendUpgrade({ jsonrpc: "2.0", id: 20, method: "initialize", params: { protocolVersion: "2025-03-26" } });
-  await rm(oldRoot, { recursive: true, force: true });
-  const afterUpgrade = await sendUpgrade({
+  const beforeUpgrade = await sendUpgrade({
     jsonrpc: "2.0",
     id: 21,
     method: "tools/call",
     params: { name: "yi_zhi_retrieve_knowledge", arguments: { query: "产品经理 面试", role: "产品经理", limit: 1 } }
   });
+  assert.equal(beforeUpgrade.result.isError, false);
+
+  const nextKnowledge = JSON.parse(await readFile(sourceKnowledge, "utf8"));
+  nextKnowledge.documents[0].title = "热更新知识标记";
+  nextKnowledge.documents[0].roles = ["产品经理"];
+  nextKnowledge.documents[0].content = "热更新知识标记 产品经理 面试";
+  nextKnowledge.documents = [nextKnowledge.documents[0]];
+  await mkdir(join(newRoot, "knowledge"), { recursive: true });
+  await writeFile(join(newRoot, "knowledge", "knowledge-documents.json"), JSON.stringify(nextKnowledge));
+  await rm(oldRoot, { recursive: true, force: true });
+  const afterUpgrade = await sendUpgrade({
+    jsonrpc: "2.0",
+    id: 22,
+    method: "tools/call",
+    params: { name: "yi_zhi_retrieve_knowledge", arguments: { query: "产品经理 面试", role: "产品经理", limit: 1 } }
+  });
   assert.equal(afterUpgrade.result.isError, false);
   assert.equal(afterUpgrade.result.structuredContent.items.length, 1);
-  process.stdout.write("益职 MCP 升级连续性测试通过\n");
+  assert.equal(afterUpgrade.result.structuredContent.items[0].title, "热更新知识标记");
+  process.stdout.write("益职 MCP 升级连续性与知识热更新测试通过\n");
 } finally {
   upgradeChild.stdin.end();
   upgradeChild.kill();

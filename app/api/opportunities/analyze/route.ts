@@ -7,6 +7,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { runWithGenerationContext } from "@/lib/generation-context";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -198,7 +199,12 @@ export async function POST(request: Request) {
       query: [intake.company, intake.role, intake.jdText.slice(0, 240)].filter(Boolean).join(" "),
       limit: 5,
     });
-    const result = await callLLM([
+    const result = await runWithGenerationContext({
+      userId: user.id,
+      operation: "opportunity_analysis",
+      requestId,
+      knowledgeDocumentIds: knowledge.items.map((item) => item.id),
+    }, () => callLLM([
       {
         role: "system",
         content: `你是益职的求职材料整理与证据分析模块。用户会给任意原始材料：岗位链接/JD、简历、经历说明或求职目标。你先识别材料类型，再建立岗位作战档案或求职准备档案。
@@ -233,7 +239,7 @@ export async function POST(request: Request) {
         role: "user",
         content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n\n原始材料：\n${intake.jdText}\n\n另附用户简历或经历：\n${intake.resumeText || "（未提供）"}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
       },
-    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 1 });
+    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 1 }));
 
     const parsed = asRecord(parseJson(result));
     const materialKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";

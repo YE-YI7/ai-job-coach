@@ -16,6 +16,11 @@
 | AI 产品评测与失败恢复 | `domains/product-management/ai-evaluation-and-operations.md` | 3 个来源，中置信度 |
 | AI 产品商业判断 | `domains/product-management/ai-commercial-judgment.md` | 3 个来源，中置信度 |
 | 国内 AI 产品公司信号 | `domains/product-management/china-ai-pm-company-signals.md` | 美团、腾讯、阿里、百度公开样本，带时效边界 |
+| 电商产品岗位 | `domains/product-management/ecommerce-product-interview.md` | 京东、拼多多多团队样本，按业务机制训练 |
+| 平台与服务产品 | `domains/product-management/platform-and-service-product.md` | AI 平台、内部系统、客服平台与失败路径 |
+| 内容社区产品 | `domains/product-management/content-community-product.md` | 内容机制、指标诊断、AIGC 治理 |
+| 本地服务与旅游产品 | `domains/product-management/local-service-and-travel-product.md` | 滴滴、携程、美团样本，覆盖线下履约 |
+| HR 面与职业选择 | `domains/product-management/hr-round-and-career-choice.md` | 动机、方向、短板与跨材料一致性 |
 | 产品案例面 | `domains/product-management/case-interview-live-reasoning.md` | 首版，3 个来源 |
 | 角色定位与故事库 | `domains/product-management/story-bank-and-positioning.md` | 首版，5 个来源 |
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |

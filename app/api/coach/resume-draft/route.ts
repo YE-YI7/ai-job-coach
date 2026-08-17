@@ -3,6 +3,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { compileContextBundle, validateArtifactDraft, type CareerClaim } from "@/lib/coach-harness";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { runWithGenerationContext } from "@/lib/generation-context";
 
 export const runtime = "nodejs";
 
@@ -40,10 +41,14 @@ export async function POST(request: Request) {
     const context = compileContextBundle({ task: "resume_workshop", userId: user.id, claims });
     const source = claims.map((claim) => `[${claim.id}] ${claim.displayText}`).join("\n");
 
-    const output = await callLLM([
+    const output = await runWithGenerationContext({
+      userId: user.id,
+      operation: "resume_draft",
+      requestId,
+    }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n带编号的简历事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须来自原文。` },
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1 });
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1 }));
 
     const parsed = parseJson(output);
     const rawChanges = Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6) : [];

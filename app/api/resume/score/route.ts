@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+import { callLLM } from '@/lib/llm';
+import { runWithGenerationContext } from '@/lib/generation-context';
+import { finalizeQuota, reserveQuota, type QuotaReservation } from '@/lib/quota';
+import { consumePublicRateLimit, rateLimitedResponse } from '@/lib/public-rate-limit';
 
 export const runtime = 'nodejs';
-
-// 频率限制（内存实现，生产环境应使用 Redis）
-const rateLimit = new Map<string, { count: number; resetAt: number }>();
 
 /**
  * POST /api/resume/score
@@ -21,30 +21,14 @@ const rateLimit = new Map<string, { count: number; resetAt: number }>();
  *   以上全部 + 逐模块深度分析 + 可执行修改方案 + ATS 关键词建议
  */
 export async function POST(request: Request) {
+  let reservation: QuotaReservation | null = null;
   try {
-    // IP频率限制
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const now = Date.now();
-    const limit = rateLimit.get(ip);
-
-    if (limit && limit.resetAt > now && limit.count >= 10) {
-      return NextResponse.json(
-        { ok: false, error: '请求过于频繁，请稍后再试' },
-        { status: 429 }
-      );
-    }
-
-    if (!limit || limit.resetAt <= now) {
-      rateLimit.set(ip, { count: 1, resetAt: now + 3600000 });
-    } else {
-      limit.count++;
-    }
-
     const body = await request.json().catch(() => null);
     const text = body?.text?.trim();
     const mode = body?.mode || 'free';
+    const user = await getCurrentUserFromRequest();
 
-    if (mode === 'full' && !(await getCurrentUserFromRequest())) {
+    if (mode === 'full' && !user) {
       return NextResponse.json({ ok: false, error: '完整报告需要登录' }, { status: 401 });
     }
 
@@ -62,20 +46,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // AI评分
-    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
-    const baseURL = process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.deepseek.com';
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { ok: false, error: 'AI服务未配置' },
-        { status: 503 }
-      );
+    const requestId = String(body?.requestId || crypto.randomUUID()).slice(0, 180);
+    if (mode === 'full' && user) {
+      reservation = await reserveQuota(user.id, 'resume', `resume-score:${requestId}`);
+      if (!reservation) return NextResponse.json({ ok: false, error: '简历分析额度不足', needUpgrade: true }, { status: 403 });
+    } else {
+      const publicLimit = await consumePublicRateLimit({ request, scope: 'public-resume-score', limit: 2, windowSeconds: 86_400 });
+      if (!publicLimit.allowed) return rateLimitedResponse(publicLimit);
     }
 
-    const client = new OpenAI({ apiKey, baseURL });
-
-    const systemPrompt = `你是一位资深HR和ATS简历优化专家，曾帮助上万人优化简历。请全面评估以下简历，给出精准评分和深度分析。
+    const systemPrompt = `你是益职的简历结构与证据检查模块。请全面评估以下简历，给出可解释的启发式评分。没有目标 JD 时，不预测真实 ATS 通过率；不得补写简历里不存在的经历或数字。
 
 输出严格JSON格式：
 {
@@ -119,22 +99,26 @@ export async function POST(request: Request) {
 - 结构完整性：是否包含教育、工作经历、项目、技能等核心模块
 - 内容丰富度：描述是否详实，是否有足够的细节
 - 量化成果：是否用数据量化工作成果（如提升XX%、管理N人团队）
-- 关键词匹配：是否包含岗位常见关键词，ATS通过率预估
+- 关键词匹配：没有目标 JD 时，仅检查技能和职责关键词是否具体清晰，不预测 ATS 通过率
 - 排版规范：结构是否清晰，格式是否规范
 
 只输出JSON，不要其他内容。`;
 
-    const response = await client.chat.completions.create({
-      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-      messages: [
+    const content = await runWithGenerationContext({
+      userId: user?.id,
+      operation: mode === 'full' ? 'resume_score_full' : 'resume_score_preview',
+      requestId,
+    }, () => callLLM([
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `请评估以下简历：\n\n${text.slice(0, 10000)}` },
-      ],
+      ], {
+      model: process.env.DEEPSEEK_MODEL,
+      provider: 'deepseek',
       temperature: 0.3,
-      max_tokens: 3000,
-    });
-
-    const content = response.choices[0]?.message?.content || '';
+      maxTokens: 3000,
+      timeoutMs: 45_000,
+      maxRetries: 1,
+    }));
     
     // 解析JSON
     let result;
@@ -143,6 +127,11 @@ export async function POST(request: Request) {
       if (!jsonMatch) throw new Error('No JSON found');
       result = JSON.parse(jsonMatch[0]);
     } catch {
+      if (reservation) {
+        await finalizeQuota(reservation, false);
+        reservation = null;
+        return NextResponse.json({ ok: false, error: 'AI 返回格式异常，本次未扣额度，请重试' }, { status: 503 });
+      }
       // 返回降级结果
       result = {
         score: 65,
@@ -159,6 +148,9 @@ export async function POST(request: Request) {
 
     // 根据 mode 决定返回内容
     if (mode === 'full') {
+      await finalizeQuota(reservation, true);
+      const quota = reservation ? { source: reservation.source, remaining: reservation.remaining } : null;
+      reservation = null;
       // 完整版（需登录后调用）
       return NextResponse.json({
         ok: true,
@@ -172,6 +164,7 @@ export async function POST(request: Request) {
         detailedAnalysis: result.detailedAnalysis || [],
         actionPlan: result.actionPlan || [],
         atsKeywords: result.atsKeywords || [],
+        quota,
       });
     }
 
@@ -195,6 +188,7 @@ export async function POST(request: Request) {
       atsKeywords: null,
     });
   } catch (err) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error('Resume score quota refund failed', refundError));
     console.error('resume score error:', err);
     return NextResponse.json(
       { ok: false, error: '评分服务暂不可用' },

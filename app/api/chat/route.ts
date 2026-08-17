@@ -10,6 +10,7 @@ import { StageNames, UserStage, getNextStage } from "@/lib/stage";
 import { runOrchestrator } from "@/lib/orchestrator";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { runWithGenerationContext } from "@/lib/generation-context";
 
 // 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
     }
 
     let knowledgeContextText = "";
+    let knowledgeDocumentIds: string[] = [];
     try {
       const latestUserMessage = [...body.messages].reverse().find((message: any) => message.role === "user")?.content || "";
       const knowledge = await buildAgentKnowledgeContext({
@@ -94,6 +96,7 @@ export async function POST(req: Request) {
         limit: 5,
       });
       knowledgeContextText = knowledge.contextText;
+      knowledgeDocumentIds = knowledge.items.map((item) => item.id);
     } catch (knowledgeError) {
       console.warn("[Knowledge] 求职知识库检索失败，降级为无知识库模式:", knowledgeError);
     }
@@ -132,10 +135,15 @@ export async function POST(req: Request) {
     }
 
     // ===== 调用编排器 =====
-    const orchestratorResult = await runOrchestrator({
+    const orchestratorResult = await runWithGenerationContext({
+      userId,
+      operation: `chat_${stage}`,
+      requestId,
+      knowledgeDocumentIds,
+    }, () => runOrchestrator({
       userStage: stage,
       messages: chatMessages,
-    });
+    }));
 
     const reply = orchestratorResult.reply;
     const stageEval = orchestratorResult.stageEval;

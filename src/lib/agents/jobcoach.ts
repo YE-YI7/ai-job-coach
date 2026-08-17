@@ -33,7 +33,7 @@ export async function simpleJobCoachAgent(
   // 确定使用哪个 API
   const isDeepSeek = !!process.env.DEEPSEEK_API_KEY;
   const baseURL = isDeepSeek ? "https://api.deepseek.com" : undefined;
-  const model = isDeepSeek ? "deepseek-chat" : (process.env.OPENAI_MODEL || "gpt-3.5-turbo");
+  const model = isDeepSeek ? "deepseek-v4-flash" : (process.env.OPENAI_MODEL || "gpt-3.5-turbo");
 
   const openai = new OpenAI({
     apiKey,

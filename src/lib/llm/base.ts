@@ -105,7 +105,7 @@ export class LLMProvider {
             configuration: {
               baseURL: "https://api.deepseek.com",
             },
-            modelName: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+            modelName: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
             temperature: 0.7, // 默认 temperature
           });
         }
@@ -186,7 +186,7 @@ export class LLMProvider {
       case "openai":
         return process.env.OPENAI_MODEL || "gpt-3.5-turbo";
       case "deepseek":
-        return process.env.DEEPSEEK_MODEL || "deepseek-chat";
+        return process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
       case "qwen":
         return process.env.QWEN_MODEL || "qwen-turbo";
       default:
@@ -385,4 +385,3 @@ export class LLMProvider {
     return this.modelType;
   }
 }
-

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-17",
+  "updated_at": "2026-08-18",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
@@ -360,6 +360,124 @@
         "https://www.nowcoder.com/discuss/630771565646319616",
         "https://www.nowcoder.com/discuss/628557901778444288",
         "https://www.nowcoder.com/discuss/353157160542609408"
+      ]
+    },
+    {
+      "id": "pm.ecommerce-product-interview.v1",
+      "title": "电商产品岗位的业务机制与案例准备",
+      "path": "domains/product-management/ecommerce-product-interview.md",
+      "description": "从用户、供给、交易、履约和商业约束准备电商产品案例，并检查指标与生态护栏。",
+      "goal": "让 Agent 把电商岗位追问落到业务机制、个人贡献和可验证结果，而不是产品功能背诵。",
+      "scope": "适用于京东、拼多多等电商产品岗位的岗位判断和业务面；跨团队跨年份样本不构成固定题库。",
+      "roles": ["电商产品经理", "产品经理", "技术产品经理", "产品管培生"],
+      "companies": ["京东", "拼多多"],
+      "stages": ["岗位判断", "一面", "二面", "业务面", "案例面试", "面试准备"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备电商产品岗位", "案例只列功能没有交易机制", "需要解释搜索推荐增长或直播电商", "项目指标缺少生态护栏"],
+      "do_not_use_when": ["预测公司必问题目", "把平台指标当成用户个人经历", "脱离目标团队泛谈电商"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/796058545211904000?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/415893253616087040",
+        "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+        "https://www.nowcoder.com/discuss/353156747856650240",
+        "https://www.nowcoder.com/discuss/798542749975760896"
+      ]
+    },
+    {
+      "id": "pm.platform-and-service-product.v1",
+      "title": "平台与服务产品的多角色设计",
+      "path": "domains/product-management/platform-and-service-product.md",
+      "description": "拆解平台产品的服务对象、公共能力、接入治理、失败路径以及自助与人工协作。",
+      "goal": "让 Agent 检查候选人是否真正理解平台边界、复用价值和服务质量，而不是只会设计后台页面。",
+      "scope": "适用于 AI 平台、内部系统、客服平台与 ToB 技术产品；岗位 ownership 仍需根据当前 JD 核验。",
+      "roles": ["平台产品经理", "AI产品经理", "技术产品经理", "客服产品经理", "ToB产品经理"],
+      "companies": ["快手", "京东", "小红书", "小米"],
+      "stages": ["岗位判断", "业务面", "技术面", "案例面试", "面试准备"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备平台或内部系统岗位", "需要说明多角色和公共能力", "客服自助和转人工没有失败路径", "AI 平台只讲模型能力"],
+      "do_not_use_when": ["根据平台岗位名称推断决策权", "把内部效率等同于外部用户价值", "忽略权限稳定性和治理"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/485698837575757824",
+        "https://www.nowcoder.com/discuss/415893253616087040",
+        "https://www.nowcoder.com/discuss/799670315189030912",
+        "https://job.xiaohongshu.com/social/position/17108"
+      ]
+    },
+    {
+      "id": "pm.content-community-product.v1",
+      "title": "内容社区产品的机制、指标与治理",
+      "path": "domains/product-management/content-community-product.md",
+      "description": "从生产、分发、消费、互动与治理解释内容社区产品机制，并为 AIGC 场景补充质量和安全护栏。",
+      "goal": "让 Agent 训练内容产品的机制推理、指标诊断和生态取舍，而不是停在界面对比。",
+      "scope": "当前主要依据快手不同团队和年份的公开个人样本；不代表任何团队当前流程。",
+      "roles": ["内容产品经理", "社区产品经理", "AI产品经理", "商业化产品经理", "产品经理"],
+      "companies": ["快手"],
+      "stages": ["一面", "二面", "业务面", "案例面试", "面试准备"],
+      "tasks": ["job_analysis", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备内容社区或短视频岗位", "指标下降缺少诊断顺序", "AIGC 方案缺少真实性和治理", "只会比较界面差异"],
+      "do_not_use_when": ["预测快手题目", "把 DAU 当唯一成功指标", "忽略创作者和消费者的利益冲突"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/797102099199717376?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/353157046684033024",
+        "https://www.nowcoder.com/discuss/250457",
+        "https://www.nowcoder.com/discuss/353157012156522496"
+      ]
+    },
+    {
+      "id": "pm.local-service-and-travel-product.v1",
+      "title": "本地服务、出行与旅游产品的场景诊断",
+      "path": "domains/product-management/local-service-and-travel-product.md",
+      "description": "用场景、供给、匹配、履约与风险分析本地服务产品，并把抽象体验转成可观察信号。",
+      "goal": "让 Agent 生成贴近线下履约约束的业务追问，并阻止候选人直接套用增长框架。",
+      "scope": "适用于滴滴、携程、美团等出行旅游和本地服务岗位；公司样本需与当前团队资料交叉。",
+      "roles": ["用户产品经理", "增长产品经理", "旅游产品经理", "本地生活产品经理", "产品经理"],
+      "companies": ["滴滴", "携程", "美团"],
+      "stages": ["岗位判断", "一面", "二面", "业务面", "案例面试"],
+      "tasks": ["job_analysis", "resume_tailoring", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备本地服务出行或旅游岗位", "体验目标过于抽象", "推荐和增长忽略履约", "需要分析供需和线下风险"],
+      "do_not_use_when": ["把单一城市或团队经验泛化", "编造平台供给数据", "只追转化不看安全投诉和履约"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/503276015075020800",
+        "https://www.nowcoder.com/discuss/469147585089970176",
+        "https://www.nowcoder.com/discuss/353156490544488448?sourceSSR=subject",
+        "https://www.nowcoder.com/discuss/938218",
+        "https://www.nowcoder.com/discuss/796077147080130560?sourceSSR=post"
+      ]
+    },
+    {
+      "id": "pm.hr-round-and-career-choice.v1",
+      "title": "产品岗位 HR 面的动机与选择一致性",
+      "path": "domains/product-management/hr-round-and-career-choice.md",
+      "description": "校验岗位动机、方向选择、优势短板、团队偏好和 offer 决策与真实经历是否一致。",
+      "goal": "让 Agent 复用事实底稿准备 HR 面，并主动发现简历、业务面和职业选择之间的冲突。",
+      "scope": "适用于产品与 AI 产品岗位 HR 面和终面；不帮助用户编造热爱、offer 或隐私情况。",
+      "roles": ["产品经理", "AI产品经理", "平台产品经理", "技术产品经理"],
+      "companies": ["美团", "京东", "快手"],
+      "stages": ["HR面", "终面", "面试准备", "复盘"],
+      "tasks": ["career_coaching", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备 HR 面或终面", "为什么做产品回答空泛", "公司选择标准前后冲突", "优势短板没有证据"],
+      "do_not_use_when": ["虚构 offer 或求职动机", "代替用户披露隐私", "用受保护属性做筛选建议"],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-08-18",
+      "evidence_urls": [
+        "https://www.nowcoder.com/discuss/650738535007256576?sourceSSR=dynamic",
+        "https://www.nowcoder.com/discuss/353156747856650240",
+        "https://www.nowcoder.com/discuss/353156795222925312?toCommentId=6943910",
+        "https://www.nowcoder.com/discuss/353157046684033024"
       ]
     }
   ]

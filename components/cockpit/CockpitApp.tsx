@@ -32,6 +32,7 @@ import type {
 } from "@/lib/opportunities/types";
 import { TodayCoach } from "./TodayCoach";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
+import { trackProductEvent } from "@/lib/product-events";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
@@ -112,6 +113,16 @@ export function CockpitApp({
   const [generatingResume, setGeneratingResume] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
+  const viewTracked = useRef(false);
+
+  useEffect(() => {
+    if (dataMode !== "live" || viewTracked.current) return;
+    viewTracked.current = true;
+    trackProductEvent("cockpit_viewed", {
+      opportunity_count: initialOpportunities.length,
+      has_preparation_workspace: initialOpportunities.some((item) => item.workspaceType === "preparation"),
+    });
+  }, [dataMode, initialOpportunities]);
 
   useEffect(() => {
     if (dataMode === "demo") {
@@ -174,6 +185,7 @@ export function CockpitApp({
             action.id === actionId ? { ...action, status: "done" as const } : action) }
         : opportunity
     ));
+    if (dataMode === "live") trackProductEvent("today_action_completed", { opportunity_id: active.id, action_id: actionId });
     announce(localIds.includes(active.id) ? "行动已保存到当前浏览器" : "示例行动已完成；刷新后会恢复");
   };
 
@@ -200,10 +212,12 @@ export function CockpitApp({
         timeLabel: "刚刚",
       }, ...opportunity.activities],
     }));
+    if (dataMode === "live") trackProductEvent("mentor_action_snoozed", { opportunity_id: focus.opportunityId, action_id: focus.id });
     announce("已延后到明天 10:00；导师会先安排其他更紧急的事");
   };
 
   const createOpportunity = async (intake: OpportunityIntake) => {
+    if (dataMode === "live") trackProductEvent("material_intake_started", { input_type: intake.file ? "file" : "text_or_link" });
     const requestBody = intake.file ? new FormData() : null;
     if (requestBody) {
       requestBody.set("file", intake.file as File);
@@ -215,7 +229,10 @@ export function CockpitApp({
       body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText }),
     });
     const result = await response.json();
-    if (!response.ok || !result.ok || !result.input) throw new Error(result.error || "材料暂时读不了，请重试");
+    if (!response.ok || !result.ok || !result.input) {
+      if (dataMode === "live") trackProductEvent("material_intake_failed", { input_type: intake.file ? "file" : "text_or_link", status: response.status });
+      throw new Error(result.error || "材料暂时读不了，请重试");
+    }
 
     const input = result.input as NewOpportunityInput;
     const analysis = result.analysis as Partial<Opportunity>;
@@ -266,12 +283,14 @@ export function CockpitApp({
     setActiveId(opportunity.id);
     setActiveTab("overview");
     setCreating(false);
+    if (dataMode === "live") trackProductEvent("material_intake_completed", { opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
     announce(opportunity.id === localId ? "岗位已保存到当前浏览器，云同步稍后重试" : analysis ? "岗位已同步并完成初步分析" : "岗位已同步，分析暂未完成");
   };
 
   const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, status } : change) } : item));
+    if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
     announce(status === "accepted" ? "已接受这处修改" : "已保留原文");
   };
 
@@ -281,6 +300,7 @@ export function CockpitApp({
       return;
     }
     setGeneratingResume(true);
+    if (dataMode === "live") trackProductEvent("resume_generation_started", { opportunity_id: active.id });
     try {
       const response = await fetch("/api/coach/resume-draft", {
         method: "POST",
@@ -294,8 +314,10 @@ export function CockpitApp({
         resumeChanges: result.changes,
         activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已通过事实校验。`, timeLabel: "刚刚" }, ...item.activities],
       } : item));
+      if (dataMode === "live") trackProductEvent("resume_generation_completed", { opportunity_id: active.id, change_count: result.changes.length });
       announce(`${result.changes.length} 处建议已生成并完成事实校验${typeof result.quota?.remaining === "number" ? ` · 剩余 ${result.quota.remaining} 次` : ""}`);
     } catch (error) {
+      if (dataMode === "live") trackProductEvent("resume_generation_failed", { opportunity_id: active.id });
       announce(error instanceof Error ? error.message : "简历生成失败");
     } finally {
       setGeneratingResume(false);
@@ -309,6 +331,7 @@ export function CockpitApp({
     window.localStorage.setItem("interview_questionCount", "3");
     window.localStorage.setItem("yi-zhi-interview-opportunity-id", active.id);
     window.localStorage.removeItem("interview_messages");
+    if (dataMode === "live") trackProductEvent("mock_interview_started", { opportunity_id: active.id, round: "business" });
     router.push("/interview/start?from=cockpit");
   };
 
@@ -322,18 +345,21 @@ export function CockpitApp({
       actions: item.actions.map((action) => action.id === "action-1" ? { ...action, status: "done" as const } : action),
       activities: [{ id: `${item.id}-answer-${Date.now()}`, actor: "user" as const, title: "补充一条关键事实", detail: answer, timeLabel: "刚刚" }, ...item.activities],
     }));
+    if (dataMode === "live") trackProductEvent("evidence_confirmed", { opportunity_id: active.id, requirement_id: target?.id || "unknown" });
     announce("已记录回答，并保留为待复核证据");
   };
 
   const saveReview = (round: string, notes: string) => {
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-review-${Date.now()}`, actor: "user", title: `提交${round}复盘材料`, detail: notes, timeLabel: "刚刚" }, ...item.activities] } : item));
+    if (dataMode === "live") trackProductEvent("interview_review_saved", { opportunity_id: active.id, round });
     announce(`${round}复盘材料已保存到这个岗位`);
   };
 
   const saveInterviewAnswer = (question: string, answer: string) => {
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, activities: [{ id: `${item.id}-practice-${Date.now()}`, actor: "user", title: `练习面试题：${question}`, detail: answer, timeLabel: "刚刚" }, ...item.activities] } : item));
+    if (dataMode === "live") trackProductEvent("interview_practice_saved", { opportunity_id: active.id });
     announce("练习回答已保存到这个岗位");
   };
 

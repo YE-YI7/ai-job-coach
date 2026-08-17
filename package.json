@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
-    "knowledge:build": "node scripts/compile-knowledge-base.mjs && node scripts/report-knowledge-quality.mjs"
+    "knowledge:build": "node scripts/compile-knowledge-base.mjs && node scripts/report-knowledge-quality.mjs",
+    "ops:env": "vercel env pull .env.ops.local --environment=production --yes",
+    "ops:funnel": "node --env-file=.env.ops.local scripts/report-product-funnel.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

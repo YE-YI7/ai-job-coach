@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -16,11 +16,16 @@ import {
   Sparkles,
 } from "lucide-react";
 import styles from "./Home.module.css";
+import { captureAcquisitionSource } from "@/lib/product-events";
 
 const AGENT_PROMPT = "请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。";
 
 export default function Home() {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  useEffect(() => {
+    captureAcquisitionSource();
+  }, []);
 
   const legacyCopy = () => {
     const textArea = document.createElement("textarea");

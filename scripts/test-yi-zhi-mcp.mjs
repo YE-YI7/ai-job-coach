@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -30,12 +30,23 @@ try {
 
   const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
+    "yi_zhi_retrieve_knowledge",
     "yi_zhi_create_case",
+    "yi_zhi_plan_today",
     "yi_zhi_get_cockpit",
     "yi_zhi_get_cockpit_url",
     "yi_zhi_update_cockpit",
     "yi_zhi_save_artifact"
   ]);
+
+  const knowledge = await send({
+    jsonrpc: "2.0",
+    id: 8,
+    method: "tools/call",
+    params: { name: "yi_zhi_retrieve_knowledge", arguments: { query: "AI 产品经理 面试", role: "AI 产品经理", limit: 3 } }
+  });
+  assert.equal(knowledge.result.isError, false);
+  assert.equal(knowledge.result.structuredContent.items.length, 3);
 
   const created = await send({
     jsonrpc: "2.0",
@@ -78,4 +89,51 @@ try {
 } finally {
   child.stdin.end();
   child.kill();
+}
+
+// Regression: an active Codex conversation keeps working while the Plugin
+// cache swaps from one version directory to the next.
+const cacheRoot = await mkdtemp(join(tmpdir(), "yi-zhi-plugin-cache-test-"));
+const oldRoot = join(cacheRoot, ".codex", "plugins", "cache", "yi-zhi", "yi-zhi", "0.5.0+codex.old");
+const newRoot = join(cacheRoot, ".codex", "plugins", "cache", "yi-zhi", "yi-zhi", "0.5.0+codex.new");
+const sourceKnowledge = new URL("../.agents/plugins/plugins/yi-zhi/knowledge/knowledge-documents.json", import.meta.url);
+await mkdir(join(oldRoot, "mcp"), { recursive: true });
+await mkdir(join(oldRoot, "knowledge"), { recursive: true });
+await mkdir(join(newRoot, "knowledge"), { recursive: true });
+await cp(serverPath, join(oldRoot, "mcp", "server.mjs"));
+await cp(sourceKnowledge, join(oldRoot, "knowledge", "knowledge-documents.json"));
+await cp(sourceKnowledge, join(newRoot, "knowledge", "knowledge-documents.json"));
+
+const upgradeDataDir = await mkdtemp(join(tmpdir(), "yi-zhi-mcp-upgrade-test-"));
+const upgradeChild = spawn(process.execPath, [join(oldRoot, "mcp", "server.mjs")], {
+  env: { ...process.env, YI_ZHI_DATA_DIR: upgradeDataDir },
+  stdio: ["pipe", "pipe", "inherit"]
+});
+const upgradeLines = createInterface({ input: upgradeChild.stdout, crlfDelay: Infinity });
+const upgradeWaiting = [];
+upgradeLines.on("line", (line) => upgradeWaiting.shift()?.resolve(JSON.parse(line)));
+function sendUpgrade(message) {
+  return new Promise((resolve) => {
+    upgradeWaiting.push({ resolve });
+    upgradeChild.stdin.write(`${JSON.stringify(message)}\n`);
+  });
+}
+
+try {
+  await sendUpgrade({ jsonrpc: "2.0", id: 20, method: "initialize", params: { protocolVersion: "2025-03-26" } });
+  await rm(oldRoot, { recursive: true, force: true });
+  const afterUpgrade = await sendUpgrade({
+    jsonrpc: "2.0",
+    id: 21,
+    method: "tools/call",
+    params: { name: "yi_zhi_retrieve_knowledge", arguments: { query: "产品经理 面试", role: "产品经理", limit: 1 } }
+  });
+  assert.equal(afterUpgrade.result.isError, false);
+  assert.equal(afterUpgrade.result.structuredContent.items.length, 1);
+  process.stdout.write("益职 MCP 升级连续性测试通过\n");
+} finally {
+  upgradeChild.stdin.end();
+  upgradeChild.kill();
+  await rm(cacheRoot, { recursive: true, force: true });
+  await rm(upgradeDataDir, { recursive: true, force: true });
 }

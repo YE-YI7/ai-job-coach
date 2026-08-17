@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 const DATA_DIR = process.env.YI_ZHI_DATA_DIR || join(homedir(), ".yi-zhi");
 const STATE_FILE = join(DATA_DIR, "cockpit.json");
 const ARTIFACT_DIR = join(DATA_DIR, "artifacts");
-const KNOWLEDGE_FILE = new URL("../knowledge/knowledge-documents.json", import.meta.url);
+const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const KNOWLEDGE_FILENAME = join("knowledge", "knowledge-documents.json");
+const KNOWLEDGE_FILE = process.env.YI_ZHI_KNOWLEDGE_FILE || join(PLUGIN_ROOT, KNOWLEDGE_FILENAME);
 const MAX_TEXT = 200_000;
 let cockpitOrigin = "";
 let cockpitServer;
@@ -140,10 +143,38 @@ function safeFilename(value) {
 
 async function loadKnowledge() {
   if (knowledgeCache) return knowledgeCache;
-  const parsed = JSON.parse(await readFile(KNOWLEDGE_FILE, "utf8"));
-  if (!Array.isArray(parsed?.documents) || !parsed.description || !parsed.goal) throw new Error("Invalid 益职 knowledge base.");
-  knowledgeCache = parsed;
-  return knowledgeCache;
+  const candidates = [KNOWLEDGE_FILE];
+  const versionRoot = dirname(PLUGIN_ROOT);
+
+  // Codex removes the previous version directory during an in-place Plugin
+  // update. A running server can fall forward to the newly installed sibling.
+  if (versionRoot.includes(join(".codex", "plugins", "cache"))) {
+    try {
+      const siblings = await readdir(versionRoot, { withFileTypes: true });
+      for (const sibling of siblings.filter((entry) => entry.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
+        const candidate = join(versionRoot, sibling.name, KNOWLEDGE_FILENAME);
+        if (!candidates.includes(candidate)) candidates.push(candidate);
+      }
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(await readFile(candidate, "utf8"));
+      if (!Array.isArray(parsed?.documents) || !parsed.description || !parsed.goal) {
+        throw new Error("Invalid 益职 knowledge base.");
+      }
+      knowledgeCache = parsed;
+      return knowledgeCache;
+    } catch (error) {
+      lastError = error;
+      if (error?.code !== "ENOENT") throw error;
+    }
+  }
+  throw new Error(`益职知识库文件不可用：${lastError?.message || "not found"}`);
 }
 
 function normalized(value) {
@@ -441,7 +472,7 @@ async function handle(message) {
       return response(message.id, {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yi-zhi", version: "0.5.0" },
+        serverInfo: { name: "yi-zhi", version: "0.5.1" },
         instructions: "Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product."
       });
     }
@@ -469,9 +500,12 @@ async function dispatch(value) {
   process.stdout.write(`${JSON.stringify(Array.isArray(value) ? replies : replies[0])}\n`);
 }
 
+// Hold a snapshot in memory before a package manager swaps the versioned
+// Plugin directory. Cockpit-only use still starts if this preload fails.
+await loadKnowledge().catch(() => undefined);
+await startCockpitServer();
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 let dispatchQueue = Promise.resolve();
-await startCockpitServer();
 input.on("line", (line) => {
   const trimmed = line.trim();
   if (!trimmed) return;

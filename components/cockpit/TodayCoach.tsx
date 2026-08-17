@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import {
   ArrowRight,
   BellSimple,
@@ -52,10 +53,11 @@ export function TodayCoach({
   onOpenTab: (tab: TodayTab) => void;
   onCreate: () => void;
   onSnooze: () => void;
-  onFeedback: () => void;
+  onFeedback: (input: { reason: "already_done" | "wrong_priority" | "missing_context"; opportunityId: string | null; actionId: string; sourceActionId?: string }) => void;
   onShowRules: () => void;
   notice: string;
 }) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const visibleOpportunities = opportunities.slice(0, 3);
   const now = new Date();
@@ -173,8 +175,14 @@ export function TodayCoach({
                     <small>{focusAction?.dueLabel || "无截止时间"}　·　{focusAction?.cost === "credits" ? "执行前显示额度" : "这一步免费"}</small>
                     <div className={styles.softActions}>
                       <button type="button" onClick={onSnooze}><BellSimple size={15} />稍后提醒</button>
-                      <button type="button" onClick={onFeedback}><Question size={15} />不适合我</button>
+                      <button type="button" aria-expanded={feedbackOpen} onClick={() => setFeedbackOpen((value) => !value)}><Question size={15} />不适合我</button>
                     </div>
+                    {feedbackOpen && <div className={styles.feedbackMenu} aria-label="纠正导师建议">
+                      <span>哪里不对？</span>
+                      <button type="button" onClick={() => { if (focusAction) onFeedback({ reason: "already_done", opportunityId: focusAction.opportunityId, actionId: focusAction.id, sourceActionId: focusAction.sourceActionId }); setFeedbackOpen(false); }}>这件事已经做完</button>
+                      <button type="button" onClick={() => { if (focusAction) onFeedback({ reason: "wrong_priority", opportunityId: focusAction.opportunityId, actionId: focusAction.id }); setFeedbackOpen(false); }}>现在不是最高优先级</button>
+                      <button type="button" onClick={() => { if (focusAction) onFeedback({ reason: "missing_context", opportunityId: focusAction.opportunityId, actionId: focusAction.id }); setFeedbackOpen(false); }}>你缺少重要背景</button>
+                    </div>}
                   </aside>
                 </div>
               </article>

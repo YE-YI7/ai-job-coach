@@ -5,6 +5,7 @@ export const PRODUCT_EVENT_NAMES = [
   "material_intake_failed",
   "today_action_completed",
   "mentor_action_snoozed",
+  "mentor_feedback_submitted",
   "evidence_confirmed",
   "resume_generation_started",
   "resume_generation_completed",

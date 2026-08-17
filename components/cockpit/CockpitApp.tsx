@@ -222,6 +222,48 @@ export function CockpitApp({
     announce("已延后到明天 10:00；导师会先安排其他更紧急的事");
   };
 
+  const submitMentorFeedback = (input: { reason: "already_done" | "wrong_priority" | "missing_context"; opportunityId: string | null; actionId: string; sourceActionId?: string }) => {
+    if (!input.opportunityId) {
+      announce("先添加一份材料，我才能调整安排");
+      return;
+    }
+    const labels = {
+      already_done: "这件事已经做完",
+      wrong_priority: "现在不是最高优先级",
+      missing_context: "导师缺少重要背景",
+    } as const;
+    const until = new Date();
+    until.setDate(until.getDate() + 1);
+    until.setHours(10, 0, 0, 0);
+    setOpportunities((current) => current.map((opportunity) => {
+      if (opportunity.id !== input.opportunityId) return opportunity;
+      const actions = input.reason === "already_done" && input.sourceActionId
+        ? opportunity.actions.map((action) => action.id === input.sourceActionId ? { ...action, status: "done" as const } : action)
+        : opportunity.actions;
+      const hiddenUntil = input.reason === "already_done" && !input.sourceActionId
+        ? new Date("2100-01-01T00:00:00.000Z").toISOString()
+        : until.toISOString();
+      const mentorSnoozes = input.reason !== "missing_context"
+        ? [...(opportunity.mentorSnoozes || []).filter((item) => item.actionId !== input.actionId), { actionId: input.actionId, until: hiddenUntil }]
+        : opportunity.mentorSnoozes;
+      return {
+        ...opportunity,
+        actions,
+        mentorSnoozes,
+        activities: [{ id: `${opportunity.id}-mentor-feedback-${Date.now()}`, actor: "user" as const, title: "纠正导师建议", detail: labels[input.reason], timeLabel: "刚刚" }, ...opportunity.activities],
+      };
+    }));
+    if (dataMode === "live") trackProductEvent("mentor_feedback_submitted", { opportunity_id: input.opportunityId, reason: input.reason });
+    if (input.reason === "missing_context") {
+      setActiveId(input.opportunityId);
+      setActiveTab("evidence");
+      setSurface("opportunity");
+      announce("已打开经历证据；补一条背景后导师会重新排序");
+      return;
+    }
+    announce(input.reason === "already_done" ? "已标记完成，导师正在重新安排" : "已延后这一步，导师正在重新排序");
+  };
+
   const createOpportunity = async (intake: OpportunityIntake) => {
     if (dataMode === "live") trackProductEvent("material_intake_started", { input_type: intake.file ? "file" : "text_or_link" });
     const requestBody = intake.file ? new FormData() : null;
@@ -435,7 +477,7 @@ export function CockpitApp({
         onOpenTab={openFromToday}
         onCreate={() => { setCreateOrigin("today"); setCreating(true); setSurface("opportunity"); }}
         onSnooze={snoozeMentorAction}
-        onFeedback={() => announce("已记录你的纠正；导师会重新检查判断依据")}
+        onFeedback={submitMentorFeedback}
         onShowRules={() => announce("跟踪、提醒与一致性检查免费；生成和模拟面试执行前明示额度")}
       />
     );

@@ -161,6 +161,10 @@
 .softActions { margin-top: 15px; padding-top: 13px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #edc8b4; }
 .softActions button { padding: 4px 0; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: #80523e; cursor: pointer; font-size: 10px; }
 .softActions button:hover { color: var(--orange-deep); }
+.feedbackMenu { margin-top: 10px; padding: 11px; display: grid; gap: 6px; border: 1px solid #edc8b4; border-radius: 11px; background: #fff; box-shadow: 0 12px 28px rgba(85, 50, 32, .08); }
+.feedbackMenu > span { padding: 2px 5px 5px; color: var(--muted); font-size: 9px; font-weight: 700; }
+.feedbackMenu button { min-height: 32px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; font-size: 10px; text-align: left; }
+.feedbackMenu button:hover { background: var(--orange-soft); color: var(--orange-deep); }
 
 .stageSummary { min-height: 70px; padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 22px; border-bottom: 1px solid var(--line-strong); }
 .stageSummary > div { display: flex; align-items: center; gap: 11px; }

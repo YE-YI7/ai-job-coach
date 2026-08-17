@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { getFollowUpDrillPrompt } from "@/lib/interview-review/prompts";
 import { saveFollowups, getFollowups } from "@/lib/interview-review/db";
 import type { FollowUpQuestion } from "@/lib/interview-review/types";
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -125,3 +126,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_review_followup", quotaType: "interview" });

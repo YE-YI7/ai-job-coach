@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -161,3 +162,5 @@ ${knowledge.contextText ? `---\n\n${knowledge.contextText}` : ""}
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "resume_tailor_legacy", quotaType: "resume" });

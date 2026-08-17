@@ -24,6 +24,12 @@ import { getDbClient, getLatestResumeByUserId } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { evaluateAnswer, formatResumeForPrompt } from "@/lib/interview/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { runWithGenerationContext } from "@/lib/generation-context";
+import {
+  acquireInterviewGenerationClaim,
+  completeInterviewGenerationClaim,
+  releaseInterviewGenerationClaim,
+} from "@/lib/interview-generation-claims";
 import { v4 as uuidv4 } from "uuid";
 import type {
   AnswerQuestionRequest,
@@ -164,50 +170,74 @@ export async function POST(request: Request) {
       limit: 5,
     });
 
-    // 8. 评估答案（可能耗时 20-60 秒）
-    const assessment = await evaluateAnswer({
-      question: question.question_text,
-      jd: session.jd,
-      answer: answer.trim(),
-      roundType: session.round_type as any,
-      resumeText: resumeText || undefined,
-      knowledgeContext: knowledge.contextText || undefined,
+    const claimKey = `answer:${session_id}:${question_id}`;
+    const claim = await acquireInterviewGenerationClaim({
+      key: claimKey,
+      userId,
+      sessionId: session_id,
+      operation: "answer_assessment",
     });
-
-    // 9. 保存答案和评估到数据库
-    const answerId = uuidv4();
-    const { error: answerError } = await db
-      .from("interview_answers")
-      .insert({
-        id: answerId,
-        session_id: session_id,
-        question_id: question_id,
-        answer: answer.trim(),
-        assessment: assessment,
-        created_at: new Date().toISOString(),
+    if (claim.state === "processing") {
+      return new Response(JSON.stringify({ ok: false, error: "这道题正在生成反馈，请稍后重试" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
       });
-
-    if (answerError) {
-      console.error("保存答案失败:", answerError);
-      return new Response(
-        JSON.stringify({ ok: false, error: "保存答案失败" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+    }
+    if (claim.state === "completed") {
+      return new Response(JSON.stringify({ question_id, assessment: claim.result }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "x-yi-zhi-idempotent-replay": "true" },
+      });
     }
 
-    // 10. 返回响应
-    const response: AnswerQuestionResponse = {
-      question_id: question_id,
-      assessment: assessment,
-    };
+    try {
+      // 8. 评估答案（可能耗时 20-60 秒）
+      const assessment = await runWithGenerationContext({
+        userId,
+        operation: "mock_interview_answer_assessment",
+        requestId: claimKey,
+        knowledgeDocumentIds: knowledge.items.map((item) => item.id),
+      }, () => evaluateAnswer({
+        question: question.question_text,
+        jd: session.jd,
+        answer: answer.trim(),
+        roundType: session.round_type as any,
+        resumeText: resumeText || undefined,
+        knowledgeContext: knowledge.contextText || undefined,
+      }));
 
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+      // 9. 保存答案和评估到数据库
+      const answerId = uuidv4();
+      const { error: answerError } = await db
+        .from("interview_answers")
+        .insert({
+          id: answerId,
+          session_id: session_id,
+          question_id: question_id,
+          answer: answer.trim(),
+          assessment: assessment,
+          created_at: new Date().toISOString(),
+        });
+
+      if (answerError) throw new Error(`保存答案失败：${answerError.message}`);
+      await completeInterviewGenerationClaim(claimKey, userId, assessment);
+
+      // 10. 返回响应
+      const response: AnswerQuestionResponse = {
+        question_id: question_id,
+        assessment: assessment,
+      };
+
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      await releaseInterviewGenerationClaim(claimKey, userId).catch((releaseError) => {
+        console.error("Release interview answer claim failed", releaseError);
+      });
+      throw error;
+    }
   } catch (error) {
     console.error("API Error:", error);
     return new Response(

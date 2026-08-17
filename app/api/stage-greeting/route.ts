@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
-import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 
-// 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
+
+const greetings: Record<string, string> = {
+  career_planning: "先确认你想去的岗位，再决定今天补哪一块证据。",
+  project_review: "选一段最能证明能力的经历，我们把过程和结果讲清楚。",
+  resume_optimization: "先对齐目标岗位，再改最影响筛选结果的内容。",
+  application_strategy: "先看岗位值不值得投，再安排投递顺序。",
+  interview: "先确定面试轮次和岗位，我会按真实节奏陪你练。",
+  salary_talk: "先梳理底线、目标和可交换条件，再准备谈判。",
+  offer: "把选择标准和真实约束列出来，我们逐项比较。",
+};
 
 export async function POST(req: Request) {
   try {
@@ -37,31 +45,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const stage = body.stage;
-
-    // 根据 stage 构造 prompt
-    const prompt = `你是一位专业的职业教练。请为用户当前的阶段生成一句自然、友好、简短的开场白，用来引导他们开始本阶段内容。
-
-当前阶段：${stage}
-
-要求：
-- 只能一句话
-- 语气专业但有温度
-- 不要重复"阶段"二字
-- 不要说"欢迎来到……"`;
-
-    // 调用 callLLM
-    const messages = [
-      { role: "system" as const, content: "你是一位专业职业教练 AI。" },
-      { role: "user" as const, content: prompt }
-    ];
-
-    const reply = await callLLM(messages);
-
-    // 返回格式
     return NextResponse.json({
       ok: true,
-      result: reply
+      result: greetings[body.stage] || "先告诉我你现在最急的求职问题，我帮你排出下一步。"
     });
   } catch (err) {
     console.error("API Error:", err);

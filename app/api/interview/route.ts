@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 
 // ========== 类型定义 ==========
 
@@ -673,7 +674,7 @@ ${history}
 
 // ========== 主处理函数 ==========
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const authenticatedUser = await getCurrentUserFromRequest();
     if (!authenticatedUser) {
@@ -812,3 +813,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_legacy", quotaType: "interview" });

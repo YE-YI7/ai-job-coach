@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -111,3 +112,5 @@ ${context}
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_answer_review", quotaType: "interview" });

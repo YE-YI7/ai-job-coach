@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import {
   getPositiveHRPrompt,
   getAdvisoryHRPrompt,
@@ -18,7 +19,7 @@ export const runtime = "nodejs";
  * POST /api/hr-review
  * 获取双HR点评
  */
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     // 认证检查
     const auth = await getCurrentUserFromRequest();
@@ -381,6 +382,8 @@ async function generateInitialDiscussion(
   );
   return parseDiscussionResponse(raw);
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "resume_hr_review", quotaType: "resume" });
 
 /**
  * 生成后续对谈（简历更新后）

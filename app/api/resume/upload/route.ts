@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { saveResumeUpload } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
 import pdfParse from "pdf-parse";
@@ -153,7 +154,7 @@ ${rawText}
  * POST /api/resume/upload
  * 处理简历文件上传、解析和存储
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     // 1. 用户认证检查
     const user = await getCurrentUserFromRequest();
@@ -371,3 +372,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "resume_upload_parse", quotaType: "resume" });

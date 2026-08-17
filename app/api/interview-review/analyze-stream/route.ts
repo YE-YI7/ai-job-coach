@@ -15,6 +15,7 @@
  */
 
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import {
   generateDiscussion,
   scoreAndRewrite,
@@ -39,7 +40,7 @@ function sseMessage(event: string, data: any): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   // 认证
   const auth = await getCurrentUserFromRequest();
   if (!auth) {
@@ -184,3 +185,5 @@ export async function POST(req: Request) {
     },
   });
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_review_analysis_stream", quotaType: "interview" });

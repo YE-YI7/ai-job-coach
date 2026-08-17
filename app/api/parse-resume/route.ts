@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import pdfParse from "pdf-parse";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 
 // 必须使用 Node.js runtime（因为需要文件解析库）
 export const runtime = "nodejs";
@@ -12,7 +13,7 @@ export const runtime = "nodejs";
  * 1. FormData: 上传PDF文件解析
  * 2. JSON: 从对话消息中提取简历信息
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     if (!(await getCurrentUserFromRequest())) {
       return NextResponse.json({ ok: false, error: "未授权访问" }, { status: 401 });
@@ -135,6 +136,8 @@ ${messages.map((msg: any, idx: number) => `[${idx + 1}] ${msg.role}: ${msg.conte
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "resume_parse", quotaType: "resume" });
 
 /**
  * 处理文件上传请求：解析PDF文件

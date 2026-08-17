@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { getTrainingTaskPrompt } from "@/lib/interview-review/prompts";
 import {
   createTrainingTasks,
@@ -56,7 +57,7 @@ export async function GET(req: Request) {
 }
 
 // POST: 生成或添加训练任务
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -198,3 +199,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_review_tasks", quotaType: "interview" });

@@ -7,12 +7,13 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { getFollowUpFeedbackPrompt } from "@/lib/interview-review/prompts";
 import type { FollowUpFeedback } from "@/lib/interview-review/types";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -83,3 +84,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_review_followup_answer", quotaType: "interview" });

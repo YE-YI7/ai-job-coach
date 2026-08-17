@@ -5,6 +5,7 @@ import { callLLM } from "@/lib/llm";
 import { UserStage, StageNames, isValidStage } from "@/lib/stage";
 import { saveWhiteboard } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 
 type Message = {
   role?: "user" | "assistant" | "system";
@@ -87,7 +88,7 @@ type WhiteboardData = {
   }>;
 };
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const user = await getCurrentUserFromRequest();
     if (!user) return NextResponse.json({ error: "未认证" }, { status: 401 });
@@ -448,3 +449,5 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
     return NextResponse.json({}, { status: 500 });
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "legacy_workspace_analysis", quotaType: "chat" });

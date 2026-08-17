@@ -7,6 +7,7 @@
  */
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import {
   analyzeQuestion,
   generateSummary,
@@ -22,7 +23,7 @@ import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
@@ -93,3 +94,5 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "interview_review_analysis", quotaType: "interview" });

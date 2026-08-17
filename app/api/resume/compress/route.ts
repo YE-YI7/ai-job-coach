@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM } from '@/lib/llm';
 import { getCurrentUserFromRequest } from '@/lib/auth';
+import { withMeteredAiRoute } from '@/lib/metered-ai-route';
 
 interface CompressRequest {
   resumeData: {
@@ -62,7 +63,7 @@ function getCompressionPrompt(level: 1 | 2 | 3, targetRatio: number): string {
 请以JSON格式返回压缩后的内容，保持原有的字段结构。`;
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   try {
     if (!(await getCurrentUserFromRequest())) {
       return NextResponse.json({ success: false, error: '未认证' }, { status: 401 });
@@ -133,3 +134,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: 'resume_compress', quotaType: 'resume' });

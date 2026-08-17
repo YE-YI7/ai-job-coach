@@ -19,9 +19,11 @@ export interface QuotaReservation {
   remaining: number | null;
 }
 
+export type QuotaType = 'chat' | 'resume' | 'interview';
+
 export async function reserveQuota(
   userId: string,
-  type: 'chat' | 'resume' | 'interview',
+  type: QuotaType,
   idempotencyKey: string
 ): Promise<QuotaReservation | null> {
   const client = await getDbClient();

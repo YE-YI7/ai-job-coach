@@ -26,22 +26,15 @@ export const preferredRegion = "iad1";
 import { getDbClient } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { summarizeInterview } from "@/lib/interview/llm";
+import { runWithGenerationContext } from "@/lib/generation-context";
+import {
+  acquireInterviewGenerationClaim,
+  completeInterviewGenerationClaim,
+  releaseInterviewGenerationClaim,
+} from "@/lib/interview-generation-claims";
 
 interface CompleteRequest {
   session_id: string;
-}
-
-interface CompleteResponse {
-  session_id: string;
-  summary: {
-    overallScore: number;
-    grade: string;
-    gradeNext: string;
-    strengths: string[];
-    weaknesses: string[];
-    suggestions: string[];
-    dimensions: { name: string; score: number; comment: string }[];
-  };
 }
 
 export async function POST(request: Request) {
@@ -155,36 +148,62 @@ export async function POST(request: Request) {
     // 7. 提取所有评估结果
     const assessments = answers.map((a: any) => a.assessment || a);
 
-    // 8. 生成面试总结（可能耗时 20-60 秒）
-    const summary = await summarizeInterview({
-      jd: session.jd,
-      roundType: session.round_type as any,
-      assessments: assessments,
+    const claimKey = `summary:${session_id}`;
+    const claim = await acquireInterviewGenerationClaim({
+      key: claimKey,
+      userId,
+      sessionId: session_id,
+      operation: "session_summary",
     });
+    if (claim.state === "processing") {
+      return new Response(JSON.stringify({ ok: false, error: "总结正在生成，请稍后重试" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (claim.state === "completed") {
+      return new Response(JSON.stringify(claim.result), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "x-yi-zhi-idempotent-replay": "true" },
+      });
+    }
 
-    // 9. 返回响应（兼容前端期望的格式：data.payload?.summary || data）
-    const response: CompleteResponse = {
-      session_id: session_id,
-      summary: summary,
-    };
+    try {
+      // 8. 生成面试总结（可能耗时 20-60 秒）
+      const summary = await runWithGenerationContext({
+        userId,
+        operation: "mock_interview_summary",
+        requestId: claimKey,
+      }, () => summarizeInterview({
+        jd: session.jd,
+        roundType: session.round_type as any,
+        assessments: assessments,
+      }));
 
-    // 同时提供 payload 格式以兼容前端
-    const responseWithPayload = {
-      type: "session-summary",
-      payload: {
-        session_id: session_id,
-        summary: summary,
-      },
-      meta: {
-        source: "llm",
-        generated_at: new Date().toISOString(),
-      },
-    };
+      // 9. 返回响应（兼容前端期望的格式：data.payload?.summary || data）
+      const responseWithPayload = {
+        type: "session-summary",
+        payload: {
+          session_id: session_id,
+          summary: summary,
+        },
+        meta: {
+          source: "llm",
+          generated_at: new Date().toISOString(),
+        },
+      };
+      await completeInterviewGenerationClaim(claimKey, userId, responseWithPayload);
 
-    return new Response(JSON.stringify(responseWithPayload), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+      return new Response(JSON.stringify(responseWithPayload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      await releaseInterviewGenerationClaim(claimKey, userId).catch((releaseError) => {
+        console.error("Release interview summary claim failed", releaseError);
+      });
+      throw error;
+    }
   } catch (error) {
     console.error("API Error:", error);
     return new Response(
@@ -199,4 +218,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

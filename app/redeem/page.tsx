@@ -26,7 +26,7 @@ export default function RedeemPage() {
       const data = await res.json();
       setResult({
         ok: data.ok,
-        message: data.ok ? `兑换成功！${data.product_type === 'interview_pack' ? '面试冲刺包' : data.product_type === 'vip_monthly' ? '全流程VIP' : '简历急救包'}已激活` : (data.error || '兑换失败'),
+        message: data.ok ? '额度已加入账号' : (data.error || '兑换失败'),
       });
       if (data.ok) setCode('');
     } catch {
@@ -62,8 +62,8 @@ export default function RedeemPage() {
 
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-8 shadow-sm text-center">
             <div className="text-4xl mb-4">🎁</div>
-            <h1 className="text-xl font-bold text-slate-800 mb-2">兑换码充值</h1>
-            <p className="text-sm text-slate-500 mb-6">输入购买的兑换码，立即激活额度</p>
+            <h1 className="text-xl font-bold text-slate-800 mb-2">内测额度兑换</h1>
+            <p className="text-sm text-slate-500 mb-6">输入内测或活动兑换码，额度会立即加入账号</p>
 
             <input
               type="text"

@@ -106,7 +106,7 @@ export default function Home() {
             <div className={styles.modeBody}>
               <div className={styles.modeTitleLine}>
                 <h2>网页端直接使用</h2>
-                <span className={styles.paidTag}>付费</span>
+                <span className={styles.paidTag}>按额度</span>
               </div>
               <p>由益职提供模型、账号与托管作战盘。打开网页就能用，使用时消耗益职额度。</p>
               <div className={styles.modeFacts}>
@@ -219,7 +219,7 @@ export default function Home() {
       <section className={styles.finalSection}>
         <h2>选好它运行在哪里，就从一个真实岗位开始。</h2>
         <div>
-          <Link className={styles.finalWeb} href="/login?redirect=%2Fcockpit">使用付费网页版 <ArrowRight size={16} /></Link>
+          <Link className={styles.finalWeb} href="/login?redirect=%2Fcockpit">进入网页版 <ArrowRight size={16} /></Link>
           <button className={styles.finalAgent} onClick={copyAgentPrompt} type="button"><Copy size={16} />{copyState === "copied" ? "已复制给 Agent" : "复制免费版指令"}</button>
         </div>
       </section>

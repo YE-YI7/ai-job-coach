@@ -131,7 +131,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="bg-orange-50 rounded-xl p-3 text-center">
                   <div className="text-2xl font-bold text-orange-600">{quota.paid_chat_remaining}</div>
-                  <div className="text-[10px] text-slate-500 mt-1">付费对话余量</div>
+                  <div className="text-[10px] text-slate-500 mt-1">额外对话余量</div>
                 </div>
                 <div className="bg-green-50 rounded-xl p-3 text-center">
                   <div className="text-2xl font-bold text-green-600">{quota.free_resume_daily}</div>
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="bg-purple-50 rounded-xl p-3 text-center">
                   <div className="text-2xl font-bold text-purple-600">{quota.paid_interview_remaining}</div>
-                  <div className="text-[10px] text-slate-500 mt-1">付费面试余量</div>
+                  <div className="text-[10px] text-slate-500 mt-1">额外面试余量</div>
                 </div>
               </div>
             ) : (
@@ -197,7 +197,7 @@ export default function ProfilePage() {
               onClick={() => router.push('/redeem')}
               className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold rounded-xl text-sm hover:shadow-lg transition-all"
             >
-              兑换码充值
+              内测额度兑换
             </button>
             <button
               onClick={handleLogout}

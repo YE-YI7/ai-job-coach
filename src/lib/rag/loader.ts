@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
-import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
+import { extractPdfText } from "@/lib/pdf-text";
 // LangChain 已移除，以下导入已注释
 // import { Document } from "@langchain/core/documents";
 // import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -98,8 +98,7 @@ async function readTextFile(filePath: string): Promise<string> {
  */
 async function readPdfFile(filePath: string): Promise<string> {
   const buffer = await fs.promises.readFile(filePath);
-  const data = await pdfParse(buffer);
-  return data.text;
+  return extractPdfText(buffer);
 }
 
 /**
@@ -210,4 +209,3 @@ export async function loadKnowledgeBase(): Promise<Document[]> {
   console.log(`知识库加载完成，共 ${allDocuments.length} 个文档块`);
   return allDocuments;
 }
-

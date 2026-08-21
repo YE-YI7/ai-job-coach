@@ -3,9 +3,9 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { saveResumeUpload } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
-import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import { validateResumeFileSize, validateResumeFileType } from "@/lib/resume-file-validation";
+import { extractPdfText } from "@/lib/pdf-text";
 
 // 使用 Node.js runtime（需要文件解析库）
 export const runtime = "nodejs";
@@ -266,8 +266,7 @@ async function handlePost(request: Request) {
       // 根据文件类型选择解析方法
       if (filename.toLowerCase().endsWith(".pdf")) {
         // 解析 PDF
-        const pdfData = await pdfParse(buffer);
-        rawText = pdfData.text;
+        rawText = await extractPdfText(buffer);
       } else if (filename.toLowerCase().endsWith(".docx")) {
         // 解析 DOCX
         const result = await mammoth.extractRawText({ buffer });

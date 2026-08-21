@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep the PDF parser and its worker available in Vercel's Node.js functions.
+  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
+
   // 使用 standalone 输出模式，提高部署稳定性
   output: 'standalone',
 

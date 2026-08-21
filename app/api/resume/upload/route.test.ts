@@ -7,7 +7,7 @@ import { POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { saveResumeUpload } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
-import pdfParse from "pdf-parse";
+import { extractPdfText } from "@/lib/pdf-text";
 import mammoth from "mammoth";
 
 // Mock 认证模块
@@ -20,7 +20,7 @@ jest.mock("@/lib/db");
 jest.mock("@/lib/llm");
 
 // Mock 文件解析库
-jest.mock("pdf-parse");
+jest.mock("@/lib/pdf-text");
 jest.mock("mammoth");
 
 describe("Resume Upload API - File Validation", () => {
@@ -31,9 +31,9 @@ describe("Resume Upload API - File Validation", () => {
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(mockUser);
     
     // Mock PDF解析
-    (pdfParse as unknown as jest.Mock).mockResolvedValue({
-      text: "这是一份测试简历\n姓名：张三\n教育：某某大学\n工作经验：某某公司",
-    });
+    (extractPdfText as jest.Mock).mockResolvedValue(
+      "这是一份测试简历\n姓名：张三\n教育：某某大学\n工作经验：某某公司"
+    );
     
     // Mock Word解析
     (mammoth.extractRawText as jest.Mock).mockResolvedValue({

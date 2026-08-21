@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
-import pdfParse from "pdf-parse";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
+import { extractPdfText } from "@/lib/pdf-text";
 
 // 必须使用 Node.js runtime（因为需要文件解析库）
 export const runtime = "nodejs";
@@ -182,8 +182,7 @@ async function handleFileUpload(request: Request) {
     // 调用 pdf-parse 解析 PDF
     let rawText = "";
     try {
-      const data = await pdfParse(buffer);
-      rawText = data.text;
+      rawText = await extractPdfText(buffer);
     } catch (error: any) {
       console.error("PDF 解析失败:", error);
       if (error.code === "MODULE_NOT_FOUND") {

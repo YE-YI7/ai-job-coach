@@ -669,6 +669,12 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
       >
         <div
           className={`${styles.intakeComposer} ${dragging ? styles.intakeDragging : ""}`}
+          onPaste={(event) => {
+            const pastedFile = Array.from(event.clipboardData.files).find((candidate) => /\.(pdf|docx|txt|md)$/i.test(candidate.name));
+            if (!pastedFile) return;
+            event.preventDefault();
+            chooseFile(pastedFile);
+          }}
           onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
           onDragOver={(event) => event.preventDefault()}
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
@@ -689,7 +695,7 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
               <UploadCloud size={16} />选择文件
               <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => chooseFile(event.target.files?.[0])} />
             </label>
-            <span>也可以直接拖进来 · 10MB 以内</span>
+            <span>也可以粘贴或拖进来 · 10MB 以内</span>
           </div>
         </div>
         <div className={styles.mentorPromise}>

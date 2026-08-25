@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 };
 
 const CODEX_COMMAND = "codex plugin marketplace add YE-YI7/ai-job-coach --ref backend && codex plugin add yi-zhi@yi-zhi";
+const CODEX_UPDATE_COMMAND = "codex plugin marketplace upgrade yi-zhi && codex plugin add yi-zhi@yi-zhi";
 const WORKBUDDY_COMMAND = "curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- workbuddy";
 const CLAUDE_COMMAND = "curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- claude";
 const GENERIC_COMMAND = "curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts/install-agent.sh | sh -s -- agents";
@@ -53,7 +54,8 @@ export default function AgentGuide() {
           <a href="#install">02 · 识别宿主并安装</a>
           <a href="#mcp">03 · 接通本地作战盘</a>
           <a href="#verify">04 · 验证后再宣布完成</a>
-          <a href="#start">05 · 开始第一个岗位</a>
+          <a href="#update">05 · 接通每周版本检查</a>
+          <a href="#start">06 · 开始第一个岗位</a>
         </aside>
 
         <article className={styles.guide}>
@@ -124,8 +126,17 @@ export default function AgentGuide() {
             <div className={styles.failureBox}>如果宿主不支持 MCP，必须直说“求职方法已安装，但可视作战盘尚未接通”；不能把仅安装 Skills 描述成完整成功。</div>
           </section>
 
-          <section id="start">
+          <section id="update">
             <span className={styles.step}>05</span>
+            <h2>第一次安装时，把后续更新也接通</h2>
+            <p>确认工具列表中存在 <code>yi_zhi_check_update</code>。益职 MCP 会在 Agent 启动时读取本地版本状态；联网检查每周最多一次，不需要安装系统级定时任务，也不会读取简历或静默覆盖本地数据。</p>
+            <p>发现新版本时，只提醒用户一次并说明更新内容。用户同意更新后，Codex 执行：</p>
+            <Command>{CODEX_UPDATE_COMMAND}</Command>
+            <p>Claude Code、WorkBuddy 和通用 Agent 重新执行各自的安装命令。更新完成后重启或新建会话，并再次验证 MCP 工具与作战盘。</p>
+          </section>
+
+          <section id="start">
+            <span className={styles.step}>06</span>
             <h2>完成后，只向用户索取第一份必要材料</h2>
             <p>不要介绍一遍全部功能，也不要把用户带进项目开发。先用一句话报告安装与本地链接的状态，再根据对方目标只问一个问题。</p>
             <blockquote>“益职免费版已在你的本地 Agent 中运行，作战盘地址是……。我们先从一个真实岗位开始：请把你正在考虑的 JD 发给我。”</blockquote>

@@ -12,6 +12,12 @@ const DATA_DIR = process.env.YI_ZHI_DATA_DIR || join(homedir(), ".yi-zhi");
 const STATE_FILE = join(DATA_DIR, "cockpit.json");
 const ARTIFACT_DIR = join(DATA_DIR, "artifacts");
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const RELEASE_FILE = process.env.YI_ZHI_RELEASE_FILE || join(PLUGIN_ROOT, "release.json");
+const UPDATE_STATE_FILE = join(DATA_DIR, "update-state.json");
+const UPDATE_MANIFEST_URL = process.env.YI_ZHI_UPDATE_MANIFEST_URL || "https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/.agents/plugins/plugins/yi-zhi/release.json";
+const UPDATE_CHECK_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_CHECK_MS ?? 7 * 24 * 60 * 60 * 1000), 0);
+const UPDATE_RETRY_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_RETRY_MS ?? 24 * 60 * 60 * 1000), 60_000);
+const UPDATE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.YI_ZHI_UPDATE_TIMEOUT_MS ?? 5_000), 500), 15_000);
 const KNOWLEDGE_FILENAME = join("knowledge", "knowledge-documents.json");
 const KNOWLEDGE_FILE = process.env.YI_ZHI_KNOWLEDGE_FILE || join(PLUGIN_ROOT, KNOWLEDGE_FILENAME);
 const KNOWLEDGE_REFRESH_MS = Math.max(Number(process.env.YI_ZHI_KNOWLEDGE_REFRESH_MS ?? 15_000), 0);
@@ -21,8 +27,21 @@ let cockpitServer;
 let knowledgeCache;
 let knowledgeCachePath = "";
 let knowledgeCheckedAt = 0;
+let installedReleaseCache;
+let updateStatus;
+let updateNoticeDelivered = false;
 
 const toolDefinitions = [
+  {
+    name: "yi_zhi_check_update",
+    description: "Check whether this local 益职 Plugin is current. The MCP performs this check automatically at most once per week when the Agent starts; call with force=true only when the user explicitly asks to check now. This never installs an update or reads job-search materials.",
+    inputSchema: {
+      type: "object",
+      properties: { force: { type: "boolean", default: false, description: "Ignore the weekly cache and check the stable release manifest now." } },
+      additionalProperties: false
+    },
+    annotations: { title: "Check 益职 update", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  },
   {
     name: "yi_zhi_retrieve_knowledge",
     description: "Retrieve synthesized, source-grounded 益职 knowledge documents for the current job-search task. Each document declares its Description, Goal, scope, usage boundaries, confidence, and evidence. Use results to guide the next action; never treat a single interview story as an official company rule.",
@@ -127,6 +146,142 @@ function cleanText(value, fallback = "") {
   const text = value.trim();
   if (text.length > MAX_TEXT) throw new Error("Text input is too large.");
   return text;
+}
+
+function validRelease(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid 益职 release manifest.");
+  if (value.schema_version !== 1 || value.product !== "yi-zhi" || value.channel !== "stable") throw new Error("Unexpected 益职 release manifest.");
+  if (!/^\d+\.\d+\.\d+$/.test(value.version || "")) throw new Error("Invalid 益职 release version.");
+  const updateUrl = new URL(value.update_url);
+  if (updateUrl.protocol !== "https:" || !["ai-job-coach.xin", "www.ai-job-coach.xin"].includes(updateUrl.hostname)) throw new Error("Untrusted 益职 update URL.");
+  return {
+    schema_version: 1,
+    product: "yi-zhi",
+    channel: "stable",
+    version: value.version,
+    released_at: cleanText(value.released_at).slice(0, 40),
+    update_url: updateUrl.toString(),
+    release_notes: cleanText(value.release_notes).slice(0, 300)
+  };
+}
+
+function compareVersions(left, right) {
+  const a = left.split(".").map(Number);
+  const b = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] - b[index];
+  }
+  return 0;
+}
+
+async function loadInstalledRelease() {
+  if (installedReleaseCache) return installedReleaseCache;
+  installedReleaseCache = validRelease(JSON.parse(await readFile(RELEASE_FILE, "utf8")));
+  return installedReleaseCache;
+}
+
+async function loadUpdateState() {
+  try {
+    const parsed = JSON.parse(await readFile(UPDATE_STATE_FILE, "utf8"));
+    if (parsed?.schema_version === 1 && parsed.product === "yi-zhi") return parsed;
+  } catch (error) {
+    if (error?.code !== "ENOENT") return null;
+  }
+  return null;
+}
+
+async function saveUpdateState(state) {
+  await mkdir(dirname(UPDATE_STATE_FILE), { recursive: true, mode: 0o700 });
+  const temporary = `${UPDATE_STATE_FILE}.${process.pid}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  await rename(temporary, UPDATE_STATE_FILE);
+}
+
+function publicUpdateStatus(status = updateStatus) {
+  if (!status) return null;
+  return {
+    current_version: status.current_version,
+    latest_version: status.latest_version,
+    update_available: Boolean(status.update_available),
+    checked_at: status.checked_at,
+    next_check_at: status.next_check_at,
+    update_url: status.update_url,
+    release_notes: status.release_notes,
+    check_error: status.check_error || null
+  };
+}
+
+async function checkForUpdate({ force = false } = {}) {
+  const installed = await loadInstalledRelease();
+  const cached = await loadUpdateState();
+  const now = Date.now();
+  const nextCheckAt = Date.parse(cached?.next_check_at || "");
+  if (!force && cached && Number.isFinite(nextCheckAt) && now < nextCheckAt) {
+    const latestVersion = /^\d+\.\d+\.\d+$/.test(cached.latest_version || "")
+      ? cached.latest_version
+      : installed.version;
+    updateStatus = {
+      ...cached,
+      current_version: installed.version,
+      latest_version: latestVersion,
+      update_available: compareVersions(latestVersion, installed.version) > 0
+    };
+    return updateStatus;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPDATE_TIMEOUT_MS);
+  try {
+    const response = await fetch(UPDATE_MANIFEST_URL, {
+      signal: controller.signal,
+      headers: { "User-Agent": `YiZhiJobCoach/${installed.version}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.text();
+    if (body.length > 16_000) throw new Error("release manifest is too large");
+    const latest = validRelease(JSON.parse(body));
+    const checkedAt = new Date(now).toISOString();
+    updateStatus = {
+      schema_version: 1,
+      product: "yi-zhi",
+      current_version: installed.version,
+      latest_version: latest.version,
+      update_available: compareVersions(latest.version, installed.version) > 0,
+      checked_at: checkedAt,
+      next_check_at: new Date(now + UPDATE_CHECK_MS).toISOString(),
+      update_url: latest.update_url,
+      release_notes: latest.release_notes,
+      check_error: null
+    };
+  } catch (error) {
+    const cachedLatestVersion = /^\d+\.\d+\.\d+$/.test(cached?.latest_version || "")
+      ? cached.latest_version
+      : installed.version;
+    updateStatus = {
+      schema_version: 1,
+      product: "yi-zhi",
+      current_version: installed.version,
+      latest_version: cachedLatestVersion,
+      update_available: compareVersions(cachedLatestVersion, installed.version) > 0,
+      checked_at: new Date(now).toISOString(),
+      next_check_at: new Date(now + UPDATE_RETRY_MS).toISOString(),
+      update_url: cached?.update_url || installed.update_url,
+      release_notes: cached?.release_notes || "",
+      check_error: error instanceof Error ? error.message.slice(0, 160) : "update check failed"
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+  await saveUpdateState(updateStatus);
+  return updateStatus;
+}
+
+function updateStatusText(status) {
+  if (status.update_available) {
+    return `益职可更新：${status.current_version} → ${status.latest_version}\n${status.release_notes || "包含新的求职工作流和稳定性改进。"}\n更新说明：${status.update_url}`;
+  }
+  if (status.check_error) return `当前版本：${status.current_version}\n本次检查未完成，将在稍后自动重试。`;
+  return `益职已是最新版本：${status.current_version}\n下次自动检查：${status.next_check_at}`;
 }
 
 function safeId(value) {
@@ -338,13 +493,25 @@ function planToday(state) {
 
 function result(text, data, openCaseId) {
   const url = openCaseId ? cockpitUrl(openCaseId) : null;
-  const content = [{ type: "text", text: url ? `${text}\n\n打开本地作战盘：${url}` : text }];
+  const shouldNotifyUpdate = Boolean(updateStatus?.update_available) && !updateNoticeDelivered;
+  const updateNotice = shouldNotifyUpdate ? `\n\n${updateStatusText(updateStatus)}` : "";
+  if (shouldNotifyUpdate) updateNoticeDelivered = true;
+  const content = [{ type: "text", text: `${url ? `${text}\n\n打开本地作战盘：${url}` : text}${updateNotice}` }];
   if (url) content.push({ type: "resource_link", uri: url, name: "益职求职作战盘", title: "在浏览器中打开益职" });
-  return { content, structuredContent: url ? { ...data, cockpit_url: url } : data, isError: false };
+  const structuredContent = url ? { ...data, cockpit_url: url } : { ...data };
+  const publicUpdate = publicUpdateStatus();
+  if (publicUpdate) structuredContent.update = publicUpdate;
+  return { content, structuredContent, isError: false };
 }
 
 async function callTool(name, args = {}) {
   const state = await loadState();
+
+  if (name === "yi_zhi_check_update") {
+    const status = await checkForUpdate({ force: args.force === true });
+    updateNoticeDelivered = true;
+    return result(updateStatusText(status), { update: publicUpdateStatus(status) });
+  }
 
   if (name === "yi_zhi_retrieve_knowledge") {
     const items = await retrieveKnowledge(args);
@@ -439,9 +606,10 @@ function cockpitPage(state, selectedId) {
   const materials = active?.materials?.length ? active.materials.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("") : '<span class="muted">尚未记录材料</span>';
   const artifacts = active?.artifacts?.length ? active.artifacts.map((item) => `<li><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.type)}</span></div><code>${escapeHtml(item.path)}</code></li>`).join("") : '<li class="empty">完成岗位判断、简历或复盘后，Agent 会把产物放在这里。</li>';
   const updated = active?.updated_at ? new Date(active.updated_at).toLocaleString("zh-CN", { hour12: false }) : "—";
+  const updateCard = updateStatus?.update_available ? `<div class="update-card"><small>插件更新</small><strong>${escapeHtml(updateStatus.current_version)} → ${escapeHtml(updateStatus.latest_version)}</strong><p>${escapeHtml(updateStatus.release_notes || "包含新的求职工作流和稳定性改进。")}</p><p>回到 Agent 说“检查益职更新”。</p></div>` : "";
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>益职求职作战盘</title><style>
-  :root{color-scheme:light;--ink:#25272d;--muted:#666c76;--line:#dedbd5;--paper:#f7f4ef;--orange:#e9672d;--soft:#fff0e8;--blue:#536fe8}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{height:62px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--orange);color:#fff}.local{padding:4px 9px;border-radius:99px;background:#efede9;color:#5f5b55;font-size:11px}.shell{height:calc(100vh - 62px);display:grid;grid-template-columns:240px 1fr 300px}.rail{padding:22px 12px;background:var(--paper);overflow:auto}.rail.left{border-right:1px solid var(--line)}.rail.right{border-left:1px solid var(--line)}h2{margin:0 6px 14px;font-size:14px}.case{margin:3px 0;padding:13px 12px;display:flex;flex-direction:column;border:1px solid transparent;border-radius:12px;color:inherit;text-decoration:none}.case:hover{background:#fff}.case.active{background:#fff;border-color:#dfbba7}.case small,.case span{color:var(--muted);font-size:11px}.case strong{margin:2px 0 8px}.main{min-width:0;overflow:auto}.title{padding:40px clamp(24px,5vw,68px) 28px;border-bottom:1px solid var(--line)}.title p{margin:0;color:var(--muted)}h1{margin:10px 0;font-size:clamp(28px,4vw,46px);line-height:1.1;letter-spacing:-.04em}.stage{display:inline-flex;padding:4px 9px;border-radius:99px;background:#eef1ff;color:#4057b7;font-size:11px;font-weight:700}.content{max-width:960px;margin:auto;padding:34px clamp(24px,5vw,68px) 70px}.decision{padding:26px;border:1px solid var(--line);border-radius:15px}.decision h2{margin:0 0 8px}.next{margin:10px 0 0;font-size:clamp(18px,2.3vw,25px);font-weight:650}.section{padding:27px 0;border-bottom:1px solid var(--line)}.section h2{margin:0 0 12px}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{padding:5px 9px;border-radius:99px;background:#f0eee9;font-size:11px}.artifacts{margin:0;padding:0;list-style:none}.artifacts li{padding:14px 0;display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}.artifacts li div{display:flex;flex-direction:column}.artifacts li span,.muted,.empty{color:var(--muted);font-size:11px}.artifacts code{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}.right .next-card{padding:16px;border:1px solid #e5cbbc;border-radius:14px;background:#fff}.right .next-card small{color:var(--orange);font-weight:800}.right .next-card strong{display:block;margin:9px 0 6px}.right p{color:var(--muted);font-size:11px}.privacy{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}@media(max-width:900px){.shell{display:block}.rail.left{height:auto;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.rail.left h2{display:none}.case{width:210px;display:inline-flex;white-space:normal}.rail.right{border:0;border-top:1px solid var(--line)}.title{padding-top:28px}}@media(max-width:600px){header{height:56px}.shell{height:auto}.local{display:none}.title{padding:24px 18px}.content{padding:24px 18px 50px}.decision{padding:20px}.artifacts li{flex-direction:column}.artifacts code{max-width:100%}}
-  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会读取状态并完成这一步。</p></div><div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}</aside></div></body></html>`;
+  :root{color-scheme:light;--ink:#25272d;--muted:#666c76;--line:#dedbd5;--paper:#f7f4ef;--orange:#e9672d;--soft:#fff0e8;--blue:#536fe8}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{height:62px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--orange);color:#fff}.local{padding:4px 9px;border-radius:99px;background:#efede9;color:#5f5b55;font-size:11px}.shell{height:calc(100vh - 62px);display:grid;grid-template-columns:240px 1fr 300px}.rail{padding:22px 12px;background:var(--paper);overflow:auto}.rail.left{border-right:1px solid var(--line)}.rail.right{border-left:1px solid var(--line)}h2{margin:0 6px 14px;font-size:14px}.case{margin:3px 0;padding:13px 12px;display:flex;flex-direction:column;border:1px solid transparent;border-radius:12px;color:inherit;text-decoration:none}.case:hover{background:#fff}.case.active{background:#fff;border-color:#dfbba7}.case small,.case span{color:var(--muted);font-size:11px}.case strong{margin:2px 0 8px}.main{min-width:0;overflow:auto}.title{padding:40px clamp(24px,5vw,68px) 28px;border-bottom:1px solid var(--line)}.title p{margin:0;color:var(--muted)}h1{margin:10px 0;font-size:clamp(28px,4vw,46px);line-height:1.1;letter-spacing:-.04em}.stage{display:inline-flex;padding:4px 9px;border-radius:99px;background:#eef1ff;color:#4057b7;font-size:11px;font-weight:700}.content{max-width:960px;margin:auto;padding:34px clamp(24px,5vw,68px) 70px}.decision{padding:26px;border:1px solid var(--line);border-radius:15px}.decision h2{margin:0 0 8px}.next{margin:10px 0 0;font-size:clamp(18px,2.3vw,25px);font-weight:650}.section{padding:27px 0;border-bottom:1px solid var(--line)}.section h2{margin:0 0 12px}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{padding:5px 9px;border-radius:99px;background:#f0eee9;font-size:11px}.artifacts{margin:0;padding:0;list-style:none}.artifacts li{padding:14px 0;display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}.artifacts li div{display:flex;flex-direction:column}.artifacts li span,.muted,.empty{color:var(--muted);font-size:11px}.artifacts code{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}.right .next-card,.update-card{padding:16px;border:1px solid #e5cbbc;border-radius:14px;background:#fff}.right .next-card small,.update-card small{color:var(--orange);font-weight:800}.right .next-card strong,.update-card strong{display:block;margin:9px 0 6px}.update-card{margin-top:12px;background:var(--soft)}.right p{color:var(--muted);font-size:11px}.privacy{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}@media(max-width:900px){.shell{display:block}.rail.left{height:auto;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.rail.left h2{display:none}.case{width:210px;display:inline-flex;white-space:normal}.rail.right{border:0;border-top:1px solid var(--line)}.title{padding-top:28px}}@media(max-width:600px){header{height:56px}.shell{height:auto}.local{display:none}.title{padding:24px 18px}.content{padding:24px 18px 50px}.decision{padding:20px}.artifacts li{flex-direction:column}.artifacts code{max-width:100%}}
+  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会读取状态并完成这一步。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}${updateCard}<div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div></aside></div></body></html>`;
 }
 
 async function startCockpitServer() {
@@ -490,11 +658,13 @@ async function handle(message) {
 
   try {
     if (message.method === "initialize") {
+      const release = await loadInstalledRelease();
+      const update = await checkForUpdate();
       return response(message.id, {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yi-zhi", version: "0.5.5" },
-        instructions: "Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product."
+        serverInfo: { name: "yi-zhi", version: release.version },
+        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
       });
     }
     if (message.method === "ping") return response(message.id, {});

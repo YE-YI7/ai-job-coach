@@ -42,6 +42,18 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 
 安装脚本下载本仓库 `backend` 分支中的 Skills 与本地 MCP 服务。Skills 写入对应用户目录；MCP 服务统一写入 `~/.yi-zhi/mcp/server.mjs`。如果已有同名 Skill，会先生成带时间戳的备份。除 Codex 完整 Plugin 与 WorkBuddy 外，Agent 还需按自身宿主格式注册该 stdio MCP 服务。
 
+## 版本更新
+
+第一次安装会同时安装本地版本清单和 `yi_zhi_check_update` 工具。MCP 每次启动都会读取本地状态；只有距离上次联网检查达到一周时，才读取一次益职稳定版清单。检查不读取或上传简历、岗位与面试记录，也不会静默覆盖本地数据。
+
+发现新版本后，Agent 会提醒一次。Codex 经用户确认后执行：
+
+```bash
+codex plugin marketplace upgrade yi-zhi && codex plugin add yi-zhi@yi-zhi
+```
+
+Claude Code、WorkBuddy 和通用 Agent 重新执行上方各自的安装命令。更新后重启或新建会话，并重新验证作战盘。
+
 ## 从这里开始
 
 不需要先理解功能或选择 Skill。不确定下一步时直接说：
@@ -64,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 
 ## 本地可视作战盘
 
-完整接通 MCP 后，Agent 会得到五个可见工具：创建求职事项、读取当前状态、打开浏览器作战盘、更新阶段、保存交付物。创建或继续一个岗位后，Agent 会返回一个只在本机可访问的作战盘链接；岗位、材料类型、当前行动和产物会在这里持续更新，不必在聊天里反复阅读长报告。
+完整接通 MCP 后，Agent 会得到八个可见工具：版本检查、知识检索、创建求职事项、规划今日任务、读取作战盘、打开浏览器、更新阶段和保存交付物。创建或继续一个岗位后，Agent 会返回一个只在本机可访问的作战盘链接；岗位、材料类型、当前行动和产物会在这里持续更新，不必在聊天里反复阅读长报告。
 
 默认数据位置是 `~/.yi-zhi/`。本地页面随 Agent 连接启动，仅监听 `127.0.0.1`，不会公开到局域网或互联网。换一个对话仍可继续当前事项。
 

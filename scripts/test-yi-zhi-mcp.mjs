@@ -8,9 +8,20 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 
 const serverPath = new URL("../.agents/plugins/plugins/yi-zhi/mcp/server.mjs", import.meta.url);
+const sourceRelease = new URL("../.agents/plugins/plugins/yi-zhi/release.json", import.meta.url);
+const updateManifest = {
+  schema_version: 1,
+  product: "yi-zhi",
+  channel: "stable",
+  version: "0.7.0",
+  released_at: "2026-09-01T00:00:00Z",
+  update_url: "https://ai-job-coach.xin/agent",
+  release_notes: "测试版本更新提醒"
+};
+const updateManifestUrl = `data:application/json,${encodeURIComponent(JSON.stringify(updateManifest))}`;
 const dataDir = await mkdtemp(join(tmpdir(), "yi-zhi-mcp-test-"));
 const child = spawn(process.execPath, [serverPath.pathname], {
-  env: { ...process.env, YI_ZHI_DATA_DIR: dataDir },
+  env: { ...process.env, YI_ZHI_DATA_DIR: dataDir, YI_ZHI_UPDATE_MANIFEST_URL: updateManifestUrl, YI_ZHI_UPDATE_CHECK_MS: "604800000" },
   stdio: ["pipe", "pipe", "inherit"]
 });
 const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
@@ -27,9 +38,12 @@ function send(message) {
 try {
   const initialized = await send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26" } });
   assert.equal(initialized.result.serverInfo.name, "yi-zhi");
+  assert.equal(initialized.result.serverInfo.version, "0.6.0");
+  assert.match(initialized.result.instructions, /0\.7\.0 is available/);
 
   const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
+    "yi_zhi_check_update",
     "yi_zhi_retrieve_knowledge",
     "yi_zhi_create_case",
     "yi_zhi_plan_today",
@@ -38,6 +52,17 @@ try {
     "yi_zhi_update_cockpit",
     "yi_zhi_save_artifact"
   ]);
+
+  const checkedUpdate = await send({
+    jsonrpc: "2.0",
+    id: 9,
+    method: "tools/call",
+    params: { name: "yi_zhi_check_update", arguments: { force: true } }
+  });
+  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.6.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.7.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.update_available, true);
+  assert.match(checkedUpdate.result.content[0].text, /0\.6\.0 → 0\.7\.0/);
 
   const knowledge = await send({
     jsonrpc: "2.0",
@@ -83,12 +108,20 @@ try {
   const browserLink = await send({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "yi_zhi_get_cockpit_url", arguments: { case_id: caseId } } });
   const pageResponse = await fetch(browserLink.result.structuredContent.cockpit_url);
   assert.equal(pageResponse.status, 200);
-  assert.match(await pageResponse.text(), /示例公司/);
+  const pageHtml = await pageResponse.text();
+  assert.match(pageHtml, /示例公司/);
+  assert.match(pageHtml, /插件更新/);
+  assert.match(pageHtml, /0\.6\.0 → 0\.7\.0/);
+
+  const updateState = JSON.parse(await readFile(join(dataDir, "update-state.json"), "utf8"));
+  assert.equal(updateState.update_available, true);
+  assert.equal(updateState.latest_version, "0.7.0");
 
   process.stdout.write("益职 MCP 闭环测试通过\n");
 } finally {
   child.stdin.end();
   child.kill();
+  await rm(dataDir, { recursive: true, force: true });
 }
 
 // Regression: an active Codex conversation keeps working while the Plugin
@@ -101,10 +134,11 @@ await mkdir(join(oldRoot, "mcp"), { recursive: true });
 await mkdir(join(oldRoot, "knowledge"), { recursive: true });
 await cp(serverPath, join(oldRoot, "mcp", "server.mjs"));
 await cp(sourceKnowledge, join(oldRoot, "knowledge", "knowledge-documents.json"));
+await cp(sourceRelease, join(oldRoot, "release.json"));
 
 const upgradeDataDir = await mkdtemp(join(tmpdir(), "yi-zhi-mcp-upgrade-test-"));
 const upgradeChild = spawn(process.execPath, [join(oldRoot, "mcp", "server.mjs")], {
-  env: { ...process.env, YI_ZHI_DATA_DIR: upgradeDataDir, YI_ZHI_KNOWLEDGE_REFRESH_MS: "0" },
+  env: { ...process.env, YI_ZHI_DATA_DIR: upgradeDataDir, YI_ZHI_KNOWLEDGE_REFRESH_MS: "0", YI_ZHI_UPDATE_MANIFEST_URL: updateManifestUrl },
   stdio: ["pipe", "pipe", "inherit"]
 });
 const upgradeLines = createInterface({ input: upgradeChild.stdout, crlfDelay: Infinity });

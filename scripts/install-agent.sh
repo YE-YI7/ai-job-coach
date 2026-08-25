@@ -41,6 +41,7 @@ PLUGIN_ROOT="$(dirname "$SOURCE_ROOT")"
 YI_ZHI_ROOT="${YI_ZHI_HOME:-$HOME/.yi-zhi}"
 MCP_DESTINATION="$YI_ZHI_ROOT/mcp/server.mjs"
 KNOWLEDGE_DESTINATION="$YI_ZHI_ROOT/knowledge/knowledge-documents.json"
+RELEASE_DESTINATION="$YI_ZHI_ROOT/release.json"
 NODE_COMMAND="$(command -v node)"
 
 mkdir -p "$DESTINATION"
@@ -61,6 +62,7 @@ mkdir -p "$(dirname "$MCP_DESTINATION")"
 cp "$PLUGIN_ROOT/mcp/server.mjs" "$MCP_DESTINATION"
 mkdir -p "$(dirname "$KNOWLEDGE_DESTINATION")"
 cp "$PLUGIN_ROOT/knowledge/knowledge-documents.json" "$KNOWLEDGE_DESTINATION"
+cp "$PLUGIN_ROOT/release.json" "$RELEASE_DESTINATION"
 
 if [ "$TARGET" = "workbuddy" ]; then
   WORKBUDDY_ROOT="${WORKBUDDY_HOME:-$HOME/.workbuddy}"
@@ -68,12 +70,14 @@ if [ "$TARGET" = "workbuddy" ]; then
   printf '\n益职 Skills 已安装到 %s\n' "$DESTINATION"
   printf '益职本地 MCP 已安装到 %s\n' "$MCP_DESTINATION"
   printf '益职知识库已安装到 %s\n' "$KNOWLEDGE_DESTINATION"
+  printf '每次启动会读取本地版本状态；联网版本检查每周最多一次，不会静默覆盖本地数据。\n'
   printf '益职本地求职作战台已配置到 %s\n' "$WORKBUDDY_ROOT/mcp.json"
   printf '重新启动 WorkBuddy，并让 Agent 验证本地作战盘链接。\n'
 else
   printf '\n益职 AI 已安装到 %s\n' "$DESTINATION"
   printf '益职本地 MCP 已准备到 %s\n' "$MCP_DESTINATION"
   printf '益职知识库已安装到 %s\n' "$KNOWLEDGE_DESTINATION"
+  printf '每次启动会读取本地版本状态；联网版本检查每周最多一次，不会静默覆盖本地数据。\n'
   if [ "$TARGET" = "codex" ]; then
     printf '推荐通过 Codex Marketplace 安装完整 Plugin；仅使用本脚本时，请把上面的 MCP 服务注册到 Codex。\n'
   else

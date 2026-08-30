@@ -48,6 +48,7 @@ export interface ResumeChange {
   after: string;
   reason: string;
   evidenceId: string | null;
+  evidenceIds?: string[];
   status: "accepted" | "pending" | "rejected";
 }
 
@@ -102,4 +103,21 @@ export interface Opportunity {
   interviewFocus: InterviewFocus[];
   reviewReports?: InterviewReviewReport[];
   mentorSnoozes?: Array<{ actionId: string; until: string }>;
+  snapshots?: Array<{
+    id: string;
+    snapshotType: "jd" | "base_resume" | "submitted_resume" | "application_answers" | "interview_brief" | "interview_feedback" | "outcome";
+    version: number;
+    title: string;
+    frozenAt: string;
+  }>;
+  applicationQuality?: {
+    artifactId: string;
+    version: number;
+    status: "draft" | "ready" | "blocked";
+    reviews: Array<{
+      reviewerType: "independent_ai" | "facts" | "ats" | "pdf";
+      status: "passed" | "warning" | "failed" | "not_run";
+      summary: string;
+    }>;
+  };
 }

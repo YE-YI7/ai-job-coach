@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { compileContextBundle, validateArtifactDraft, type CareerClaim } from "@/lib/coach-harness";
+import { applyResumeChanges, compileContextBundle, reviewAtsText, validateArtifactDraft, type CareerClaim } from "@/lib/coach-harness";
+import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import type { ResumeChange } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
 
@@ -21,25 +23,27 @@ export async function POST(request: Request) {
     const body = await request.json();
     const resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     const jobDescription = String(body.jobDescription || "").trim().slice(0, 30_000);
+    const opportunityId = String(body.opportunityId || "").trim();
     if (!resumeText || !jobDescription) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
     reservation = await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
     if (!reservation) return NextResponse.json({ ok: false, error: "简历生成额度不足", needUpgrade: true }, { status: 403 });
 
-    const lines = resumeText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
-    const claims: CareerClaim[] = lines.map((line, index) => ({
-      id: `resume-line-${index + 1}`,
-      entityType: "experience",
-      entityKey: `resume-line-${index + 1}`,
-      claimType: "resume_source",
-      value: line,
-      displayText: line,
-      sourceExcerpt: line,
-      status: "confirmed",
-      visibility: "recruiter_safe",
-    }));
-    const context = compileContextBundle({ task: "resume_workshop", userId: user.id, claims });
-    const source = claims.map((claim) => `[${claim.id}] ${claim.displayText}`).join("\n");
+    let context;
+    if (opportunityId) {
+      context = await getContextBundleForUser({ userId: user.id, task: "resume_workshop", opportunityId });
+    } else {
+      const lines = resumeText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
+      const claims: CareerClaim[] = lines.map((line, index) => ({
+        id: `resume-line-${index + 1}`, entityType: "experience", entityKey: `resume-line-${index + 1}`,
+        claimType: "resume_source", value: line, displayText: line, sourceExcerpt: line,
+        status: "confirmed", visibility: "recruiter_safe",
+      }));
+      context = compileContextBundle({ task: "resume_workshop", userId: user.id, claims });
+    }
+    const source = context.claims.filter((claim) => claim.status === "confirmed" && claim.visibility !== "private")
+      .slice(0, 160).map((claim) => `[${claim.id}] ${claim.displayText}`).join("\n");
+    if (!source) throw new Error("事实库里没有可用于简历的已确认经历，请先补充真实材料");
 
     const output = await runWithGenerationContext({
       userId: user.id,
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
     const parsed = parseJson(output);
     const rawChanges = Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6) : [];
     const rejected: Array<{ index: number; reasons: string[] }> = [];
-    const changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
+    const changes: ResumeChange[] = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => context.allowedClaimIds.includes(id)) : [];
       const after = String(raw.after || "").trim().slice(0, 2000);
       const before = String(raw.before || "").trim().slice(0, 2000);
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
         after,
         reason: String(raw.reason || "提高与 JD 的对应度").slice(0, 500),
         evidenceId: sourceIds[0] || null,
+        evidenceIds: sourceIds,
         status: "pending" as const,
       }];
     });
@@ -77,10 +82,41 @@ export async function POST(request: Request) {
       reservation = null;
       return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，请补充更完整的经历；本次未扣额度" }, { status: 422 });
     }
+    const reviewerOutput = await callLLM([
+      { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
+      { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n待审修改：\n${JSON.stringify(changes)}` },
+    ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1 });
+    const reviewer = parseJson(reviewerOutput) as { status?: string; summary?: string; findings?: unknown[] };
+    const reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
+    const reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
+    const preview = applyResumeChanges(resumeText, changes);
+    const ats = reviewAtsText(preview.text, jobDescription);
+    let applicationQuality;
+    if (opportunityId) {
+      const claimLinks = changes.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
+      const artifact = await createArtifactWithClaims({
+        userId: user.id, opportunityId, artifactType: "target_resume", title: "岗位简历候选版本",
+        content: { baseResumeText: resumeText, jobDescription, changes, previewText: preview.text },
+        status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
+        createdBy: "hosted_ai", claimLinks,
+      });
+      const factsStatus = rejected.length === 0 && preview.findings.length === 0 ? "passed" : "failed";
+      const reviews = await Promise.all([
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "所有改写均可追溯到已确认事实。" : "存在无法定位或未通过事实校验的改写。", findings: [...rejected, ...preview.findings], contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
+      ]);
+      applicationQuality = {
+        artifactId: String(artifact.id), version: Number(artifact.version),
+        status: factsStatus === "passed" && reviewerPassed && ats.ok ? "ready" : "blocked",
+        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type, status: review.status, summary: review.summary })),
+      };
+    }
     await finalizeQuota(reservation, true);
     const quota = { source: reservation.source, remaining: reservation.remaining };
     reservation = null;
-    return NextResponse.json({ ok: true, changes, rejectedCount: rejected.length, contextFingerprint: context.fingerprint, quota });
+    return NextResponse.json({ ok: true, changes, rejectedCount: rejected.length, reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings }, applicationQuality, contextFingerprint: context.fingerprint, quota });
   } catch (error) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Resume quota refund failed", refundError));
     console.error("Resume draft failed", error);

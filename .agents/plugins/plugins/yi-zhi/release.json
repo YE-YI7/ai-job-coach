@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product": "yi-zhi",
   "channel": "stable",
-  "version": "0.6.0",
-  "released_at": "2026-08-25T00:00:00Z",
+  "version": "0.7.0",
+  "released_at": "2026-08-31T00:00:00Z",
   "update_url": "https://ai-job-coach.xin/agent",
-  "release_notes": "新增每周版本检查，并按面试紧迫度调整准备深度。"
+  "release_notes": "新增用户确认事实源、岗位版本快照与投递质量闸门。"
 }

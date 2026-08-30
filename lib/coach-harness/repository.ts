@@ -1,7 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
 import { compileContextBundle } from "./context";
-import type { ArtifactReference, CareerClaim, CoachActionType, CoachExecutor, ContextBundle, OpportunityContext } from "./types";
+import type { ArtifactReference, ArtifactReviewStatus, ArtifactReviewType, CareerClaim, CoachActionType, CoachExecutor, ContextBundle, OpportunityContext, OpportunitySnapshotType } from "./types";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 
@@ -11,6 +11,113 @@ function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
 }
 
 type DbRow = Record<string, unknown>;
+
+function contentHash(value: unknown) {
+  return createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
+}
+
+async function recordSource(input: {
+  userId: string; opportunityId?: string | null; sourceType: "resume" | "user_answer" | "project_note" | "mock_interview" | "real_interview" | "application" | "jd" | "other";
+  title: string; content: string; metadata?: Record<string, unknown>;
+}) {
+  const db = requireDb(await getDbClient());
+  const hash = contentHash(input.content);
+  const { data: existing, error: lookupError } = await db.from("coach_sources")
+    .select("id").eq("user_id", input.userId).eq("content_hash", hash).maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing) return { id: String(existing.id), hash };
+  const { data, error } = await db.from("coach_sources").insert({
+    user_id: input.userId, opportunity_id: input.opportunityId || null, source_type: input.sourceType,
+    title: input.title, content: input.content, content_hash: hash, metadata: input.metadata || {},
+  }).select("id").single();
+  if (error) throw error;
+  return { id: String(data.id), hash };
+}
+
+export async function createOpportunitySnapshot(input: {
+  userId: string; opportunityId: string; snapshotType: OpportunitySnapshotType; title: string;
+  content: unknown; sourceId?: string | null; artifactId?: string | null;
+  createdBy?: "user" | "hosted_ai" | "personal_agent" | "system"; metadata?: Record<string, unknown>;
+}) {
+  const db = requireDb(await getDbClient());
+  const hash = contentHash(input.content);
+  const { data: existing, error: existingError } = await db.from("coach_opportunity_snapshots")
+    .select("*").eq("user_id", input.userId).eq("opportunity_id", input.opportunityId)
+    .eq("snapshot_type", input.snapshotType).eq("content_hash", hash).maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return existing;
+  const { data: latest, error: latestError } = await db.from("coach_opportunity_snapshots")
+    .select("version").eq("user_id", input.userId).eq("opportunity_id", input.opportunityId)
+    .eq("snapshot_type", input.snapshotType).order("version", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) throw latestError;
+  const { data, error } = await db.from("coach_opportunity_snapshots").insert({
+    user_id: input.userId, opportunity_id: input.opportunityId, snapshot_type: input.snapshotType,
+    version: Number(latest?.version || 0) + 1, title: input.title, content: input.content,
+    content_hash: hash, source_id: input.sourceId || null, artifact_id: input.artifactId || null,
+    created_by: input.createdBy || "user", metadata: input.metadata || {},
+  }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function createArtifactWithClaims(input: {
+  userId: string; opportunityId: string; artifactType: "master_resume" | "target_resume" | "interview_plan" | "mock_interview" | "interview_review" | "application_answer" | "project_story" | "other";
+  title: string; content: unknown; status?: "draft" | "needs_confirmation" | "confirmed" | "archived";
+  contextSnapshot?: unknown; createdBy?: "user" | "hosted_ai" | "personal_agent" | "system";
+  claimLinks?: Array<{ claimId: string; usagePath: string }>;
+}) {
+  const db = requireDb(await getDbClient());
+  const { data: latest, error: latestError } = await db.from("coach_artifacts").select("id, version")
+    .eq("user_id", input.userId).eq("opportunity_id", input.opportunityId).eq("artifact_type", input.artifactType)
+    .order("version", { ascending: false }).limit(1).maybeSingle();
+  if (latestError) throw latestError;
+  const { data, error } = await db.from("coach_artifacts").insert({
+    user_id: input.userId, opportunity_id: input.opportunityId, artifact_type: input.artifactType,
+    parent_id: latest?.id || null, version: Number(latest?.version || 0) + 1, title: input.title,
+    content: input.content, status: input.status || "draft", context_snapshot: input.contextSnapshot || {},
+    created_by: input.createdBy || "hosted_ai",
+  }).select("*").single();
+  if (error) throw error;
+  const links = (input.claimLinks || []).filter((link) => link.claimId);
+  if (links.length) {
+    const { error: linkError } = await db.from("coach_artifact_claims").insert(links.map((link) => ({
+      artifact_id: data.id, claim_id: link.claimId, usage_path: link.usagePath,
+    })));
+    if (linkError) throw linkError;
+  }
+  return data;
+}
+
+export async function recordArtifactReview(input: {
+  userId: string; opportunityId: string; artifactId: string; reviewerType: ArtifactReviewType;
+  status: ArtifactReviewStatus; summary: string; findings?: unknown[]; contextFingerprint?: string | null;
+}) {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_artifact_reviews").upsert({
+    user_id: input.userId, opportunity_id: input.opportunityId, artifact_id: input.artifactId,
+    reviewer_type: input.reviewerType, status: input.status, summary: input.summary,
+    findings: input.findings || [], context_fingerprint: input.contextFingerprint || null,
+  }, { onConflict: "artifact_id,reviewer_type" }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function listArtifactReviews(userId: string, opportunityId: string, artifactId: string) {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_artifact_reviews").select("*")
+    .eq("user_id", userId).eq("opportunity_id", opportunityId).eq("artifact_id", artifactId);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getArtifactForUser(userId: string, opportunityId: string, artifactId: string) {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_artifacts").select("*")
+    .eq("user_id", userId).eq("opportunity_id", opportunityId).eq("id", artifactId).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("简历版本不存在");
+  return data;
+}
 
 function knowledgeTask(task: CoachActionType): AgentKnowledgeTask {
   if (task === "job_decision" || task === "application_assist") return "job_analysis";
@@ -162,8 +269,30 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
   const { data, error } = await db.from("coach_opportunities").select("*").eq("user_id", userId)
     .eq("status", "active").order("updated_at", { ascending: false }).limit(100);
   if (error) throw error;
-  return ((data || []) as DbRow[]).map((row) => {
+  const rows = (data || []) as DbRow[];
+  const ids = rows.map((row) => String(row.id));
+  const { data: snapshotRows, error: snapshotError } = ids.length
+    ? await db.from("coach_opportunity_snapshots").select("id, opportunity_id, snapshot_type, version, title, frozen_at").in("opportunity_id", ids).order("version", { ascending: false })
+    : { data: [], error: null };
+  if (snapshotError) throw snapshotError;
+  const { data: artifactRows, error: artifactError } = ids.length
+    ? await db.from("coach_artifacts").select("id, opportunity_id, version").in("opportunity_id", ids).eq("artifact_type", "target_resume").order("version", { ascending: false })
+    : { data: [], error: null };
+  if (artifactError) throw artifactError;
+  const latestArtifacts = new Map<string, DbRow>();
+  for (const artifact of (artifactRows || []) as DbRow[]) if (!latestArtifacts.has(String(artifact.opportunity_id))) latestArtifacts.set(String(artifact.opportunity_id), artifact);
+  const artifactIds = [...latestArtifacts.values()].map((artifact) => String(artifact.id));
+  const { data: reviewRows, error: reviewError } = artifactIds.length
+    ? await db.from("coach_artifact_reviews").select("artifact_id, reviewer_type, status, summary").in("artifact_id", artifactIds)
+    : { data: [], error: null };
+  if (reviewError) throw reviewError;
+  return rows.map((row) => {
     const metadata = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Partial<Opportunity>;
+    const opportunityId = String(row.id);
+    const artifact = latestArtifacts.get(opportunityId);
+    const reviews = ((reviewRows || []) as DbRow[]).filter((review) => String(review.artifact_id) === String(artifact?.id));
+    const blocking = reviews.some((review) => review.status === "failed");
+    const requiredPassed = ["facts", "ats", "independent_ai"].every((type) => reviews.some((review) => review.reviewer_type === type && review.status === "passed"));
     return {
       ...metadata,
       id: String(row.id),
@@ -187,6 +316,14 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
       activities: metadata.activities || [],
       resumeChanges: metadata.resumeChanges || [],
       interviewFocus: metadata.interviewFocus || [],
+      snapshots: ((snapshotRows || []) as DbRow[]).filter((snapshot) => String(snapshot.opportunity_id) === opportunityId).map((snapshot) => ({
+        id: String(snapshot.id), snapshotType: snapshot.snapshot_type as NonNullable<Opportunity["snapshots"]>[number]["snapshotType"],
+        version: Number(snapshot.version), title: String(snapshot.title), frozenAt: String(snapshot.frozen_at),
+      })),
+      applicationQuality: artifact ? {
+        artifactId: String(artifact.id), version: Number(artifact.version), status: blocking ? "blocked" : requiredPassed ? "ready" : "draft",
+        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["reviewerType"], status: review.status as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["status"], summary: String(review.summary) })),
+      } : undefined,
     };
   });
 }
@@ -213,20 +350,23 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
   ].filter(Boolean) as Array<{ type: "jd" | "resume" | "other"; title: string; content: string }>;
 
   for (const source of sources) {
-    const hash = createHash("sha256").update(source.content).digest("hex");
-    const { data: sourceRow, error: sourceError } = await db.from("coach_sources").upsert({
-      user_id: userId, opportunity_id: opportunityId, source_type: source.type,
-      title: source.title, content: source.content, content_hash: hash,
-    }, { onConflict: "user_id,content_hash" }).select("id").single();
-    if (sourceError) throw sourceError;
+    const sourceRow = await recordSource({ userId, opportunityId, sourceType: source.type, title: source.title, content: source.content });
+
+    await createOpportunitySnapshot({
+      userId, opportunityId, snapshotType: source.type === "jd" ? "jd" : "base_resume",
+      title: source.title, content: { text: source.content }, sourceId: sourceRow.id, createdBy: "user",
+    });
 
     if (source.type === "resume") {
-      const rows = source.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line, index) => ({
+      const existing = await db.from("coach_claims").select("entity_key").eq("user_id", userId).eq("source_id", sourceRow.id);
+      if (existing.error) throw existing.error;
+      const existingKeys = new Set((existing.data || []).map((claim: { entity_key: unknown }) => String(claim.entity_key)));
+      const rows = source.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line) => ({
         user_id: userId, opportunity_id: opportunityId, source_id: sourceRow.id,
-        entity_type: "experience", entity_key: `resume-line-${index + 1}`,
+        entity_type: "experience", entity_key: `resume-${contentHash(line).slice(0, 20)}`,
         claim_type: "resume_source", value: line, display_text: line, source_excerpt: line,
         status: "confirmed", visibility: "recruiter_safe", confirmed_at: new Date().toISOString(),
-      }));
+      })).filter((row) => !existingKeys.has(row.entity_key));
       if (rows.length) {
         const { error: claimError } = await db.from("coach_claims").insert(rows);
         if (claimError) throw claimError;
@@ -240,9 +380,18 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
 export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity) {
   const db = requireDb(await getDbClient());
   const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
+  const { data: current, error: currentError } = await db.from("coach_opportunities").select("jd_text, jd_version")
+    .eq("id", id).eq("user_id", userId).maybeSingle();
+  if (currentError) throw currentError;
+  if (!current) throw new Error("岗位不存在");
+  const jdChanged = Boolean(jdText && jdText !== current.jd_text);
   const { error } = await db.from("coach_opportunities").update({
     company, role, stage, jd_text: jdText || null, scheduled_interview_at: scheduledInterviewAt || null,
-    metadata, updated_at: new Date().toISOString(),
+    jd_version: jdChanged ? Number(current.jd_version) + 1 : Number(current.jd_version), metadata, updated_at: new Date().toISOString(),
   }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
+  if (jdChanged && jdText) {
+    const source = await recordSource({ userId, opportunityId: id, sourceType: "jd", title: `${company} · ${role} JD`, content: jdText });
+    await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "jd", title: `${company} · ${role} JD`, content: { text: jdText }, sourceId: source.id, createdBy: "user" });
+  }
 }

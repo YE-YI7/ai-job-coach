@@ -123,6 +123,39 @@ const toolDefinitions = [
     annotations: { title: "Update 益职 cockpit", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   },
   {
+    name: "yi_zhi_record_fact",
+    description: "Record one user-confirmed career fact in the private local truth source. Call only after the job seeker stated or explicitly confirmed the fact. Never infer metrics, ownership, dates, titles, or outcomes.",
+    inputSchema: {
+      type: "object", required: ["case_id", "text", "confirmed_by_user"],
+      properties: {
+        case_id: { type: "string" }, text: { type: "string" }, source_excerpt: { type: "string" },
+        visibility: { type: "string", enum: ["private", "recruiter_safe"], default: "private" },
+        confirmed_by_user: { type: "boolean", description: "Must be true only when the user stated or explicitly confirmed this fact." }
+      }, additionalProperties: false
+    },
+    annotations: { title: "Record confirmed career fact", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: "yi_zhi_freeze_snapshot",
+    description: "Freeze an immutable version of a JD, resume, application answer, interview record, or outcome in the private local case. Use this at every real stage transition so later work uses the exact submitted version.",
+    inputSchema: {
+      type: "object", required: ["case_id", "type", "title", "content"],
+      properties: {
+        case_id: { type: "string" },
+        type: { type: "string", enum: ["jd", "base_resume", "submitted_resume", "application_answers", "interview_brief", "interview_feedback", "outcome"] },
+        title: { type: "string" }, content: { type: "string" },
+        quality: { type: "object", description: "Optional facts/reviewer/ATS/PDF review statuses." }
+      }, additionalProperties: false
+    },
+    annotations: { title: "Freeze job-search version", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: "yi_zhi_get_application_context",
+    description: "Return the case's confirmed facts, immutable snapshots, and artifacts before drafting or reviewing any resume, application answer, or interview material. This is the canonical local context; do not rely on chat memory alone.",
+    inputSchema: { type: "object", required: ["case_id"], properties: { case_id: { type: "string" } }, additionalProperties: false },
+    annotations: { title: "Read canonical application context", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
     name: "yi_zhi_save_artifact",
     description: "Save a finished job-fit card, tailored resume, mock-interview report, or interview review as a private local Markdown artifact. Never use this for raw interview transcripts unless the user explicitly asks.",
     inputSchema: {
@@ -132,7 +165,9 @@ const toolDefinitions = [
         case_id: { type: "string" },
         type: { type: "string", enum: ["job-fit", "resume", "mock-interview", "interview-review", "other"] },
         title: { type: "string" },
-        content: { type: "string", description: "Completed Markdown artifact." }
+        content: { type: "string", description: "Completed Markdown artifact." },
+        claim_ids: { type: "array", items: { type: "string" }, description: "Confirmed local fact IDs supporting this artifact." },
+        quality: { type: "object", description: "Optional independent-review, facts, ATS, and PDF statuses." }
       },
       additionalProperties: false
     },
@@ -437,7 +472,14 @@ function knowledgeText(items) {
 async function loadState() {
   try {
     const parsed = JSON.parse(await readFile(STATE_FILE, "utf8"));
-    if (parsed?.version === 1 && parsed.cases && typeof parsed.cases === "object") return parsed;
+    if (parsed?.version === 1 && parsed.cases && typeof parsed.cases === "object") {
+      for (const item of Object.values(parsed.cases)) {
+        item.facts = Array.isArray(item.facts) ? item.facts : [];
+        item.snapshots = Array.isArray(item.snapshots) ? item.snapshots : [];
+        item.artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
+      }
+      return parsed;
+    }
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
   }
@@ -458,6 +500,8 @@ function cockpitText(item) {
     `目标：${[item.company, item.role].filter(Boolean).join(" / ") || "待确认"}`,
     `当前阶段：${item.stage || "定位下一步"}`,
     `已有材料：${item.materials.length ? item.materials.join("、") : "—"}`,
+    `确认事实：${item.facts.length} 条`,
+    `冻结版本：${item.snapshots.length} 个`,
     `产物：${item.artifacts.length ? `${item.artifacts.length} 份` : "—"}`,
     `下一动作：${item.next_action || "确认当前最急的问题"}`
   ].join("\n");
@@ -537,6 +581,8 @@ async function callTool(name, args = {}) {
       next_action: cleanText(args.next_action, "确认当前最急的问题"),
       scheduled_at: cleanText(args.scheduled_at),
       artifacts: [],
+      facts: [],
+      snapshots: [],
       created_at: now,
       updated_at: now
     };
@@ -568,6 +614,43 @@ async function callTool(name, args = {}) {
     return result(cockpitText(item), { case: item }, item.id);
   }
 
+  if (name === "yi_zhi_record_fact") {
+    if (args.confirmed_by_user !== true) throw new Error("只有用户明确陈述或确认的内容才能进入事实库。");
+    const text = cleanText(args.text);
+    if (!text) throw new Error("Fact text is required.");
+    const fingerprint = normalized(text);
+    let fact = item.facts.find((entry) => entry.fingerprint === fingerprint);
+    if (!fact) {
+      fact = { id: `fact-${randomUUID()}`, text, source_excerpt: cleanText(args.source_excerpt, text), visibility: args.visibility === "recruiter_safe" ? "recruiter_safe" : "private", status: "confirmed", fingerprint, confirmed_at: new Date().toISOString() };
+      item.facts.push(fact);
+    }
+    item.updated_at = new Date().toISOString();
+    await saveState(state);
+    return result(`已记录 1 条用户确认事实：${text}`, { fact, case: item }, item.id);
+  }
+
+  if (name === "yi_zhi_freeze_snapshot") {
+    const type = cleanText(args.type);
+    const allowed = ["jd", "base_resume", "submitted_resume", "application_answers", "interview_brief", "interview_feedback", "outcome"];
+    if (!allowed.includes(type)) throw new Error("Invalid snapshot type.");
+    const title = cleanText(args.title);
+    const content = cleanText(args.content);
+    const hash = normalized(content);
+    let snapshot = item.snapshots.find((entry) => entry.type === type && entry.fingerprint === hash);
+    if (!snapshot) {
+      const version = Math.max(0, ...item.snapshots.filter((entry) => entry.type === type).map((entry) => Number(entry.version) || 0)) + 1;
+      snapshot = { id: `snapshot-${randomUUID()}`, type, version, title, content, fingerprint: hash, quality: args.quality && typeof args.quality === "object" ? args.quality : {}, frozen_at: new Date().toISOString() };
+      item.snapshots.push(snapshot);
+    }
+    item.updated_at = new Date().toISOString();
+    await saveState(state);
+    return result(`已冻结 ${title} V${snapshot.version}`, { snapshot, case: item }, item.id);
+  }
+
+  if (name === "yi_zhi_get_application_context") {
+    return result(`已载入 ${item.facts.length} 条确认事实、${item.snapshots.length} 个冻结版本和 ${item.artifacts.length} 份产物。起草时只能使用确认事实；投递前必须完成独立复核、事实、ATS 与 PDF 检查。`, { case: item, confirmed_facts: item.facts, snapshots: item.snapshots, artifacts: item.artifacts }, item.id);
+  }
+
   if (name === "yi_zhi_save_artifact") {
     const type = cleanText(args.type);
     if (!["job-fit", "resume", "mock-interview", "interview-review", "other"].includes(type)) throw new Error("Invalid artifact type.");
@@ -579,7 +662,8 @@ async function callTool(name, args = {}) {
     const filePath = join(ARTIFACT_DIR, filename);
     await mkdir(ARTIFACT_DIR, { recursive: true, mode: 0o700 });
     await writeFile(filePath, `# ${title}\n\n${content}\n`, { mode: 0o600, flag: "wx" });
-    const artifact = { id: artifactId, type, title, path: filePath, created_at: new Date().toISOString() };
+    const claimIds = Array.isArray(args.claim_ids) ? [...new Set(args.claim_ids.map((entry) => cleanText(entry)).filter((id) => item.facts.some((fact) => fact.id === id)))] : [];
+    const artifact = { id: artifactId, type, title, path: filePath, version: item.artifacts.filter((entry) => entry.type === type).length + 1, claim_ids: claimIds, quality: args.quality && typeof args.quality === "object" ? args.quality : {}, created_at: new Date().toISOString() };
     item.artifacts.push(artifact);
     item.updated_at = artifact.created_at;
     await saveState(state);
@@ -605,11 +689,13 @@ function cockpitPage(state, selectedId) {
   const list = cases.map((item) => `<a class="case ${item.id === active?.id ? "active" : ""}" href="/?case=${encodeURIComponent(item.id)}"><small>${escapeHtml(item.company || "待确认公司")}</small><strong>${escapeHtml(item.role || "待确认岗位")}</strong><span>${escapeHtml(item.stage || "定位下一步")}</span></a>`).join("");
   const materials = active?.materials?.length ? active.materials.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("") : '<span class="muted">尚未记录材料</span>';
   const artifacts = active?.artifacts?.length ? active.artifacts.map((item) => `<li><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.type)}</span></div><code>${escapeHtml(item.path)}</code></li>`).join("") : '<li class="empty">完成岗位判断、简历或复盘后，Agent 会把产物放在这里。</li>';
+  const facts = active?.facts?.length ? active.facts.slice(-5).reverse().map((item) => `<li><div><strong>${escapeHtml(item.text)}</strong><span>${item.visibility === "recruiter_safe" ? "可用于对外材料" : "仅私密使用"}</span></div></li>`).join("") : '<li class="empty">Agent 会把你明确确认的经历写进事实源，后续简历只从这里取材。</li>';
+  const snapshots = active?.snapshots?.length ? active.snapshots.slice().reverse().slice(0, 8).map((item) => `<li><div><strong>${escapeHtml(item.title)} V${item.version}</strong><span>${escapeHtml(item.type)}</span></div><time>${escapeHtml(new Date(item.frozen_at).toLocaleDateString("zh-CN"))}</time></li>`).join("") : '<li class="empty">JD、投递简历和面试结果会按版本冻结，不再被后续对话覆盖。</li>';
   const updated = active?.updated_at ? new Date(active.updated_at).toLocaleString("zh-CN", { hour12: false }) : "—";
   const updateCard = updateStatus?.update_available ? `<div class="update-card"><small>插件更新</small><strong>${escapeHtml(updateStatus.current_version)} → ${escapeHtml(updateStatus.latest_version)}</strong><p>${escapeHtml(updateStatus.release_notes || "包含新的求职工作流和稳定性改进。")}</p><p>回到 Agent 说“检查益职更新”。</p></div>` : "";
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>益职求职作战盘</title><style>
   :root{color-scheme:light;--ink:#25272d;--muted:#666c76;--line:#dedbd5;--paper:#f7f4ef;--orange:#e9672d;--soft:#fff0e8;--blue:#536fe8}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{height:62px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--orange);color:#fff}.local{padding:4px 9px;border-radius:99px;background:#efede9;color:#5f5b55;font-size:11px}.shell{height:calc(100vh - 62px);display:grid;grid-template-columns:240px 1fr 300px}.rail{padding:22px 12px;background:var(--paper);overflow:auto}.rail.left{border-right:1px solid var(--line)}.rail.right{border-left:1px solid var(--line)}h2{margin:0 6px 14px;font-size:14px}.case{margin:3px 0;padding:13px 12px;display:flex;flex-direction:column;border:1px solid transparent;border-radius:12px;color:inherit;text-decoration:none}.case:hover{background:#fff}.case.active{background:#fff;border-color:#dfbba7}.case small,.case span{color:var(--muted);font-size:11px}.case strong{margin:2px 0 8px}.main{min-width:0;overflow:auto}.title{padding:40px clamp(24px,5vw,68px) 28px;border-bottom:1px solid var(--line)}.title p{margin:0;color:var(--muted)}h1{margin:10px 0;font-size:clamp(28px,4vw,46px);line-height:1.1;letter-spacing:-.04em}.stage{display:inline-flex;padding:4px 9px;border-radius:99px;background:#eef1ff;color:#4057b7;font-size:11px;font-weight:700}.content{max-width:960px;margin:auto;padding:34px clamp(24px,5vw,68px) 70px}.decision{padding:26px;border:1px solid var(--line);border-radius:15px}.decision h2{margin:0 0 8px}.next{margin:10px 0 0;font-size:clamp(18px,2.3vw,25px);font-weight:650}.section{padding:27px 0;border-bottom:1px solid var(--line)}.section h2{margin:0 0 12px}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{padding:5px 9px;border-radius:99px;background:#f0eee9;font-size:11px}.artifacts{margin:0;padding:0;list-style:none}.artifacts li{padding:14px 0;display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}.artifacts li div{display:flex;flex-direction:column}.artifacts li span,.muted,.empty{color:var(--muted);font-size:11px}.artifacts code{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}.right .next-card,.update-card{padding:16px;border:1px solid #e5cbbc;border-radius:14px;background:#fff}.right .next-card small,.update-card small{color:var(--orange);font-weight:800}.right .next-card strong,.update-card strong{display:block;margin:9px 0 6px}.update-card{margin-top:12px;background:var(--soft)}.right p{color:var(--muted);font-size:11px}.privacy{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}@media(max-width:900px){.shell{display:block}.rail.left{height:auto;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.rail.left h2{display:none}.case{width:210px;display:inline-flex;white-space:normal}.rail.right{border:0;border-top:1px solid var(--line)}.title{padding-top:28px}}@media(max-width:600px){header{height:56px}.shell{height:auto}.local{display:none}.title{padding:24px 18px}.content{padding:24px 18px 50px}.decision{padding:20px}.artifacts li{flex-direction:column}.artifacts code{max-width:100%}}
-  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会读取状态并完成这一步。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}${updateCard}<div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div></aside></div></body></html>`;
+  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>确认事实</h2><ul class="artifacts">${facts}</ul></section><section class="section"><h2>岗位版本</h2><ul class="artifacts">${snapshots}</ul></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会先读取事实和岗位版本，再完成这一步。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}${updateCard}<div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div></aside></div></body></html>`;
 }
 
 async function startCockpitServer() {
@@ -664,7 +750,7 @@ async function handle(message) {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "yi-zhi", version: release.version },
-        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
+        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. Before drafting application material, call yi_zhi_get_application_context; record only user-confirmed facts and freeze every real JD, submitted resume, application answer, interview record, and outcome. A final application package must pass an independent reviewer, facts, ATS, and PDF checks. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
       });
     }
     if (message.method === "ping") return response(message.id, {});

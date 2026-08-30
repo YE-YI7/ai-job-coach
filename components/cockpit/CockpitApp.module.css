@@ -138,6 +138,15 @@
 .evidenceTableHeader { display: grid; grid-template-columns: minmax(170px,.9fr) minmax(230px,1.3fr) minmax(110px,.6fr); gap: 24px; padding: 13px 0 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .08em; }
 .versionLine { min-height: 44px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .versionLine span:first-child { color: var(--ink); font-weight: 750; }
+.qualityGate { margin: 18px 0 4px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #faf9f6; }
+.qualityGate > div:first-child { display: flex; justify-content: space-between; gap: 16px; }
+.qualityGate > div:first-child span { color: var(--muted); font-size: 10px; }
+.qualityChecks { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.qualityChecks span { padding: 4px 8px; border-radius: 999px; background: #ece9e3; color: var(--muted); font-size: 9px; }
+.qualityChecks span[data-status="passed"] { background: #e8f4ec; color: #28623b; }
+.qualityChecks span[data-status="failed"] { background: #fff0ed; color: #9b3f2d; }
+.qualityActions { display: flex; gap: 8px; margin-top: 14px; }
+.qualityActions label { cursor: pointer; }
 .resumeChange { padding: 19px 0 22px; border-bottom: 1px solid var(--line); }
 .resumeChange header, .resumeChange footer { display: flex; justify-content: space-between; gap: 18px; }
 .resumeChange header strong { font-size: 12px; } .resumeChange header span, .resumeChange footer span { color: var(--muted); font-size: 9px; }

@@ -13,7 +13,7 @@ const updateManifest = {
   schema_version: 1,
   product: "yi-zhi",
   channel: "stable",
-  version: "0.7.0",
+  version: "0.8.0",
   released_at: "2026-09-01T00:00:00Z",
   update_url: "https://ai-job-coach.xin/agent",
   release_notes: "测试版本更新提醒"
@@ -38,8 +38,9 @@ function send(message) {
 try {
   const initialized = await send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26" } });
   assert.equal(initialized.result.serverInfo.name, "yi-zhi");
-  assert.equal(initialized.result.serverInfo.version, "0.6.0");
-  assert.match(initialized.result.instructions, /0\.7\.0 is available/);
+  assert.equal(initialized.result.serverInfo.version, "0.7.0");
+  assert.match(initialized.result.instructions, /0\.8\.0 is available/);
+  assert.match(initialized.result.instructions, /yi_zhi_get_application_context/);
 
   const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
@@ -50,6 +51,9 @@ try {
     "yi_zhi_get_cockpit",
     "yi_zhi_get_cockpit_url",
     "yi_zhi_update_cockpit",
+    "yi_zhi_record_fact",
+    "yi_zhi_freeze_snapshot",
+    "yi_zhi_get_application_context",
     "yi_zhi_save_artifact"
   ]);
 
@@ -59,10 +63,10 @@ try {
     method: "tools/call",
     params: { name: "yi_zhi_check_update", arguments: { force: true } }
   });
-  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.6.0");
-  assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.7.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.7.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.8.0");
   assert.equal(checkedUpdate.result.structuredContent.update.update_available, true);
-  assert.match(checkedUpdate.result.content[0].text, /0\.6\.0 → 0\.7\.0/);
+  assert.match(checkedUpdate.result.content[0].text, /0\.7\.0 → 0\.8\.0/);
 
   const knowledge = await send({
     jsonrpc: "2.0",
@@ -92,11 +96,22 @@ try {
   });
   assert.deepEqual(updated.result.structuredContent.case.materials, ["JD", "简历"]);
 
+  const fact = await send({ jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "yi_zhi_record_fact", arguments: { case_id: caseId, text: "负责 AI 产品从需求到上线", visibility: "recruiter_safe", confirmed_by_user: true } } });
+  const factId = fact.result.structuredContent.fact.id;
+  assert.match(factId, /^fact-/);
+
+  const snapshot = await send({ jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "yi_zhi_freeze_snapshot", arguments: { case_id: caseId, type: "jd", title: "示例 JD", content: "负责 AI 产品需求分析" } } });
+  assert.equal(snapshot.result.structuredContent.snapshot.version, 1);
+
+  const applicationContext = await send({ jsonrpc: "2.0", id: 12, method: "tools/call", params: { name: "yi_zhi_get_application_context", arguments: { case_id: caseId } } });
+  assert.equal(applicationContext.result.structuredContent.confirmed_facts.length, 1);
+  assert.equal(applicationContext.result.structuredContent.snapshots.length, 1);
+
   const saved = await send({
     jsonrpc: "2.0",
     id: 5,
     method: "tools/call",
-    params: { name: "yi_zhi_save_artifact", arguments: { case_id: caseId, type: "job-fit", title: "示例岗位决策卡", content: "投递决策：优先投递" } }
+    params: { name: "yi_zhi_save_artifact", arguments: { case_id: caseId, type: "job-fit", title: "示例岗位决策卡", content: "投递决策：优先投递", claim_ids: [factId], quality: { facts: "passed" } } }
   });
   const artifactPath = saved.result.structuredContent.artifact.path;
   assert.match(await readFile(artifactPath, "utf8"), /优先投递/);
@@ -104,6 +119,7 @@ try {
   const reopened = await send({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "yi_zhi_get_cockpit", arguments: {} } });
   assert.equal(reopened.result.structuredContent.case.id, caseId);
   assert.equal(reopened.result.structuredContent.case.artifacts.length, 1);
+  assert.equal(reopened.result.structuredContent.case.artifacts[0].claim_ids[0], factId);
 
   const browserLink = await send({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "yi_zhi_get_cockpit_url", arguments: { case_id: caseId } } });
   const pageResponse = await fetch(browserLink.result.structuredContent.cockpit_url);
@@ -111,11 +127,13 @@ try {
   const pageHtml = await pageResponse.text();
   assert.match(pageHtml, /示例公司/);
   assert.match(pageHtml, /插件更新/);
-  assert.match(pageHtml, /0\.6\.0 → 0\.7\.0/);
+  assert.match(pageHtml, /0\.7\.0 → 0\.8\.0/);
+  assert.match(pageHtml, /确认事实/);
+  assert.match(pageHtml, /岗位版本/);
 
   const updateState = JSON.parse(await readFile(join(dataDir, "update-state.json"), "utf8"));
   assert.equal(updateState.update_available, true);
-  assert.equal(updateState.latest_version, "0.7.0");
+  assert.equal(updateState.latest_version, "0.8.0");
 
   process.stdout.write("益职 MCP 闭环测试通过\n");
 } finally {

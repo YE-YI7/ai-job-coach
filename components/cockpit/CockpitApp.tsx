@@ -112,6 +112,7 @@ export function CockpitApp({
   const [creating, setCreating] = useState(false);
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [freezingResume, setFreezingResume] = useState(false);
   const [reviewingInterview, setReviewingInterview] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
@@ -355,14 +356,15 @@ export function CockpitApp({
       const response = await fetch("/api/coach/resume-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
+        body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "生成失败");
       setOpportunities((current) => current.map((item) => item.id === active.id ? {
         ...item,
         resumeChanges: result.changes,
-        activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已通过事实校验。`, timeLabel: "刚刚" }, ...item.activities],
+        applicationQuality: result.applicationQuality,
+        activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已完成事实、独立复核与 ATS 检查。`, timeLabel: "刚刚" }, ...item.activities],
       } : item));
       if (dataMode === "live") trackProductEvent("resume_generation_completed", { opportunity_id: active.id, change_count: result.changes.length });
       announce(`${result.changes.length} 处建议已生成并完成事实校验${typeof result.quota?.remaining === "number" ? ` · 剩余 ${result.quota.remaining} 次` : ""}`);
@@ -372,6 +374,33 @@ export function CockpitApp({
     } finally {
       setGeneratingResume(false);
     }
+  };
+
+  const freezeResumeVersion = async () => {
+    if (!active?.resumeText || !active.jdText || !active.applicationQuality || freezingResume) return;
+    if (active.resumeChanges.some((change) => change.status === "pending")) return announce("请先逐条接受或保留原文");
+    setFreezingResume(true);
+    try {
+      const response = await fetch("/api/coach/application-pack", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opportunityId: active.id, artifactId: active.applicationQuality.artifactId, resumeText: active.resumeText, jobDescription: active.jdText, changes: active.resumeChanges }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "保存失败");
+      setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
+        ...item, resumeText: result.resumeText,
+        applicationQuality: { artifactId: result.artifactId, version: result.version, status: "ready" as const, reviews: [
+          { reviewerType: "facts" as const, status: "passed" as const, summary: "投递文本只使用已确认事实。" },
+          { reviewerType: "independent_ai" as const, status: "passed" as const, summary: "起草版本已通过独立复核。" },
+          { reviewerType: "ats" as const, status: "passed" as const, summary: "文本可被 ATS 解析。" },
+          { reviewerType: "pdf" as const, status: "not_run" as const, summary: "导出 PDF 后上传校验文字层。" },
+        ] },
+        snapshots: [{ id: `snapshot-${Date.now()}`, snapshotType: "submitted_resume" as const, version: result.snapshotVersion, title: "投递简历", frozenAt: new Date().toISOString() }, ...(item.snapshots || [])],
+        activities: [{ id: `${item.id}-frozen-${Date.now()}`, actor: "user" as const, title: `冻结投递简历 V${result.snapshotVersion}`, detail: "事实与 ATS 校验通过；等待 PDF 文字层校验。", timeLabel: "刚刚" }, ...item.activities],
+      }));
+      announce(`投递版本 V${result.snapshotVersion} 已冻结`);
+    } catch (error) { announce(error instanceof Error ? error.message : "保存失败"); }
+    finally { setFreezingResume(false); }
   };
 
   const openInterviewRoundtable = () => {
@@ -388,6 +417,13 @@ export function CockpitApp({
   const saveQuestionAnswer = (answer: string) => {
     if (!active) return;
     const target = active.requirements.find((item) => item.strength === "unverified");
+    if (dataMode === "live" && !localIds.includes(active.id)) {
+      void fetch("/api/coach/claims", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        opportunityId: active.id, entityType: "experience", entityKey: `user-answer-${target?.id || Date.now()}`,
+        claimType: "user_confirmed_answer", value: answer, displayText: answer, sourceExcerpt: answer,
+        status: "confirmed", visibility: "recruiter_safe",
+      }) });
+    }
     setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
       ...item,
       requirements: item.requirements.map((requirement) => requirement.id === target?.id ? { ...requirement, evidence: `用户补充：${answer}`, source: "网页回答 · 刚刚", verified: true, strength: "weak" as const } : requirement),
@@ -396,7 +432,7 @@ export function CockpitApp({
       activities: [{ id: `${item.id}-answer-${Date.now()}`, actor: "user" as const, title: "补充一条关键事实", detail: answer, timeLabel: "刚刚" }, ...item.activities],
     }));
     if (dataMode === "live") trackProductEvent("evidence_confirmed", { opportunity_id: active.id, requirement_id: target?.id || "unknown" });
-    announce("已记录回答，并保留为待复核证据");
+    announce("已记录为用户确认事实");
   };
 
   const analyzeReview = async (round: string, notes: string) => {
@@ -431,6 +467,9 @@ export function CockpitApp({
         sourceNotes: notes.slice(0, 30_000),
         createdAt: new Date().toISOString(),
       };
+      if (dataMode === "live" && !localIds.includes(active.id)) {
+        void fetch("/api/coach/snapshots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunityId: active.id, snapshotType: "interview_feedback", title: `${round}复盘`, content: report, metadata: { round } }) });
+      }
       setOpportunities((current) => current.map((item) => item.id === active.id ? {
         ...item,
         reviewReports: [report, ...(item.reviewReports || [])],
@@ -539,7 +578,7 @@ export function CockpitApp({
           <div className={styles.documentBody}>
             {activeTab === "overview" && <OverviewTab opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} generating={generatingResume} />}
+            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} onFreeze={freezeResumeVersion} generating={generatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
             {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} analyzing={reviewingInterview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
@@ -773,8 +812,23 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, onUpdate, onGenerate, generating }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onGenerate: () => void; generating: boolean }) {
+function ResumeTab({ opportunity, onUpdate, onGenerate, onFreeze, generating, freezing, onPdfResult }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onGenerate: () => void; onFreeze: () => void; generating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
   const quotaLabel = useQuotaLabel("resume");
+  const [checkingPdf, setCheckingPdf] = useState(false);
+  const submittedVersion = Math.max(0, ...(opportunity.snapshots || []).filter((snapshot) => snapshot.snapshotType === "submitted_resume").map((snapshot) => snapshot.version));
+  const verifyPdf = async (file: File) => {
+    if (!opportunity.applicationQuality) return;
+    setCheckingPdf(true);
+    try {
+      const form = new FormData();
+      form.append("file", file); form.append("opportunityId", opportunity.id); form.append("artifactId", opportunity.applicationQuality.artifactId);
+      const response = await fetch("/api/coach/application-pack/pdf", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || result.review?.findings?.[0]?.message || "PDF 校验失败");
+      onPdfResult("passed", "PDF 文字层可解析且与投递版本一致。");
+    } catch (error) { onPdfResult("failed", error instanceof Error ? error.message : "PDF 校验失败"); }
+    finally { setCheckingPdf(false); }
+  };
   if (opportunity.workspaceType === "preparation") {
     return (
       <section>
@@ -786,10 +840,16 @@ function ResumeTab({ opportunity, onUpdate, onGenerate, generating }: { opportun
   return (
     <section>
       <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 只能改写可追溯到原简历的事实；数字不一致会被拦截。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成" : "AI 生成岗位版本"} · ${quotaLabel}`}</button></div>
-      <div className={styles.versionLine}><span>当前版本 V1</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
+      <div className={styles.versionLine}><span>{submittedVersion ? `已冻结投递版本 V${submittedVersion}` : "尚未冻结投递版本"}</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
+      {opportunity.applicationQuality && <div className={styles.qualityGate}>
+        <div><strong>投递质检</strong><span>{opportunity.applicationQuality.status === "blocked" ? "有阻断项" : opportunity.resumeChanges.some((item) => item.status === "pending") ? "等待你审阅" : "可以冻结版本"}</span></div>
+        <div className={styles.qualityChecks}>{opportunity.applicationQuality.reviews.map((review) => <span key={review.reviewerType} title={review.summary} data-status={review.status}>{review.reviewerType === "facts" ? "事实" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()} · {review.status === "passed" ? "通过" : review.status === "failed" ? "未通过" : "待检查"}</span>)}</div>
+        <div className={styles.qualityActions}><button className={styles.primaryButton} disabled={freezing || opportunity.applicationQuality.status === "blocked" || opportunity.resumeChanges.some((item) => item.status === "pending")} onClick={onFreeze}>{freezing ? "正在冻结…" : "冻结投递版本"}</button>
+          <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label></div>
+      </div>}
       <div className={styles.resumeChangeList}>{opportunity.resumeChanges.length ? opportunity.resumeChanges.map((change) => (
         <article key={change.id} className={styles.resumeChange}>
-          <header><strong>{change.section}</strong><span>{change.status === "accepted" ? "已接受" : "待审阅"}</span></header>
+          <header><strong>{change.section}</strong><span>{change.status === "accepted" ? "已接受" : change.status === "rejected" ? "保留原文" : "待审阅"}</span></header>
           <div className={styles.diffGrid}><div><span>原文</span><p>{change.before}</p></div><div><span>建议</span><p>{change.after}</p></div></div>
           <footer><p>{change.reason}</p><span>{change.evidenceId ? "已关联证据" : "需要补证据"}</span></footer>
           {change.status === "pending" && <div className={styles.changeActions}><button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />接受修改</button><button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button></div>}

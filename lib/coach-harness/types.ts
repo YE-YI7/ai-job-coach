@@ -46,6 +46,47 @@ export interface ArtifactReference {
   createdAt: string;
 }
 
+export type OpportunitySnapshotType =
+  | "jd"
+  | "base_resume"
+  | "submitted_resume"
+  | "application_answers"
+  | "interview_brief"
+  | "interview_feedback"
+  | "outcome";
+
+export interface OpportunitySnapshot {
+  id: string;
+  opportunityId: string;
+  snapshotType: OpportunitySnapshotType;
+  version: number;
+  title: string;
+  content: unknown;
+  contentHash: string;
+  createdBy: "user" | "hosted_ai" | "personal_agent" | "system";
+  frozenAt: string;
+}
+
+export type ArtifactReviewType = "independent_ai" | "facts" | "ats" | "pdf";
+export type ArtifactReviewStatus = "passed" | "warning" | "failed" | "not_run";
+
+export interface ArtifactQualityReview {
+  id: string;
+  artifactId: string;
+  reviewerType: ArtifactReviewType;
+  status: ArtifactReviewStatus;
+  summary: string;
+  findings: unknown[];
+  createdAt: string;
+}
+
+export interface ApplicationQualityGate {
+  artifactId: string;
+  version: number;
+  status: "draft" | "ready" | "blocked";
+  reviews: ArtifactQualityReview[];
+}
+
 export interface ContextBundle {
   version: 1;
   task: CoachActionType;

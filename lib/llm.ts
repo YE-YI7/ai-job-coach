@@ -8,6 +8,33 @@ type Message = {
   content: string;
 };
 
+type LlmOptions = {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  provider?: "deepseek" | "openai";
+  timeout?: number;
+  timeoutMs?: number;
+  maxRetries?: number;
+  thinking?: "enabled" | "disabled";
+  responseFormat?: "json_object";
+};
+
+export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai", model: string, options?: LlmOptions) {
+  const request: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: options?.temperature ?? 0.7,
+    max_tokens: options?.maxTokens ?? 2000,
+  };
+  // DeepSeek V4 enables thinking by default. Most product endpoints expect a
+  // bounded final answer; with their existing token limits, reasoning alone
+  // can exhaust max_tokens and leave message.content empty.
+  if (provider === "deepseek") request.thinking = { type: options?.thinking || "disabled" };
+  if (options?.responseFormat) request.response_format = { type: options.responseFormat };
+  return request;
+}
+
 /**
  * 带超时和重试的 LLM 调用包装器
  */
@@ -83,15 +110,7 @@ async function callWithTimeoutAndRetry(
  */
 export async function callLLM(
   messages: Message[],
-  options?: {
-    model?: string;
-    temperature?: number;
-    maxTokens?: number;
-    provider?: "deepseek" | "openai";
-    timeout?: number;
-    timeoutMs?: number;
-    maxRetries?: number;
-  }
+  options?: LlmOptions
 ): Promise<string> {
   // quick validation
   if (!Array.isArray(messages)) {
@@ -161,12 +180,12 @@ export async function callLLM(
 
   // wrapper to call SDK
   const clientCall = async () => {
-    return await client.chat.completions.create({
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 2000, // 增加到 2000，支持更长的回复
-    });
+    const completion = await client.chat.completions.create(buildChatCompletionRequest(messages, provider, model, options) as any);
+    if (!completion.choices[0]?.message?.content) {
+      const finishReason = completion.choices[0]?.finish_reason || "unknown";
+      throw new Error(`Empty response from LLM (finish_reason=${finishReason})`);
+    }
+    return completion;
   };
 
   // call with timeout & retry
@@ -178,9 +197,7 @@ export async function callLLM(
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty response from LLM");
-    }
+    if (!content) throw new Error("Empty response from LLM");
 
     const usage = normalizeGenerationUsage(completion.usage as Record<string, unknown> | undefined);
     const cost = estimateGenerationCost(provider, model, usage);

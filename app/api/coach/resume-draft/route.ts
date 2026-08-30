@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n带编号的简历事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须来自原文。` },
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1 }));
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
     const rawChanges = Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6) : [];
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     const reviewerOutput = await callLLM([
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n待审修改：\n${JSON.stringify(changes)}` },
-    ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1 });
+    ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" });
     const reviewer = parseJson(reviewerOutput) as { status?: string; summary?: string; findings?: unknown[] };
     const reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
     const reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");

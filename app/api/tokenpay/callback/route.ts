@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { exchangeTokenPayCode, getTokenPayAccount, saveTokenPayConnection } from "@/lib/tokenpay";
+import {
+  classifyTokenPayCallback,
+  exchangeTokenPayCode,
+  getTokenPayAccount,
+  hasActiveTokenPayConnection,
+  saveTokenPayConnection,
+} from "@/lib/tokenpay";
 
 export const runtime = "nodejs";
 
@@ -38,7 +44,23 @@ export async function GET(request: Request) {
   const expectedState = cookieMap.get("tokenpay_oauth_state");
   const verifier = cookieMap.get("tokenpay_pkce_verifier");
 
-  if (!code || !state || !expectedState || state !== expectedState || !verifier) {
+  let disposition = classifyTokenPayCallback({ code, state, expectedState, verifier, alreadyConnected: false });
+  if (disposition === "security_error" && code && !expectedState && !verifier) {
+    disposition = classifyTokenPayCallback({
+      code,
+      state,
+      expectedState,
+      verifier,
+      alreadyConnected: await hasActiveTokenPayConnection(user.id),
+    });
+  }
+
+  if (disposition === "connected_replay") {
+    cockpitUrl.searchParams.set("tokenpay", "connected");
+    return clearOAuthCookies(NextResponse.redirect(cockpitUrl));
+  }
+
+  if (disposition !== "exchange" || !code || !verifier) {
     cockpitUrl.searchParams.set("tokenpay", "security_error");
     return clearOAuthCookies(NextResponse.redirect(cockpitUrl));
   }
@@ -46,7 +68,9 @@ export async function GET(request: Request) {
   try {
     const apiKey = await exchangeTokenPayCode(code, verifier);
     await saveTokenPayConnection(user.id, apiKey);
-    await getTokenPayAccount(user.id);
+    await getTokenPayAccount(user.id).catch((balanceError) => {
+      console.warn("TokenPay connected but initial balance refresh failed", balanceError instanceof Error ? balanceError.message : "unknown error");
+    });
     cockpitUrl.searchParams.set("tokenpay", "connected");
   } catch (error) {
     console.error("TokenPay OAuth callback failed", error instanceof Error ? error.message : "unknown error");

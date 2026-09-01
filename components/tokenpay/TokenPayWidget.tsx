@@ -62,9 +62,12 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
     setLoading(true);
     setError("");
     try {
-      setAccount(await fetchAccount(force));
+      const nextAccount = await fetchAccount(force);
+      setAccount(nextAccount);
+      return nextAccount;
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "TokenPay 读取失败");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -72,11 +75,15 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     const status = new URL(window.location.href).searchParams.get("tokenpay");
-    void loadAccount(status === "connected");
+    const accountPromise = loadAccount(status === "connected" || status === "security_error");
     if (!status) return;
     setOpen(true);
     if (status === "connected") setError("");
-    else setError(status === "security_error" ? "授权安全校验失败，请重新连接" : "TokenPay 授权未完成，请重试");
+    else if (status === "security_error") {
+      void accountPromise.then((current) => {
+        if (!current?.connected || current.status !== "active") setError("授权安全校验失败，请重新连接");
+      });
+    } else setError("TokenPay 授权未完成，请重试");
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete("tokenpay");
     window.history.replaceState({}, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);

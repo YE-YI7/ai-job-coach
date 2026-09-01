@@ -2,6 +2,7 @@ jest.mock("./db", () => ({ getDbClient: jest.fn() }));
 
 import {
   buildTokenPayAuthorizeUrl,
+  classifyTokenPayCallback,
   createPkcePair,
   decryptTokenPayKey,
   encryptTokenPayKey,
@@ -38,6 +39,13 @@ describe("TokenPay security primitives", () => {
     expect(url.searchParams.get("code_challenge")).toBe("challenge-1");
     expect(url.searchParams.get("callback_url")).toContain("/api/tokenpay/callback");
     expect(url.searchParams.get("app_url")).toBe("https://www.ai-job-coach.xin");
+  });
+
+  it("accepts a completed callback replay only when a valid connection exists", () => {
+    const common = { code: "one-time-code", state: "state-1", expectedState: undefined, verifier: undefined };
+    expect(classifyTokenPayCallback({ ...common, alreadyConnected: true })).toBe("connected_replay");
+    expect(classifyTokenPayCallback({ ...common, alreadyConnected: false })).toBe("security_error");
+    expect(classifyTokenPayCallback({ ...common, expectedState: "state-2", verifier: "verifier", alreadyConnected: true })).toBe("security_error");
   });
 
   it("encrypts API keys without exposing plaintext", () => {

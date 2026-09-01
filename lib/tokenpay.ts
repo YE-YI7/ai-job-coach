@@ -83,6 +83,26 @@ export function createTokenPayState() {
   return randomBytes(32).toString("base64url");
 }
 
+export function classifyTokenPayCallback(input: {
+  code: string | null;
+  state: string | null;
+  expectedState?: string;
+  verifier?: string;
+  alreadyConnected: boolean;
+}) {
+  if (input.code && input.state && input.expectedState && input.verifier && input.state === input.expectedState) {
+    return "exchange" as const;
+  }
+  // TokenDance or the browser can replay a completed redirect. The first
+  // callback already consumed the code and cleared the one-time cookies; if a
+  // valid connection now exists, the replay must not overwrite success with a
+  // false security warning.
+  if (input.code && !input.expectedState && !input.verifier && input.alreadyConnected) {
+    return "connected_replay" as const;
+  }
+  return "security_error" as const;
+}
+
 export function buildTokenPayAuthorizeUrl(input: {
   callbackUrl: string;
   challenge: string;

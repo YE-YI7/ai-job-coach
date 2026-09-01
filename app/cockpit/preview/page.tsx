@@ -22,18 +22,21 @@ const preparationPreview: Opportunity = {
   nextEventLabel: "今天完成第一步",
 };
 
-export default async function CockpitPreviewPage({ searchParams }: { searchParams: Promise<{ empty?: string; preparation?: string }> }) {
+export default async function CockpitPreviewPage({ searchParams }: { searchParams: Promise<{ empty?: string; preparation?: string; tab?: string }> }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
   const previewOpportunities = params.preparation === "1"
     ? [preparationPreview, ...demoOpportunities.map((item) => ({ ...item, jdText: `${item.role} 岗位职责与任职要求示例。` }))]
-    : demoOpportunities;
+    : params.tab === "interview"
+      ? demoOpportunities.map((item) => ({ ...item, jdText: `${item.role} 岗位职责与任职要求示例。` }))
+      : demoOpportunities;
 
   return (
     <CockpitApp
       initialOpportunities={params.empty === "1" ? [] : previewOpportunities}
       userEmail="cockpit-preview@example.com"
       dataMode="demo"
+      initialTab={params.tab === "interview" ? "interview" : params.tab === "resume" ? "resume" : undefined}
     />
   );
 }

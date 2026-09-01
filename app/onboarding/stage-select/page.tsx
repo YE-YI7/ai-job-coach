@@ -97,13 +97,13 @@ export default function StageSelectPage() {
 
   // 阶段到路由的映射表
   const STAGE_ROUTER_MAP: Record<string, string> = {
-    "还不清楚要做什么工作": "/chat?stage=career",
-    "有项目经历，但亮点挖不出": "/chat?stage=review",
-    "已有简历，但投递没回音": "/chat/resume-editor",
-    "缺少投递渠道，或投递盲目": "/chat?stage=delivery",
-    "不擅长应对面试": "/interview/start",
-    "到谈薪环节，但不了解行情": "/chat?stage=salary",
-    "手握多个 Offer，难以抉择": "/chat?stage=offer"
+    "还不清楚要做什么工作": "/cockpit",
+    "有项目经历，但亮点挖不出": "/cockpit?tab=evidence",
+    "已有简历，但投递没回音": "/cockpit?tab=resume",
+    "缺少投递渠道，或投递盲目": "/cockpit",
+    "不擅长应对面试": "/cockpit?tab=interview",
+    "到谈薪环节，但不了解行情": "/cockpit",
+    "手握多个 Offer，难以抉择": "/cockpit"
   };
 
   // 处理阶段点击
@@ -119,7 +119,7 @@ export default function StageSelectPage() {
       // 如果是面试阶段，跳转到面试中心（带来源标记，确保显示双分支入口）
       if (canonicalKey === "interview") {
         localStorage.setItem("current_stage", "interview");
-        router.push("/interview/start?from=stage-select");
+        router.push("/cockpit?tab=interview");
         return;
       }
 
@@ -127,7 +127,7 @@ export default function StageSelectPage() {
       localStorage.setItem("current_stage", canonicalKey);
 
       // 获取对应路由
-      const route = STAGE_ROUTER_MAP[stage.title] || "/chat";
+      const route = STAGE_ROUTER_MAP[stage.title] || "/cockpit";
       
       // 如果是聊天相关路由，尝试获取阶段开场白
       if (route.startsWith("/chat")) {
@@ -170,11 +170,11 @@ export default function StageSelectPage() {
       
       if (canonicalKey === "interview") {
         localStorage.setItem("current_stage", "interview");
-        router.push("/interview/start");
+        router.push("/cockpit?tab=interview");
         return;
       }
       
-      const defaultRoute = STAGE_ROUTER_MAP[stage.title] || "/chat";
+      const defaultRoute = STAGE_ROUTER_MAP[stage.title] || "/cockpit";
       router.push(defaultRoute);
     } finally {
       setIsLoading(false);

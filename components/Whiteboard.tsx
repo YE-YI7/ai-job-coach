@@ -382,7 +382,7 @@ export default function Whiteboard({
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs font-medium text-gray-500">简历优化建议</div>
                 <button
-                  onClick={() => router.push("/chat/resume-editor")}
+                  onClick={() => router.push("/cockpit?tab=resume")}
                   className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 transition-colors"
                 >
                   进入编辑器
@@ -396,7 +396,7 @@ export default function Whiteboard({
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.2 }}
                     className="p-3 bg-white rounded-lg border border-green-200 cursor-pointer hover:border-green-300 transition-colors"
-                    onClick={() => router.push("/chat/resume-editor")}
+                    onClick={() => router.push("/cockpit?tab=resume")}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
@@ -559,7 +559,7 @@ export default function Whiteboard({
             className="rounded-lg border border-blue-200 bg-blue-50/30 overflow-hidden"
           >
             <InterviewCalendar
-              onNavigateToInterview={() => router.push("/interview/start")}
+              onNavigateToInterview={() => router.push("/cockpit?tab=interview")}
             />
           </motion.div>
         </motion.div>

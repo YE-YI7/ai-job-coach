@@ -98,7 +98,7 @@ const METHODOLOGY_DATA: Record<string, {
 
 const STAGES = [
   { 
-    id: 1, key: "career_planning", route: "/chat?stage=career",
+    id: 1, key: "career_planning", route: "/cockpit",
     title: "还不清楚要做什么工作",
     desc: "帮你分析个人优势，定位最适合的赛道",
     gradient: "from-blue-500 to-indigo-500",
@@ -111,7 +111,7 @@ const STAGES = [
     ),
   },
   {
-    id: 2, key: "project_review", route: "/chat?stage=review",
+    id: 2, key: "project_review", route: "/cockpit?tab=evidence",
     title: "有项目经历，但亮点挖不出",
     desc: "深度拆解项目过程，沉淀可复用的核心能力",
     gradient: "from-indigo-500 to-violet-500",
@@ -123,7 +123,7 @@ const STAGES = [
     ),
   },
   {
-    id: 3, key: "resume_optimization", route: "/chat/resume-editor",
+    id: 3, key: "resume_optimization", route: "/cockpit?tab=resume",
     title: "已有简历，但投递没回音",
     desc: "针对岗位需求精修，让简历通过初筛",
     gradient: "from-orange-500 to-amber-500",
@@ -135,7 +135,7 @@ const STAGES = [
     ),
   },
   {
-    id: 4, key: "application_strategy", route: "/chat?stage=delivery",
+    id: 4, key: "application_strategy", route: "/cockpit",
     title: "缺少投递渠道，或投递盲目",
     desc: "制定精准投递计划，提高面试邀请概率",
     gradient: "from-emerald-500 to-teal-500",
@@ -147,7 +147,7 @@ const STAGES = [
     ),
   },
   {
-    id: 5, key: "interview", route: "/interview/start",
+    id: 5, key: "interview", route: "/cockpit?tab=interview",
     title: "不擅长应对面试",
     desc: "多方位攻克面试问题，训练成面霸",
     gradient: "from-cyan-500 to-blue-500",
@@ -159,7 +159,7 @@ const STAGES = [
     ),
   },
   {
-    id: 6, key: "salary_talk", route: "/chat?stage=salary",
+    id: 6, key: "salary_talk", route: "/cockpit",
     title: "到谈薪环节，但不了解行情",
     desc: "掌握谈判技巧与薪资水位，争取利益最大化",
     gradient: "from-rose-500 to-pink-500",
@@ -171,7 +171,7 @@ const STAGES = [
     ),
   },
   {
-    id: 7, key: "offer", route: "/chat?stage=offer",
+    id: 7, key: "offer", route: "/cockpit",
     title: "手握多个 Offer，难以抉择",
     desc: "对比公司前景与福利，做出最理性的判断",
     gradient: "from-purple-500 to-violet-500",
@@ -230,7 +230,7 @@ function OnboardingContent() {
       }
 
       if (selectedStage.key === "interview") {
-        router.push("/interview/start");
+        router.push("/cockpit?tab=interview");
         return;
       }
 

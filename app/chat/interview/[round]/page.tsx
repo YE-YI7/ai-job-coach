@@ -7,5 +7,5 @@ export default async function LegacyInterviewPage({
 }) {
   const { round } = await params;
   const query = new URLSearchParams({ from: "legacy-interview", round });
-  redirect(`/interview/start?${query.toString()}`);
+  redirect(`/cockpit?tab=interview&${query.toString()}`);
 }

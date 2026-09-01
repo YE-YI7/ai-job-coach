@@ -30,7 +30,6 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type {
   StartInterviewRequest,
   StartInterviewResponse,
-  InterviewQuestion,
 } from "@/lib/interview/types";
 
 export async function POST(request: Request) {
@@ -53,7 +52,7 @@ export async function POST(request: Request) {
     let body: StartInterviewRequest;
     try {
       body = await request.json();
-    } catch (error) {
+    } catch {
       return new Response(
         JSON.stringify({ ok: false, error: "无效的 JSON 请求体" }),
         {
@@ -64,8 +63,8 @@ export async function POST(request: Request) {
     }
 
     // 3. 验证请求参数
-    const { jd, roundType, questionCount } = body;
-    const useResume = (body as any).useResume !== false; // 默认使用简历
+    const { jd, roundType, questionCount, opportunityId } = body;
+    const useResume = body.useResume !== false; // 默认使用简历
     if (!jd || typeof jd !== "string" || jd.trim().length === 0) {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 jd 字段" }),
@@ -106,7 +105,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const requestId = String((body as any).requestId || crypto.randomUUID()).slice(0, 180);
+    if (opportunityId) {
+      const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
+        .select("id").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+      if (opportunityError) throw opportunityError;
+      if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
+        status: 404, headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
     reservation = await reserveQuota(userId, "interview", `interview-start:${requestId}`);
     if (!reservation) {
       return new Response(JSON.stringify({ ok: false, error: "模拟面试额度不足", needUpgrade: true }), {
@@ -115,13 +123,16 @@ export async function POST(request: Request) {
     }
 
     // 5. 查询用户简历数据（用于个性化出题）
-    let resumeText = "";
+    let resumeText = useResume ? String(body.resumeText || "").trim().slice(0, 30_000) : "";
     if (useResume) {
       try {
+        if (resumeText) console.log(`已加载当前岗位简历 (${resumeText.length} 字符)`);
+        else {
         const resume = await getLatestResumeByUserId(userId);
         if (resume?.parsed) {
           resumeText = formatResumeForPrompt(resume.parsed);
           console.log(`已加载用户简历数据 (${resumeText.length} 字符)`);
+        }
         }
       } catch (err) {
         console.warn("查询简历数据失败（非关键错误）:", err);

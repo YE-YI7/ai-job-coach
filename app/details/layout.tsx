@@ -17,11 +17,11 @@ export default function DetailsLayout({ children }: DetailsLayoutProps) {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => router.push("/cockpit")}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <span className="text-xl">←</span>
-              <span className="font-medium">返回对话</span>
+              <span className="font-medium">返回作战盘</span>
             </button>
             <div className="flex-1"></div>
           </div>
@@ -35,4 +35,3 @@ export default function DetailsLayout({ children }: DetailsLayoutProps) {
     </div>
   );
 }
-

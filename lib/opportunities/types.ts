@@ -71,6 +71,49 @@ export interface InterviewReviewReport {
   createdAt: string;
 }
 
+export interface InterviewPracticeFeedback {
+  id: string;
+  question: string;
+  answer: string;
+  verdict: "可继续追问" | "证据不足" | "表达失焦";
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  followUp: string;
+  improvedOutline: string[];
+  createdAt: string;
+}
+
+export interface InterviewRoundtableAssessment {
+  score: number;
+  summary: string;
+  dimensions: Array<{ name: string; score?: number; comment: string }>;
+}
+
+export interface InterviewRoundtableTurn {
+  questionId: string;
+  question: string;
+  rationale?: string;
+  answer?: string;
+  assessment?: InterviewRoundtableAssessment;
+}
+
+export interface InterviewRoundtableSession {
+  id: string;
+  round: string;
+  status: "running" | "completed";
+  currentIndex: number;
+  turns: InterviewRoundtableTurn[];
+  createdAt: string;
+  summary?: {
+    overallScore: number;
+    grade: string;
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+  };
+}
+
 export interface Opportunity {
   id: string;
   workspaceType?: "job" | "preparation";
@@ -101,6 +144,8 @@ export interface Opportunity {
   activities: OpportunityActivity[];
   resumeChanges: ResumeChange[];
   interviewFocus: InterviewFocus[];
+  interviewPractices?: InterviewPracticeFeedback[];
+  mockInterviews?: InterviewRoundtableSession[];
   reviewReports?: InterviewReviewReport[];
   mentorSnoozes?: Array<{ actionId: string; until: string }>;
   snapshots?: Array<{

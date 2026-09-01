@@ -90,7 +90,7 @@ export default function ResumeDetailPage() {
       console.error("删除失败:", error);
     }
     
-    router.push("/chat");
+    router.push("/cockpit?tab=resume");
   };
 
   const displayInsights = insight ? [insight] : (allInsights || []);
@@ -130,7 +130,7 @@ export default function ResumeDetailPage() {
               </button>
             )}
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => router.push("/cockpit?tab=resume")}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               返回
@@ -140,4 +140,3 @@ export default function ResumeDetailPage() {
       </div>
   );
 }
-

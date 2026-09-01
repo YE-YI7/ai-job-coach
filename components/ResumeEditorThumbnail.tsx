@@ -11,7 +11,7 @@ export default function ResumeEditorThumbnail({ onClose }: ResumeEditorThumbnail
   const router = useRouter();
 
   const handleOpen = () => {
-    router.push("/chat/resume-editor");
+    router.push("/cockpit?tab=resume");
   };
 
   return (
@@ -49,7 +49,6 @@ export default function ResumeEditorThumbnail({ onClose }: ResumeEditorThumbnail
     </motion.div>
   );
 }
-
 
 
 

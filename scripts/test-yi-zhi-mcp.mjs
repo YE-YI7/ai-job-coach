@@ -38,7 +38,7 @@ function send(message) {
 try {
   const initialized = await send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26" } });
   assert.equal(initialized.result.serverInfo.name, "yi-zhi");
-  assert.equal(initialized.result.serverInfo.version, "0.8.0");
+  assert.equal(initialized.result.serverInfo.version, "0.8.2");
   assert.match(initialized.result.instructions, /0\.9\.0 is available/);
   assert.match(initialized.result.instructions, /yi_zhi_get_application_context/);
 
@@ -68,10 +68,10 @@ try {
     method: "tools/call",
     params: { name: "yi_zhi_check_update", arguments: { force: true } }
   });
-  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.8.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.8.2");
   assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.9.0");
   assert.equal(checkedUpdate.result.structuredContent.update.update_available, true);
-  assert.match(checkedUpdate.result.content[0].text, /0\.8\.0 → 0\.9\.0/);
+  assert.match(checkedUpdate.result.content[0].text, /0\.8\.2 → 0\.9\.0/);
 
   const tokenPayConnect = await send({ jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "yi_zhi_tokenpay_connect", arguments: {} } });
   const tokenPayUrl = new URL(tokenPayConnect.result.structuredContent.authorization_url);
@@ -139,7 +139,7 @@ try {
   const pageHtml = await pageResponse.text();
   assert.match(pageHtml, /示例公司/);
   assert.match(pageHtml, /插件更新/);
-  assert.match(pageHtml, /0\.8\.0 → 0\.9\.0/);
+  assert.match(pageHtml, /0\.8\.2 → 0\.9\.0/);
   assert.match(pageHtml, /TokenPay/);
   assert.match(pageHtml, /确认事实/);
   assert.match(pageHtml, /岗位版本/);

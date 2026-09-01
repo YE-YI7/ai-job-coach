@@ -203,7 +203,7 @@ export default function InterviewDetailPage() {
         {/* 底部按钮 */}
         <div className="pt-6 border-t border-gray-200 flex gap-3">
           <button
-            onClick={() => router.push("/chat")}
+            onClick={() => router.push("/cockpit?tab=interview")}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             返回
@@ -213,4 +213,3 @@ export default function InterviewDetailPage() {
     </div>
   );
 }
-

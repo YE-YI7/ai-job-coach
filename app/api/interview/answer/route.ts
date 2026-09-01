@@ -34,7 +34,7 @@ import { v4 as uuidv4 } from "uuid";
 import type {
   AnswerQuestionRequest,
   AnswerQuestionResponse,
-  Assessment,
+  RoundType,
 } from "@/lib/interview/types";
 
 export async function POST(request: Request) {
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     let body: AnswerQuestionRequest;
     try {
       body = await request.json();
-    } catch (error) {
+    } catch {
       return new Response(
         JSON.stringify({ ok: false, error: "无效的 JSON 请求体" }),
         {
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // 3. 验证请求参数
-    const { session_id, question_id, answer } = body;
+    const { session_id, question_id, answer, opportunityId } = body;
     if (!session_id || typeof session_id !== "string") {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 session_id 字段" }),
@@ -154,11 +154,19 @@ export async function POST(request: Request) {
     }
 
     // 7. 查询用户简历数据（用于评估时参考）
-    let resumeText = "";
+    let resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     try {
-      const resume = await getLatestResumeByUserId(userId);
-      if (resume?.parsed) {
-        resumeText = formatResumeForPrompt(resume.parsed);
+      if (opportunityId) {
+        const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
+          .select("id").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+        if (opportunityError) throw opportunityError;
+        if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
+          status: 404, headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (!resumeText) {
+        const resume = await getLatestResumeByUserId(userId);
+        if (resume?.parsed) resumeText = formatResumeForPrompt(resume.parsed);
       }
     } catch (err) {
       console.warn("查询简历数据失败（非关键错误）:", err);
@@ -201,7 +209,7 @@ export async function POST(request: Request) {
         question: question.question_text,
         jd: session.jd,
         answer: answer.trim(),
-        roundType: session.round_type as any,
+        roundType: session.round_type as RoundType,
         resumeText: resumeText || undefined,
         knowledgeContext: knowledge.contextText || undefined,
       }));

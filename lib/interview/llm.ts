@@ -521,7 +521,7 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
  */
 interface EvaluationDimension {
   name: string;
-  score?: number; // Tip 和 毒舌评价 没有 score
+  score?: number; // 重答建议和追问建议没有 score
   comment: string;
 }
 
@@ -545,8 +545,8 @@ function generateStubEvaluation(): EvaluationResult {
       { name: "准确性", score: 65, comment: "部分概念表达不准确" },
       { name: "数据指标与量化能力", score: 50, comment: "缺少具体数据支撑" },
       { name: "沟通表达", score: 62, comment: "表达偏散，重点不够明确" },
-      { name: "Tip", comment: "建议提前准备 3 个经典项目案例" },
-      { name: "毒舌评价", comment: "你回答得像 GPT-2，不像人" },
+      { name: "重答建议", comment: "先给结论，再补充你的关键动作和可核实结果。" },
+      { name: "追问建议", comment: "这件事里你个人做出的关键决策是什么？" },
     ],
     summary: "回答基本可用，但缺乏亮点，建议补充量化指标和关键决策。",
   };
@@ -589,7 +589,7 @@ export async function evaluateAnswer({
     const systemPrompt = `你是一名资深互联网大厂面试官，你了解大厂所有岗位面试标准，请基于以下信息对候选人的回答进行专业评估。
 
 任务：
-1. 从六个维度对回答进行专业评估（逻辑性、准确性、数据指标与量化能力、沟通表达、Tip、毒舌评价）
+1. 从六个维度对回答进行专业评估（逻辑性、准确性、数据指标与量化能力、沟通表达、重答建议、追问建议）
 2. 返回 0-100 的总体得分
 3. 请生成简洁但有深度的总结（summary）
 4. 全部内容必须以严格 JSON 格式返回
@@ -597,9 +597,9 @@ export async function evaluateAnswer({
 输出格式要求：
 - 必须是一个 JSON 对象
 - score 必须是 0-100 的整数
-- dimensions 必须包含 6 个维度，顺序为：逻辑性、准确性、数据指标与量化能力、沟通表达、Tip、毒舌评价
+- dimensions 必须包含 6 个维度，顺序为：逻辑性、准确性、数据指标与量化能力、沟通表达、重答建议、追问建议
 - 前 4 个维度必须有 score（0-100）和 comment
-- Tip 和 毒舌评价 只有 comment，没有 score
+- 重答建议和追问建议只有 comment，没有 score
 - summary 必须是字符串
 - 禁止输出任何其他内容，只输出 JSON`;
 
@@ -634,8 +634,8 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
     { "name": "准确性", "score": 90, "comment": "..." },
     { "name": "数据指标与量化能力", "score": 75, "comment": "..." },
     { "name": "沟通表达", "score": 88, "comment": "..." },
-    { "name": "Tip", "comment": "..." },
-    { "name": "毒舌评价", "comment": "..." }
+    { "name": "重答建议", "comment": "..." },
+    { "name": "追问建议", "comment": "..." }
   ],
   "summary": "..."
 }
@@ -722,12 +722,12 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
           comment: dim.comment,
         };
       } else {
-        // 后 2 个维度（Tip 和 毒舌评价）没有 score
+        // 后 2 个维度（重答建议和追问建议）没有 score
         if (typeof dim.comment !== "string") {
           throw new Error(`LLM 返回的 dimensions[${index}].comment 格式不正确（必须是字符串）`);
         }
         return {
-          name: dim.name || (index === 4 ? "Tip" : "毒舌评价"),
+          name: dim.name || (index === 4 ? "重答建议" : "追问建议"),
           comment: dim.comment,
         };
       }

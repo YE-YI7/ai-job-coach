@@ -425,7 +425,7 @@ export default function WhiteboardCanvas({
                 color="green"
                 initialPosition={notePositions[noteId]}
                 onPositionChange={handlePositionChange}
-                onClick={() => router.push("/chat/resume-editor")}
+                onClick={() => router.push("/cockpit?tab=resume")}
               />
             );
           })}

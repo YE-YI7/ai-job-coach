@@ -239,7 +239,7 @@ export default function StageSelector({ onSelectStage, currentStage, onClose }: 
               if (onClose) {
                 onClose();
               } else {
-                router.push("/chat");
+                router.push("/cockpit");
               }
             }}
             className="group inline-flex items-center gap-2 px-6 py-3 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium hover:bg-white rounded-xl border border-gray-200"
@@ -247,7 +247,7 @@ export default function StageSelector({ onSelectStage, currentStage, onClose }: 
             <svg className="w-4 h-4 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            返回对话
+            返回作战盘
           </button>
         </div>
       </div>

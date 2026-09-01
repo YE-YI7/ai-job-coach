@@ -6,6 +6,6 @@ describe("legacy interview assessment route", () => {
     const body = await response.json();
 
     expect(response.status).toBe(410);
-    expect(body.replacement).toBe("/interview/start");
+    expect(body.replacement).toBe("/cockpit?tab=interview");
   });
 });

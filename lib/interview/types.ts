@@ -77,6 +77,10 @@ export interface StartInterviewRequest {
   jd: string;
   roundType: RoundType;
   questionCount: number;
+  opportunityId?: string;
+  resumeText?: string;
+  requestId?: string;
+  useResume?: boolean;
 }
 
 // POST /api/interview/start 响应
@@ -90,6 +94,8 @@ export interface AnswerQuestionRequest {
   session_id: string;
   question_id: string;
   answer: string;
+  opportunityId?: string;
+  resumeText?: string;
 }
 
 // POST /api/interview/answer 响应
@@ -109,7 +115,6 @@ export interface InterviewSummaryResponse {
   suggestions: string[];
   dimensions: { name: string; score: number; comment: string }[];
 }
-
 
 
 

@@ -622,8 +622,8 @@ function InterviewReviewContent() {
               onClick={() => {
                 if (step === "paste") setStep("info");
                 else if (step === "preview") setStep("paste");
-                else if (step === "info") router.push("/interview/start");
-                else router.push("/interview/start");
+                else if (step === "info") router.push("/cockpit?tab=interview");
+                else router.push("/cockpit?tab=interview");
               }}
               className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors"
             >

@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { setTimeout as setTimeoutPromise } from "timers/promises";
 import { getGenerationContext } from "./generation-context";
 import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationUsage, recordGenerationEvent } from "./llm-telemetry";
-import { getTokenPayCredential, TOKENPAY_APP_URL, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
+import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -20,6 +20,19 @@ type LlmOptions = {
   thinking?: "enabled" | "disabled";
   responseFormat?: "json_object";
 };
+
+export function tokenDanceRecoveryActionFromError(error: unknown): TokenPayRecoveryAction | undefined {
+  const candidate = error && typeof error === "object" ? error as Record<string, unknown> : {};
+  const cause = candidate.cause && typeof candidate.cause === "object" ? candidate.cause as Record<string, unknown> : {};
+  const rawHeaders = candidate.headers || cause.headers;
+  const headerRecord = rawHeaders && typeof rawHeaders === "object" ? rawHeaders as Record<string, unknown> : {};
+  const rawAction = rawHeaders instanceof Headers
+    ? rawHeaders.get("tokendance-recovery-action")
+    : headerRecord["tokendance-recovery-action"] || headerRecord["TokenDance-Recovery-Action"];
+  return typeof rawAction === "string" && ["top_up_balance", "reauthorize_api_key", "api_key_quota"].includes(rawAction)
+    ? rawAction as TokenPayRecoveryAction
+    : undefined;
+}
 
 export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai" | "tokendance", model: string, options?: LlmOptions) {
   const request: Record<string, unknown> = {
@@ -41,15 +54,15 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
 /**
  * 带超时和重试的 LLM 调用包装器
  */
-async function callWithTimeoutAndRetry(
-  clientCallFn: () => Promise<any>,
+async function callWithTimeoutAndRetry<T>(
+  clientCallFn: () => Promise<T>,
   opts: { timeoutMs?: number; maxRetries?: number; onRetry?: (attempt: number) => void } = {}
-) {
+): Promise<T> {
   const timeoutMs = opts.timeoutMs ?? 30000; // 默认 30 秒超时
   const maxRetries = opts.maxRetries ?? 2;
 
   let attempt = 0;
-  let lastErr: any = null;
+  let lastErr: unknown = null;
 
   while (attempt <= maxRetries) {
     try {
@@ -63,14 +76,17 @@ async function callWithTimeoutAndRetry(
         })(),
       ]);
       return res;
-    } catch (e: any) {
+    } catch (e: unknown) {
       lastErr = e;
+      const details = e && typeof e === "object" ? e as Record<string, unknown> : {};
       // if auth error or bad request, don't retry
-      const msg = String(e?.message || "");
-      const errorCode = e?.code || "";
-      const statusCode = e?.status || e?.statusCode || "";
+      const msg = String(details.message || "");
+      const errorCode = details.code || "";
+      const statusCode = details.status || details.statusCode || "";
+      const recoveryAction = tokenDanceRecoveryActionFromError(e);
 
       if (
+        recoveryAction ||
         msg.includes("Authentication") ||
         msg.includes("401") ||
         msg.includes("Invalid") ||
@@ -90,7 +106,7 @@ async function callWithTimeoutAndRetry(
       const backoff = 500 * attempt; // 500ms, 1000ms...
       console.warn(
         `LLM request failed, retry ${attempt}/${maxRetries}, backoff ${backoff}ms`,
-        e?.message || e
+        details.message || e
       );
       await setTimeoutPromise(backoff);
       continue;
@@ -98,9 +114,8 @@ async function callWithTimeoutAndRetry(
   }
 
   // all retries failed
-  const err = new Error(
-    `LLM API 调用失败: ${lastErr?.message === "LLM_REQUEST_TIMEOUT" ? "Request timed out." : lastErr?.message || "Unknown error"}`
-  );
+  const lastDetails = lastErr && typeof lastErr === "object" ? lastErr as Record<string, unknown> : {};
+  const err = new Error(`LLM API 调用失败: ${lastDetails.message === "LLM_REQUEST_TIMEOUT" ? "Request timed out." : lastDetails.message || "Unknown error"}`);
   err.cause = lastErr;
   throw err;
 }
@@ -193,13 +208,15 @@ export async function callLLM(
       : provider === "tokendance"
         ? "https://tokendance.space/gateway/v1"
         : undefined, // OpenAI 使用默认 baseURL
-    defaultHeaders: provider === "tokendance" ? { "X-App-URL": TOKENPAY_APP_URL } : undefined,
+    defaultHeaders: provider === "tokendance" ? tokenDanceAttributionHeaders() : undefined,
     timeout: options?.timeout || 30000, // SDK 级别的超时（作为最后防线）
   });
 
   // wrapper to call SDK
   const clientCall = async () => {
-    const completion = await client.chat.completions.create(buildChatCompletionRequest(messages, provider, model, options) as any);
+    const completion = await client.chat.completions.create(
+      buildChatCompletionRequest(messages, provider, model, options) as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+    );
     if (!completion.choices[0]?.message?.content) {
       const finishReason = completion.choices[0]?.finish_reason || "unknown";
       throw new Error(`Empty response from LLM (finish_reason=${finishReason})`);
@@ -236,7 +253,9 @@ export async function callLLM(
     }).catch((error) => console.warn("LLM telemetry write failed:", error));
 
     return content;
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const details = e && typeof e === "object" ? e as Record<string, unknown> : {};
+    const cause = details.cause && typeof details.cause === "object" ? details.cause as Record<string, unknown> : {};
     await recordGenerationEvent({
       userId: trace?.userId,
       operation: trace?.operation || "unclassified",
@@ -252,37 +271,32 @@ export async function callLLM(
       failureType: classifyGenerationFailure(e),
       knowledgeDocumentIds: trace?.knowledgeDocumentIds,
     }).catch((error) => console.warn("LLM telemetry write failed:", error));
-    console.error("LLM 调用失败：", e?.message || e, e?.cause || "");
+    console.error("LLM 调用失败：", details.message || e, details.cause || "");
 
     if (provider === "tokendance") {
-      const rawHeaders = e?.headers;
-      const rawAction = typeof rawHeaders?.get === "function"
-        ? rawHeaders.get("tokendance-recovery-action")
-        : rawHeaders?.["tokendance-recovery-action"];
-      const recoveryAction: TokenPayRecoveryAction | undefined = typeof rawAction === "string" && ["top_up_balance", "reauthorize_api_key", "api_key_quota"].includes(rawAction)
-        ? rawAction as TokenPayRecoveryAction
-        : e?.status === 401
+      const recoveryAction = tokenDanceRecoveryActionFromError(e)
+        || (details.status === 401 || cause.status === 401
           ? "reauthorize_api_key"
-          : undefined;
+          : undefined);
       if (recoveryAction) {
         const message = recoveryAction === "top_up_balance"
           ? "TokenPay 余额不足，请充值后重试"
           : recoveryAction === "reauthorize_api_key"
             ? "TokenPay 授权已失效，请重新连接"
             : "TokenPay API Key 已达到周期额度，请稍后重试或重新授权";
-        throw new TokenPayError(message, Number(e?.status || 402), recoveryAction);
+        throw new TokenPayError(message, Number(details.status || cause.status || 402), recoveryAction);
       }
     }
 
     // 详细的错误处理
-    if (e.code === "insufficient_quota") {
+    if (details.code === "insufficient_quota") {
       throw new Error("API 配额不足，请检查账户余额");
-    } else if (e.code === "invalid_api_key") {
+    } else if (details.code === "invalid_api_key") {
       throw new Error("API Key 无效，请检查环境变量配置");
-    } else if (e.message?.includes("timeout") || e.message === "LLM_REQUEST_TIMEOUT") {
+    } else if (String(details.message || "").includes("timeout") || details.message === "LLM_REQUEST_TIMEOUT") {
       throw new Error("LLM API 调用失败: Request timed out.");
     } else {
-      throw new Error(`LLM API 调用失败: ${e.message || "未知错误"}`);
+      throw new Error(`LLM API 调用失败: ${details.message || "未知错误"}`);
     }
   }
 }

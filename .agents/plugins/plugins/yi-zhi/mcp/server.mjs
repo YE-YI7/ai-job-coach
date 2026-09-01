@@ -17,7 +17,7 @@ const UPDATE_STATE_FILE = join(DATA_DIR, "update-state.json");
 const TOKENPAY_FILE = join(DATA_DIR, "tokenpay.json");
 const TOKENPAY_PENDING_FILE = join(DATA_DIR, "tokenpay-pending.json");
 const TOKENPAY_ORIGIN = process.env.YI_ZHI_TOKENPAY_ORIGIN || "https://tokendance.space";
-const TOKENPAY_APP_URL = process.env.YI_ZHI_TOKENPAY_APP_URL || "https://ai-job-coach.xin/agent";
+const TOKENPAY_APP_URL = process.env.YI_ZHI_TOKENPAY_APP_URL || "https://www.ai-job-coach.xin";
 const UPDATE_MANIFEST_URL = process.env.YI_ZHI_UPDATE_MANIFEST_URL || "https://www.ai-job-coach.xin/api/agent/release";
 const UPDATE_CHECK_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_CHECK_MS ?? 7 * 24 * 60 * 60 * 1000), 0);
 const UPDATE_RETRY_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_RETRY_MS ?? 24 * 60 * 60 * 1000), 60_000);
@@ -686,7 +686,7 @@ async function callTool(name, args = {}) {
     url.searchParams.set("code_challenge", challenge);
     url.searchParams.set("code_challenge_method", "S256");
     url.searchParams.set("app_url", TOKENPAY_APP_URL);
-    url.searchParams.set("key_name", "益职 Agent TokenPay");
+    url.searchParams.set("key_name", "益职AI");
     return result(`请打开 TokenPay 授权页，确认 Key 的额度、周期和过期时间。完成后，把页面显示的一次性 code 发给我；code 10 分钟内有效。\n\n${url}`, { authorization_url: url.toString(), expires_in_seconds: 600 });
   }
 

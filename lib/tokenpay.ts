@@ -9,6 +9,10 @@ const REQUEST_TIMEOUT_MS = 15_000;
 export type TokenPayRecoveryAction = "top_up_balance" | "reauthorize_api_key" | "api_key_quota";
 export type TokenPayPaymentStatus = "pending" | "paid" | "failed" | "closed" | "refunded";
 
+export function tokenDanceAttributionHeaders() {
+  return { "X-App-URL": TOKENPAY_APP_URL };
+}
+
 type BalanceResponse = {
   balance: { credits: number; credits_used: number; balance: number };
 };
@@ -113,7 +117,7 @@ export function buildTokenPayAuthorizeUrl(input: {
   url.searchParams.set("code_challenge", input.challenge);
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("app_url", TOKENPAY_APP_URL);
-  url.searchParams.set("key_name", input.keyName || "益职 TokenPay");
+  url.searchParams.set("key_name", input.keyName || "益职AI");
   return url.toString();
 }
 

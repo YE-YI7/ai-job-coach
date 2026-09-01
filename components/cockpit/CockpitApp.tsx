@@ -61,6 +61,15 @@ const strengthMeta: Record<EvidenceStrength, { label: string; className: string 
 };
 
 const LOCAL_OPPORTUNITIES_KEY = "yi-zhi-web-opportunities-v1";
+const TOKENPAY_RECOVERY_ACTIONS = new Set(["top_up_balance", "reauthorize_api_key", "api_key_quota"]);
+
+function apiResponseError(response: Response, result: Record<string, unknown>, fallback: string) {
+  const action = response.headers.get("TokenDance-Recovery-Action") || String(result.recoveryAction || "");
+  if (TOKENPAY_RECOVERY_ACTIONS.has(action)) {
+    window.dispatchEvent(new CustomEvent("yi-zhi:tokenpay-recovery", { detail: { action } }));
+  }
+  return new Error(String(result.error || fallback));
+}
 
 function Brand() {
   return (
@@ -123,6 +132,7 @@ export function CockpitApp({
   const [creating, setCreating] = useState(false);
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [validatingResume, setValidatingResume] = useState(false);
   const [supplementingMaterial, setSupplementingMaterial] = useState(false);
   const [freezingResume, setFreezingResume] = useState(false);
   const [reviewingInterview, setReviewingInterview] = useState(false);
@@ -295,7 +305,7 @@ export function CockpitApp({
     const result = await response.json();
     if (!response.ok || !result.ok || !result.input) {
       if (dataMode === "live") trackProductEvent("material_intake_failed", { input_type: intake.file ? "file" : "text_or_link", status: response.status });
-      throw new Error(result.error || "材料暂时读不了，请重试");
+      throw apiResponseError(response, result, "材料暂时读不了，请重试");
     }
 
     const input = result.input as NewOpportunityInput;
@@ -368,7 +378,7 @@ export function CockpitApp({
       if (supplement.file) form.set("file", supplement.file);
       const response = await fetch("/api/opportunities/analyze", { method: "POST", body: form });
       const result = await response.json();
-      if (!response.ok || !result.ok || !result.input || !result.analysis) throw new Error(result.error || "材料暂时读不了，请重试");
+      if (!response.ok || !result.ok || !result.input || !result.analysis) throw apiResponseError(response, result, "材料暂时读不了，请重试");
       const input = result.input as NewOpportunityInput;
       const analysis = result.analysis as Partial<Opportunity>;
       const updated: Opportunity = {
@@ -418,6 +428,74 @@ export function CockpitApp({
     announce(status === "accepted" ? "已接受这处修改" : "已保留原文");
   };
 
+  const editResumeChange = (changeId: string, after: string) => {
+    if (!active) return;
+    setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
+      ...item,
+      resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, after, editedByUser: true, status: "pending" as const } : change),
+      applicationQuality: item.applicationQuality ? {
+        ...item.applicationQuality,
+        status: "draft" as const,
+        reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? review : { ...review, status: "not_run" as const, summary: "用户修改后需要重新检查。" }),
+      } : {
+        artifactId: `user-edit-${item.id}`,
+        version: 0,
+        status: "draft" as const,
+        reviews: [
+          { reviewerType: "facts" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
+          { reviewerType: "independent_ai" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
+          { reviewerType: "ats" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
+          { reviewerType: "pdf" as const, status: "not_run" as const, summary: "冻结版本后再校验 PDF。" },
+        ],
+      },
+      activities: [{ id: `${item.id}-resume-edit-${Date.now()}`, actor: "user" as const, title: "手动调整简历建议", detail: "修改已保存；冻结前需要重新检查事实和岗位匹配。", timeLabel: "刚刚" }, ...item.activities],
+    }));
+    if (dataMode === "live") trackProductEvent("resume_change_edited", { opportunity_id: active.id, change_id: changeId });
+    announce("修改已保存，请重新检查后再冻结版本");
+  };
+
+  const validateResumeChanges = async () => {
+    if (!active?.resumeText || !active.jdText || !active.resumeChanges.length || validatingResume) return;
+    setValidatingResume(true);
+    try {
+      if (dataMode === "demo" && !localIds.includes(active.id)) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        setOpportunities((current) => current.map((item) => item.id !== active.id ? item : { ...item, applicationQuality: {
+          artifactId: item.applicationQuality?.artifactId || `demo-review-${item.id}`,
+          version: item.applicationQuality?.version || 1,
+          status: "ready",
+          reviews: item.applicationQuality?.reviews.map((review) => review.reviewerType === "pdf" ? review : { ...review, status: "passed", summary: "示例修改已通过检查。" }) || [
+            { reviewerType: "facts", status: "passed", summary: "示例事实检查通过。" },
+            { reviewerType: "independent_ai", status: "passed", summary: "示例独立复核通过。" },
+            { reviewerType: "ats", status: "passed", summary: "示例 ATS 检查通过。" },
+            { reviewerType: "pdf", status: "not_run", summary: "冻结版本后再校验 PDF。" },
+          ],
+        } }));
+        announce("示例修改已重新检查");
+        return;
+      }
+      const response = await fetch("/api/coach/resume-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, changes: active.resumeChanges, requestId: crypto.randomUUID() }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok || !result.applicationQuality) throw apiResponseError(response, result, "简历修改检查失败");
+      setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
+        ...item,
+        resumeChanges: result.changes,
+        applicationQuality: result.applicationQuality,
+        activities: [{ id: `${item.id}-resume-recheck-${Date.now()}`, actor: "analysis" as const, title: "重新检查用户修改", detail: result.applicationQuality.status === "ready" ? "事实、独立复核与 ATS 检查通过。" : "发现阻断项，请根据质检结果继续修改。", timeLabel: "刚刚" }, ...item.activities],
+      }));
+      if (dataMode === "live") trackProductEvent("resume_change_revalidated", { opportunity_id: active.id, status: result.applicationQuality.status });
+      announce(result.applicationQuality.status === "ready" ? "修改已通过检查，可以逐条确认" : "发现阻断项，请继续修改");
+    } catch (error) {
+      announce(error instanceof Error ? error.message : "简历修改检查失败");
+    } finally {
+      setValidatingResume(false);
+    }
+  };
+
   const generateResumeDraft = async () => {
     if (!active?.resumeText || !active.jdText || generatingResume) {
       announce("请先补充简历和 JD");
@@ -432,7 +510,7 @@ export function CockpitApp({
         body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
       });
       const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "生成失败");
+      if (!response.ok || !result.ok) throw apiResponseError(response, result, "生成失败");
       setOpportunities((current) => current.map((item) => item.id === active.id ? {
         ...item,
         resumeChanges: result.changes,
@@ -516,7 +594,7 @@ export function CockpitApp({
         }),
       });
       const result = await response.json();
-      if (!response.ok || !result.ok || !result.analysis) throw new Error(result.error || "复盘失败");
+      if (!response.ok || !result.ok || !result.analysis) throw apiResponseError(response, result, "复盘失败");
       const analysis = result.analysis as Record<string, unknown>;
       const report: InterviewReviewReport = {
         id: `review-${Date.now()}`,
@@ -574,7 +652,7 @@ export function CockpitApp({
         body: JSON.stringify({ opportunityId, question, answer, jobDescription: active.jdText || "", resumeText: active.resumeText || "" }),
       });
       const result = await response.json();
-      if (!response.ok || !result.ok || !result.record) throw new Error(result.error || "分析失败");
+      if (!response.ok || !result.ok || !result.record) throw apiResponseError(response, result, "分析失败");
       record = result.record as InterviewPracticeFeedback;
     }
     setOpportunities((current) => current.map((item) => item.id !== opportunityId ? item : {
@@ -693,7 +771,7 @@ export function CockpitApp({
           <div className={styles.documentBody}>
             {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); setQuestionSnoozed(false); }} onSupplement={supplementOpportunity} onConfirmEvidence={saveQuestionAnswer} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} onFreeze={freezeResumeVersion} generating={generatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
+            {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onEdit={editResumeChange} onGenerate={generateResumeDraft} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
             {activeTab === "interview" && <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={(id) => { setActiveId(id); setQuestionSnoozed(false); }} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onAnalyze={analyzeInterviewAnswer} onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} />}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} analyzing={reviewingInterview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
@@ -1044,9 +1122,11 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, onUpdate, onGenerate, onFreeze, generating, freezing, onPdfResult }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onGenerate: () => void; onFreeze: () => void; generating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
+function ResumeTab({ opportunity, onUpdate, onEdit, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
   const quotaLabel = useQuotaLabel("resume");
   const [checkingPdf, setCheckingPdf] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
   const submittedVersion = Math.max(0, ...(opportunity.snapshots || []).filter((snapshot) => snapshot.snapshotType === "submitted_resume").map((snapshot) => snapshot.version));
   const verifyPdf = async (file: File) => {
     if (!opportunity.applicationQuality) return;
@@ -1071,20 +1151,20 @@ function ResumeTab({ opportunity, onUpdate, onGenerate, onFreeze, generating, fr
   }
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 只能改写可追溯到原简历的事实；数字不一致会被拦截。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成" : "AI 生成岗位版本"} · ${quotaLabel}`}</button></div>
+      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 先给建议，你可以逐句修改。每次人工调整都会保存，冻结投递版前再检查一次事实和岗位匹配。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "AI 生成岗位版本"} · ${quotaLabel}`}</button></div>
       <div className={styles.versionLine}><span>{submittedVersion ? `已冻结投递版本 V${submittedVersion}` : "尚未冻结投递版本"}</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
       {opportunity.applicationQuality && <div className={styles.qualityGate}>
-        <div><strong>投递质检</strong><span>{opportunity.applicationQuality.status === "blocked" ? "有阻断项" : opportunity.resumeChanges.some((item) => item.status === "pending") ? "等待你审阅" : "可以冻结版本"}</span></div>
+        <div><strong>投递质检</strong><span>{opportunity.applicationQuality.status === "draft" ? "修改后待检查" : opportunity.applicationQuality.status === "blocked" ? "有阻断项" : opportunity.resumeChanges.some((item) => item.status === "pending") ? "等待你确认" : "可以冻结版本"}</span></div>
         <div className={styles.qualityChecks}>{opportunity.applicationQuality.reviews.map((review) => <span key={review.reviewerType} title={review.summary} data-status={review.status}>{review.reviewerType === "facts" ? "事实" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()} · {review.status === "passed" ? "通过" : review.status === "failed" ? "未通过" : "待检查"}</span>)}</div>
-        <div className={styles.qualityActions}><button className={styles.primaryButton} disabled={freezing || opportunity.applicationQuality.status === "blocked" || opportunity.resumeChanges.some((item) => item.status === "pending")} onClick={onFreeze}>{freezing ? "正在冻结…" : "冻结投递版本"}</button>
+        <div className={styles.qualityActions}>{opportunity.applicationQuality.status !== "ready" && <button className={styles.primaryButton} disabled={validating || editingId !== null} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "检查我的修改"}</button>}<button className={styles.primaryButton} disabled={freezing || opportunity.applicationQuality.status !== "ready" || opportunity.resumeChanges.some((item) => item.status === "pending")} onClick={onFreeze}>{freezing ? "正在冻结…" : "冻结投递版本"}</button>
           <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label></div>
       </div>}
       <div className={styles.resumeChangeList}>{opportunity.resumeChanges.length ? opportunity.resumeChanges.map((change) => (
         <article key={change.id} className={styles.resumeChange}>
-          <header><strong>{change.section}</strong><span>{change.status === "accepted" ? "已接受" : change.status === "rejected" ? "保留原文" : "待审阅"}</span></header>
-          <div className={styles.diffGrid}><div><span>原文</span><p>{change.before}</p></div><div><span>建议</span><p>{change.after}</p></div></div>
+          <header><strong>{change.section}</strong><span>{change.editedByUser ? "你已修改 · " : ""}{change.status === "accepted" ? "已采用" : change.status === "rejected" ? "保留原文" : "待确认"}</span></header>
+          <div className={styles.diffGrid}><div><span>原文</span><p>{change.before}</p></div><div><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span>{editingId === change.id ? <textarea aria-label={`修改${change.section}`} value={editValue} maxLength={2000} onChange={(event) => setEditValue(event.target.value)} rows={6} autoFocus /> : <p>{change.after}</p>}</div></div>
           <footer><p>{change.reason}</p><span>{change.evidenceId ? "已关联证据" : "需要补证据"}</span></footer>
-          {change.status === "pending" && <div className={styles.changeActions}><button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />接受修改</button><button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button></div>}
+          {editingId === change.id ? <div className={styles.changeActions}><button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={15} />保存我的修改</button><button className={styles.secondaryButton} onClick={() => { setEditingId(null); setEditValue(""); }}>取消</button></div> : <div className={styles.changeActions}>{change.status === "pending" && <button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />采用这版</button>}<button className={styles.secondaryButton} onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>自己修改</button>{change.status !== "rejected" && <button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button>}</div>}
         </article>
       )) : <EmptySection label={opportunity.resumeText ? "还没有生成岗位简历。" : "先在岗位档案补充简历，AI 才能开始。"} actionLabel={opportunity.resumeText ? "生成岗位版本" : undefined} onAction={opportunity.resumeText ? onGenerate : undefined} />}</div>
     </section>
@@ -1171,7 +1251,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           body: JSON.stringify({ jd: opportunity.jdText, roundType: round, questionCount: 3, opportunityId: opportunity.id, resumeText: opportunity.resumeText || "", requestId: crypto.randomUUID() }),
         });
         const result = await response.json();
-        if (!response.ok || !result.session_id || !Array.isArray(result.questions)) throw new Error(result.error || "圆桌启动失败");
+        if (!response.ok || !result.session_id || !Array.isArray(result.questions)) throw apiResponseError(response, result, "圆桌启动失败");
         session = {
           id: String(result.session_id), round, status: "running", currentIndex: 0, createdAt: new Date().toISOString(),
           turns: result.questions.map((question: Record<string, unknown>) => ({
@@ -1218,7 +1298,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           body: JSON.stringify({ session_id: roundtable.id, question_id: currentTurn.questionId, answer: roundtableAnswer.trim(), opportunityId: opportunity.id, resumeText: opportunity.resumeText || "" }),
         });
         const result = await response.json();
-        if (!response.ok || !result.assessment) throw new Error(result.error || "本题分析失败");
+        if (!response.ok || !result.assessment) throw apiResponseError(response, result, "本题分析失败");
         assessment = normalizeRoundtableAssessment(result.assessment);
       }
       const isLast = roundtable.currentIndex >= roundtable.turns.length - 1;
@@ -1246,7 +1326,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           setRoundtable(completed);
           onSyncRoundtable(completed);
         } else {
-          setRoundtableError(result.error || "逐题反馈已保存，整轮总结暂时失败");
+          setRoundtableError(apiResponseError(response, result, "逐题反馈已保存，整轮总结暂时失败").message);
         }
       }
     } catch (error) {

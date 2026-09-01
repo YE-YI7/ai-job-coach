@@ -60,6 +60,7 @@ TokenPay 是可选的模型账户入口，不是求职工作流的必经步骤�
 2. 余额不足时先用一句话说明中断原因，再询问明确的整数充值金额。只有用户确认该金额后，才以 `confirmed_by_user=true` 调用 `yi_zhi_tokenpay_create_payment`；不得推断金额、自动创建付款或自动扣款。
 3. 用户正在等待付款时可每 3 秒调用一次 `yi_zhi_tokenpay_payment_status`，到达终态、过期或用户离开后立即停止。只有确认 `paid` 后才重试原任务。
 4. Key 保存在 `~/.yi-zhi/tokenpay.json` 的私有本地文件中。不要把 Key、一次性 code 或 PKCE verifier 写入作战台、产物或求职记忆。
+5. 模型调用返回恢复动作时严格按契约处理：`top_up_balance` 引导充值后重试，`reauthorize_api_key` 重新走 OAuth，`api_key_quota` 提示等待额度刷新或重新授权；未知值只显示普通错误，不猜测处理方式。
 
 工具不可用时仍正常完成任务，并在当前会话内维护同样的状态卡；除非用户询问，不解释工具缺失。不要把线上示例工作区说成用户的真实数据。
 

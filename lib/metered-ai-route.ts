@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "./auth";
 import { runWithGenerationContext } from "./generation-context";
 import { finalizeQuota, reserveQuota, type QuotaType } from "./quota";
+import { tokenPayRecoveryResponse } from "./tokenpay-recovery";
 
 type RouteHandler<TRequest extends Request> = (request: TRequest) => Promise<Response>;
 
@@ -42,6 +43,8 @@ export function withMeteredAiRoute<TRequest extends Request>(
       await finalizeQuota(reservation, false).catch((refundError) => {
         console.error("AI quota refund failed", refundError);
       });
+      const recovery = tokenPayRecoveryResponse(error);
+      if (recovery) return recovery;
       throw error;
     }
   };

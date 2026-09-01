@@ -3,6 +3,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { createOpportunitySnapshot } from "@/lib/coach-harness/repository";
 import { evaluateQuickPractice } from "@/lib/interview/practice";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
       metadata: { mode: "quick_practice", status: "analysis_failed" },
     }).catch(() => undefined);
     console.error("Quick interview practice failed", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json({ ok: false, saved: true, error: "回答已保存，但 AI 分析暂时失败，请重试" }, { status: 502 });
   }
 }

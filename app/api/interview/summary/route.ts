@@ -24,6 +24,7 @@ import { summarizeInterview } from "@/lib/interview/llm";
 import type {
   InterviewSummaryResponse,
 } from "@/lib/interview/types";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export async function GET(request: Request) {
   try {
@@ -133,6 +134,8 @@ export async function GET(request: Request) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("API Error:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json(
       {
         ok: false,
@@ -142,4 +145,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

@@ -32,6 +32,13 @@
 .loading { min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 9px; color: #69707d; font-size: 11px; }
 .spin { animation: spin 900ms linear infinite; }
 
+.recoveryNotice { margin: 18px 20px 0; padding: 14px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; border-radius: 14px; background: #fff0e7; color: #c94f17; }
+.recoveryNotice > svg { margin-top: 1px; }
+.recoveryNotice strong { display: block; color: #24272f; font-size: 11px; }
+.recoveryNotice p { margin: 5px 0 0; color: #80523e; font-size: 10px; line-height: 1.6; }
+.recoveryNotice a { min-height: 34px; margin-top: 10px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; background: #eb6b2b; color: #fff; font-size: 10px; font-weight: 750; text-decoration: none; }
+.recoveryNotice a:hover { background: #c94f17; }
+
 .connectState { padding: 46px 28px; }
 .connectState h3 { max-width: 12em; margin: 0; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 28px; line-height: 1.28; letter-spacing: -.025em; }
 .connectState > p { max-width: 62ch; margin: 17px 0 24px; color: #69707d; font-size: 11px; line-height: 1.75; }

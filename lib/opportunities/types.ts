@@ -49,6 +49,7 @@ export interface ResumeChange {
   reason: string;
   evidenceId: string | null;
   evidenceIds?: string[];
+  editedByUser?: boolean;
   status: "accepted" | "pending" | "rejected";
 }
 

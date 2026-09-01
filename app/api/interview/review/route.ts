@@ -4,6 +4,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -152,6 +153,8 @@ ${knowledge.contextText}`;
     });
   } catch (err) {
     console.error("Interview review error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

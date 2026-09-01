@@ -27,6 +27,7 @@ import { getDbClient } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { summarizeInterview } from "@/lib/interview/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import {
   acquireInterviewGenerationClaim,
   completeInterviewGenerationClaim,
@@ -206,6 +207,8 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("API Error:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return new Response(
       JSON.stringify({
         ok: false,

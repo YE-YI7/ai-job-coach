@@ -25,6 +25,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { evaluateAnswer, formatResumeForPrompt } from "@/lib/interview/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import {
   acquireInterviewGenerationClaim,
   completeInterviewGenerationClaim,
@@ -248,6 +249,8 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("API Error:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return new Response(
       JSON.stringify({
         ok: false,

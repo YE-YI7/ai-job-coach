@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product": "yi-zhi",
   "channel": "stable",
-  "version": "0.8.3",
-  "released_at": "2026-09-01T14:48:20Z",
+  "version": "0.8.4",
+  "released_at": "2026-09-01T15:32:12Z",
   "update_url": "https://ai-job-coach.xin/agent",
-  "release_notes": "导航与网页版统一为单一主动作：依据、历史和其他能力按需展开，完成当前任务后再自动安排下一步。"
+  "release_notes": "Agent 与网页版统一 TokenDance 应用归因和恢复动作；简历建议支持用户修改、重新校验并保存为新版本。"
 }

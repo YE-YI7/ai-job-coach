@@ -27,6 +27,7 @@ import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { v4 as uuidv4 } from "uuid";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import type {
   StartInterviewRequest,
   StartInterviewResponse,
@@ -215,6 +216,8 @@ export async function POST(request: Request) {
   } catch (error) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Interview quota refund failed", refundError));
     console.error("API Error:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return new Response(
       JSON.stringify({
         ok: false,

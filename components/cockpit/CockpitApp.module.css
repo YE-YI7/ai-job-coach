@@ -190,9 +190,11 @@
 .diffGrid > div { padding: 14px; } .diffGrid > div:first-child { background: #f7f6f3; border-right: 1px solid var(--line); }
 .diffGrid span { color: var(--muted); font-size: 9px; font-weight: 750; }
 .diffGrid p, .resumeChange footer p { margin: 7px 0 0; font-size: 11px; line-height: 1.65; }
+.diffGrid textarea { width: 100%; min-height: 132px; margin-top: 8px; padding: 11px 12px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 10px; outline: 0; background: #fff; color: var(--ink); font-size: 12px; line-height: 1.7; }
+.diffGrid textarea:focus { border-color: var(--accent); }
 .resumeChange footer p { margin: 0; color: var(--muted); }
 .reviewHint { min-height: 35px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-deep); font-size: 10px; font-weight: 750; white-space: nowrap; }
-.changeActions { margin-top: 15px; display: flex; justify-content: flex-end; gap: 8px; }
+.changeActions { margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .focusItem { min-height: 79px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); }
 .readinessDot { width: 9px; height: 9px; border-radius: 50%; } .readiness_ready { background: var(--green); } .readiness_practice { background: #aa741e; } .readiness_missing { background: var(--accent); }
 .focusItem strong { font-size: 12px; } .focusItem p { margin: 6px 0 0; color: var(--muted); font-size: 10px; } .focusItem > span:last-child { color: var(--muted); font-size: 9px; }
@@ -423,6 +425,7 @@
   .evidenceTableHeader { display: none; }
   .diffGrid { grid-template-columns: 1fr; }
   .diffGrid > div:first-child { border-right: 0; border-bottom: 1px solid var(--line); }
+  .diffGrid textarea { font-size: 16px; }
   .focusItem { grid-template-columns: auto 1fr; padding: 15px 0; }
   .focusItem > span:last-child { grid-column: 2; }
   .activityList article { grid-template-columns: auto 1fr; padding: 13px 0; }

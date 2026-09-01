@@ -8,6 +8,7 @@ import {
   encryptTokenPayKey,
   fingerprintTokenPayKey,
   microyuanToYuan,
+  tokenDanceAttributionHeaders,
 } from "./tokenpay";
 
 describe("TokenPay security primitives", () => {
@@ -39,6 +40,7 @@ describe("TokenPay security primitives", () => {
     expect(url.searchParams.get("code_challenge")).toBe("challenge-1");
     expect(url.searchParams.get("callback_url")).toContain("/api/tokenpay/callback");
     expect(url.searchParams.get("app_url")).toBe("https://www.ai-job-coach.xin");
+    expect(url.searchParams.get("key_name")).toBe("益职AI");
   });
 
   it("accepts a completed callback replay only when a valid connection exists", () => {
@@ -59,5 +61,9 @@ describe("TokenPay security primitives", () => {
 
   it("converts microyuan to yuan", () => {
     expect(microyuanToYuan(12_340_000)).toBe(12.34);
+  });
+
+  it("uses the same stable app URL for request attribution", () => {
+    expect(tokenDanceAttributionHeaders()).toEqual({ "X-App-URL": "https://www.ai-job-coach.xin" });
   });
 });

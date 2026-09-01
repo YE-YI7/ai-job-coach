@@ -8,6 +8,7 @@ import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { extractPdfText } from "@/lib/pdf-text";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
@@ -340,6 +341,8 @@ export async function POST(request: Request) {
   } catch (error) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Opportunity quota refund failed", refundError));
     console.error("Opportunity analysis failed", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     const message = error instanceof Error && /请|不能|不支持|无法|没有|太大/.test(error.message)
       ? error.message
       : "材料暂时读不了，请直接粘贴文字后重试";

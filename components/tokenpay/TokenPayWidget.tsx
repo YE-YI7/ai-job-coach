@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUpRight, CheckCircle2, CircleDollarSign, LoaderCircle, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, CircleAlert, CircleDollarSign, LoaderCircle, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
 import styles from "./TokenPayWidget.module.css";
 
 type TokenPayAccount = {
@@ -22,6 +22,8 @@ type PaymentSession = {
   paid_at?: number;
 };
 
+type RecoveryAction = "top_up_balance" | "reauthorize_api_key" | "api_key_quota";
+
 const amountOptions = [10, 30, 50, 100];
 let accountCache: TokenPayAccount | null = null;
 let accountRequest: Promise<TokenPayAccount> | null = null;
@@ -33,6 +35,8 @@ async function fetchAccount(force = false) {
     const response = await fetch("/api/tokenpay/account", { cache: "no-store" });
     const result = await response.json();
     if (response.status === 401) return { connected: false } satisfies TokenPayAccount;
+    const recoveryAction = response.headers.get("TokenDance-Recovery-Action") || result.recoveryAction;
+    if (recoveryAction) window.dispatchEvent(new CustomEvent("yi-zhi:tokenpay-recovery", { detail: { action: recoveryAction } }));
     if (!response.ok || !result.ok) throw new Error(result.error || "TokenPay 读取失败");
     return result.account as TokenPayAccount;
   })();
@@ -56,6 +60,8 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
   const [amount, setAmount] = useState(30);
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [session, setSession] = useState<PaymentSession | null>(null);
+  const [recoveryAction, setRecoveryAction] = useState<RecoveryAction | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const loadAccount = useCallback(async (force = false) => {
@@ -90,6 +96,22 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
   }, [loadAccount]);
 
   useEffect(() => {
+    const handleRecovery = (event: Event) => {
+      if (!triggerRef.current || triggerRef.current.offsetParent === null) return;
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      if (action !== "top_up_balance" && action !== "reauthorize_api_key" && action !== "api_key_quota") return;
+      setRecoveryAction(action);
+      setOpen(true);
+      setError("");
+      setAccount((current) => action === "reauthorize_api_key"
+        ? { ...(current || { connected: true }), connected: true, status: "reauthorize" }
+        : current || { connected: true, status: "active", balance: null });
+    };
+    window.addEventListener("yi-zhi:tokenpay-recovery", handleRecovery);
+    return () => window.removeEventListener("yi-zhi:tokenpay-recovery", handleRecovery);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -116,7 +138,10 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.error || "支付状态读取失败");
         setSession(result.session);
-        if (result.session.status === "paid") await loadAccount(true);
+        if (result.session.status === "paid") {
+          setRecoveryAction(null);
+          await loadAccount(true);
+        }
       } catch (pollError) {
         setError(pollError instanceof Error ? pollError.message : "支付状态读取失败");
       }
@@ -139,6 +164,8 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
         body: JSON.stringify({ amount }),
       });
       const result = await response.json();
+      const action = response.headers.get("TokenDance-Recovery-Action") || result.recoveryAction;
+      if (action) window.dispatchEvent(new CustomEvent("yi-zhi:tokenpay-recovery", { detail: { action } }));
       if (!response.ok || !result.ok) throw new Error(result.error || "充值会话创建失败");
       setSession(result.session);
       window.open(result.session.payment_url, "_blank", "noopener,noreferrer");
@@ -169,7 +196,7 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
 
   return (
     <>
-      <button className={`${styles.trigger} ${compact ? styles.triggerCompact : ""}`} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
+      <button ref={triggerRef} className={`${styles.trigger} ${compact ? styles.triggerCompact : ""}`} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
         <WalletCards size={16} />
         <span><strong>TokenPay</strong><small>{buttonLabel}</small></span>
       </button>
@@ -184,6 +211,11 @@ export function TokenPayWidget({ compact = false }: { compact?: boolean }) {
             </div>
             <button ref={closeButtonRef} type="button" onClick={() => setOpen(false)} aria-label="关闭"><X size={20} /></button>
           </header>
+
+          {recoveryAction && <section className={styles.recoveryNotice} role="status">
+            <CircleAlert size={18} />
+            <div><strong>{recoveryAction === "top_up_balance" ? "余额不足，充值后继续" : recoveryAction === "reauthorize_api_key" ? "授权已失效，需要重新连接" : "这把 Key 已达到周期额度"}</strong><p>{recoveryAction === "top_up_balance" ? "当前 Key 仍然有效；充值到账后可以直接重试刚才的操作。" : recoveryAction === "reauthorize_api_key" ? "重新授权会创建一把新 Key，完整 Key 仍只保存在益职服务端。" : "可以等待日、周或月额度刷新，也可以重新授权一把新 Key。"}</p>{recoveryAction !== "top_up_balance" && <a href="/api/tokenpay/authorize">重新授权 <ArrowUpRight size={14} /></a>}</div>
+          </section>}
 
           {loading && !account ? <div className={styles.loading}><LoaderCircle size={22} className={styles.spin} /><span>正在读取账户…</span></div> : !account?.connected ? (
             <div className={styles.connectState}>

@@ -14,6 +14,8 @@ export const PRODUCT_EVENT_NAMES = [
   "resume_generation_completed",
   "resume_generation_failed",
   "resume_change_reviewed",
+  "resume_change_edited",
+  "resume_change_revalidated",
   "mock_interview_started",
   "mock_interview_completed",
   "interview_practice_started",

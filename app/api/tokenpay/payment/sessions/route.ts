@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { createTokenPayPaymentSession, TokenPayError } from "@/lib/tokenpay";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
     const session = await createTokenPayPaymentSession(user.id, Number(body.amount));
     return NextResponse.json({ ok: true, session }, { status: 201 });
   } catch (error) {
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     const status = error instanceof TokenPayError ? error.status : 500;
     return NextResponse.json({
       ok: false,

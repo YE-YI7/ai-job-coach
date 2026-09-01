@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product": "yi-zhi",
   "channel": "stable",
-  "version": "0.8.2",
-  "released_at": "2026-09-01T14:13:32Z",
+  "version": "0.8.3",
+  "released_at": "2026-09-01T14:48:20Z",
   "update_url": "https://ai-job-coach.xin/agent",
-  "release_notes": "模拟面试与当前岗位、JD、简历和历史记录保持关联；单题练习会保存反馈，整轮结束会写入模拟记录，不再把用户带到旧 Chat 流程。"
+  "release_notes": "导航与网页版统一为单一主动作：依据、历史和其他能力按需展开，完成当前任务后再自动安排下一步。"
 }

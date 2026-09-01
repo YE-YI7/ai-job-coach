@@ -104,6 +104,32 @@
 .sectionHeading p, .pageIntro p, .coverageSummary p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
 .decisionLabel { flex: 0 0 auto; min-height: 27px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--accent-deep); font-size: 11px; font-weight: 750; }
 .decisionReason { max-width: 680px; margin: 20px 0 15px; font-size: clamp(18px, 2vw, 24px); line-height: 1.48; font-weight: 600; letter-spacing: -.022em; }
+.contextAction, .quickEvidenceAction { margin: 22px 0 17px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.contextAction { transition: background 160ms ease-out, border-color 160ms ease-out; }
+.contextActionDragging { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; border-color: #ddb199; background: var(--accent-soft); }
+.contextActionLead { display: flex; align-items: flex-start; gap: 12px; }
+.contextActionIcon { width: 34px; height: 34px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; background: var(--accent-soft); color: var(--accent-deep); }
+.contextActionLead strong, .quickEvidenceAction strong { display: block; font-size: 12px; line-height: 1.5; }
+.contextActionLead p, .quickEvidenceAction p { max-width: 65ch; margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.contextActionButtons { margin: 13px 0 0 46px; display: flex; flex-wrap: wrap; gap: 8px; }
+.contextActionButtons button, .contextComposer button, .quickEvidenceComposer button { min-height: 35px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 9px; cursor: pointer; font-size: 10px; font-weight: 750; }
+.contextPrimaryAction, .contextComposer button, .quickEvidenceComposer button { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+.contextPrimaryAction:hover, .contextComposer button:hover, .quickEvidenceComposer button:hover { background: #d95a24; }
+.contextSecondaryAction { border: 1px solid var(--line-strong); background: #fff; color: var(--ink); }
+.contextSecondaryAction:hover { border-color: #d5a088; color: var(--accent-deep); }
+.materialFileInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.contextComposer { margin: 14px 0 0 46px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 11px; background: #fff; }
+.contextComposer textarea, .quickEvidenceComposer textarea { width: 100%; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 11px; line-height: 1.7; }
+.contextComposer textarea { min-height: 98px; padding: 12px 13px; }
+.contextComposer textarea::placeholder, .quickEvidenceComposer textarea::placeholder { color: #747983; opacity: 1; }
+.contextComposer > div { min-height: 48px; padding: 7px 8px 7px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); background: var(--paper); }
+.contextComposer span { color: var(--muted); font-size: 9px; }
+.contextComposer button:disabled, .quickEvidenceComposer button:disabled { cursor: not-allowed; opacity: .48; }
+.contextActionError { margin: 10px 0 0 46px; color: var(--accent-deep); font-size: 10px; line-height: 1.6; }
+.quickEvidenceAction { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr); align-items: center; gap: 24px; }
+.quickEvidenceComposer { overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; border: 1px solid var(--line-strong); border-radius: 11px; background: #fff; }
+.quickEvidenceComposer textarea { min-height: 72px; padding: 11px 12px; }
+.quickEvidenceComposer button { margin: 7px; }
 .decisionFootnote { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .coverageSummary > strong { font-size: 35px; line-height: 1; letter-spacing: -.04em; }
 .coverageBar { height: 7px; margin: 19px 0 13px; overflow: hidden; border-radius: 999px; background: #eceae6; }
@@ -290,6 +316,10 @@
 
 @media (max-width: 700px) {
   .topbar { height: 56px; padding: 0 12px; }
+  .detailBrand { gap: 7px; }
+  .detailBrand .brand > span { display: none; }
+  .detailBrand > button { padding: 0 8px; white-space: nowrap; }
+  .topbarContext { gap: 5px; }
   .topbarContext > span:not(.demoState):not(.liveState) { display: none; }
   .workspace { height: calc(100dvh - 56px); }
   .opportunityRail, .actionRail { top: 56px; }
@@ -308,6 +338,14 @@
   .sectionHeading, .pageIntro { flex-direction: column; gap: 14px; }
   .decisionLabel { order: -1; }
   .decisionReason { font-size: 19px; }
+  .contextActionButtons, .contextComposer, .contextActionError { margin-left: 0; }
+  .contextActionButtons { display: grid; grid-template-columns: 1fr 1fr; }
+  .contextActionButtons button { width: 100%; }
+  .contextComposer > div { align-items: flex-start; flex-direction: column; }
+  .contextComposer button { width: 100%; }
+  .quickEvidenceAction { grid-template-columns: 1fr; gap: 13px; }
+  .quickEvidenceComposer { grid-template-columns: 1fr; }
+  .quickEvidenceComposer button { width: calc(100% - 14px); }
   .evidenceRow, .evidenceRowCompact { grid-template-columns: 1fr; gap: 8px; padding: 18px 0; }
   .sourceCell { padding-top: 0; }
   .evidenceTableHeader { display: none; }

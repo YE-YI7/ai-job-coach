@@ -8,6 +8,7 @@ import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { extractPdfText } from "@/lib/pdf-text";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -141,11 +142,20 @@ async function readIntake(request: Request) {
   let sourceText = "";
   let sourceLabel = "粘贴内容";
   let requestId = "";
+  let materialKindHint = "";
   let structured = { company: "", role: "", location: "", jdText: "", resumeText: "" };
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
     requestId = String(form.get("requestId") || "").trim();
+    materialKindHint = String(form.get("materialKindHint") || "").trim();
+    structured = {
+      company: String(form.get("company") || "").trim(),
+      role: String(form.get("role") || "").trim(),
+      location: String(form.get("location") || "").trim(),
+      jdText: String(form.get("jdText") || "").trim(),
+      resumeText: String(form.get("resumeText") || "").trim(),
+    };
     const file = form.get("file");
     sourceText = String(form.get("sourceText") || "").trim();
     if (file instanceof File && file.size > 0) {
@@ -157,6 +167,7 @@ async function readIntake(request: Request) {
   } else {
     const body = await request.json();
     requestId = String(body.requestId || "").trim();
+    materialKindHint = String(body.materialKindHint || "").trim();
     sourceText = String(body.sourceText || "").trim();
     structured = {
       company: String(body.company || "").trim(),
@@ -167,7 +178,7 @@ async function readIntake(request: Request) {
     };
   }
 
-  if (structured.company && structured.role && structured.jdText) return { ...structured, requestId, sourceLabel: "网页填写" };
+  if (!sourceText && structured.company && structured.role && structured.jdText) return { ...structured, requestId, materialKindHint, sourceLabel: "网页填写" };
   if (!sourceText) throw new Error("请粘贴岗位、简历或求职目标，或选择一份文件");
 
   if (/^https?:\/\/\S+$/i.test(sourceText.trim())) {
@@ -175,7 +186,18 @@ async function readIntake(request: Request) {
     sourceText = `来源链接：${page.finalUrl}\n\n${page.text}`;
     sourceLabel = "岗位链接导入";
   }
-  return { ...structured, requestId, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
+  if (["job", "resume", "experience"].includes(materialKindHint)) {
+    const merged = mergeOpportunityMaterial({
+      kind: materialKindHint,
+      sourceText,
+      jdText: structured.jdText,
+      resumeText: structured.resumeText,
+      maxLength: MAX_SOURCE_LENGTH,
+    });
+    sourceLabel = materialKindHint === "job" ? sourceLabel : materialKindHint === "resume" ? "补充简历" : "补充经历";
+    return { ...structured, ...merged, requestId, materialKindHint, sourceLabel };
+  }
+  return { ...structured, requestId, materialKindHint, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
 }
 
 export async function POST(request: Request) {
@@ -237,7 +259,7 @@ export async function POST(request: Request) {
       },
       {
         role: "user",
-        content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n\n原始材料：\n${intake.jdText}\n\n另附用户简历或经历：\n${intake.resumeText || "（未提供）"}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
+        content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n本次补充：${intake.materialKindHint || "首次导入"}\n\n原始材料：\n${intake.jdText}\n\n另附用户简历或经历：\n${intake.resumeText || "（未提供）"}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
       },
     ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 1 }));
 

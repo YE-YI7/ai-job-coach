@@ -117,6 +117,7 @@ export function CockpitApp({
   const [creating, setCreating] = useState(false);
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [supplementingMaterial, setSupplementingMaterial] = useState(false);
   const [freezingResume, setFreezingResume] = useState(false);
   const [reviewingInterview, setReviewingInterview] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
@@ -341,6 +342,66 @@ export function CockpitApp({
     setCreating(false);
     if (dataMode === "live") trackProductEvent("material_intake_completed", { opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
     announce(opportunity.id === localId ? "岗位已保存到当前浏览器，云同步稍后重试" : analysis ? "岗位已同步并完成初步分析" : "岗位已同步，分析暂未完成");
+  };
+
+  const supplementOpportunity = async (supplement: OpportunitySupplement) => {
+    if (!active || supplementingMaterial) return;
+    setSupplementingMaterial(true);
+    if (dataMode === "live") trackProductEvent("opportunity_material_started", { opportunity_id: active.id, material_kind: supplement.kind, input_type: supplement.file ? "file" : "text" });
+    try {
+      const form = new FormData();
+      form.set("requestId", crypto.randomUUID());
+      form.set("materialKindHint", supplement.kind);
+      form.set("company", active.company);
+      form.set("role", active.role);
+      form.set("location", active.location);
+      form.set("jdText", active.jdText || "");
+      form.set("resumeText", active.resumeText || "");
+      if (supplement.sourceText.trim()) form.set("sourceText", supplement.sourceText.trim());
+      if (supplement.file) form.set("file", supplement.file);
+      const response = await fetch("/api/opportunities/analyze", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok || !result.ok || !result.input || !result.analysis) throw new Error(result.error || "材料暂时读不了，请重试");
+      const input = result.input as NewOpportunityInput;
+      const analysis = result.analysis as Partial<Opportunity>;
+      const updated: Opportunity = {
+        ...active,
+        workspaceType: input.workspaceType || active.workspaceType,
+        company: input.company || active.company,
+        role: input.role || active.role,
+        location: input.location || active.location,
+        stage: input.workspaceType === "job" && active.workspaceType === "preparation" ? "evaluating" : active.stage,
+        stageLabel: input.workspaceType === "job" && active.workspaceType === "preparation" ? "评估中" : active.stageLabel,
+        jdText: input.jdText,
+        resumeText: input.resumeText,
+        profileText: input.profileText || active.profileText,
+        recommendation: analysis.recommendation ?? active.recommendation,
+        recommendationLabel: analysis.recommendationLabel ?? active.recommendationLabel,
+        recommendationReason: analysis.recommendationReason ?? active.recommendationReason,
+        evidenceCoverage: analysis.evidenceCoverage ?? active.evidenceCoverage,
+        requirements: analysis.requirements ?? active.requirements,
+        actions: analysis.actions ?? active.actions,
+        interviewFocus: analysis.interviewFocus ?? active.interviewFocus,
+        resumeChanges: [],
+        applicationQuality: undefined,
+        nextEventLabel: input.workspaceType === "job" ? "今天完成投递判断" : active.nextEventLabel,
+        activities: [{
+          id: `${active.id}-material-${Date.now()}`,
+          actor: "user",
+          title: supplement.kind === "job" ? "补充岗位 JD" : supplement.kind === "resume" ? "补充个人简历" : "补充项目经历",
+          detail: supplement.file?.name || supplement.sourceText.trim().slice(0, 160),
+          timeLabel: "刚刚",
+        }, ...active.activities],
+      };
+      setOpportunities((current) => current.map((item) => item.id === active.id ? updated : item));
+      if (dataMode === "live") trackProductEvent("opportunity_material_completed", { opportunity_id: active.id, material_kind: supplement.kind });
+      announce(`已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`);
+    } catch (error) {
+      if (dataMode === "live") trackProductEvent("opportunity_material_failed", { opportunity_id: active.id, material_kind: supplement.kind });
+      throw error;
+    } finally {
+      setSupplementingMaterial(false);
+    }
   };
 
   const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
@@ -582,7 +643,7 @@ export function CockpitApp({
             ))}
           </nav>
           <div className={styles.documentBody}>
-            {activeTab === "overview" && <OverviewTab opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} />}
+            {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} onSupplement={supplementOpportunity} onConfirmEvidence={saveQuestionAnswer} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
             {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} onFreeze={freezeResumeVersion} generating={generatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
             {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
@@ -610,6 +671,7 @@ export function CockpitApp({
 
 type NewOpportunityInput = { workspaceType?: "job" | "preparation"; company: string; role: string; location: string; jdText: string; resumeText: string; profileText?: string; sourceLabel?: string };
 type OpportunityIntake = { sourceText: string; file: File | null };
+type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null };
 
 function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: () => void; onLogout: () => void }) {
   return (
@@ -770,15 +832,116 @@ function OpportunityHeader({ opportunity }: { opportunity: Opportunity }) {
   );
 }
 
-function OverviewTab({ opportunity, onOpenEvidence }: { opportunity: Opportunity; onOpenEvidence: () => void }) {
+function ContextMaterialAction({ kind, title, description, placeholder, loading, onSubmit }: {
+  kind: OpportunitySupplement["kind"];
+  title: string;
+  description: string;
+  placeholder: string;
+  loading: boolean;
+  onSubmit: (input: OpportunitySupplement) => Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [sourceText, setSourceText] = useState("");
+  const [error, setError] = useState("");
+  const quotaLabel = useQuotaLabel("chat");
+
+  const submit = async (file: File | null = null) => {
+    if (loading || (!file && !sourceText.trim())) return;
+    if (file && !/\.(pdf|docx|txt|md)$/i.test(file.name)) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
+    if (file && file.size > 10 * 1024 * 1024) return setError("文件不能超过 10MB");
+    setError("");
+    try {
+      await onSubmit({ kind, sourceText, file });
+      setSourceText("");
+      setExpanded(false);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "材料暂时读不了，请重试");
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div
+      className={`${styles.contextAction} ${dragging ? styles.contextActionDragging : ""}`}
+      aria-busy={loading}
+      onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
+      onDrop={(event) => { event.preventDefault(); setDragging(false); void submit(event.dataTransfer.files[0] || null); }}
+    >
+      <div className={styles.contextActionLead}>
+        <span className={styles.contextActionIcon}>{kind === "job" ? <Link2 size={18} /> : <UploadCloud size={18} />}</span>
+        <div><strong>{loading ? "正在读取并重新判断…" : title}</strong><p>{loading ? "我会保留已有材料，只更新受影响的判断。" : description}</p></div>
+      </div>
+      {!loading && <div className={styles.contextActionButtons}>
+        <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />上传文件</button>
+        <button type="button" className={styles.contextSecondaryAction} onClick={() => setExpanded((value) => !value)}>{kind === "job" ? <Link2 size={15} /> : <FileText size={15} />}{expanded ? "收起输入" : kind === "job" ? "粘贴 JD / 链接" : "粘贴内容"}</button>
+        <input ref={inputRef} className={styles.materialFileInput} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => void submit(event.target.files?.[0] || null)} />
+      </div>}
+      {expanded && !loading && <div className={styles.contextComposer}>
+        <textarea value={sourceText} onChange={(event) => { setSourceText(event.target.value); setError(""); }} rows={4} placeholder={placeholder} autoFocus />
+        <div><span>也可把文件拖到这里 · {quotaLabel}</span><button type="button" onClick={() => void submit()} disabled={!sourceText.trim()}>补充并重新判断 <ArrowRight size={15} /></button></div>
+      </div>}
+      {error && <p className={styles.contextActionError} role="alert">{error}</p>}
+    </div>
+  );
+}
+
+function QuickEvidenceAction({ requirement, onConfirm }: { requirement: string; onConfirm: (answer: string) => void }) {
+  const [answer, setAnswer] = useState("");
+  return (
+    <div className={styles.quickEvidenceAction}>
+      <div><strong>确认一条经历，判断会更准</strong><p>{requirement}</p></div>
+      <div className={styles.quickEvidenceComposer}>
+        <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={2} placeholder="写清你做了什么、结果是什么；没有相关经历也可以直接说明。" />
+        <button type="button" disabled={!answer.trim()} onClick={() => { onConfirm(answer.trim()); setAnswer(""); }}>保存事实 <ArrowRight size={15} /></button>
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({ opportunity, onOpenEvidence, onSupplement, onConfirmEvidence, supplementing }: {
+  opportunity: Opportunity;
+  onOpenEvidence: () => void;
+  onSupplement: (input: OpportunitySupplement) => Promise<void>;
+  onConfirmEvidence: (answer: string) => void;
+  supplementing: boolean;
+}) {
   const total = coverageTotal(opportunity);
   const strongRatio = total ? Math.round((opportunity.evidenceCoverage.strong / total) * 100) : 0;
   const decisiveGap = opportunity.requirements.find((item) => item.strength === "unverified" || item.strength === "missing");
+  const missingResume = !opportunity.resumeText?.trim();
+  const missingJd = !opportunity.jdText?.trim();
   return (
     <div className={styles.overviewFlow}>
       <section className={styles.decisionSection}>
         <div className={styles.sectionHeading}><div><h2>当前判断</h2><p>基于 JD 和已确认经历；待确认内容不计作事实。</p></div><span className={styles.decisionLabel}>{opportunity.recommendationLabel}</span></div>
         <p className={styles.decisionReason}>{opportunity.recommendationReason}</p>
+        {missingResume ? <ContextMaterialAction
+          kind="resume"
+          title="补一份简历，我来重新判断"
+          description="上传、拖进来，或直接粘贴简历内容；不用重新填写岗位信息。"
+          placeholder="粘贴简历、项目经历或个人背景……"
+          loading={supplementing}
+          onSubmit={onSupplement}
+        /> : missingJd ? <ContextMaterialAction
+          kind="job"
+          title="补充目标岗位或 JD"
+          description="贴岗位链接也可以，我会读取岗位要求并和已有简历一起分析。"
+          placeholder="粘贴公开岗位链接或完整 JD……"
+          loading={supplementing}
+          onSubmit={onSupplement}
+        /> : decisiveGap?.strength === "unverified" ? <QuickEvidenceAction requirement={decisiveGap.requirement} onConfirm={onConfirmEvidence} /> : decisiveGap ? <ContextMaterialAction
+          kind="experience"
+          title="补一段相关经历，填上最大缺口"
+          description={`当前最缺「${decisiveGap.requirement}」的真实证据。可补项目材料或经历说明。`}
+          placeholder="补充你做过的相关项目、职责、动作和结果……"
+          loading={supplementing}
+          onSubmit={onSupplement}
+        /> : null}
         <div className={styles.decisionFootnote}><ShieldCheck size={16} />结论按胜任证据形成，不使用与能力无关的个人信息。</div>
       </section>
       <section className={styles.coverageSection}>

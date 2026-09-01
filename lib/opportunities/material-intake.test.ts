@@ -1,4 +1,4 @@
-import { mergeOpportunityMaterial } from "./material-intake";
+import { mergeOpportunityMaterial, shareBaseResumeAcrossOpportunities } from "./material-intake";
 
 describe("mergeOpportunityMaterial", () => {
   test("adds a resume without replacing the saved JD", () => {
@@ -26,5 +26,16 @@ describe("mergeOpportunityMaterial", () => {
       jdText: "岗位要求",
       resumeText: "已有简历",
     }).resumeText).toBe("已有简历\n\n补充项目经历");
+  });
+
+  test("reuses the base resume in every job that does not yet have one", () => {
+    const opportunities = [
+      { id: "resume", workspaceType: "preparation" as const, resumeText: "基础简历", profileText: "个人背景" },
+      { id: "job-a", workspaceType: "job" as const, resumeText: "" },
+      { id: "job-b", workspaceType: "job" as const, resumeText: "岗位专用简历" },
+    ];
+    const shared = shareBaseResumeAcrossOpportunities(opportunities);
+    expect(shared[1]).toMatchObject({ resumeText: "基础简历", profileText: "个人背景" });
+    expect(shared[2]).toMatchObject({ resumeText: "岗位专用简历" });
   });
 });

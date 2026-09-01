@@ -34,6 +34,46 @@ async function recordSource(input: {
   return { id: String(data.id), hash };
 }
 
+async function recordResumeClaims(input: {
+  userId: string;
+  opportunityId: string;
+  sourceId: string;
+  content: string;
+  global: boolean;
+}) {
+  const db = requireDb(await getDbClient());
+  if (!input.global) {
+    const globalClaims = await db.from("coach_claims").select("entity_key")
+      .eq("user_id", input.userId).eq("source_id", input.sourceId).is("opportunity_id", null).limit(1);
+    if (globalClaims.error) throw globalClaims.error;
+    if (globalClaims.data?.length) return;
+  }
+  let lookup = db.from("coach_claims").select("entity_key")
+    .eq("user_id", input.userId).eq("source_id", input.sourceId);
+  lookup = input.global ? lookup.is("opportunity_id", null) : lookup.eq("opportunity_id", input.opportunityId);
+  const existing = await lookup;
+  if (existing.error) throw existing.error;
+  const existingKeys = new Set((existing.data || []).map((claim: { entity_key: unknown }) => String(claim.entity_key)));
+  const rows = input.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line) => ({
+    user_id: input.userId,
+    opportunity_id: input.global ? null : input.opportunityId,
+    source_id: input.sourceId,
+    entity_type: "experience",
+    entity_key: `resume-${contentHash(line).slice(0, 20)}`,
+    claim_type: "resume_source",
+    value: line,
+    display_text: line,
+    source_excerpt: line,
+    status: "confirmed",
+    visibility: "recruiter_safe",
+    confirmed_at: new Date().toISOString(),
+  })).filter((row) => !existingKeys.has(row.entity_key));
+  if (rows.length) {
+    const { error } = await db.from("coach_claims").insert(rows);
+    if (error) throw error;
+  }
+}
+
 export async function createOpportunitySnapshot(input: {
   userId: string; opportunityId: string; snapshotType: OpportunitySnapshotType; title: string;
   content: unknown; sourceId?: string | null; artifactId?: string | null;
@@ -357,21 +397,13 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
       title: source.title, content: { text: source.content }, sourceId: sourceRow.id, createdBy: "user",
     });
 
-    if (source.type === "resume") {
-      const existing = await db.from("coach_claims").select("entity_key").eq("user_id", userId).eq("source_id", sourceRow.id);
-      if (existing.error) throw existing.error;
-      const existingKeys = new Set((existing.data || []).map((claim: { entity_key: unknown }) => String(claim.entity_key)));
-      const rows = source.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line) => ({
-        user_id: userId, opportunity_id: opportunityId, source_id: sourceRow.id,
-        entity_type: "experience", entity_key: `resume-${contentHash(line).slice(0, 20)}`,
-        claim_type: "resume_source", value: line, display_text: line, source_excerpt: line,
-        status: "confirmed", visibility: "recruiter_safe", confirmed_at: new Date().toISOString(),
-      })).filter((row) => !existingKeys.has(row.entity_key));
-      if (rows.length) {
-        const { error: claimError } = await db.from("coach_claims").insert(rows);
-        if (claimError) throw claimError;
-      }
-    }
+    if (source.type === "resume") await recordResumeClaims({
+      userId,
+      opportunityId,
+      sourceId: sourceRow.id,
+      content: source.content,
+      global: opportunity.workspaceType === "preparation",
+    });
   }
 
   return { ...opportunity, id: opportunityId } satisfies Opportunity;
@@ -380,11 +412,13 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
 export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity) {
   const db = requireDb(await getDbClient());
   const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
-  const { data: current, error: currentError } = await db.from("coach_opportunities").select("jd_text, jd_version")
+  const { data: current, error: currentError } = await db.from("coach_opportunities").select("jd_text, jd_version, metadata")
     .eq("id", id).eq("user_id", userId).maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw new Error("岗位不存在");
   const jdChanged = Boolean(jdText && jdText !== current.jd_text);
+  const currentMetadata = current.metadata && typeof current.metadata === "object" ? current.metadata as Record<string, unknown> : {};
+  const resumeChanged = Boolean(opportunity.resumeText && opportunity.resumeText !== currentMetadata.resumeText);
   const { error } = await db.from("coach_opportunities").update({
     company, role, stage, jd_text: jdText || null, scheduled_interview_at: scheduledInterviewAt || null,
     jd_version: jdChanged ? Number(current.jd_version) + 1 : Number(current.jd_version), metadata, updated_at: new Date().toISOString(),
@@ -393,5 +427,10 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   if (jdChanged && jdText) {
     const source = await recordSource({ userId, opportunityId: id, sourceType: "jd", title: `${company} · ${role} JD`, content: jdText });
     await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "jd", title: `${company} · ${role} JD`, content: { text: jdText }, sourceId: source.id, createdBy: "user" });
+  }
+  if (resumeChanged && opportunity.resumeText) {
+    const source = await recordSource({ userId, opportunityId: id, sourceType: "resume", title: `${role} 使用的简历`, content: opportunity.resumeText });
+    await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "base_resume", title: `${role} 使用的简历`, content: { text: opportunity.resumeText }, sourceId: source.id, createdBy: "user" });
+    await recordResumeClaims({ userId, opportunityId: id, sourceId: source.id, content: opportunity.resumeText, global: opportunity.workspaceType === "preparation" });
   }
 }

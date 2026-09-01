@@ -33,6 +33,7 @@ import type {
 } from "@/lib/opportunities/types";
 import { TodayCoach } from "./TodayCoach";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
+import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
 import { trackProductEvent } from "@/lib/product-events";
 import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import styles from "./CockpitApp.module.css";
@@ -106,7 +107,7 @@ export function CockpitApp({
   dataMode?: "demo" | "live";
 }) {
   const router = useRouter();
-  const [opportunities, setOpportunities] = useState(initialOpportunities);
+  const [opportunities, setOpportunities] = useState(() => shareBaseResumeAcrossOpportunities(initialOpportunities));
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<CockpitTab>("overview");
   const [surface, setSurface] = useState<"today" | "opportunity">("today");
@@ -142,7 +143,7 @@ export function CockpitApp({
       const stored = JSON.parse(window.localStorage.getItem(LOCAL_OPPORTUNITIES_KEY) || "[]") as Opportunity[];
       const valid = stored.filter((item) => item?.id && item?.company && item?.role);
       if (valid.length) {
-        setOpportunities((current) => [...valid, ...current.filter((item) => !valid.some((saved) => saved.id === item.id))]);
+        setOpportunities((current) => shareBaseResumeAcrossOpportunities([...valid, ...current.filter((item) => !valid.some((saved) => saved.id === item.id))]));
         setLocalIds(valid.map((item) => item.id));
       }
     } catch {
@@ -173,6 +174,7 @@ export function CockpitApp({
   }, [dataMode, localIds, localLoaded, opportunities]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
+  const relatedJobs = opportunities.filter((item) => item.id !== active?.id && item.workspaceType !== "preparation" && item.jdText?.trim());
   const filtered = useMemo(() => {
     const value = query.trim().toLocaleLowerCase("zh-CN");
     if (!value) return opportunities;
@@ -336,7 +338,7 @@ export function CockpitApp({
     } catch {
       setLocalIds((current) => [localId, ...current]);
     }
-    setOpportunities((current) => [opportunity, ...current]);
+    setOpportunities((current) => shareBaseResumeAcrossOpportunities([opportunity, ...current]));
     setActiveId(opportunity.id);
     setActiveTab("overview");
     setCreating(false);
@@ -393,7 +395,7 @@ export function CockpitApp({
           timeLabel: "刚刚",
         }, ...active.activities],
       };
-      setOpportunities((current) => current.map((item) => item.id === active.id ? updated : item));
+      setOpportunities((current) => shareBaseResumeAcrossOpportunities(current.map((item) => item.id === active.id ? updated : item)));
       if (dataMode === "live") trackProductEvent("opportunity_material_completed", { opportunity_id: active.id, material_kind: supplement.kind });
       announce(`已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`);
     } catch (error) {
@@ -643,10 +645,10 @@ export function CockpitApp({
             ))}
           </nav>
           <div className={styles.documentBody}>
-            {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} onSupplement={supplementOpportunity} onConfirmEvidence={saveQuestionAnswer} supplementing={supplementingMaterial} />}
+            {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); setQuestionSnoozed(false); }} onSupplement={supplementOpportunity} onConfirmEvidence={saveQuestionAnswer} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
             {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onGenerate={generateResumeDraft} onFreeze={freezeResumeVersion} generating={generatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
-            {activeTab === "interview" && <InterviewTab opportunity={active} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
+            {activeTab === "interview" && <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={(id) => { setActiveId(id); setQuestionSnoozed(false); }} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onSave={saveInterviewAnswer} onOpenRoundtable={openInterviewRoundtable} />}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} analyzing={reviewingInterview} />}
             {activeTab === "activity" && <ActivityTab opportunity={active} />}
           </div></>}
@@ -903,9 +905,24 @@ function QuickEvidenceAction({ requirement, onConfirm }: { requirement: string; 
   );
 }
 
-function OverviewTab({ opportunity, onOpenEvidence, onSupplement, onConfirmEvidence, supplementing }: {
+function ExistingJobPicker({ jobs, onSelect, title = "选择一个已有岗位继续" }: { jobs: Opportunity[]; onSelect: (id: string) => void; title?: string }) {
+  return (
+    <section className={styles.existingJobPicker} aria-label="选择已有岗位">
+      <div><strong>{title}</strong><p>基础简历会自动带入目标岗位，不需要重新上传。</p></div>
+      <div className={styles.existingJobList}>{jobs.map((job) => (
+        <button type="button" key={job.id} onClick={() => onSelect(job.id)}>
+          <span><small>{job.company}</small><strong>{job.role}</strong></span><ArrowRight size={16} />
+        </button>
+      ))}</div>
+    </section>
+  );
+}
+
+function OverviewTab({ opportunity, relatedJobs, onOpenEvidence, onSelectJob, onSupplement, onConfirmEvidence, supplementing }: {
   opportunity: Opportunity;
+  relatedJobs: Opportunity[];
   onOpenEvidence: () => void;
+  onSelectJob: (id: string) => void;
   onSupplement: (input: OpportunitySupplement) => Promise<void>;
   onConfirmEvidence: (answer: string) => void;
   supplementing: boolean;
@@ -927,7 +944,7 @@ function OverviewTab({ opportunity, onOpenEvidence, onSupplement, onConfirmEvide
           placeholder="粘贴简历、项目经历或个人背景……"
           loading={supplementing}
           onSubmit={onSupplement}
-        /> : missingJd ? <ContextMaterialAction
+        /> : missingJd && relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`你已经有 ${relatedJobs.length} 个 JD，选一个继续`} /> : missingJd ? <ContextMaterialAction
           kind="job"
           title="补充目标岗位或 JD"
           description="贴岗位链接也可以，我会读取岗位要求并和已有简历一起分析。"
@@ -1028,14 +1045,31 @@ function ResumeTab({ opportunity, onUpdate, onGenerate, onFreeze, generating, fr
   );
 }
 
-function InterviewTab({ opportunity, onSave, onOpenRoundtable }: { opportunity: Opportunity; onSave: (question: string, answer: string) => void; onOpenRoundtable: () => void }) {
+function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onSave, onOpenRoundtable }: {
+  opportunity: Opportunity;
+  relatedJobs: Opportunity[];
+  onSelectJob: (id: string) => void;
+  onSupplement: (input: OpportunitySupplement) => Promise<void>;
+  supplementing: boolean;
+  onSave: (question: string, answer: string) => void;
+  onOpenRoundtable: () => void;
+}) {
   const quotaLabel = useQuotaLabel("interview");
   const [practicing, setPracticing] = useState(false);
   const [answer, setAnswer] = useState("");
   const currentQuestion = opportunity.interviewFocus[0];
+  const hasJd = Boolean(opportunity.jdText?.trim());
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>问题来自当前岗位的证据风险，不是随机题库。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />快速练一题（免费）</button>}<button className={styles.primaryButton} onClick={onOpenRoundtable}><Sparkles size={16} />AI 模拟面试圆桌 · {quotaLabel}</button></div></div>
+      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>{hasJd ? "问题来自当前岗位的证据风险，不是随机题库。" : "先选定目标岗位，圆桌才会按对应 JD 追问；当前题目仅来自基础简历。"}</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => setPracticing(true)}><MessageSquareText size={16} />快速练一题（免费）</button>}{hasJd && <button className={styles.primaryButton} onClick={onOpenRoundtable}><Sparkles size={16} />AI 模拟面试圆桌 · {quotaLabel}</button>}</div></div>
+      {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction
+        kind="job"
+        title="先补一个目标岗位"
+        description="贴岗位链接、上传文件或粘贴 JD，基础简历会自动带入。"
+        placeholder="粘贴公开岗位链接或完整 JD……"
+        loading={supplementing}
+        onSubmit={onSupplement}
+      />)}
       {practicing && currentQuestion && <section className={styles.practicePanel}><span>第 1 题 · 深挖薄弱证据</span><h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" /><div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>结束本轮</button><button className={styles.primaryButton} disabled={!answer.trim()} onClick={() => { onSave(currentQuestion.question, answer.trim()); setAnswer(""); }}>保存练习回答</button></div></section>}
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>

@@ -126,6 +126,16 @@
 .contextComposer span { color: var(--muted); font-size: 9px; }
 .contextComposer button:disabled, .quickEvidenceComposer button:disabled { cursor: not-allowed; opacity: .48; }
 .contextActionError { margin: 10px 0 0 46px; color: var(--accent-deep); font-size: 10px; line-height: 1.6; }
+.existingJobPicker { margin: 22px 0 18px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.existingJobPicker > div:first-child > strong { display: block; font-size: 12px; line-height: 1.5; }
+.existingJobPicker > div:first-child > p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.existingJobList { margin-top: 13px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.existingJobList button { min-width: 0; min-height: 56px; padding: 9px 11px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; color: var(--ink); cursor: pointer; text-align: left; }
+.existingJobList button:hover { border-color: #d5a088; background: #fffaf7; }
+.existingJobList button > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.existingJobList small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.existingJobList strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.existingJobList svg { flex: 0 0 auto; color: var(--accent-deep); }
 .quickEvidenceAction { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr); align-items: center; gap: 24px; }
 .quickEvidenceComposer { overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; border: 1px solid var(--line-strong); border-radius: 11px; background: #fff; }
 .quickEvidenceComposer textarea { min-height: 72px; padding: 11px 12px; }
@@ -346,6 +356,7 @@
   .quickEvidenceAction { grid-template-columns: 1fr; gap: 13px; }
   .quickEvidenceComposer { grid-template-columns: 1fr; }
   .quickEvidenceComposer button { width: calc(100% - 14px); }
+  .existingJobList { grid-template-columns: 1fr; }
   .evidenceRow, .evidenceRowCompact { grid-template-columns: 1fr; gap: 8px; padding: 18px 0; }
   .sourceCell { padding-top: 0; }
   .evidenceTableHeader { display: none; }

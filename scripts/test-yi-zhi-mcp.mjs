@@ -13,7 +13,7 @@ const updateManifest = {
   schema_version: 1,
   product: "yi-zhi",
   channel: "stable",
-  version: "0.8.0",
+  version: "0.9.0",
   released_at: "2026-09-01T00:00:00Z",
   update_url: "https://ai-job-coach.xin/agent",
   release_notes: "测试版本更新提醒"
@@ -38,14 +38,19 @@ function send(message) {
 try {
   const initialized = await send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26" } });
   assert.equal(initialized.result.serverInfo.name, "yi-zhi");
-  assert.equal(initialized.result.serverInfo.version, "0.7.0");
-  assert.match(initialized.result.instructions, /0\.8\.0 is available/);
+  assert.equal(initialized.result.serverInfo.version, "0.8.0");
+  assert.match(initialized.result.instructions, /0\.9\.0 is available/);
   assert.match(initialized.result.instructions, /yi_zhi_get_application_context/);
 
   const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), [
     "yi_zhi_check_update",
     "yi_zhi_retrieve_knowledge",
+    "yi_zhi_tokenpay_connect",
+    "yi_zhi_tokenpay_exchange",
+    "yi_zhi_tokenpay_balance",
+    "yi_zhi_tokenpay_create_payment",
+    "yi_zhi_tokenpay_payment_status",
     "yi_zhi_create_case",
     "yi_zhi_plan_today",
     "yi_zhi_get_cockpit",
@@ -63,10 +68,17 @@ try {
     method: "tools/call",
     params: { name: "yi_zhi_check_update", arguments: { force: true } }
   });
-  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.7.0");
-  assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.8.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.current_version, "0.8.0");
+  assert.equal(checkedUpdate.result.structuredContent.update.latest_version, "0.9.0");
   assert.equal(checkedUpdate.result.structuredContent.update.update_available, true);
-  assert.match(checkedUpdate.result.content[0].text, /0\.7\.0 → 0\.8\.0/);
+  assert.match(checkedUpdate.result.content[0].text, /0\.8\.0 → 0\.9\.0/);
+
+  const tokenPayConnect = await send({ jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "yi_zhi_tokenpay_connect", arguments: {} } });
+  const tokenPayUrl = new URL(tokenPayConnect.result.structuredContent.authorization_url);
+  assert.equal(tokenPayUrl.hostname, "tokendance.space");
+  assert.equal(tokenPayUrl.searchParams.get("code_challenge_method"), "S256");
+  assert.match(tokenPayUrl.searchParams.get("code_challenge"), /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(JSON.stringify(tokenPayConnect.result).includes("verifier"), false);
 
   const knowledge = await send({
     jsonrpc: "2.0",
@@ -127,13 +139,14 @@ try {
   const pageHtml = await pageResponse.text();
   assert.match(pageHtml, /示例公司/);
   assert.match(pageHtml, /插件更新/);
-  assert.match(pageHtml, /0\.7\.0 → 0\.8\.0/);
+  assert.match(pageHtml, /0\.8\.0 → 0\.9\.0/);
+  assert.match(pageHtml, /TokenPay/);
   assert.match(pageHtml, /确认事实/);
   assert.match(pageHtml, /岗位版本/);
 
   const updateState = JSON.parse(await readFile(join(dataDir, "update-state.json"), "utf8"));
   assert.equal(updateState.update_available, true);
-  assert.equal(updateState.latest_version, "0.8.0");
+  assert.equal(updateState.latest_version, "0.9.0");
 
   process.stdout.write("益职 MCP 闭环测试通过\n");
 } finally {

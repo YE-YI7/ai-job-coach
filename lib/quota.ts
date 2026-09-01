@@ -3,6 +3,7 @@
  */
 
 import { getDbClient } from './db';
+import { hasActiveTokenPayConnection } from './tokenpay';
 
 export interface UserQuota {
   free_chat_daily: number;
@@ -26,6 +27,9 @@ export async function reserveQuota(
   type: QuotaType,
   idempotencyKey: string
 ): Promise<QuotaReservation | null> {
+  if (await hasActiveTokenPayConnection(userId)) {
+    return { id: `tokenpay-${idempotencyKey}`, source: 'tokenpay', remaining: null };
+  }
   const client = await getDbClient();
   if (!client) return { id: `offline-${idempotencyKey}`, source: 'offline', remaining: null };
   const { data, error } = await client.rpc('reserve_user_quota', {
@@ -40,7 +44,7 @@ export async function reserveQuota(
 }
 
 export async function finalizeQuota(reservation: QuotaReservation | null, success: boolean) {
-  if (!reservation || reservation.id.startsWith('offline-')) return true;
+  if (!reservation || reservation.id.startsWith('offline-') || reservation.id.startsWith('tokenpay-')) return true;
   const client = await getDbClient();
   if (!client) return false;
   const { data, error } = await client.rpc('finalize_user_quota', {
@@ -125,7 +129,10 @@ export async function getOrCreateQuota(userId: string): Promise<UserQuota> {
 export async function checkQuota(
   userId: string,
   type: 'chat' | 'resume' | 'interview'
-): Promise<{ allowed: boolean; remaining: number; source: 'free' | 'paid' }> {
+): Promise<{ allowed: boolean; remaining: number | null; source: 'free' | 'paid' | 'tokenpay' }> {
+  if (await hasActiveTokenPayConnection(userId)) {
+    return { allowed: true, remaining: null, source: 'tokenpay' };
+  }
   const quota = await getOrCreateQuota(userId);
 
   if (type === 'chat') {

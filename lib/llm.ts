@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { setTimeout as setTimeoutPromise } from "timers/promises";
 import { getGenerationContext } from "./generation-context";
 import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationUsage, recordGenerationEvent } from "./llm-telemetry";
+import { getTokenPayCredential, TOKENPAY_APP_URL, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -12,7 +13,7 @@ type LlmOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
-  provider?: "deepseek" | "openai";
+  provider?: "deepseek" | "openai" | "tokendance";
   timeout?: number;
   timeoutMs?: number;
   maxRetries?: number;
@@ -20,7 +21,7 @@ type LlmOptions = {
   responseFormat?: "json_object";
 };
 
-export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai", model: string, options?: LlmOptions) {
+export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai" | "tokendance", model: string, options?: LlmOptions) {
   const request: Record<string, unknown> = {
     model,
     messages,
@@ -30,7 +31,9 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
   // DeepSeek V4 enables thinking by default. Most product endpoints expect a
   // bounded final answer; with their existing token limits, reasoning alone
   // can exhaust max_tokens and leave message.content empty.
-  if (provider === "deepseek") request.thinking = { type: options?.thinking || "disabled" };
+  if (provider === "deepseek" || (provider === "tokendance" && model.toLowerCase().includes("deepseek"))) {
+    request.thinking = { type: options?.thinking || "disabled" };
+  }
   if (options?.responseFormat) request.response_format = { type: options.responseFormat };
   return request;
 }
@@ -117,9 +120,20 @@ export async function callLLM(
     throw new Error("Invalid messages");
   }
 
-  const provider = options?.provider || "deepseek";
-  const model = options?.model || (provider === "deepseek" ? "deepseek-v4-flash" : "gpt-3.5-turbo");
   const trace = getGenerationContext();
+  let provider: "deepseek" | "openai" | "tokendance" = options?.provider || "deepseek";
+  let apiKey: string | undefined;
+  // A connected TokenPay account becomes the user's model provider for every
+  // metered AI action carrying a generation context. Unconnected users keep
+  // the hosted provider and existing product quota behavior.
+  if (provider === "deepseek" && trace?.userId) {
+    const tokenPayKey = await getTokenPayCredential(trace.userId);
+    if (tokenPayKey) {
+      provider = "tokendance";
+      apiKey = tokenPayKey;
+    }
+  }
+  const model = options?.model || (provider === "openai" ? "gpt-3.5-turbo" : "deepseek-v4-flash");
   const startedAt = Date.now();
   let retryCount = 0;
 
@@ -146,9 +160,11 @@ export async function callLLM(
     return "Hello! 👋 How can I help you today?";
   }
 
-  const apiKey = provider === "deepseek" 
-    ? process.env.DEEPSEEK_API_KEY 
-    : process.env.OPENAI_API_KEY;
+  apiKey ??= provider === "deepseek"
+    ? process.env.DEEPSEEK_API_KEY
+    : provider === "openai"
+      ? process.env.OPENAI_API_KEY
+      : undefined;
 
   if (!apiKey) {
     const error = new Error(`${provider.toUpperCase()}_API_KEY not found in environment variables`);
@@ -172,9 +188,12 @@ export async function callLLM(
 
   const client = new OpenAI({
     apiKey,
-    baseURL: provider === "deepseek" 
-      ? "https://api.deepseek.com" 
-      : undefined, // OpenAI 使用默认 baseURL
+    baseURL: provider === "deepseek"
+      ? "https://api.deepseek.com"
+      : provider === "tokendance"
+        ? "https://tokendance.space/gateway/v1"
+        : undefined, // OpenAI 使用默认 baseURL
+    defaultHeaders: provider === "tokendance" ? { "X-App-URL": TOKENPAY_APP_URL } : undefined,
     timeout: options?.timeout || 30000, // SDK 级别的超时（作为最后防线）
   });
 
@@ -234,6 +253,26 @@ export async function callLLM(
       knowledgeDocumentIds: trace?.knowledgeDocumentIds,
     }).catch((error) => console.warn("LLM telemetry write failed:", error));
     console.error("LLM 调用失败：", e?.message || e, e?.cause || "");
+
+    if (provider === "tokendance") {
+      const rawHeaders = e?.headers;
+      const rawAction = typeof rawHeaders?.get === "function"
+        ? rawHeaders.get("tokendance-recovery-action")
+        : rawHeaders?.["tokendance-recovery-action"];
+      const recoveryAction: TokenPayRecoveryAction | undefined = typeof rawAction === "string" && ["top_up_balance", "reauthorize_api_key", "api_key_quota"].includes(rawAction)
+        ? rawAction as TokenPayRecoveryAction
+        : e?.status === 401
+          ? "reauthorize_api_key"
+          : undefined;
+      if (recoveryAction) {
+        const message = recoveryAction === "top_up_balance"
+          ? "TokenPay 余额不足，请充值后重试"
+          : recoveryAction === "reauthorize_api_key"
+            ? "TokenPay 授权已失效，请重新连接"
+            : "TokenPay API Key 已达到周期额度，请稍后重试或重新授权";
+        throw new TokenPayError(message, Number(e?.status || 402), recoveryAction);
+      }
+    }
 
     // 详细的错误处理
     if (e.code === "insufficient_quota") {

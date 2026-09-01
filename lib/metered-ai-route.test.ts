@@ -4,6 +4,7 @@ import { withMeteredAiRoute } from "./metered-ai-route";
 
 jest.mock("./auth", () => ({ getCurrentUserFromRequest: jest.fn() }));
 jest.mock("./quota", () => ({ reserveQuota: jest.fn(), finalizeQuota: jest.fn() }));
+jest.mock("./tokenpay", () => ({ hasActiveTokenPayConnection: jest.fn().mockResolvedValue(false) }));
 jest.mock("./generation-context", () => ({
   runWithGenerationContext: jest.fn((_context, callback) => callback()),
 }));

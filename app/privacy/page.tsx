@@ -24,7 +24,7 @@ export default function PrivacyPage() {
         "仅用于面试复盘分析、简历评审等产品功能",
         "不会将用户数据用于 AI 模型训练",
         "不会向任何第三方出售或共享用户数据",
-        "分析过程中调用第三方 AI 接口（DeepSeek），仅传输必要文本内容",
+        "分析过程中可能调用 DeepSeek 或用户授权的 TokenDance 接口，仅传输完成当前任务所需的文本",
       ],
     },
     {
@@ -35,6 +35,7 @@ export default function PrivacyPage() {
         "分析结果保留至用户主动删除",
         "部分数据存储在浏览器本地（localStorage），清除浏览器数据即可删除",
         "服务端数据存储在加密数据库中",
+        "TokenPay API Key 使用应用层加密保存；断开连接后不再用于模型调用",
       ],
     },
     {
@@ -90,9 +91,9 @@ export default function PrivacyPage() {
         {/* 概述 */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
           <p className="text-sm text-slate-700 leading-relaxed">
-            AI求职教练（以下简称"本应用"）非常重视用户隐私。本政策说明我们如何收集、使用、存储和保护您的个人数据。使用本应用即表示您同意本隐私政策的条款。
+            AI求职教练（以下简称“本应用”）非常重视用户隐私。本政策说明我们如何收集、使用、存储和保护您的个人数据。使用本应用即表示您同意本隐私政策的条款。
           </p>
-          <p className="text-xs text-slate-400 mt-2">最后更新：2025年3月</p>
+          <p className="text-xs text-slate-400 mt-2">最后更新：2026年9月</p>
         </div>
 
         {/* 各部分 */}
@@ -120,14 +121,20 @@ export default function PrivacyPage() {
             第三方服务说明
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed mb-3">
-            本应用使用以下第三方 AI 服务进行面试内容分析：
+            本应用可能使用以下第三方服务完成 AI 分析与账户充值：
           </p>
           <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
             <p className="text-xs text-slate-700">
               <span className="font-medium">DeepSeek AI</span> — 用于面试内容解析、多角色讨论生成、答案改写等
             </p>
             <p className="text-[10px] text-slate-500">
-              传输数据范围：面试对话文本内容（已脱敏）。DeepSeek 不会存储或用于训练其模型。
+              传输数据范围：完成当前生成任务所需的文本。具体处理规则以 DeepSeek 的现行政策为准。
+            </p>
+            <p className="text-xs text-slate-700">
+              <span className="font-medium">TokenDance / TokenPay</span> — 用于 OAuth 式 API Key 授权、余额查询、用户确认充值，以及在用户连接后转发模型请求
+            </p>
+            <p className="text-[10px] text-slate-500">
+              完整 API Key 不会发送到浏览器；益职服务端加密保存后，仅在用户发起 AI 请求、查询余额或创建并查询付款会话时使用。付款由用户在 TokenDance 页面确认。
             </p>
           </div>
         </div>

@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product": "yi-zhi",
   "channel": "stable",
-  "version": "0.7.0",
-  "released_at": "2026-08-31T00:00:00Z",
+  "version": "0.8.0",
+  "released_at": "2026-09-01T00:00:00Z",
   "update_url": "https://ai-job-coach.xin/agent",
-  "release_notes": "新增用户确认事实源、岗位版本快照与投递质量闸门。"
+  "release_notes": "新增 TokenPay OAuth 授权、余额查询、用户确认充值与支付状态跟踪；API Key 仅保存在本机私有目录。"
 }

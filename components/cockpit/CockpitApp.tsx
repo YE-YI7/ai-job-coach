@@ -34,6 +34,7 @@ import type {
 import { TodayCoach } from "./TodayCoach";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
 import { trackProductEvent } from "@/lib/product-events";
+import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
@@ -84,6 +85,10 @@ function useQuotaLabel(type: "chat" | "resume" | "interview") {
     fetch("/api/quota/check").then((response) => response.json()).then((result) => {
       const check = result?.checks?.[type];
       if (!active || !check) return;
+      if (check.source === "tokenpay") {
+        setLabel("使用 TokenPay 余额");
+        return;
+      }
       setLabel(check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
     }).catch(() => undefined);
     return () => { active = false; };
@@ -533,6 +538,7 @@ export function CockpitApp({
             {creating ? "新建岗位" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
           </span>
           <span>{compactAccountLabel(userEmail)}</span>
+          <TokenPayWidget compact />
           <button className={styles.iconButton} onClick={logout} aria-label="退出登录" title="退出登录">
             <LogOut size={17} aria-hidden="true" />
           </button>
@@ -610,7 +616,7 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
     <main className={styles.shell}>
       <header className={styles.topbar}>
         <Brand />
-        <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
+        <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><TokenPayWidget compact /><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
       </header>
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>

@@ -55,7 +55,8 @@ export default function AgentGuide() {
           <a href="#mcp">03 · 接通本地作战盘</a>
           <a href="#verify">04 · 验证后再宣布完成</a>
           <a href="#update">05 · 接通每周版本检查</a>
-          <a href="#start">06 · 开始第一个岗位</a>
+          <a href="#tokenpay">06 · 可选连接 TokenPay</a>
+          <a href="#start">07 · 开始第一个岗位</a>
         </aside>
 
         <article className={styles.guide}>
@@ -135,8 +136,18 @@ export default function AgentGuide() {
             <p>Claude Code、WorkBuddy 和通用 Agent 重新执行各自的安装命令。更新完成后重启或新建会话，并再次验证 MCP 工具与作战盘。</p>
           </section>
 
-          <section id="start">
+          <section id="tokenpay">
             <span className={styles.step}>06</span>
+            <h2>需要独立模型账户时，再连接 TokenPay</h2>
+            <p>TokenPay 不是开始求职的前置条件。只有用户主动要求连接、查余额或充值时，才调用 <code>yi_zhi_tokenpay_connect</code>；让用户在 TokenDance 页面确认 Key 的额度、周期和过期时间，再用一次性 code 完成连接。</p>
+            <div className={styles.ruleBox}>
+              <LockKeyhole size={20} />
+              <p><strong>不要让用户粘贴已有 API Key。</strong>新 Key 只写入本机 <code>~/.yi-zhi/tokenpay.json</code>，不会出现在工具结果或作战盘里。充值必须先得到用户对具体金额的明确确认，绝不自动创建付款或扣款。</p>
+            </div>
+          </section>
+
+          <section id="start">
+            <span className={styles.step}>07</span>
             <h2>完成后，只向用户索取第一份必要材料</h2>
             <p>不要介绍一遍全部功能，也不要把用户带进项目开发。先用一句话报告安装与本地链接的状态，再根据对方目标只问一个问题。</p>
             <blockquote>“益职免费版已在你的本地 Agent 中运行，作战盘地址是……。我们先从一个真实岗位开始：请把你正在考虑的 JD 发给我。”</blockquote>

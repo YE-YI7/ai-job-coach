@@ -5,7 +5,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const DATA_DIR = process.env.YI_ZHI_DATA_DIR || join(homedir(), ".yi-zhi");
@@ -14,6 +14,10 @@ const ARTIFACT_DIR = join(DATA_DIR, "artifacts");
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const RELEASE_FILE = process.env.YI_ZHI_RELEASE_FILE || join(PLUGIN_ROOT, "release.json");
 const UPDATE_STATE_FILE = join(DATA_DIR, "update-state.json");
+const TOKENPAY_FILE = join(DATA_DIR, "tokenpay.json");
+const TOKENPAY_PENDING_FILE = join(DATA_DIR, "tokenpay-pending.json");
+const TOKENPAY_ORIGIN = process.env.YI_ZHI_TOKENPAY_ORIGIN || "https://tokendance.space";
+const TOKENPAY_APP_URL = process.env.YI_ZHI_TOKENPAY_APP_URL || "https://ai-job-coach.xin/agent";
 const UPDATE_MANIFEST_URL = process.env.YI_ZHI_UPDATE_MANIFEST_URL || "https://www.ai-job-coach.xin/api/agent/release";
 const UPDATE_CHECK_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_CHECK_MS ?? 7 * 24 * 60 * 60 * 1000), 0);
 const UPDATE_RETRY_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_RETRY_MS ?? 24 * 60 * 60 * 1000), 60_000);
@@ -58,6 +62,36 @@ const toolDefinitions = [
       additionalProperties: false
     },
     annotations: { title: "Retrieve 益职 knowledge", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: "yi_zhi_tokenpay_connect",
+    description: "Start a secure headless TokenPay authorization for this local Agent. Returns a TokenDance URL for the user to open. The user confirms Key limits in the browser, then copies the one-time code back to the Agent. No existing API Key is requested or shown.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { title: "Connect TokenPay", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  },
+  {
+    name: "yi_zhi_tokenpay_exchange",
+    description: "Exchange the one-time TokenPay authorization code using the PKCE verifier stored by yi_zhi_tokenpay_connect. Saves the resulting API Key only in the private local 益职 data directory and never returns the Key.",
+    inputSchema: { type: "object", required: ["code"], properties: { code: { type: "string", description: "The 10-minute one-time code displayed by TokenDance." } }, additionalProperties: false },
+    annotations: { title: "Finish TokenPay connection", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  },
+  {
+    name: "yi_zhi_tokenpay_balance",
+    description: "Read the available TokenPay balance for the locally connected account. Returns yuan values and never reveals the API Key.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { title: "Read TokenPay balance", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+  },
+  {
+    name: "yi_zhi_tokenpay_create_payment",
+    description: "Create a TokenPay recharge session only after the user explicitly confirms the integer amount in yuan. Returns the payment URL; it never charges automatically and the user completes payment outside the Agent.",
+    inputSchema: { type: "object", required: ["amount", "confirmed_by_user"], properties: { amount: { type: "integer", minimum: 1, maximum: 100000, description: "Recharge amount in yuan." }, confirmed_by_user: { type: "boolean", description: "Must be true only after the user explicitly confirmed this payment amount." } }, additionalProperties: false },
+    annotations: { title: "Create TokenPay recharge", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+  },
+  {
+    name: "yi_zhi_tokenpay_payment_status",
+    description: "Check a TokenPay recharge session created by this Agent. Poll every three seconds only while the user is actively waiting, and stop after the returned expiry time.",
+    inputSchema: { type: "object", required: ["session_id"], properties: { session_id: { type: "string" } }, additionalProperties: false },
+    annotations: { title: "Check TokenPay payment", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
   },
   {
     name: "yi_zhi_create_case",
@@ -181,6 +215,77 @@ function cleanText(value, fallback = "") {
   const text = value.trim();
   if (text.length > MAX_TEXT) throw new Error("Text input is too large.");
   return text;
+}
+
+async function writePrivateJson(path, value) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+  await rename(temporary, path);
+}
+
+async function readPrivateJson(path) {
+  try { return JSON.parse(await readFile(path, "utf8")); }
+  catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function tokenPayPkce() {
+  const verifier = randomBytes(64).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
+
+async function tokenPayCredential() {
+  const value = await readPrivateJson(TOKENPAY_FILE);
+  return value?.schema_version === 1 && typeof value.key === "string" && value.key.length > 10 ? value.key : null;
+}
+
+async function tokenPayRequest(path, init = {}) {
+  const key = await tokenPayCredential();
+  if (!key) throw new Error("TokenPay 尚未连接。先调用 yi_zhi_tokenpay_connect。 ");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let response;
+  try {
+    response = await fetch(new URL(path, TOKENPAY_ORIGIN), {
+      ...init,
+      signal: controller.signal,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${key}` }
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("TokenPay 请求超时，请稍后重试。 ");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const action = response.headers.get("tokendance-recovery-action");
+    if (action === "top_up_balance") throw new Error("TokenPay 余额不足，请先确认充值金额。 ");
+    if (action === "reauthorize_api_key") throw new Error("TokenPay Key 已失效，请重新授权。 ");
+    if (action === "api_key_quota") throw new Error("TokenPay Key 已达到周期额度，请等待刷新或重新授权。 ");
+    throw new Error(body?.error?.message || `TokenPay request failed: HTTP ${response.status}`);
+  }
+  return body;
+}
+
+async function localTokenPayBalance() {
+  const key = await tokenPayCredential();
+  if (!key) return { connected: false };
+  try {
+    const body = await tokenPayRequest("/portal/api/v1/user/balance", { method: "GET" });
+    return {
+      connected: true,
+      available: Number(body?.balance?.balance || 0) / 1_000_000,
+      credits: Number(body?.balance?.credits || 0) / 1_000_000,
+      used: Number(body?.balance?.credits_used || 0) / 1_000_000
+    };
+  } catch (error) {
+    return { connected: true, error: error instanceof Error ? error.message : "TokenPay 读取失败" };
+  }
 }
 
 function validRelease(value) {
@@ -557,6 +662,72 @@ async function callTool(name, args = {}) {
     return result(updateStatusText(status), { update: publicUpdateStatus(status) });
   }
 
+  if (name === "yi_zhi_tokenpay_connect") {
+    const { verifier, challenge } = tokenPayPkce();
+    const createdAt = new Date().toISOString();
+    await writePrivateJson(TOKENPAY_PENDING_FILE, { schema_version: 1, verifier, created_at: createdAt, used_at: null });
+    const url = new URL("/auth", TOKENPAY_ORIGIN);
+    url.searchParams.set("code_challenge", challenge);
+    url.searchParams.set("code_challenge_method", "S256");
+    url.searchParams.set("app_url", TOKENPAY_APP_URL);
+    url.searchParams.set("key_name", "益职 Agent TokenPay");
+    return result(`请打开 TokenPay 授权页，确认 Key 的额度、周期和过期时间。完成后，把页面显示的一次性 code 发给我；code 10 分钟内有效。\n\n${url}`, { authorization_url: url.toString(), expires_in_seconds: 600 });
+  }
+
+  if (name === "yi_zhi_tokenpay_exchange") {
+    const code = cleanText(args.code);
+    if (!/^[a-zA-Z0-9._~-]{6,500}$/.test(code)) throw new Error("Invalid TokenPay authorization code.");
+    const pending = await readPrivateJson(TOKENPAY_PENDING_FILE);
+    const createdAt = Date.parse(pending?.created_at || "");
+    if (pending?.schema_version !== 1 || typeof pending.verifier !== "string" || !Number.isFinite(createdAt) || Date.now() - createdAt > 10 * 60 * 1000 || pending.used_at) {
+      throw new Error("TokenPay 授权流程已过期，请重新连接。 ");
+    }
+    const response = await fetch(new URL("/portal/api/v1/auth/keys", TOKENPAY_ORIGIN), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, code_verifier: pending.verifier, code_challenge_method: "S256" })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || typeof body?.key !== "string") throw new Error(body?.error?.message || "TokenPay code 交换失败，请重新授权。 ");
+    await writePrivateJson(TOKENPAY_FILE, { schema_version: 1, key: body.key, connected_at: new Date().toISOString() });
+    await writePrivateJson(TOKENPAY_PENDING_FILE, { schema_version: 1, verifier: "cleared", created_at: pending.created_at, used_at: new Date().toISOString() });
+    const balance = await localTokenPayBalance();
+    return result(`TokenPay 已连接。当前可用余额 ¥${Number(balance.available || 0).toFixed(2)}。完整 API Key 只保存在本机私密目录。`, { account: balance });
+  }
+
+  if (name === "yi_zhi_tokenpay_balance") {
+    const balance = await localTokenPayBalance();
+    if (!balance.connected) throw new Error("TokenPay 尚未连接。先调用 yi_zhi_tokenpay_connect。 ");
+    if (balance.error) throw new Error(balance.error);
+    return result(`TokenPay 可用余额 ¥${balance.available.toFixed(2)}；累计充值 ¥${balance.credits.toFixed(2)}；已使用 ¥${balance.used.toFixed(2)}。`, { account: balance });
+  }
+
+  if (name === "yi_zhi_tokenpay_create_payment") {
+    if (args.confirmed_by_user !== true) throw new Error("创建充值会话前，必须由用户明确确认金额。 ");
+    const amount = Number(args.amount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 100000) throw new Error("充值金额必须是 1 到 100000 元的整数。 ");
+    const body = await tokenPayRequest("/portal/api/v1/payment/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount })
+    });
+    const session = body?.session;
+    if (!session?.id || !session?.payment_url || session.status !== "pending") throw new Error("TokenPay 返回了无效的支付会话。 ");
+    const paymentUrl = new URL(session.payment_url);
+    if (paymentUrl.protocol !== "https:") throw new Error("TokenPay 返回了不安全的付款链接。 ");
+    return result(`已创建 ¥${amount} 充值会话。请由你本人打开付款链接完成支付；益职不会自动扣款。\n\n${paymentUrl}`, { session: { id: session.id, amount: session.amount, status: session.status, payment_url: paymentUrl.toString(), expired_at: session.expired_at } });
+  }
+
+  if (name === "yi_zhi_tokenpay_payment_status") {
+    const sessionId = cleanText(args.session_id);
+    if (!/^[a-zA-Z0-9_-]{6,180}$/.test(sessionId)) throw new Error("Invalid TokenPay payment session ID.");
+    const body = await tokenPayRequest(`/portal/api/v1/payment/sessions/${encodeURIComponent(sessionId)}`, { method: "GET" });
+    const session = body?.session;
+    if (!session?.id || !["pending", "paid", "failed", "closed", "refunded"].includes(session.status)) throw new Error("TokenPay 返回了无效的支付状态。 ");
+    const text = session.status === "paid" ? "充值已到账，可以重试原来的模型调用。" : session.status === "pending" ? "仍在等待用户支付。" : `本次支付状态：${session.status}。`;
+    return result(text, { session: { id: session.id, amount: session.amount, status: session.status, expired_at: session.expired_at, paid_at: session.paid_at || null } });
+  }
+
   if (name === "yi_zhi_retrieve_knowledge") {
     const items = await retrieveKnowledge(args);
     return result(knowledgeText(items), { items });
@@ -682,7 +853,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function cockpitPage(state, selectedId) {
+function cockpitPage(state, selectedId, tokenPay) {
   const cases = Object.values(state.cases).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const today = planToday(state);
   const active = state.cases[selectedId] || today.focus || state.cases[state.active_case_id] || cases[0];
@@ -693,9 +864,12 @@ function cockpitPage(state, selectedId) {
   const snapshots = active?.snapshots?.length ? active.snapshots.slice().reverse().slice(0, 8).map((item) => `<li><div><strong>${escapeHtml(item.title)} V${item.version}</strong><span>${escapeHtml(item.type)}</span></div><time>${escapeHtml(new Date(item.frozen_at).toLocaleDateString("zh-CN"))}</time></li>`).join("") : '<li class="empty">JD、投递简历和面试结果会按版本冻结，不再被后续对话覆盖。</li>';
   const updated = active?.updated_at ? new Date(active.updated_at).toLocaleString("zh-CN", { hour12: false }) : "—";
   const updateCard = updateStatus?.update_available ? `<div class="update-card"><small>插件更新</small><strong>${escapeHtml(updateStatus.current_version)} → ${escapeHtml(updateStatus.latest_version)}</strong><p>${escapeHtml(updateStatus.release_notes || "包含新的求职工作流和稳定性改进。")}</p><p>回到 Agent 说“检查益职更新”。</p></div>` : "";
+  const tokenPayCard = tokenPay?.connected
+    ? `<div class="tokenpay-card"><small>TokenPay</small><strong>${tokenPay.error ? "账户需要处理" : `¥${Number(tokenPay.available || 0).toFixed(2)}`}</strong><p>${escapeHtml(tokenPay.error || "可用余额 · 回到 Agent 说“查看 TokenPay 余额”或“充值”。")}</p></div>`
+    : `<div class="tokenpay-card"><small>TokenPay</small><strong>尚未连接</strong><p>回到 Agent 说“连接 TokenPay”，完成 API Key 配置、余额查看和充值。</p></div>`;
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>益职求职作战盘</title><style>
-  :root{color-scheme:light;--ink:#25272d;--muted:#666c76;--line:#dedbd5;--paper:#f7f4ef;--orange:#e9672d;--soft:#fff0e8;--blue:#536fe8}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{height:62px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--orange);color:#fff}.local{padding:4px 9px;border-radius:99px;background:#efede9;color:#5f5b55;font-size:11px}.shell{height:calc(100vh - 62px);display:grid;grid-template-columns:240px 1fr 300px}.rail{padding:22px 12px;background:var(--paper);overflow:auto}.rail.left{border-right:1px solid var(--line)}.rail.right{border-left:1px solid var(--line)}h2{margin:0 6px 14px;font-size:14px}.case{margin:3px 0;padding:13px 12px;display:flex;flex-direction:column;border:1px solid transparent;border-radius:12px;color:inherit;text-decoration:none}.case:hover{background:#fff}.case.active{background:#fff;border-color:#dfbba7}.case small,.case span{color:var(--muted);font-size:11px}.case strong{margin:2px 0 8px}.main{min-width:0;overflow:auto}.title{padding:40px clamp(24px,5vw,68px) 28px;border-bottom:1px solid var(--line)}.title p{margin:0;color:var(--muted)}h1{margin:10px 0;font-size:clamp(28px,4vw,46px);line-height:1.1;letter-spacing:-.04em}.stage{display:inline-flex;padding:4px 9px;border-radius:99px;background:#eef1ff;color:#4057b7;font-size:11px;font-weight:700}.content{max-width:960px;margin:auto;padding:34px clamp(24px,5vw,68px) 70px}.decision{padding:26px;border:1px solid var(--line);border-radius:15px}.decision h2{margin:0 0 8px}.next{margin:10px 0 0;font-size:clamp(18px,2.3vw,25px);font-weight:650}.section{padding:27px 0;border-bottom:1px solid var(--line)}.section h2{margin:0 0 12px}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{padding:5px 9px;border-radius:99px;background:#f0eee9;font-size:11px}.artifacts{margin:0;padding:0;list-style:none}.artifacts li{padding:14px 0;display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}.artifacts li div{display:flex;flex-direction:column}.artifacts li span,.muted,.empty{color:var(--muted);font-size:11px}.artifacts code{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}.right .next-card,.update-card{padding:16px;border:1px solid #e5cbbc;border-radius:14px;background:#fff}.right .next-card small,.update-card small{color:var(--orange);font-weight:800}.right .next-card strong,.update-card strong{display:block;margin:9px 0 6px}.update-card{margin-top:12px;background:var(--soft)}.right p{color:var(--muted);font-size:11px}.privacy{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}@media(max-width:900px){.shell{display:block}.rail.left{height:auto;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.rail.left h2{display:none}.case{width:210px;display:inline-flex;white-space:normal}.rail.right{border:0;border-top:1px solid var(--line)}.title{padding-top:28px}}@media(max-width:600px){header{height:56px}.shell{height:auto}.local{display:none}.title{padding:24px 18px}.content{padding:24px 18px 50px}.decision{padding:20px}.artifacts li{flex-direction:column}.artifacts code{max-width:100%}}
-  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>确认事实</h2><ul class="artifacts">${facts}</ul></section><section class="section"><h2>岗位版本</h2><ul class="artifacts">${snapshots}</ul></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会先读取事实和岗位版本，再完成这一步。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}${updateCard}<div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div></aside></div></body></html>`;
+  :root{color-scheme:light;--ink:#25272d;--muted:#666c76;--line:#dedbd5;--paper:#f7f4ef;--orange:#e9672d;--soft:#fff0e8;--blue:#536fe8}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}header{height:62px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;font-weight:800}.mark{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--orange);color:#fff}.local{padding:4px 9px;border-radius:99px;background:#efede9;color:#5f5b55;font-size:11px}.shell{height:calc(100vh - 62px);display:grid;grid-template-columns:240px 1fr 300px}.rail{padding:22px 12px;background:var(--paper);overflow:auto}.rail.left{border-right:1px solid var(--line)}.rail.right{border-left:1px solid var(--line)}h2{margin:0 6px 14px;font-size:14px}.case{margin:3px 0;padding:13px 12px;display:flex;flex-direction:column;border:1px solid transparent;border-radius:12px;color:inherit;text-decoration:none}.case:hover{background:#fff}.case.active{background:#fff;border-color:#dfbba7}.case small,.case span{color:var(--muted);font-size:11px}.case strong{margin:2px 0 8px}.main{min-width:0;overflow:auto}.title{padding:40px clamp(24px,5vw,68px) 28px;border-bottom:1px solid var(--line)}.title p{margin:0;color:var(--muted)}h1{margin:10px 0;font-size:clamp(28px,4vw,46px);line-height:1.1;letter-spacing:-.04em}.stage{display:inline-flex;padding:4px 9px;border-radius:99px;background:#eef1ff;color:#4057b7;font-size:11px;font-weight:700}.content{max-width:960px;margin:auto;padding:34px clamp(24px,5vw,68px) 70px}.decision{padding:26px;border:1px solid var(--line);border-radius:15px}.decision h2{margin:0 0 8px}.next{margin:10px 0 0;font-size:clamp(18px,2.3vw,25px);font-weight:650}.section{padding:27px 0;border-bottom:1px solid var(--line)}.section h2{margin:0 0 12px}.tags{display:flex;flex-wrap:wrap;gap:8px}.tag{padding:5px 9px;border-radius:99px;background:#f0eee9;font-size:11px}.artifacts{margin:0;padding:0;list-style:none}.artifacts li{padding:14px 0;display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}.artifacts li div{display:flex;flex-direction:column}.artifacts li span,.muted,.empty{color:var(--muted);font-size:11px}.artifacts code{max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:10px}.right .next-card,.update-card,.tokenpay-card{padding:16px;border:1px solid #e5cbbc;border-radius:14px;background:#fff}.right .next-card small,.update-card small,.tokenpay-card small{color:var(--orange);font-weight:800}.right .next-card strong,.update-card strong,.tokenpay-card strong{display:block;margin:9px 0 6px}.update-card{margin-top:12px;background:var(--soft)}.tokenpay-card{margin-top:12px}.right p{color:var(--muted);font-size:11px}.privacy{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}@media(max-width:900px){.shell{display:block}.rail.left{height:auto;border-right:0;border-bottom:1px solid var(--line);white-space:nowrap}.rail.left h2{display:none}.case{width:210px;display:inline-flex;white-space:normal}.rail.right{border:0;border-top:1px solid var(--line)}.title{padding-top:28px}}@media(max-width:600px){header{height:56px}.shell{height:auto}.local{display:none}.title{padding:24px 18px}.content{padding:24px 18px 50px}.decision{padding:20px}.artifacts li{flex-direction:column}.artifacts code{max-width:100%}}
+  </style></head><body><header><div class="brand"><span class="mark">益</span>益职</div><span class="local">本地私密工作区</span></header><div class="shell"><aside class="rail left"><h2>求职事项</h2>${list || '<p class="muted">还没有事项。回到 Agent，交一份简历、岗位或求职目标。</p>'}</aside><main class="main">${active ? `<section class="title"><p>${escapeHtml(active.company || "求职准备")}</p><h1>${escapeHtml(active.role || "目标待确认")}</h1><span class="stage">${escapeHtml(active.stage || "定位下一步")}</span></section><div class="content"><section class="decision"><h2>今日 ToDo <b>1</b></h2><p class="next">${escapeHtml(active.next_action || "确认当前最急的问题")}</p></section><section class="section"><h2>已有材料</h2><div class="tags">${materials}</div></section><section class="section"><h2>确认事实</h2><ul class="artifacts">${facts}</ul></section><section class="section"><h2>岗位版本</h2><ul class="artifacts">${snapshots}</ul></section><section class="section"><h2>Agent 产物</h2><ul class="artifacts">${artifacts}</ul></section><p class="muted">最后更新：${escapeHtml(updated)}</p></div>` : '<div class="content"><h1>先交一份现有材料</h1><p class="muted">简历、岗位链接、经历说明或求职目标任选一个，不需要先有 JD。</p></div>'}</main><aside class="rail right"><h2>导师安排</h2>${active ? `<div class="next-card"><small>比较 ${today.cases.length} 个事项后</small><strong>${escapeHtml(active.next_action || "确认当前最急的问题")}</strong><p>回到 Agent 直接说“继续”，它会先读取事实和岗位版本，再完成这一步。</p></div>` : '<p>交一份材料后，这里会显示最值得做的一件事。</p>'}${tokenPayCard}${updateCard}<div class="privacy"><strong>数据只在本机</strong><p>这张作战盘由 Plugin 在 Agent 沙箱中运行，不会自动上传简历或面试记录。</p></div></aside></div></body></html>`;
 }
 
 async function startCockpitServer() {
@@ -708,7 +882,8 @@ async function startCockpitServer() {
         return;
       }
       const state = await loadState();
-      const html = cockpitPage(state, requestUrl.searchParams.get("case"));
+      const tokenPay = await localTokenPayBalance();
+      const html = cockpitPage(state, requestUrl.searchParams.get("case"), tokenPay);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",

@@ -17,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
+import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import styles from "./TodayCoach.module.css";
 
 type TodayTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
@@ -87,11 +88,8 @@ export function TodayCoach({
         </div>
 
         <div className={styles.account}>
-          <div>
-            <strong>基础作战盘</strong>
-            <span className={styles.quotaTrack}><i /></span>
-            <button type="button" onClick={onShowRules}>生成前会说明额度 <Question size={13} /></button>
-          </div>
+          <TokenPayWidget />
+          <button className={styles.quotaRules} type="button" onClick={onShowRules}>额度规则 <Question size={13} /></button>
           <span className={styles.accountMark}>{accountLabel.slice(0, 1).toUpperCase()}</span>
         </div>
       </header>
@@ -104,6 +102,7 @@ export function TodayCoach({
             <button type="button" onClick={() => onOpenTab("resume")}><FolderSimple size={23} />材料</button>
             <button type="button" onClick={() => onOpenTab("activity")}><ClockCounterClockwise size={23} />记录</button>
           </nav>
+          <div className={styles.mobileTokenPay}><TokenPayWidget compact /></div>
 
           <div className={styles.opportunityRail}>
             <div className={styles.railTitle}>正在推进 <span>({visibleOpportunities.length})</span></div>

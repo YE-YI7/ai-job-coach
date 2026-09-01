@@ -185,7 +185,7 @@ const toolDefinitions = [
   },
   {
     name: "yi_zhi_get_application_context",
-    description: "Return the case's confirmed facts, immutable snapshots, and artifacts before drafting or reviewing any resume, application answer, or interview material. This is the canonical local context; do not rely on chat memory alone.",
+    description: "Return the case's confirmed facts, immutable snapshots, and artifacts before drafting or reviewing any resume, application answer, or interview material. Confirmed facts and base resumes from preparation workspaces are shared automatically with job cases. This is the canonical local context; do not rely on chat memory alone.",
     inputSchema: { type: "object", required: ["case_id"], properties: { case_id: { type: "string" } }, additionalProperties: false },
     annotations: { title: "Read canonical application context", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   },
@@ -598,15 +598,31 @@ async function saveState(state) {
   await rename(temporary, STATE_FILE);
 }
 
-function cockpitText(item) {
+function applicationContext(state, item) {
+  const preparationCases = item.workspace_type === "preparation"
+    ? []
+    : Object.values(state.cases).filter((candidate) => candidate.workspace_type === "preparation");
+  const facts = [...preparationCases.flatMap((candidate) => candidate.facts), ...item.facts]
+    .filter((entry, index, entries) => entries.findIndex((candidate) => candidate.fingerprint === entry.fingerprint) === index);
+  const sharedBaseResumes = preparationCases.flatMap((candidate) => candidate.snapshots)
+    .filter((snapshot) => snapshot.type === "base_resume");
+  const snapshots = [...sharedBaseResumes, ...item.snapshots]
+    .filter((entry, index, entries) => entries.findIndex((candidate) => candidate.type === entry.type && candidate.fingerprint === entry.fingerprint) === index);
+  const hasSharedResume = sharedBaseResumes.length > 0 || preparationCases.some((candidate) => candidate.materials.some((material) => /简历|resume/i.test(material)));
+  const materials = [...new Set([...item.materials, ...(hasSharedResume ? ["基础简历（共享）"] : [])])];
+  return { facts, snapshots, artifacts: item.artifacts, materials, hasSharedResume };
+}
+
+function cockpitText(state, item) {
+  const context = applicationContext(state, item);
   return [
     "益职求职作战台",
     `事项 ID：${item.id}`,
     `目标：${[item.company, item.role].filter(Boolean).join(" / ") || "待确认"}`,
     `当前阶段：${item.stage || "定位下一步"}`,
-    `已有材料：${item.materials.length ? item.materials.join("、") : "—"}`,
-    `确认事实：${item.facts.length} 条`,
-    `冻结版本：${item.snapshots.length} 个`,
+    `已有材料：${context.materials.length ? context.materials.join("、") : "—"}`,
+    `确认事实：${context.facts.length} 条`,
+    `冻结版本：${context.snapshots.length} 个`,
     `产物：${item.artifacts.length ? `${item.artifacts.length} 份` : "—"}`,
     `下一动作：${item.next_action || "确认当前最急的问题"}`
   ].join("\n");
@@ -760,7 +776,7 @@ async function callTool(name, args = {}) {
     state.cases[id] = item;
     state.active_case_id = id;
     await saveState(state);
-    return result(cockpitText(item), { case: item }, item.id);
+    return result(cockpitText(state, item), { case: item }, item.id);
   }
 
   const requestedId = args.case_id ? safeId(args.case_id) : state.active_case_id;
@@ -768,7 +784,7 @@ async function callTool(name, args = {}) {
   const item = state.cases[requestedId];
 
   if (name === "yi_zhi_get_cockpit" || name === "yi_zhi_get_cockpit_url") {
-    return result(cockpitText(item), { case: item }, item.id);
+    return result(cockpitText(state, item), { case: item }, item.id);
   }
 
   if (name === "yi_zhi_update_cockpit") {
@@ -782,7 +798,7 @@ async function callTool(name, args = {}) {
     item.updated_at = new Date().toISOString();
     state.active_case_id = item.id;
     await saveState(state);
-    return result(cockpitText(item), { case: item }, item.id);
+    return result(cockpitText(state, item), { case: item }, item.id);
   }
 
   if (name === "yi_zhi_record_fact") {
@@ -819,7 +835,9 @@ async function callTool(name, args = {}) {
   }
 
   if (name === "yi_zhi_get_application_context") {
-    return result(`已载入 ${item.facts.length} 条确认事实、${item.snapshots.length} 个冻结版本和 ${item.artifacts.length} 份产物。起草时只能使用确认事实；投递前必须完成独立复核、事实、ATS 与 PDF 检查。`, { case: item, confirmed_facts: item.facts, snapshots: item.snapshots, artifacts: item.artifacts }, item.id);
+    const context = applicationContext(state, item);
+    const sharedNote = context.hasSharedResume ? "已自动带入准备工作区的基础简历。" : "";
+    return result(`已载入 ${context.facts.length} 条确认事实、${context.snapshots.length} 个冻结版本和 ${context.artifacts.length} 份产物。${sharedNote}起草时只能使用确认事实；投递前必须完成独立复核、事实、ATS 与 PDF 检查。`, { case: item, confirmed_facts: context.facts, snapshots: context.snapshots, artifacts: context.artifacts, materials: context.materials, shared_base_resume: context.hasSharedResume }, item.id);
   }
 
   if (name === "yi_zhi_save_artifact") {
@@ -857,11 +875,12 @@ function cockpitPage(state, selectedId, tokenPay) {
   const cases = Object.values(state.cases).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const today = planToday(state);
   const active = state.cases[selectedId] || today.focus || state.cases[state.active_case_id] || cases[0];
+  const context = active ? applicationContext(state, active) : null;
   const list = cases.map((item) => `<a class="case ${item.id === active?.id ? "active" : ""}" href="/?case=${encodeURIComponent(item.id)}"><small>${escapeHtml(item.company || "待确认公司")}</small><strong>${escapeHtml(item.role || "待确认岗位")}</strong><span>${escapeHtml(item.stage || "定位下一步")}</span></a>`).join("");
-  const materials = active?.materials?.length ? active.materials.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("") : '<span class="muted">尚未记录材料</span>';
+  const materials = context?.materials?.length ? context.materials.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("") : '<span class="muted">尚未记录材料</span>';
   const artifacts = active?.artifacts?.length ? active.artifacts.map((item) => `<li><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.type)}</span></div><code>${escapeHtml(item.path)}</code></li>`).join("") : '<li class="empty">完成岗位判断、简历或复盘后，Agent 会把产物放在这里。</li>';
-  const facts = active?.facts?.length ? active.facts.slice(-5).reverse().map((item) => `<li><div><strong>${escapeHtml(item.text)}</strong><span>${item.visibility === "recruiter_safe" ? "可用于对外材料" : "仅私密使用"}</span></div></li>`).join("") : '<li class="empty">Agent 会把你明确确认的经历写进事实源，后续简历只从这里取材。</li>';
-  const snapshots = active?.snapshots?.length ? active.snapshots.slice().reverse().slice(0, 8).map((item) => `<li><div><strong>${escapeHtml(item.title)} V${item.version}</strong><span>${escapeHtml(item.type)}</span></div><time>${escapeHtml(new Date(item.frozen_at).toLocaleDateString("zh-CN"))}</time></li>`).join("") : '<li class="empty">JD、投递简历和面试结果会按版本冻结，不再被后续对话覆盖。</li>';
+  const facts = context?.facts?.length ? context.facts.slice(-5).reverse().map((item) => `<li><div><strong>${escapeHtml(item.text)}</strong><span>${item.visibility === "recruiter_safe" ? "可用于对外材料" : "仅私密使用"}</span></div></li>`).join("") : '<li class="empty">Agent 会把你明确确认的经历写进事实源，后续简历只从这里取材。</li>';
+  const snapshots = context?.snapshots?.length ? context.snapshots.slice().reverse().slice(0, 8).map((item) => `<li><div><strong>${escapeHtml(item.title)} V${item.version}</strong><span>${escapeHtml(item.type)}</span></div><time>${escapeHtml(new Date(item.frozen_at).toLocaleDateString("zh-CN"))}</time></li>`).join("") : '<li class="empty">JD、投递简历和面试结果会按版本冻结，不再被后续对话覆盖。</li>';
   const updated = active?.updated_at ? new Date(active.updated_at).toLocaleString("zh-CN", { hour12: false }) : "—";
   const updateCard = updateStatus?.update_available ? `<div class="update-card"><small>插件更新</small><strong>${escapeHtml(updateStatus.current_version)} → ${escapeHtml(updateStatus.latest_version)}</strong><p>${escapeHtml(updateStatus.release_notes || "包含新的求职工作流和稳定性改进。")}</p><p>回到 Agent 说“检查益职更新”。</p></div>` : "";
   const tokenPayCard = tokenPay?.connected
@@ -925,7 +944,7 @@ async function handle(message) {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "yi-zhi", version: release.version },
-        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. Before drafting application material, call yi_zhi_get_application_context; record only user-confirmed facts and freeze every real JD, submitted resume, application answer, interview record, and outcome. A final application package must pass an independent reviewer, facts, ATS, and PDF checks. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
+        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. Before drafting application material, call yi_zhi_get_application_context; it automatically shares confirmed preparation facts and the base resume with job cases. Record only user-confirmed facts and freeze every real JD, submitted resume, application answer, interview record, and outcome. A final application package must pass an independent reviewer, facts, ATS, and PDF checks. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
       });
     }
     if (message.method === "ping") return response(message.id, {});

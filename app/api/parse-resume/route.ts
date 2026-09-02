@@ -3,6 +3,7 @@ import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { extractPdfText } from "@/lib/pdf-text";
+import { isTokenPayRecoveryError, tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 // 必须使用 Node.js runtime（因为需要文件解析库）
 export const runtime = "nodejs";
@@ -35,6 +36,8 @@ async function handlePost(request: Request) {
     }
   } catch (error: any) {
     console.error("解析简历失败:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json(
       {
         ok: false,
@@ -126,6 +129,7 @@ ${messages.map((msg: any, idx: number) => `[${idx + 1}] ${msg.role}: ${msg.conte
     return NextResponse.json(parsed);
   } catch (error: any) {
     console.error("处理JSON请求失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     return NextResponse.json(
       {
         ok: false,
@@ -297,6 +301,7 @@ ${rawText}
       }
     } catch (llmError: any) {
       console.error("LLM 调用失败:", llmError);
+      if (isTokenPayRecoveryError(llmError)) throw llmError;
       // LLM 调用失败时，返回基础结构
       parsed = {
         summary: "",
@@ -315,6 +320,7 @@ ${rawText}
     });
   } catch (error: any) {
     console.error("处理文件上传失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     return NextResponse.json(
       {
         ok: false,

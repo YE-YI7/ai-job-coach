@@ -195,6 +195,7 @@
 .resumeChange footer p { margin: 0; color: var(--muted); }
 .reviewHint { min-height: 35px; padding: 0 11px; display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-deep); font-size: 10px; font-weight: 750; white-space: nowrap; }
 .changeActions { margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.editCounter { align-self: center; margin-right: auto; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .focusItem { min-height: 79px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); }
 .readinessDot { width: 9px; height: 9px; border-radius: 50%; } .readiness_ready { background: var(--green); } .readiness_practice { background: #aa741e; } .readiness_missing { background: var(--accent); }
 .focusItem strong { font-size: 12px; } .focusItem p { margin: 6px 0 0; color: var(--muted); font-size: 10px; } .focusItem > span:last-child { color: var(--muted); font-size: 9px; }

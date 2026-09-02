@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callLLM } from '@/lib/llm';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 import { withMeteredAiRoute } from '@/lib/metered-ai-route';
+import { tokenPayRecoveryResponse } from '@/lib/tokenpay-recovery';
 
 interface CompressRequest {
   resumeData: {
@@ -125,6 +126,8 @@ async function handlePost(request: NextRequest) {
     });
   } catch (error) {
     console.error('Resume compression error:', error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json(
       { 
         success: false, 

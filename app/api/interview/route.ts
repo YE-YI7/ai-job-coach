@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
+import { isTokenPayRecoveryError, tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 // ========== 类型定义 ==========
 
@@ -396,6 +397,7 @@ async function deepseekStartRound(
     throw new Error("无法解析 LLM 返回的 JSON");
   } catch (error: any) {
     console.error("DeepSeek start_round 失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     // 降级到 stub
     return stubStartRound(roundType);
   }
@@ -489,6 +491,7 @@ async function deepseekAnswer(
     throw new Error("无法解析 LLM 返回的 JSON");
   } catch (error: any) {
     console.error("DeepSeek answer 失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     // 降级到 stub
     return stubAnswer(questionId, answer);
   }
@@ -576,6 +579,7 @@ ${history}
     throw new Error("无法解析 LLM 返回的 JSON");
   } catch (error: any) {
     console.error("DeepSeek next_question 失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     // 降级到 stub
     return stubNextQuestion(roundType, currentIndex);
   }
@@ -667,6 +671,7 @@ ${history}
     throw new Error("无法解析 LLM 返回的 JSON");
   } catch (error: any) {
     console.error("DeepSeek finish_round 失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     // 降级到 stub
     return stubFinishRound();
   }
@@ -807,6 +812,8 @@ async function handlePost(request: Request) {
     }
   } catch (err) {
     console.error("API Error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

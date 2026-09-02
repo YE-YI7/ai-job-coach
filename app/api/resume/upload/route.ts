@@ -6,6 +6,7 @@ import { callLLM } from "@/lib/llm";
 import mammoth from "mammoth";
 import { validateResumeFileSize, validateResumeFileType } from "@/lib/resume-file-validation";
 import { extractPdfText } from "@/lib/pdf-text";
+import { isTokenPayRecoveryError, tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 // 使用 Node.js runtime（需要文件解析库）
 export const runtime = "nodejs";
@@ -135,6 +136,7 @@ ${rawText}
     return parsed;
   } catch (error: any) {
     console.error("AI解析失败:", error);
+    if (isTokenPayRecoveryError(error)) throw error;
     
     // 返回基础结构（降级策略）
     return {
@@ -360,6 +362,8 @@ async function handlePost(request: Request) {
 
   } catch (error: any) {
     console.error("简历上传失败:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json(
       {
         ok: false,

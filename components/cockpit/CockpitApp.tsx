@@ -37,6 +37,7 @@ import type {
 import { TodayCoach } from "./TodayCoach";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
 import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
+import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
 import { trackProductEvent } from "@/lib/product-events";
 import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import styles from "./CockpitApp.module.css";
@@ -430,26 +431,9 @@ export function CockpitApp({
 
   const editResumeChange = (changeId: string, after: string) => {
     if (!active) return;
-    setOpportunities((current) => current.map((item) => item.id !== active.id ? item : {
-      ...item,
-      resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, after, editedByUser: true, status: "pending" as const } : change),
-      applicationQuality: item.applicationQuality ? {
-        ...item.applicationQuality,
-        status: "draft" as const,
-        reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? review : { ...review, status: "not_run" as const, summary: "用户修改后需要重新检查。" }),
-      } : {
-        artifactId: `user-edit-${item.id}`,
-        version: 0,
-        status: "draft" as const,
-        reviews: [
-          { reviewerType: "facts" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
-          { reviewerType: "independent_ai" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
-          { reviewerType: "ats" as const, status: "not_run" as const, summary: "用户修改后需要重新检查。" },
-          { reviewerType: "pdf" as const, status: "not_run" as const, summary: "冻结版本后再校验 PDF。" },
-        ],
-      },
-      activities: [{ id: `${item.id}-resume-edit-${Date.now()}`, actor: "user" as const, title: "手动调整简历建议", detail: "修改已保存；冻结前需要重新检查事实和岗位匹配。", timeLabel: "刚刚" }, ...item.activities],
-    }));
+    setOpportunities((current) => current.map((item) => item.id === active.id
+      ? applyUserResumeEdit(item, changeId, after)
+      : item));
     if (dataMode === "live") trackProductEvent("resume_change_edited", { opportunity_id: active.id, change_id: changeId });
     announce("修改已保存，请重新检查后再冻结版本");
   };
@@ -1164,7 +1148,7 @@ function ResumeTab({ opportunity, onUpdate, onEdit, onGenerate, onValidate, onFr
           <header><strong>{change.section}</strong><span>{change.editedByUser ? "你已修改 · " : ""}{change.status === "accepted" ? "已采用" : change.status === "rejected" ? "保留原文" : "待确认"}</span></header>
           <div className={styles.diffGrid}><div><span>原文</span><p>{change.before}</p></div><div><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span>{editingId === change.id ? <textarea aria-label={`修改${change.section}`} value={editValue} maxLength={2000} onChange={(event) => setEditValue(event.target.value)} rows={6} autoFocus /> : <p>{change.after}</p>}</div></div>
           <footer><p>{change.reason}</p><span>{change.evidenceId ? "已关联证据" : "需要补证据"}</span></footer>
-          {editingId === change.id ? <div className={styles.changeActions}><button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={15} />保存我的修改</button><button className={styles.secondaryButton} onClick={() => { setEditingId(null); setEditValue(""); }}>取消</button></div> : <div className={styles.changeActions}>{change.status === "pending" && <button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />采用这版</button>}<button className={styles.secondaryButton} onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>自己修改</button>{change.status !== "rejected" && <button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button>}</div>}
+          {editingId === change.id ? <div className={styles.changeActions}><span className={styles.editCounter}>{editValue.length}/2000</span><button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={15} />保存我的修改</button><button className={styles.secondaryButton} onClick={() => { setEditingId(null); setEditValue(""); }}>取消</button></div> : <div className={styles.changeActions}>{change.status === "pending" && <button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={15} />采用这版</button>}<button className={styles.secondaryButton} onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>{change.editedByUser ? "再次修改" : "自己修改"}</button>{change.status !== "rejected" && <button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button>}</div>}
         </article>
       )) : <EmptySection label={opportunity.resumeText ? "还没有生成岗位简历。" : "先在岗位档案补充简历，AI 才能开始。"} actionLabel={opportunity.resumeText ? "生成岗位版本" : undefined} onAction={opportunity.resumeText ? onGenerate : undefined} />}</div>
     </section>

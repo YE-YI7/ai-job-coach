@@ -9,6 +9,10 @@ const RECOVERY_STATUS: Record<TokenPayRecoveryAction, number> = {
   api_key_quota: 429,
 };
 
+export function isTokenPayRecoveryError(error: unknown): error is TokenPayError & { recoveryAction: TokenPayRecoveryAction } {
+  return error instanceof TokenPayError && Boolean(error.recoveryAction);
+}
+
 export function tokenPayRecoveryResponse(error: unknown) {
   if (!(error instanceof TokenPayError) || !error.recoveryAction) return null;
   return NextResponse.json({

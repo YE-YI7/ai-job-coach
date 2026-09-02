@@ -13,6 +13,7 @@ import { getParserPrompt, getTagRecommendationPrompt } from "@/lib/interview-rev
 import { saveParseResult, updateSessionTags } from "@/lib/interview-review/db";
 import { sanitizeText } from "@/lib/interview-review/sanitize";
 import type { ParsedQuestion } from "@/lib/interview-review/types";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -119,6 +120,8 @@ async function handlePost(req: Request) {
     });
   } catch (err) {
     console.error("Interview review parse error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

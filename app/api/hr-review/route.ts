@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import {
   getPositiveHRPrompt,
   getAdvisoryHRPrompt,
@@ -160,6 +161,8 @@ async function handlePost(req: Request) {
     }
   } catch (err) {
     console.error("HR Review API Error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

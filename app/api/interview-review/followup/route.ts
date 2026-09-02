@@ -12,6 +12,7 @@ import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { getFollowUpDrillPrompt } from "@/lib/interview-review/prompts";
 import { saveFollowups, getFollowups } from "@/lib/interview-review/db";
 import type { FollowUpQuestion } from "@/lib/interview-review/types";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -120,6 +121,8 @@ async function handlePost(req: Request) {
     });
   } catch (err) {
     console.error("Interview review followup error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

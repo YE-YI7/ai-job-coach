@@ -1,7 +1,7 @@
 jest.mock("server-only", () => ({}), { virtual: true });
 
 import { TokenPayError } from "./tokenpay";
-import { tokenPayRecoveryResponse } from "./tokenpay-recovery";
+import { isTokenPayRecoveryError, tokenPayRecoveryResponse } from "./tokenpay-recovery";
 
 describe("TokenDance recovery responses", () => {
   it("preserves the recovery action in both JSON and the response header", async () => {
@@ -13,5 +13,11 @@ describe("TokenDance recovery responses", () => {
 
   it("leaves unrelated errors to the route's normal handler", () => {
     expect(tokenPayRecoveryResponse(new Error("network"))).toBeNull();
+  });
+
+  it("identifies only TokenDance errors with an explicit recovery contract", () => {
+    expect(isTokenPayRecoveryError(new TokenPayError("额度刷新", 429, "api_key_quota"))).toBe(true);
+    expect(isTokenPayRecoveryError(new TokenPayError("普通网关错误", 502))).toBe(false);
+    expect(isTokenPayRecoveryError(new Error("余额不足"))).toBe(false);
   });
 });

@@ -11,6 +11,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { isTokenPayRecoveryError, tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export async function POST(request: NextRequest) {
   let reservation: QuotaReservation | null = null;
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
         } catch (aiError) {
           await finalizeQuota(reservation, false).catch(() => false);
           reservation = null;
+          if (isTokenPayRecoveryError(aiError)) throw aiError;
           aiPlanStatus = "fallback";
           console.warn("AI 生成备考计划失败，使用默认计划:", aiError);
         }
@@ -137,6 +139,8 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Calendar quota refund failed", refundError));
     console.error("Calendar create error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json({ error: err.message || "服务器错误" }, { status: 500 });
   }
 }

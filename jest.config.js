@@ -9,6 +9,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^server-only$': '<rootDir>/test/server-only.ts',
   },
   collectCoverageFrom: [
     'app/**/*.ts',

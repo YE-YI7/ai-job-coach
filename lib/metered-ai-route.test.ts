@@ -1,3 +1,5 @@
+jest.mock("server-only", () => ({}), { virtual: true });
+
 import { getCurrentUserFromRequest } from "./auth";
 import { finalizeQuota, reserveQuota } from "./quota";
 import { withMeteredAiRoute } from "./metered-ai-route";

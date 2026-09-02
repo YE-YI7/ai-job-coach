@@ -10,6 +10,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { getFollowUpFeedbackPrompt } from "@/lib/interview-review/prompts";
 import type { FollowUpFeedback } from "@/lib/interview-review/types";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,8 @@ async function handlePost(req: Request) {
     });
   } catch (err) {
     console.error("Followup answer feedback error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

@@ -11,6 +11,7 @@ import { runOrchestrator } from "@/lib/orchestrator";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 // 必须使用 Node.js runtime（因为需要调用 LLM）
 export const runtime = "nodejs";
@@ -200,6 +201,8 @@ export async function POST(req: Request) {
   } catch (err) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Chat quota refund failed", refundError));
     console.error("API Error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

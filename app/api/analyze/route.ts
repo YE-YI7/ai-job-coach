@@ -6,6 +6,7 @@ import { UserStage, StageNames, isValidStage } from "@/lib/stage";
 import { saveWhiteboard } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 type Message = {
   role?: "user" | "assistant" | "system";
@@ -446,6 +447,8 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
     return NextResponse.json(whiteboardData);
   } catch (error) {
     console.error("分析 API 错误:", error);
+    const recovery = tokenPayRecoveryResponse(error);
+    if (recovery) return recovery;
     return NextResponse.json({}, { status: 500 });
   }
 }

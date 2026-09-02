@@ -4,6 +4,7 @@ import { callLLM } from '@/lib/llm';
 import { runWithGenerationContext } from '@/lib/generation-context';
 import { finalizeQuota, reserveQuota, type QuotaReservation } from '@/lib/quota';
 import { consumePublicRateLimit, rateLimitedResponse } from '@/lib/public-rate-limit';
+import { tokenPayRecoveryResponse } from '@/lib/tokenpay-recovery';
 
 export const runtime = 'nodejs';
 
@@ -190,6 +191,8 @@ export async function POST(request: Request) {
   } catch (err) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error('Resume score quota refund failed', refundError));
     console.error('resume score error:', err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: '评分服务暂不可用' },
       { status: 500 }

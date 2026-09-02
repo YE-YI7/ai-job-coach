@@ -14,6 +14,7 @@ import {
   getReviewSession,
 } from "@/lib/interview-review/db";
 import type { QuestionAnalysisResult } from "@/lib/interview-review/types";
+import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
 
@@ -193,6 +194,8 @@ async function handlePost(req: Request) {
     return NextResponse.json({ ok: true, tasks, count: tasks.length });
   } catch (err) {
     console.error("Create training tasks error:", err);
+    const recovery = tokenPayRecoveryResponse(err);
+    if (recovery) return recovery;
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : "服务器内部错误" },
       { status: 500 }

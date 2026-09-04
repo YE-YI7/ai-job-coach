@@ -2,21 +2,11 @@
  * POST /api/interview/answer
  * 提交答案并获得评价
  * 
- * 请求体：
- * {
- *   "session_id": "uuid",
- *   "question_id": "uuid",
- *   "answer": "用户回答内容"
- * }
- * 
- * 响应：
- * {
- *   "question_id": "uuid",
- *   "assessment": {...}
- * }
+ * - 低信息回答：保存原回答，返回 needs_more_input，不推进题号
+ * - 正常回答：调用 LLM 评估，返回 InterviewAssessment
+ * - LLM 失败：抛出错误，不静默降级
  */
 
-// 强制使用 Node.js runtime（禁止 Edge Runtime）
 export const runtime = "nodejs";
 export const preferredRegion = "iad1";
 
@@ -31,7 +21,9 @@ import {
   completeInterviewGenerationClaim,
   releaseInterviewGenerationClaim,
 } from "@/lib/interview-generation-claims";
+import { detectLowInfoAnswer, buildNeedsMoreInputAssessment } from "@/lib/interview/low-info-detector";
 import { v4 as uuidv4 } from "uuid";
+import { createHash } from "node:crypto";
 import type {
   AnswerQuestionRequest,
   AnswerQuestionResponse,
@@ -40,15 +32,12 @@ import type {
 
 export async function POST(request: Request) {
   try {
-    // 1. 鉴权：检查用户是否登录
+    // 1. 鉴权
     const auth = await getCurrentUserFromRequest();
     if (!auth) {
       return new Response(
         JSON.stringify({ ok: false, error: "未认证" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
     const userId = auth.id;
@@ -60,10 +49,7 @@ export async function POST(request: Request) {
     } catch {
       return new Response(
         JSON.stringify({ ok: false, error: "无效的 JSON 请求体" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -72,28 +58,19 @@ export async function POST(request: Request) {
     if (!session_id || typeof session_id !== "string") {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 session_id 字段" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
     if (!question_id || typeof question_id !== "string") {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 question_id 字段" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
     if (!answer || typeof answer !== "string" || answer.trim().length === 0) {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 answer 字段" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -102,37 +79,28 @@ export async function POST(request: Request) {
     if (!db) {
       return new Response(
         JSON.stringify({ ok: false, error: "数据库连接失败" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
     // 5. 验证会话是否存在且属于当前用户
     const { data: session, error: sessionError } = await db
       .from("interview_sessions")
-      .select("id, user_id, round_type, jd")
+      .select("id, user_id, round_type, jd, opportunity_id")
       .eq("id", session_id)
       .single();
 
     if (sessionError || !session) {
       return new Response(
         JSON.stringify({ ok: false, error: "面试会话不存在" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
     if (session.user_id !== userId) {
       return new Response(
         JSON.stringify({ ok: false, error: "无权访问此面试会话" }),
-        {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 403, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -147,39 +115,33 @@ export async function POST(request: Request) {
     if (questionError || !question) {
       return new Response(
         JSON.stringify({ ok: false, error: "题目不存在或不属于此会话" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }
+        { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // 7. 查询用户简历数据（用于评估时参考）
-    let resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
-    try {
-      if (opportunityId) {
-        const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
-          .select("id").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
-        if (opportunityError) throw opportunityError;
-        if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
+    if (session.opportunity_id && opportunityId && session.opportunity_id !== opportunityId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "岗位与当前面试会话不一致" }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const effectiveOpportunityId = session.opportunity_id || opportunityId;
+    if (effectiveOpportunityId) {
+      const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
+        .select("id").eq("id", effectiveOpportunityId).eq("user_id", userId).maybeSingle();
+      if (opportunityError) throw opportunityError;
+      if (!opportunity) {
+        return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
           status: 404, headers: { "Content-Type": "application/json" },
         });
       }
-      if (!resumeText) {
-        const resume = await getLatestResumeByUserId(userId);
-        if (resume?.parsed) resumeText = formatResumeForPrompt(resume.parsed);
-      }
-    } catch (err) {
-      console.warn("查询简历数据失败（非关键错误）:", err);
     }
 
-    const knowledge = await buildAgentKnowledgeContext({
-      task: "answer_assessment",
-      query: `${session.round_type} ${question.question_text} ${session.jd.slice(0, 180)}`,
-      limit: 5,
-    });
-
-    const claimKey = `answer:${session_id}:${question_id}`;
+    const answerFingerprint = createHash("sha256")
+      .update(answer.trim().replace(/\s+/g, " "))
+      .digest("hex")
+      .slice(0, 24);
+    const claimKey = `answer:${session_id}:${question_id}:${answerFingerprint}`;
     const claim = await acquireInterviewGenerationClaim({
       key: claimKey,
       userId,
@@ -199,8 +161,64 @@ export async function POST(request: Request) {
       });
     }
 
+    // 7. 低信息回答检测
+    const lowInfoResult = detectLowInfoAnswer(answer.trim());
+    if (lowInfoResult.isLowInfo) {
+      const assessment = buildNeedsMoreInputAssessment(lowInfoResult.reason || "unknown");
+
+      // 保存低信息回答（保存但不评分）
+      const answerId = uuidv4();
+      try {
+        const { error: insertError } = await db
+          .from("interview_answers")
+          .insert({
+            id: answerId,
+            session_id: session_id,
+            question_id: question_id,
+            answer: answer.trim(),
+            assessment: assessment,
+            created_at: new Date().toISOString(),
+          });
+        if (insertError) throw insertError;
+        await completeInterviewGenerationClaim(claimKey, userId, assessment);
+      } catch (insertErr) {
+        await releaseInterviewGenerationClaim(claimKey, userId).catch((releaseError) => {
+          console.error("Release low-info answer claim failed", releaseError);
+        });
+        throw insertErr;
+      }
+
+      // 返回 needs_more_input，不推进题号
+      const response: AnswerQuestionResponse = {
+        question_id: question_id,
+        assessment: assessment,
+      };
+
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // 8. 查询用户简历数据
+    let resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     try {
-      // 8. 评估答案（可能耗时 20-60 秒）
+      if (!resumeText) {
+        const resume = await getLatestResumeByUserId(userId);
+        if (resume?.parsed) resumeText = formatResumeForPrompt(resume.parsed);
+      }
+    } catch (err) {
+      console.warn("查询简历数据失败（非关键错误）:", err);
+    }
+
+    const knowledge = await buildAgentKnowledgeContext({
+      task: "answer_assessment",
+      query: `${session.round_type} ${question.question_text} ${session.jd.slice(0, 180)}`,
+      limit: 5,
+    });
+
+    try {
+      // 10. 评估答案（LLM 失败时抛出错误，不静默降级）
       const assessment = await runWithGenerationContext({
         userId,
         operation: "mock_interview_answer_assessment",
@@ -215,7 +233,7 @@ export async function POST(request: Request) {
         knowledgeContext: knowledge.contextText || undefined,
       }));
 
-      // 9. 保存答案和评估到数据库
+      // 11. 保存答案和评估到数据库
       const answerId = uuidv4();
       const { error: answerError } = await db
         .from("interview_answers")
@@ -231,7 +249,7 @@ export async function POST(request: Request) {
       if (answerError) throw new Error(`保存答案失败：${answerError.message}`);
       await completeInterviewGenerationClaim(claimKey, userId, assessment);
 
-      // 10. 返回响应
+      // 12. 返回响应
       const response: AnswerQuestionResponse = {
         question_id: question_id,
         assessment: assessment,

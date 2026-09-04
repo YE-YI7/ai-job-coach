@@ -18,6 +18,7 @@ import {
   Menu,
   MessageSquareText,
   Plus,
+  RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -30,11 +31,25 @@ import type {
   InterviewReviewReport,
   InterviewRoundtableAssessment,
   InterviewRoundtableSession,
+  InterviewRoundtableTurn,
   Opportunity,
   OpportunityAction,
   RequirementEvidence,
 } from "@/lib/opportunities/types";
 import { TodayCoach } from "./TodayCoach";
+import {
+  needsMoreInputHints,
+  normalizeInterviewAssessment,
+  normalizeRoundSummary,
+  resolveNextStep,
+  toOpportunityActions,
+} from "./interview-assessment-logic";
+import type {
+  InterviewAssessmentView,
+  InterviewRoundNextActionView,
+  InterviewRoundSummaryView,
+} from "./interview-assessment-logic";
+import { detectLowInfoAnswer } from "@/lib/interview/low-info-detector";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
 import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
 import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
@@ -649,24 +664,29 @@ export function CockpitApp({
     return record;
   };
 
-  const syncRoundtableSession = (session: InterviewRoundtableSession) => {
+  const syncRoundtableSession = (session: InterviewRoundtableSession, nextActions?: InterviewRoundNextActionView[]) => {
     if (!active) return;
     const opportunityId = active.id;
+    const summaryView = session.summary as unknown as InterviewRoundSummaryView | undefined;
+    // id 稳定（mock-<sessionId>-<index>），整轮同步会重复调用，这里按 id 去重。
+    const incomingActions = nextActions?.length ? toOpportunityActions(session.id, nextActions) : [];
     setOpportunities((current) => current.map((item) => {
       if (item.id !== opportunityId) return item;
       const previous = (item.mockInterviews || []).find((entry) => entry.id === session.id);
       const newActivity = !previous
         ? { id: `${item.id}-mock-start-${Date.now()}`, actor: "system" as const, title: `开始${session.round}模拟面试`, detail: `${session.turns.length} 道问题已与当前 JD、简历关联。`, timeLabel: "刚刚" }
         : previous.status !== "completed" && session.status === "completed"
-          ? { id: `${item.id}-mock-complete-${Date.now()}`, actor: "analysis" as const, title: `完成${session.round}模拟面试`, detail: session.summary ? `${session.summary.grade} · ${session.summary.suggestions[0] || "已生成训练建议"}` : "回答和逐题反馈已保存。", timeLabel: "刚刚" }
+          ? { id: `${item.id}-mock-complete-${Date.now()}`, actor: "analysis" as const, title: `完成${session.round}模拟面试`, detail: summaryView ? `${summaryView.grade} · ${summaryView.verdict || "已生成整轮总结"}` : "回答和逐题反馈已保存，整轮总结未生成。", timeLabel: "刚刚" }
           : null;
+      const existingIds = new Set(item.actions.map((action) => action.id));
       return {
         ...item,
         mockInterviews: [session, ...(item.mockInterviews || []).filter((entry) => entry.id !== session.id)],
+        actions: incomingActions.length ? [...incomingActions.filter((action) => !existingIds.has(action.id)), ...item.actions] : item.actions,
         activities: newActivity ? [newActivity, ...item.activities] : item.activities,
       };
     }));
-    if (dataMode === "live" && session.status === "completed") trackProductEvent("mock_interview_completed", { opportunity_id: opportunityId, round: session.round });
+    if (dataMode === "live" && session.status === "completed") trackProductEvent("mock_interview_completed", { opportunity_id: opportunityId, round: session.round, has_summary: Boolean(summaryView) });
   };
 
   const logout = async () => {
@@ -1157,21 +1177,48 @@ function ResumeTab({ opportunity, onUpdate, onEdit, onGenerate, onValidate, onFr
 
 const mockRoundOptions = ["业务面", "技术面", "项目深挖", "总监面", "HR面"];
 
-function normalizeRoundtableAssessment(value: unknown): InterviewRoundtableAssessment {
-  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  const dimensions = Array.isArray(raw.dimensions) ? raw.dimensions.slice(0, 6).map((item) => {
-    const dimension = item && typeof item === "object" ? item as Record<string, unknown> : {};
-    return {
-      name: String(dimension.name || "反馈"),
-      ...(typeof dimension.score === "number" ? { score: Math.max(0, Math.min(100, Math.round(dimension.score))) } : {}),
-      comment: String(dimension.comment || "").slice(0, 800),
-    };
-  }) : [];
-  return {
-    score: typeof raw.score === "number" ? Math.max(0, Math.min(100, Math.round(raw.score))) : 0,
-    summary: String(raw.summary || "已完成本题反馈。"),
-    dimensions,
-  };
+/**
+ * 圆桌会话的视图类型：逐题评估用 InterviewAssessmentView（带 status / evidence），
+ * 整轮总结用 InterviewRoundSummaryView。落库时再按 InterviewRoundtableSession 兼容形态同步，
+ * 因此这里统一在边界处做一次受控的类型转换。
+ */
+type RoundtableTurnView = Omit<InterviewRoundtableTurn, "assessment"> & { assessment?: InterviewAssessmentView };
+type RoundtableSessionView = Omit<InterviewRoundtableSession, "turns" | "summary"> & {
+  turns: RoundtableTurnView[];
+  summary?: InterviewRoundSummaryView;
+};
+
+const toSessionRecord = (session: RoundtableSessionView) => session as unknown as InterviewRoundtableSession;
+const toSessionView = (session: InterviewRoundtableSession) => session as unknown as RoundtableSessionView;
+
+/** demo 模式下的示例反馈：必须标注为示例，不得冒充真实模型输出。 */
+function buildDemoAssessment(answer: string): InterviewAssessmentView | null {
+  const lowInfo = detectLowInfoAnswer(answer);
+  if (lowInfo.isLowInfo) {
+    return normalizeInterviewAssessment({
+      status: "needs_more_input",
+      score: null,
+      summary: "示例模式：这段回答信息不足，先补充事实再评。",
+      evidence: [],
+      missingEvidence: ["回答中未提供具体事实或经历"],
+      dimensions: [],
+      rewritePlan: ["补一个具体事例：你做了什么、怎么判断的、结果是什么"],
+      followUp: "先告诉我最近一次你亲自做的决定是什么？",
+    }, "demo");
+  }
+  return normalizeInterviewAssessment({
+    status: "assessed",
+    score: 68,
+    summary: "示例反馈：回答方向正确，但个人决策和结果证据还不够具体。",
+    evidence: ["示例数据 · 仅用于演示界面，不是真实模型输出"],
+    missingEvidence: ["个人动作、指标口径和最终结果"],
+    dimensions: [
+      { name: "用人经理", score: 70, comment: "示例：能听懂你做了什么，但暂时无法判断影响有多大。" },
+      { name: "证据审校", score: 62, comment: "示例：个人动作、指标口径和最终结果需要补齐。" },
+    ],
+    rewritePlan: ["先给结论", "说明你负责的动作", "补充验证方法", "给出真实结果或明确待核实"],
+    followUp: "如果只保留一个结果指标，你会选哪个？",
+  }, "demo");
 }
 
 function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onSyncRoundtable, dataMode }: {
@@ -1181,7 +1228,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   onSupplement: (input: OpportunitySupplement) => Promise<void>;
   supplementing: boolean;
   onAnalyze: (question: string, answer: string) => Promise<InterviewPracticeFeedback>;
-  onSyncRoundtable: (session: InterviewRoundtableSession) => void;
+  onSyncRoundtable: (session: InterviewRoundtableSession, nextActions?: InterviewRoundNextActionView[]) => void;
   dataMode: "demo" | "live";
 }) {
   const quotaLabel = useQuotaLabel("interview");
@@ -1197,14 +1244,20 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   const [summarizingRoundtable, setSummarizingRoundtable] = useState(false);
   const [roundtableAnswer, setRoundtableAnswer] = useState("");
   const [roundtableError, setRoundtableError] = useState("");
-  const [roundtable, setRoundtable] = useState<InterviewRoundtableSession | null>(opportunity.mockInterviews?.find((item) => item.status === "running") || null);
+  const [roundtable, setRoundtable] = useState<RoundtableSessionView | null>(() => {
+    const running = opportunity.mockInterviews?.find((item) => item.status === "running") || null;
+    return running ? toSessionView(running) : null;
+  });
+  /** 当前题目的反馈：needs_more_input 时停在本题，assessed 时才允许推进。 */
+  const [lastFeedback, setLastFeedback] = useState<InterviewAssessmentView | null>(null);
   const currentQuestion = opportunity.interviewFocus[0];
   const hasJd = Boolean(opportunity.jdText?.trim());
 
   useEffect(() => {
     const running = opportunity.mockInterviews?.find((item) => item.status === "running") || null;
-    setRoundtable(running);
+    setRoundtable(running ? toSessionView(running) : null);
     setRoundtableOpen(Boolean(running));
+    setLastFeedback(null);
     setPracticeFeedback(opportunity.interviewPractices?.[0] || null);
     setAnswer("");
     setPracticeError("");
@@ -1220,7 +1273,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     setStartingRoundtable(true);
     setRoundtableError("");
     try {
-      let session: InterviewRoundtableSession;
+      let session: RoundtableSessionView;
       if (dataMode === "demo") {
         const sourceQuestions = opportunity.interviewFocus.length ? opportunity.interviewFocus : [{ id: "demo-question", question: "请介绍一个最能证明你适合这个岗位的项目。", rationale: "先验证核心岗位证据。", readiness: "practice" as const }];
         const turns = Array.from({ length: 3 }, (_, index) => {
@@ -1232,7 +1285,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         const response = await fetch("/api/interview/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jd: opportunity.jdText, roundType: round, questionCount: 3, opportunityId: opportunity.id, resumeText: opportunity.resumeText || "", requestId: crypto.randomUUID() }),
+          body: JSON.stringify({ jd: opportunity.jdText || "", roundType: round, questionCount: 3, opportunityId: opportunity.id, resumeText: opportunity.resumeText || "", requestId: crypto.randomUUID() }),
         });
         const result = await response.json();
         if (!response.ok || !result.session_id || !Array.isArray(result.questions)) throw apiResponseError(response, result, "圆桌启动失败");
@@ -1248,11 +1301,69 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       }
       setRoundtable(session);
       setRoundtableOpen(true);
-      onSyncRoundtable(session);
+      setLastFeedback(null);
+      onSyncRoundtable(toSessionRecord(session));
     } catch (error) {
       setRoundtableError(error instanceof Error ? error.message : "圆桌启动失败");
     } finally {
       setStartingRoundtable(false);
+    }
+  };
+
+  /** 整轮总结：失败就是失败，不用假报告补齐。 */
+  const summarizeRound = async (session: RoundtableSessionView) => {
+    setSummarizingRoundtable(true);
+    setRoundtableError("");
+    try {
+      if (dataMode === "demo") {
+        const scored = session.turns.filter((turn) => turn.assessment?.status === "assessed");
+        if (scored.length === 0) throw new Error("示例模式：本轮没有可评分的回答，整轮总结未生成。");
+        const completed: RoundtableSessionView = { ...session, status: "completed", summary: {
+          overallScore: 68,
+          grade: "B · 示例",
+          verdict: "示例模式下的整轮总结，不是真实模型输出。",
+          strengths: ["示例：回答方向与问题相关"],
+          weaknesses: ["示例：个人动作与结果证据不足"],
+          dimensions: [
+            { name: "专业深度", score: 65, comment: "示例：能讲清做法，但没讲清机制与权衡。" },
+            { name: "逻辑表达", score: 72, comment: "示例：结论先行，排序环节跳步。" },
+            { name: "应变能力", score: 60, comment: "示例：被追问后重复同一答案。" },
+            { name: "项目理解", score: 70, comment: "示例：责任边界基本清楚，数字口径不清。" },
+            { name: "沟通技巧", score: 74, comment: "示例：信息密度尚可，偶有冗余。" },
+            { name: "自我认知", score: 66, comment: "示例：有认识但偏空泛。" },
+            { name: "文化匹配", score: 64, comment: "示例：对岗位理解停留在公司层面。" },
+          ],
+          questionBreakdown: scored.map((turn, index) => ({
+            questionId: turn.questionId,
+            score: turn.assessment?.score ?? null,
+            decisiveFinding: `示例：第 ${index + 1} 题缺少可核验的结果证据。`,
+          })),
+          nextActions: [
+            { title: "补齐指标口径", reason: "示例：多题出现数字但没说基线与时间窗", doneWhen: "示例：能说出分子分母、时间窗与归因方式", priority: "urgent" },
+            { title: "重答最弱的一题", reason: "示例：该题没有可引用的结果证据", doneWhen: "示例：能讲清个人决策与结果", priority: "high" },
+          ],
+        } };
+        setRoundtable(completed);
+        onSyncRoundtable(toSessionRecord(completed), completed.summary?.nextActions);
+        return;
+      }
+      // 走 /api/interview/complete：它才负责落库（interview_feedback snapshot + opportunity actions），
+      // GET /api/interview/summary 只是临时生成，不写快照、不写入下一步。
+      const response = await fetch("/api/interview/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.id, opportunityId: opportunity.id }),
+      });
+      const result = await response.json();
+      const summary = normalizeRoundSummary(result?.payload?.summary ?? result?.summary);
+      if (!response.ok || !summary) throw apiResponseError(response, result, "整轮总结生成失败");
+      const completed: RoundtableSessionView = { ...session, status: "completed", summary };
+      setRoundtable(completed);
+      onSyncRoundtable(toSessionRecord(completed), summary.nextActions);
+    } catch (error) {
+      setRoundtableError(error instanceof Error ? error.message : "整轮总结生成失败");
+    } finally {
+      setSummarizingRoundtable(false);
     }
   };
 
@@ -1263,18 +1374,10 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     setSubmittingRoundtable(true);
     setRoundtableError("");
     try {
-      let assessment: InterviewRoundtableAssessment;
+      let assessment: InterviewAssessmentView | null;
       if (dataMode === "demo") {
         await new Promise((resolve) => window.setTimeout(resolve, 450));
-        assessment = {
-          score: 68,
-          summary: "回答方向正确，但个人决策和结果证据还不够具体。",
-          dimensions: [
-            { name: "用人经理", score: 70, comment: "能听懂你做了什么，但暂时无法判断影响有多大。" },
-            { name: "证据审校", score: 62, comment: "个人动作、指标口径和最终结果需要补齐。" },
-            { name: "追问建议", comment: "如果只保留一个结果指标，你会选哪个？" },
-          ],
-        };
+        assessment = buildDemoAssessment(roundtableAnswer.trim());
       } else {
         const response = await fetch("/api/interview/answer", {
           method: "POST",
@@ -1283,47 +1386,44 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         });
         const result = await response.json();
         if (!response.ok || !result.assessment) throw apiResponseError(response, result, "本题分析失败");
-        assessment = normalizeRoundtableAssessment(result.assessment);
+        assessment = normalizeInterviewAssessment(result.assessment);
       }
-      const isLast = roundtable.currentIndex >= roundtable.turns.length - 1;
-      const updated: InterviewRoundtableSession = {
+      if (!assessment) throw new Error("本题反馈不可用，请重试");
+
+      // 只保存回答和反馈，题号推进由 goNextQuestion 决定：needs_more_input 停在本题。
+      const updated: RoundtableSessionView = {
         ...roundtable,
-        status: isLast ? "completed" : "running",
-        currentIndex: isLast ? roundtable.currentIndex : roundtable.currentIndex + 1,
         turns: roundtable.turns.map((turn, index) => index === roundtable.currentIndex ? { ...turn, answer: roundtableAnswer.trim(), assessment } : turn),
       };
       setRoundtable(updated);
-      setRoundtableAnswer("");
-      onSyncRoundtable(updated);
-      if (isLast && dataMode === "live") {
-        setSummarizingRoundtable(true);
-        const response = await fetch(`/api/interview/summary?session_id=${encodeURIComponent(updated.id)}`);
-        const result = await response.json();
-        if (response.ok && typeof result.overallScore === "number") {
-          const completed: InterviewRoundtableSession = { ...updated, summary: {
-            overallScore: result.overallScore,
-            grade: String(result.grade || "已完成"),
-            strengths: Array.isArray(result.strengths) ? result.strengths.map(String).slice(0, 4) : [],
-            weaknesses: Array.isArray(result.weaknesses) ? result.weaknesses.map(String).slice(0, 4) : [],
-            suggestions: Array.isArray(result.suggestions) ? result.suggestions.map(String).slice(0, 4) : [],
-          } };
-          setRoundtable(completed);
-          onSyncRoundtable(completed);
-        } else {
-          setRoundtableError(apiResponseError(response, result, "逐题反馈已保存，整轮总结暂时失败").message);
-        }
-      }
+      setLastFeedback(assessment);
+      if (assessment.status === "assessed") setRoundtableAnswer("");
+      onSyncRoundtable(toSessionRecord(updated));
     } catch (error) {
+      setLastFeedback(null);
       setRoundtableError(error instanceof Error ? error.message : "本题分析失败");
     } finally {
       setSubmittingRoundtable(false);
-      setSummarizingRoundtable(false);
     }
+  };
+
+  const goNextQuestion = async () => {
+    if (!roundtable || lastFeedback?.status !== "assessed") return;
+    const step = resolveNextStep(roundtable.currentIndex, roundtable.turns.length, "assessed");
+    const advanced: RoundtableSessionView = { ...roundtable, currentIndex: step.currentIndex, status: step.completed ? "completed" : "running" };
+    setRoundtable(advanced);
+    setLastFeedback(null);
+    onSyncRoundtable(toSessionRecord(advanced));
+    if (step.completed) await summarizeRound(advanced);
   };
 
   if (roundtableOpen) {
     const turn = roundtable?.turns[roundtable.currentIndex];
-    const answeredTurn = roundtable?.turns.find((item, index) => index === Math.max(0, (roundtable?.currentIndex || 0) - (roundtable?.status === "completed" ? 0 : 1)) && item.assessment);
+    const isAssessed = lastFeedback?.status === "assessed";
+    const isBlocked = lastFeedback?.status === "needs_more_input";
+    const hints = lastFeedback ? needsMoreInputHints(lastFeedback) : [];
+    const isLastQuestion = Boolean(roundtable && roundtable.currentIndex >= roundtable.turns.length - 1);
+    const answeredCount = roundtable?.turns.filter((item) => item.answer).length ?? 0;
     return (
       <section className={styles.roundtableWorkspace}>
         <header className={styles.roundtableHeader}>
@@ -1336,29 +1436,56 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           <p>益职会直接使用当前 JD 和基础简历，不再让你重复粘贴。</p>
           <div className={styles.roundPicker} role="group" aria-label="选择模拟面试类型">{mockRoundOptions.map((item) => <button key={item} type="button" aria-pressed={round === item} onClick={() => setRound(item)}>{item}</button>)}</div>
           <div className={styles.roundtableSourceLine}><ShieldCheck size={15} /><span>当前 JD</span><span>{opportunity.resumeText ? "基础简历已关联" : "未关联简历，将只按 JD 提问"}</span></div>
-          <button className={styles.primaryButton} disabled={startingRoundtable} onClick={startRoundtable}>{startingRoundtable ? "正在准备问题…" : `开始 3 题模拟 · ${quotaLabel}`}<ArrowRight size={15} /></button>
+          <button className={styles.primaryButton} disabled={!hasJd || startingRoundtable} onClick={startRoundtable}>{startingRoundtable ? "正在准备问题…" : `开始 3 题模拟 · ${quotaLabel}`}<ArrowRight size={15} /></button>
+          {!hasJd && <p className={styles.inlineError}>当前岗位还没有 JD，圆桌只能按真实 JD 出题，先回岗位档案补上再开始。</p>}
           {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
         </div> : roundtable.status === "completed" ? <div className={styles.roundtableComplete}>
-          <CircleCheck size={26} />
-          <h3>{summarizingRoundtable ? "正在整理整轮反馈…" : "这一轮已经保存"}</h3>
-          {roundtable.summary ? <><strong>{roundtable.summary.grade} · {roundtable.summary.overallScore}</strong><p>{roundtable.summary.suggestions[0] || "回到岗位档案继续练薄弱题。"}</p></> : <p>逐题回答和反馈已进入这个岗位的面试记录。</p>}
-          <div><button className={styles.secondaryButton} onClick={() => setRoundtableOpen(false)}>回到面试准备</button><button className={styles.primaryButton} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); }}>再练一轮</button></div>
-          {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
+          {!roundtable.summary ? <>
+            <CircleAlert size={26} />
+            <h3>{summarizingRoundtable ? "正在整理整轮反馈…" : "整轮总结还没生成"}</h3>
+            <p>{answeredCount} 条回答和逐题反馈已保存。整轮总结失败时不会用样例数据补齐，可以重试，也可以先回岗位档案。</p>
+            <div>
+              <button className={styles.secondaryButton} onClick={() => setRoundtableOpen(false)}>回到面试准备</button>
+              <button className={styles.primaryButton} disabled={summarizingRoundtable} onClick={() => void summarizeRound(roundtable)}><RotateCcw size={15} />重新生成总结</button>
+            </div>
+            {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
+          </> : <>
+            <RoundSummary summary={roundtable.summary} turns={roundtable.turns} />
+            <div>
+              <button className={styles.primaryButton} onClick={() => setRoundtableOpen(false)}>回到作战板<ArrowRight size={15} /></button>
+              <button className={styles.secondaryButton} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); }}>再练一轮</button>
+            </div>
+          </>}
         </div> : <>
           <div className={styles.roundtableRoles} aria-label="圆桌分工"><span><b>面试官</b>按岗位追问</span><span><b>用人经理</b>判断是否可录用</span><span><b>证据审校</b>检查事实缺口</span></div>
-          {answeredTurn?.assessment && <article className={styles.roundtableFeedback}>
-            <header><span>上一题反馈</span><strong>{answeredTurn.assessment.score}</strong></header>
-            <p>{answeredTurn.assessment.summary}</p>
-            <div>{answeredTurn.assessment.dimensions.slice(0, 3).map((dimension) => <section key={dimension.name}><b>{dimension.name}</b><span>{dimension.comment}</span></section>)}</div>
-          </article>}
           {turn && <article className={styles.roundtableQuestion}>
             <span className={styles.eyebrow}>面试官 · 第 {roundtable.currentIndex + 1} 题</span>
             <h3>{turn.question}</h3>
             <p>{turn.rationale}</p>
-            <textarea rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder="像真实面试一样回答。数字不确定可以明确说待核实。" />
-            <footer><span>提交后会保存回答，并由圆桌给出逐题反馈。</span><button className={styles.primaryButton} disabled={!roundtableAnswer.trim() || submittingRoundtable} onClick={submitRoundtableAnswer}>{submittingRoundtable ? "圆桌分析中…" : "提交回答"}<ArrowRight size={15} /></button></footer>
+            {!isAssessed && <textarea rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder={isBlocked ? "在上面这条补充提示的基础上，把回答补完整。" : "像真实面试一样回答。数字不确定可以明确说待核实。"} />}
           </article>}
-          {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
+          {isBlocked && lastFeedback && <section className={styles.assessmentBlocked}>
+            <header><CircleAlert size={16} /><strong>信息不足，暂不评分</strong>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}</header>
+            <p>{lastFeedback.summary}</p>
+            {hints.length > 0 && <div className={styles.assessmentBlock}><b>还缺什么</b><ul>{hints.map((hint) => <li key={hint}>{hint}</li>)}</ul></div>}
+            {lastFeedback.followUp && <footer><b>先回答这一个</b><p>{lastFeedback.followUp}</p></footer>}
+          </section>}
+          {isAssessed && lastFeedback && <section className={styles.assessmentCard}>
+            <header><span>本题反馈</span><strong>{lastFeedback.score}</strong>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}</header>
+            <p>{lastFeedback.summary}</p>
+            {lastFeedback.evidence.length > 0 && <div className={styles.assessmentBlock}><b>回答里的证据</b><ul>{lastFeedback.evidence.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+            {lastFeedback.missingEvidence.length > 0 && <div className={styles.assessmentBlock}><b>缺口与冲突</b><ul>{lastFeedback.missingEvidence.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+            {lastFeedback.rewritePlan.length > 0 && <div className={styles.assessmentBlock}><b>重答提纲</b><ol>{lastFeedback.rewritePlan.map((item) => <li key={item}>{item}</li>)}</ol></div>}
+            {lastFeedback.dimensions.length > 0 && <div className={styles.assessmentDimensions}>{lastFeedback.dimensions.map((dimension) => <article key={dimension.name}><b>{dimension.name}{typeof dimension.score === "number" ? ` · ${dimension.score}` : ""}</b><span>{dimension.comment}</span></article>)}</div>}
+            {lastFeedback.followUp && <footer><b>面试官会继续问</b><p>{lastFeedback.followUp}</p></footer>}
+          </section>}
+          <div className={styles.roundtableActions}>
+            <span>{isAssessed ? "看完整理后进入下一题。" : isBlocked ? "补充后重新提交，本题不会跳过。" : "提交后会保存回答，信息不足则不评分、不推进。"}</span>
+            {isAssessed
+              ? <button className={styles.primaryButton} onClick={() => void goNextQuestion()}>{isLastQuestion ? "完成本轮并生成总结" : "下一题"}<ArrowRight size={15} /></button>
+              : <button className={styles.primaryButton} disabled={!roundtableAnswer.trim() || submittingRoundtable} onClick={() => void submitRoundtableAnswer()}>{submittingRoundtable ? "圆桌分析中…" : isBlocked ? "重新提交补充回答" : "提交回答"}{!isBlocked && <ArrowRight size={15} />}</button>}
+          </div>
+          {roundtableError && <div className={styles.retryBlock}><p className={styles.inlineError}>{roundtableError}</p><button className={styles.secondaryButton} disabled={submittingRoundtable} onClick={() => void submitRoundtableAnswer()}><RotateCcw size={15} />重试本题</button></div>}
         </>}
       </section>
     );
@@ -1366,7 +1493,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>{hasJd ? "问题来自当前岗位的证据风险；回答、反馈和整轮记录都留在这里。" : "先选定目标岗位，圆桌才会按对应 JD 追问；当前题目仅来自基础简历。"}</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />快速练一题（免费）</button>}{hasJd && <button className={styles.primaryButton} onClick={() => { setRoundtable(null); setRoundtableOpen(true); }}><Sparkles size={16} />模拟面试圆桌 · {quotaLabel}</button>}</div></div>
+      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>{hasJd ? "问题来自当前岗位的证据风险；回答、反馈和整轮记录都留在这里。" : "先选定目标岗位，圆桌才会按对应 JD 追问；当前题目仅来自基础简历。"}</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />快速练一题（免费）</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `模拟面试圆桌 · ${quotaLabel}` : "模拟面试圆桌 · 需要 JD"}</button></div>
+      {!hasJd && <p className={styles.ctaHint}>这个岗位还没有 JD。圆桌的每一题都必须能追溯到当前 JD，缺 JD 时不会用通用题顶上。</p>}
+      </div>
       {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction
         kind="job"
         title="先补一个目标岗位"
@@ -1380,8 +1509,56 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>
       )) : <EmptySection label="进入面试阶段后，这里会根据当前证据生成追问链。" />}</div>
-      {(opportunity.mockInterviews || []).length > 0 && <section className={styles.mockHistory}><header><h3>模拟记录</h3><span>{opportunity.mockInterviews?.length} 轮</span></header>{opportunity.mockInterviews?.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => { setRoundtable(session); setRoundtableOpen(true); }}><span><strong>{session.round}</strong><small>{new Date(session.createdAt).toLocaleDateString("zh-CN")} · {session.turns.filter((turn) => turn.answer).length}/{session.turns.length} 题</small></span><em>{session.status === "completed" ? session.summary?.grade || "已完成" : "继续练习"}</em></button>)}</section>}
+      {(opportunity.mockInterviews || []).length > 0 && <section className={styles.mockHistory}><header><h3>模拟记录</h3><span>{opportunity.mockInterviews?.length} 轮</span></header>{opportunity.mockInterviews?.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => { setRoundtable(toSessionView(session)); setLastFeedback(null); setRoundtableOpen(true); }}><span><strong>{session.round}</strong><small>{new Date(session.createdAt).toLocaleDateString("zh-CN")} · {session.turns.filter((turn) => turn.answer).length}/{session.turns.length} 题</small></span><em>{session.status === "completed" ? "已完成" : "继续练习"}</em></button>)}</section>}
     </section>
+  );
+}
+
+/** 整轮总结：七维 + 逐题决定性问题 + 最多 3 个下一步。缺什么就不展示什么，不补假数据。 */
+function RoundSummary({ summary, turns }: { summary: InterviewRoundSummaryView; turns: RoundtableTurnView[] }) {
+  const questionText = (questionId: string) => turns.find((turn) => turn.questionId === questionId)?.question || "";
+  return (
+    <article className={styles.roundSummary}>
+      <header>
+        <div><span className={styles.eyebrow}>整轮总结</span><strong>{summary.grade} · {summary.overallScore}</strong></div>
+        {summary.verdict && <p>{summary.verdict}</p>}
+      </header>
+      {summary.dimensions.length > 0 && <section className={styles.summarySection}>
+        <h3>七维评价</h3>
+        <div className={styles.dimensionGrid}>{summary.dimensions.map((dimension) => (
+          <article key={dimension.name} className={styles.dimensionItem}>
+            <b>{dimension.name}</b>
+            <span className={styles.dimensionScore}>{dimension.score}</span>
+            <p>{dimension.comment}</p>
+          </article>
+        ))}</div>
+      </section>}
+      {summary.questionBreakdown.length > 0 && <section className={styles.summarySection}>
+        <h3>逐题决定性问题</h3>
+        <ol className={styles.breakdownList}>{summary.questionBreakdown.map((entry, index) => (
+          <li key={`${entry.questionId || index}-${index}`} className={styles.breakdownItem}>
+            <span>{entry.score === null ? "未评分" : entry.score}</span>
+            <div>{questionText(entry.questionId) && <b>{questionText(entry.questionId)}</b>}<p>{entry.decisiveFinding}</p></div>
+          </li>
+        ))}</ol>
+      </section>}
+      {(summary.strengths.length > 0 || summary.weaknesses.length > 0) && <section className={styles.summarySection}>
+        <div className={styles.summaryColumns}>
+          {summary.strengths.length > 0 && <div><h3>保留</h3><ul>{summary.strengths.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          {summary.weaknesses.length > 0 && <div><h3>先改</h3><ul>{summary.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+        </div>
+      </section>}
+      {summary.nextActions.length > 0 && <section className={styles.summarySection}>
+        <h3>下一步（已放进作战板 · 最多 3 个）</h3>
+        <div className={styles.nextActionList}>{summary.nextActions.map((action, index) => (
+          <article key={`${action.title}-${index}`} className={styles.nextActionItem}>
+            <div><b>{action.title}</b><span className={styles.priorityChip} data-priority={action.priority}>{action.priority === "urgent" ? "紧急" : action.priority === "high" ? "重要" : "常规"}</span></div>
+            <p>{action.reason}</p>
+            <footer>完成标准：{action.doneWhen || "——"}</footer>
+          </article>
+        ))}</div>
+      </section>}
+    </article>
   );
 }
 

@@ -2,17 +2,7 @@
  * GET /api/interview/summary?session_id=xxx
  * 查看整轮面试总结
  * 
- * 查询参数：
- * - session_id: 面试会话ID
- * 
- * 响应：
- * {
- *   "session_id": "uuid",
- *   "overallScore": 75,
- *   "strengths": ["优势1", "优势2"],
- *   "weaknesses": ["薄弱点1", "薄弱点2"],
- *   "suggestions": ["建议1", "建议2"]
- * }
+ * 返回 InterviewSummaryResponse 格式，包含 questionBreakdown 和 nextActions
  */
 
 export const runtime = "nodejs";
@@ -28,7 +18,7 @@ import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export async function GET(request: Request) {
   try {
-    // 1. 鉴权：检查用户是否登录
+    // 1. 鉴权
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json(
@@ -57,7 +47,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // 4. 验证会话是否存在且属于当前用户，并获取 JD 和 round_type
+    // 4. 验证会话是否存在且属于当前用户
     const { data: session, error: sessionError } = await db
       .from("interview_sessions")
       .select("id, user_id, jd, round_type")
@@ -78,11 +68,19 @@ export async function GET(request: Request) {
       );
     }
 
-    // 5. 获取所有答案和评估
+    // 5. 获取所有题目
+    const { data: questions } = await db
+      .from("interview_questions")
+      .select("id, question_text")
+      .eq("session_id", session_id)
+      .order("created_at", { ascending: true });
+
+    // 6. 获取所有答案和评估
     const { data: answers, error: answersError } = await db
       .from("interview_answers")
-      .select("assessment")
-      .eq("session_id", session_id);
+      .select("question_id, assessment")
+      .eq("session_id", session_id)
+      .order("created_at", { ascending: true });
 
     if (answersError) {
       console.error("获取答案失败:", answersError);
@@ -92,34 +90,34 @@ export async function GET(request: Request) {
       );
     }
 
-    // 6. 验证 assessments 不为空
-    if (!answers || answers.length === 0 || !answers.some((a: any) => a.assessment)) {
+    // 6. 过滤掉低信息回答（needs_more_input）
+    if (!answers || answers.length === 0) {
       return NextResponse.json(
         { ok: false, error: "该面试会话还没有答案，无法生成总结" },
         { status: 400 }
       );
     }
 
-    // 7. 提取所有 assessments
     const assessments = answers
-      .map((a: any) => a.assessment)
-      .filter((a: any) => a != null); // 过滤掉 null 或 undefined
+      .map((a: any) => ({ ...a.assessment, questionId: a.question_id }))
+      .filter((a: any) => a != null && a.status !== "needs_more_input");
 
     if (assessments.length === 0) {
       return NextResponse.json(
-        { ok: false, error: "该面试会话的答案没有评估结果，无法生成总结" },
+        { ok: false, error: "所有回答均为低信息回答，缺少可评分的答题数据，无法生成总结" },
         { status: 400 }
       );
     }
 
-    // 8. 调用 LLM 生成总结
+    // 7. 调用 LLM 生成总结
     const summary = await summarizeInterview({
       jd: session.jd,
       roundType: session.round_type as any,
       assessments: assessments,
+      questions: questions || undefined,
     });
 
-    // 9. 返回响应
+    // 8. 返回响应
     const response: InterviewSummaryResponse = {
       session_id: session_id,
       overallScore: summary.overallScore,
@@ -129,6 +127,8 @@ export async function GET(request: Request) {
       weaknesses: summary.weaknesses,
       suggestions: summary.suggestions,
       dimensions: summary.dimensions,
+      questionBreakdown: summary.questionBreakdown,
+      nextActions: summary.nextActions,
     };
 
     return NextResponse.json(response);

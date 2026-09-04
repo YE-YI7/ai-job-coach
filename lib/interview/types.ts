@@ -34,7 +34,7 @@ export interface InterviewQuestion {
   created_at: string; // ISO timestamp
 }
 
-// ========== 评估结果 ==========
+// ========== 评估结果（旧格式，保留兼容） ==========
 export interface Assessment {
   accuracy: number; // 准确性 0-100
   grammar: number; // 语法 0-100
@@ -42,6 +42,51 @@ export interface Assessment {
   confidence: number; // 自信度 0-100
   tips: string; // 改进建议
   exemplarAnswer?: string; // 示范回答（可选）
+}
+
+// ========== 单题评价（工作包 A 合同） ==========
+export interface InterviewAssessmentDimension {
+  name: string;
+  score?: number; // 重答建议和追问建议没有 score
+  comment: string;
+}
+
+export type InterviewAssessmentStatus = "assessed" | "needs_more_input";
+
+export interface InterviewAssessment {
+  status: InterviewAssessmentStatus;
+  score: number | null; // needs_more_input 时为 null
+  summary: string;
+  evidence: string[]; // 至少 1 条来自回答的证据
+  missingEvidence: string[]; // 缺失或冲突
+  dimensions: InterviewAssessmentDimension[];
+  rewritePlan: string[];
+  followUp: string;
+}
+
+// ========== 整轮总结（工作包 A 合同） ==========
+export interface InterviewRoundSummaryQuestion {
+  questionId: string;
+  score: number;
+  decisiveFinding: string;
+}
+
+export interface InterviewRoundNextAction {
+  title: string;
+  reason: string;
+  doneWhen: string;
+  priority: "urgent" | "high" | "normal";
+}
+
+export interface InterviewRoundSummary {
+  overallScore: number;
+  grade: string;
+  verdict: string;
+  strengths: string[];
+  weaknesses: string[];
+  dimensions: Array<{ name: string; score: number; comment: string }>;
+  questionBreakdown: InterviewRoundSummaryQuestion[];
+  nextActions: InterviewRoundNextAction[];
 }
 
 // ========== 面试答案 ==========
@@ -74,7 +119,7 @@ export interface GenerateInputs {
 
 // POST /api/interview/start 请求
 export interface StartInterviewRequest {
-  jd: string;
+  jd?: string;
   roundType: RoundType;
   questionCount: number;
   opportunityId?: string;
@@ -101,7 +146,7 @@ export interface AnswerQuestionRequest {
 // POST /api/interview/answer 响应
 export interface AnswerQuestionResponse {
   question_id: string;
-  assessment: Assessment;
+  assessment: InterviewAssessment;
 }
 
 // GET /api/interview/summary 响应
@@ -114,8 +159,9 @@ export interface InterviewSummaryResponse {
   weaknesses: string[];
   suggestions: string[];
   dimensions: { name: string; score: number; comment: string }[];
+  questionBreakdown: InterviewRoundSummaryQuestion[];
+  nextActions: InterviewRoundNextAction[];
 }
-
 
 
 

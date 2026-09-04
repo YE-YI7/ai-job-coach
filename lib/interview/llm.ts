@@ -1,6 +1,7 @@
 /**
  * 模拟面试模块 - LLM 调用封装
- * 支持真实 LLM 调用和 stub 模式自动降级
+ * 生产环境：LLM 失败时抛出错误，不静默降级到 stub
+ * stub 模式仅在 LLM_STUB=1 时启用（测试或显式 demo）
  */
 
 import { callLLM } from "@/lib/llm";
@@ -9,6 +10,8 @@ import type {
   GenerateInputs,
   InterviewQuestion,
   Assessment,
+  InterviewAssessment,
+  InterviewRoundSummary,
   RoundType,
   Tips,
 } from "./types";
@@ -20,7 +23,7 @@ import type {
  */
 export function formatResumeForPrompt(parsed: any): string {
   if (!parsed) return "";
-  
+
   const parts: string[] = [];
 
   // 个人信息 / 姓名
@@ -315,7 +318,7 @@ function generateStubQuestions(
 
 /**
  * 生成面试题目
- * 
+ *
  * @param jd 职位描述
  * @param roundType 面试轮次类型
  * @param count 题目数量
@@ -333,15 +336,14 @@ export async function generateInterviewQuestions(
 ): Promise<InterviewQuestion[]> {
   // 检查是否使用 stub 模式（显式启用 stub）
   const useStub = process.env.LLM_STUB === "1";
-  
+
   if (useStub) {
     console.warn("使用 stub 模式生成面试题（LLM_STUB=1）");
     return generateStubQuestions(roundType, count, sessionId);
   }
 
-  try {
-    // 构建 prompt
-    const systemPrompt = `你是一名专业的互联网大厂面试官，你了解所有岗位的用人标准。请基于以下信息生成个性化面试题。
+  // 构建 prompt
+  const systemPrompt = `你是一名专业的互联网大厂面试官，你了解所有岗位的用人标准。请基于以下信息生成个性化面试题。
 
 任务：
 1. 生成 ${count} 个面试问题
@@ -355,11 +357,11 @@ export async function generateInterviewQuestions(
 - tips 必须包含：intent、keyPoints、framework、pitfalls、proTips
 - 禁止输出任何其他内容，只输出 JSON`;
 
-    const candidateRecord = resumeText
-      ? resumeText
-      : "暂无（用户未上传简历）";
+  const candidateRecord = resumeText
+    ? resumeText
+    : "暂无（用户未上传简历）";
 
-    const userPrompt = `【岗位 JD】
+  const userPrompt = `【岗位 JD】
 ${jd}
 
 【面试轮次】
@@ -389,129 +391,110 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
 
 注意：只输出 JSON，不要有任何其他文字。`;
 
-    // 调用 LLM（使用与 chat 相同的模型配置）
-    // 使用较长的超时时间，因为生成多个面试题需要较长时间
-    const response = await callLLM(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      {
-        model: process.env.LLM_MODEL_CHAT, // 使用与 chat 相同的模型
-        temperature: 0.7,
-        maxTokens: 2000,
-        timeoutMs: 60000, // 60 秒超时，给 LLM 足够时间生成多个题目
-        maxRetries: 2,
-      }
-    );
-
-    // 解析 JSON 响应
-    let cleaned = response.trim();
-    
-    // 移除可能的 markdown 代码块标记
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
+  // 调用 LLM（使用与 chat 相同的模型配置）
+  // 使用较长的超时时间，因为生成多个面试题需要较长时间
+  const response = await callLLM(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    {
+      model: process.env.LLM_MODEL_CHAT, // 使用与 chat 相同的模型
+      temperature: 0.7,
+      maxTokens: 2000,
+      timeoutMs: 60000, // 60 秒超时，给 LLM 足够时间生成多个题目
+      maxRetries: 2,
     }
-    
-    cleaned = cleaned.trim();
+  );
 
-    // 尝试从 LLM 文本中提取 JSON（优先匹配数组，如果没有则匹配对象）
-    let extracted = cleaned.match(/\[[\s\S]*\]/);
-    if (!extracted) {
-      // 如果没有找到数组，尝试找对象
-      extracted = cleaned.match(/\{[\s\S]*\}/);
-    }
+  // 解析 JSON 响应
+  let cleaned = response.trim();
 
-    if (!extracted) {
-      throw new Error("无法从 LLM 响应中提取 JSON");
-    }
-
-    let jsonText = extracted[0];
-
-    // --- 清洗非法字符：控制字符（0x00-0x1F except \t \n \r）
-    jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-
-    // --- 去除多余的逗号，比如 ["a", "b", ] 或 { "key": "value", }
-    jsonText = jsonText.replace(/,\s*}/g, "}");
-    jsonText = jsonText.replace(/,\s*]/g, "]");
-
-    // --- finally parse
-    let rawData;
-    try {
-      rawData = JSON.parse(jsonText);
-    } catch (e) {
-      console.error("JSON 解析失败：", jsonText);
-      throw new Error("LLM 返回内容不是有效 JSON");
-    }
-    
-    // 确保是数组
-    const questionsData = Array.isArray(rawData) ? rawData : [rawData];
-
-    // 验证和转换数据
-    if (questionsData.length === 0) {
-      throw new Error("LLM 返回的问题数量为 0");
-    }
-
-    // 如果返回的问题数量不足，使用 stub 补充
-    if (questionsData.length < count) {
-      console.warn(`LLM 返回 ${questionsData.length} 个问题，需要 ${count} 个，使用 stub 补充`);
-      const stubQuestions = generateStubQuestions(roundType, count - questionsData.length, sessionId);
-      questionsData.push(...stubQuestions.map(q => ({
-        q: q.question_text,
-        tips: q.tips,
-      })));
-    }
-
-    // 转换为 InterviewQuestion 格式
-    const questions: InterviewQuestion[] = questionsData.slice(0, count).map((item: any) => {
-      // 验证必需字段
-      if (!item.q || !item.tips) {
-        throw new Error("LLM 返回的问题格式不正确：缺少 q 或 tips");
-      }
-
-      // 验证 tips 结构
-      const tips: Tips = {
-        intent: item.tips.intent || "考察综合能力",
-        keyPoints: Array.isArray(item.tips.keyPoints) ? item.tips.keyPoints : [],
-        framework: item.tips.framework || "结构化回答",
-        pitfalls: Array.isArray(item.tips.pitfalls) ? item.tips.pitfalls : [],
-        proTips: Array.isArray(item.tips.proTips) ? item.tips.proTips : [],
-      };
-
-      // 可选字段
-      if (item.tips.industryNotes) {
-        tips.industryNotes = item.tips.industryNotes;
-      }
-
-      return {
-        id: uuidv4(),
-        session_id: sessionId || "", // 如果提供了 sessionId 则使用，否则留空
-        question_text: item.q,
-        tips: tips,
-        created_at: new Date().toISOString(),
-      };
-    });
-
-    // 确保返回指定数量的题目
-    if (questions.length !== count) {
-      console.warn(`生成的问题数量 ${questions.length} 不等于请求的数量 ${count}，截取或补充`);
-      if (questions.length < count) {
-        const stubQuestions = generateStubQuestions(roundType, count - questions.length, sessionId);
-        questions.push(...stubQuestions);
-      } else {
-        questions.splice(count);
-      }
-    }
-
-    return questions;
-  } catch (error: any) {
-    console.error("LLM 生成面试题失败，降级到 stub 模式:", error?.message || error);
-    
-    // 降级到 stub 模式
-    return generateStubQuestions(roundType, count, sessionId);
+  // 移除可能的 markdown 代码块标记
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
   }
+
+  cleaned = cleaned.trim();
+
+  // 尝试从 LLM 文本中提取 JSON（优先匹配数组，如果没有则匹配对象）
+  let extracted = cleaned.match(/\[[\s\S]*\]/);
+  if (!extracted) {
+    // 如果没有找到数组，尝试找对象
+    extracted = cleaned.match(/\{[\s\S]*\}/);
+  }
+
+  if (!extracted) {
+    throw new Error("无法从 LLM 响应中提取 JSON");
+  }
+
+  let jsonText = extracted[0];
+
+  // --- 清洗非法字符：控制字符（0x00-0x1F except \t \n \r）
+  jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+
+  // --- 去除多余的逗号，比如 ["a", "b", ] 或 { "key": "value", }
+  jsonText = jsonText.replace(/,\s*}/g, "}");
+  jsonText = jsonText.replace(/,\s*]/g, "]");
+
+  // --- finally parse
+  let rawData;
+  try {
+    rawData = JSON.parse(jsonText);
+  } catch (e) {
+    console.error("JSON 解析失败：", jsonText);
+    throw new Error("LLM 返回内容不是有效 JSON");
+  }
+
+  // 确保是数组
+  const questionsData = Array.isArray(rawData) ? rawData : [rawData];
+
+  // 验证和转换数据
+  if (questionsData.length === 0) {
+    throw new Error("LLM 返回的问题数量为 0");
+  }
+
+  if (questionsData.length < count) {
+    throw new Error(`LLM 返回的问题数量不足：需要 ${count} 个，实际 ${questionsData.length} 个`);
+  }
+
+  // 转换为 InterviewQuestion 格式
+  const questions: InterviewQuestion[] = questionsData.slice(0, count).map((item: any) => {
+    // 验证必需字段
+    if (!item.q || !item.tips) {
+      throw new Error("LLM 返回的问题格式不正确：缺少 q 或 tips");
+    }
+
+    // 验证 tips 结构
+    const tips: Tips = {
+      intent: item.tips.intent || "考察综合能力",
+      keyPoints: Array.isArray(item.tips.keyPoints) ? item.tips.keyPoints : [],
+      framework: item.tips.framework || "结构化回答",
+      pitfalls: Array.isArray(item.tips.pitfalls) ? item.tips.pitfalls : [],
+      proTips: Array.isArray(item.tips.proTips) ? item.tips.proTips : [],
+    };
+
+    // 可选字段
+    if (item.tips.industryNotes) {
+      tips.industryNotes = item.tips.industryNotes;
+    }
+
+    return {
+      id: uuidv4(),
+      session_id: sessionId || "", // 如果提供了 sessionId 则使用，否则留空
+      question_text: item.q,
+      tips: tips,
+      created_at: new Date().toISOString(),
+    };
+  });
+
+  if (questions.length !== count) {
+    throw new Error(`生成的问题数量不正确：需要 ${count} 个，实际 ${questions.length} 个`);
+  }
+
+  return questions;
 }
 
 // ========== 评估答案 ==========
@@ -521,25 +504,21 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
  */
 interface EvaluationDimension {
   name: string;
-  score?: number; // 重答建议和追问建议没有 score
+  score?: number;
   comment: string;
 }
 
 /**
- * 新的评估结果格式（符合前端要求）
+ * Stub 模式：生成评估结果（仅测试用）
+ * 返回 InterviewAssessment 格式
  */
-interface EvaluationResult {
-  score: number; // 0-100
-  dimensions: EvaluationDimension[];
-  summary: string;
-}
-
-/**
- * Stub 模式：生成评估结果
- */
-function generateStubEvaluation(): EvaluationResult {
+function generateStubAssessment(): InterviewAssessment {
   return {
+    status: "assessed",
     score: 60,
+    summary: "回答基本可用，但缺乏亮点，建议补充量化指标和关键决策。",
+    evidence: ["回答中提到了基本的项目背景"],
+    missingEvidence: ["缺少具体数据支撑", "未说明个人关键决策"],
     dimensions: [
       { name: "逻辑性", score: 55, comment: "结构不够清晰，需要按照 STAR 展开" },
       { name: "准确性", score: 65, comment: "部分概念表达不准确" },
@@ -548,18 +527,19 @@ function generateStubEvaluation(): EvaluationResult {
       { name: "重答建议", comment: "先给结论，再补充你的关键动作和可核实结果。" },
       { name: "追问建议", comment: "这件事里你个人做出的关键决策是什么？" },
     ],
-    summary: "回答基本可用，但缺乏亮点，建议补充量化指标和关键决策。",
+    rewritePlan: ["先给结论", "补充关键动作和可核实结果"],
+    followUp: "这件事里你个人做出的关键决策是什么？",
   };
 }
 
 /**
  * 评估用户回答
- * 
+ *
  * @param question 面试题目
  * @param jd 职位描述
  * @param answer 用户回答
  * @param roundType 面试轮次类型
- * @returns 评估结果
+ * @returns InterviewAssessment 评估结果
  */
 export async function evaluateAnswer({
   question,
@@ -575,39 +555,41 @@ export async function evaluateAnswer({
   roundType: RoundType;
   resumeText?: string;
   knowledgeContext?: string;
-}): Promise<any> {
-  // 检查是否使用 stub 模式（显式启用 stub）
+}): Promise<InterviewAssessment> {
+  // 检查是否使用 stub 模式（显式启用 stub，仅测试用）
   const useStub = process.env.LLM_STUB === "1";
-  
+
   if (useStub) {
     console.warn("使用 stub 模式生成评估结果（LLM_STUB=1）");
-    return generateStubEvaluation();
+    return generateStubAssessment();
   }
 
-  try {
-    // 构建 prompt
-    const systemPrompt = `你是一名资深互联网大厂面试官，你了解大厂所有岗位面试标准，请基于以下信息对候选人的回答进行专业评估。
+  // 构建 prompt
+  const systemPrompt = `你是一名资深互联网大厂面试官，你了解大厂所有岗位面试标准，请基于以下信息对候选人的回答进行专业评估。
 
 任务：
-1. 从六个维度对回答进行专业评估（逻辑性、准确性、数据指标与量化能力、沟通表达、重答建议、追问建议）
-2. 返回 0-100 的总体得分
-3. 请生成简洁但有深度的总结（summary）
+1. 对回答进行专业评估，区分"回答中出现的证据""简历/JD 对照""缺失或冲突"
+2. 返回 status: "assessed" 或 "needs_more_input"
+3. 从多个维度对回答进行评估
 4. 全部内容必须以严格 JSON 格式返回
 
 输出格式要求：
 - 必须是一个 JSON 对象
-- score 必须是 0-100 的整数
-- dimensions 必须包含 6 个维度，顺序为：逻辑性、准确性、数据指标与量化能力、沟通表达、重答建议、追问建议
-- 前 4 个维度必须有 score（0-100）和 comment
-- 重答建议和追问建议只有 comment，没有 score
-- summary 必须是字符串
+- status: "assessed"（回答有足够信息评分）或 "needs_more_input"（回答信息不足，不评分）
+- score: 0-100 的整数；needs_more_input 时为 null
+- evidence: 数组，至少 1 条来自回答的具体证据；如果无法从回答中提取任何证据，必须返回 status: "needs_more_input"
+- missingEvidence: 数组，缺失或冲突的信息
+- dimensions: 数组，包含逻辑性、准确性、数据指标与量化能力、沟通表达等维度
+- rewritePlan: 数组，重答提纲
+- followUp: 字符串，追问建议
+- summary: 字符串，简洁评估总结
 - 禁止输出任何其他内容，只输出 JSON`;
 
-    const candidateRecordForEval = resumeText
-      ? resumeText
-      : "暂无（用户未上传简历）";
+  const candidateRecordForEval = resumeText
+    ? resumeText
+    : "暂无（用户未上传简历）";
 
-    const userPrompt = `【岗位 JD】
+  const userPrompt = `【岗位 JD】
 ${jd}
 
 【面试轮次】
@@ -619,7 +601,7 @@ ${question}
 【候选人回答】
 ${answer}
 
-【候选人过往记录】
+【候选人简历】
 ${candidateRecordForEval}
 
 ${knowledgeContext || ""}
@@ -628,7 +610,11 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
 请基于以上信息进行专业评估，返回严格 JSON 格式：
 
 {
+  "status": "assessed",
   "score": 85,
+  "summary": "...",
+  "evidence": ["回答中提到的具体事实1", "回答中提到的具体事实2"],
+  "missingEvidence": ["缺失的证据或冲突信息"],
   "dimensions": [
     { "name": "逻辑性", "score": 80, "comment": "..." },
     { "name": "准确性", "score": 90, "comment": "..." },
@@ -637,116 +623,135 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
     { "name": "重答建议", "comment": "..." },
     { "name": "追问建议", "comment": "..." }
   ],
-  "summary": "..."
+  "rewritePlan": ["先给结论...", "补充关键动作..."],
+  "followUp": "这件事里你个人做出的关键决策是什么？"
 }
 
 注意：只输出 JSON，不要有任何其他文字。`;
 
-    // 调用 LLM（使用与 chat 相同的模型配置）
-    const response = await callLLM(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      {
-        model: process.env.LLM_MODEL_CHAT, // 使用与 chat 相同的模型
-        temperature: 0.7,
-        maxTokens: 1500,
-        timeoutMs: 30000, // 30 秒超时，给 LLM 足够时间评估答案
-        maxRetries: 2,
-      }
-    );
-
-    // 解析 JSON 响应
-    let cleaned = response.trim();
-    
-    // 移除可能的 markdown 代码块标记
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
+  // 调用 LLM（超时 30 秒）
+  const response = await callLLM(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    {
+      model: process.env.LLM_MODEL_CHAT,
+      temperature: 0.7,
+      maxTokens: 1500,
+      timeoutMs: 30000,
+      maxRetries: 2,
     }
-    
-    cleaned = cleaned.trim();
+  );
 
-    // 尝试从 LLM 文本中提取 JSON
-    let extracted = cleaned.match(/\{[\s\S]*\}/);
-    if (!extracted) {
-      throw new Error("无法从 LLM 响应中提取 JSON");
-    }
+  // 解析 JSON 响应
+  let cleaned = response.trim();
 
-    let jsonText = extracted[0];
-
-    // --- 清洗非法字符：控制字符（0x00-0x1F except \t \n \r）
-    jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-
-    // --- 去除多余的逗号，比如 ["a", "b", ] 或 { "key": "value", }
-    jsonText = jsonText.replace(/,\s*}/g, "}");
-    jsonText = jsonText.replace(/,\s*]/g, "]");
-
-    // --- finally parse
-    let rawData;
-    try {
-      rawData = JSON.parse(jsonText);
-    } catch (e) {
-      console.error("JSON 解析失败：", jsonText);
-      throw new Error("LLM 返回内容不是有效 JSON");
-    }
-    
-    // 验证必需字段
-    if (typeof rawData.score !== "number" || rawData.score < 0 || rawData.score > 100) {
-      throw new Error("LLM 返回的 score 格式不正确（必须是 0-100 的数字）");
-    }
-    
-    if (!Array.isArray(rawData.dimensions) || rawData.dimensions.length !== 6) {
-      throw new Error("LLM 返回的 dimensions 格式不正确（必须是包含 6 个元素的数组）");
-    }
-    
-    if (typeof rawData.summary !== "string") {
-      throw new Error("LLM 返回的 summary 格式不正确（必须是字符串）");
-    }
-
-    // 验证和转换 dimensions
-    const dimensions: EvaluationDimension[] = rawData.dimensions.map((dim: any, index: number) => {
-      // 前 4 个维度必须有 score
-      if (index < 4) {
-        if (typeof dim.score !== "number" || dim.score < 0 || dim.score > 100) {
-          throw new Error(`LLM 返回的 dimensions[${index}].score 格式不正确（必须是 0-100 的数字）`);
-        }
-        if (typeof dim.comment !== "string") {
-          throw new Error(`LLM 返回的 dimensions[${index}].comment 格式不正确（必须是字符串）`);
-        }
-        return {
-          name: dim.name || ["逻辑性", "准确性", "数据指标与量化能力", "沟通表达"][index],
-          score: Math.round(dim.score), // 确保是整数
-          comment: dim.comment,
-        };
-      } else {
-        // 后 2 个维度（重答建议和追问建议）没有 score
-        if (typeof dim.comment !== "string") {
-          throw new Error(`LLM 返回的 dimensions[${index}].comment 格式不正确（必须是字符串）`);
-        }
-        return {
-          name: dim.name || (index === 4 ? "重答建议" : "追问建议"),
-          comment: dim.comment,
-        };
-      }
-    });
-
-    // 构建最终结果
-    const result: EvaluationResult = {
-      score: Math.round(rawData.score), // 确保是整数
-      dimensions: dimensions,
-      summary: rawData.summary,
-    };
-
-    return result;
-  } catch (error: any) {
-    console.error("LLM 生成评估结果失败，降级到 stub 模式:", error?.message || error);
-    
-    // 降级到 stub 模式
-    return generateStubEvaluation();
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
   }
+
+  cleaned = cleaned.trim();
+
+  let extracted = cleaned.match(/\{[\s\S]*\}/);
+  if (!extracted) {
+    throw new Error("无法从 LLM 响应中提取 JSON");
+  }
+
+  let jsonText = extracted[0];
+
+  // 清洗非法字符
+  jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  jsonText = jsonText.replace(/,\s*}/g, "}");
+  jsonText = jsonText.replace(/,\s*]/g, "]");
+
+  let rawData;
+  try {
+    rawData = JSON.parse(jsonText);
+  } catch (e) {
+    console.error("JSON 解析失败：", jsonText);
+    throw new Error("LLM 返回内容不是有效 JSON");
+  }
+
+  // 验证 status
+  const validStatuses: string[] = ["assessed", "needs_more_input"];
+  if (!validStatuses.includes(rawData.status)) {
+    throw new Error("LLM 返回的 status 格式不正确（必须是 assessed 或 needs_more_input）");
+  }
+
+  const status = rawData.status as "assessed" | "needs_more_input";
+
+  // 如果 status 是 needs_more_input，直接返回（不评分）
+  if (status === "needs_more_input") {
+    return {
+      status: "needs_more_input",
+      score: null,
+      summary: typeof rawData.summary === "string" ? rawData.summary : "回答信息不足，无法评分",
+      evidence: Array.isArray(rawData.evidence) ? rawData.evidence : [],
+      missingEvidence: Array.isArray(rawData.missingEvidence) ? rawData.missingEvidence : ["回答中未提供具体事实或经历"],
+      dimensions: Array.isArray(rawData.dimensions) ? rawData.dimensions.map((d: any) => ({
+        name: typeof d.name === "string" ? d.name : "",
+        score: typeof d.score === "number" ? d.score : undefined,
+        comment: typeof d.comment === "string" ? d.comment : "",
+      })) : [],
+      rewritePlan: Array.isArray(rawData.rewritePlan) ? rawData.rewritePlan : [],
+      followUp: typeof rawData.followUp === "string" ? rawData.followUp : "能否补充更多细节？",
+    };
+  }
+
+  // assessed 状态：必须有至少 1 条 evidence
+  const evidence: string[] = Array.isArray(rawData.evidence) ? rawData.evidence : [];
+  if (evidence.length === 0) {
+    // 没有证据则降为 needs_more_input
+    return {
+      status: "needs_more_input",
+      score: null,
+      summary: typeof rawData.summary === "string" ? rawData.summary : "回答中未找到具体证据，无法评分",
+      evidence: [],
+      missingEvidence: Array.isArray(rawData.missingEvidence) ? rawData.missingEvidence : ["回答中未提供可验证的事实或经历"],
+      dimensions: [],
+      rewritePlan: Array.isArray(rawData.rewritePlan) ? rawData.rewritePlan : [],
+      followUp: typeof rawData.followUp === "string" ? rawData.followUp : "能否补充具体的事实和数据？",
+    };
+  }
+
+  // 验证 score（必须是数字）
+  if (typeof rawData.score !== "number" || rawData.score < 0 || rawData.score > 100) {
+    throw new Error("LLM 返回的 score 格式不正确（必须是 0-100 的数字）");
+  }
+
+  // 验证 dimensions
+  if (!Array.isArray(rawData.dimensions)) {
+    throw new Error("LLM 返回的 dimensions 格式不正确（必须是数组）");
+  }
+
+  // 验证和转换 dimensions
+  const dimensions = rawData.dimensions.map((dim: any, index: number) => {
+    if (typeof dim.comment !== "string") {
+      throw new Error(`LLM 返回的 dimensions[${index}].comment 格式不正确（必须是字符串）`);
+    }
+    return {
+      name: typeof dim.name === "string" ? dim.name : ["逻辑性", "准确性", "数据指标与量化能力", "沟通表达"][index] || `维度${index + 1}`,
+      score: typeof dim.score === "number" ? Math.round(dim.score) : undefined,
+      comment: dim.comment,
+    };
+  });
+
+  // 构建最终结果
+  const result: InterviewAssessment = {
+    status: "assessed",
+    score: Math.round(rawData.score),
+    summary: typeof rawData.summary === "string" ? rawData.summary : "",
+    evidence,
+    missingEvidence: Array.isArray(rawData.missingEvidence) ? rawData.missingEvidence : [],
+    dimensions,
+    rewritePlan: Array.isArray(rawData.rewritePlan) ? rawData.rewritePlan : [],
+    followUp: typeof rawData.followUp === "string" ? rawData.followUp : "",
+  };
+
+  return result;
 }
 
 // ========== 生成面试总结 ==========
@@ -764,20 +769,24 @@ interface InterviewSummaryResult {
   overallScore: number; // 0-100
   grade: string; // "S" | "A" | "B+" | "B" | "C" | "D"
   gradeNext: string; // e.g. "再练2次可达A"
+  verdict: string;
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
   dimensions: InterviewDimension[]; // 7维度评分
+  questionBreakdown: Array<{ questionId: string; score: number; decisiveFinding: string }>;
+  nextActions: Array<{ title: string; reason: string; doneWhen: string; priority: "urgent" | "high" | "normal" }>;
 }
 
 /**
- * Stub 模式：生成面试总结
+ * Stub 模式：生成面试总结（仅测试用）
  */
 function generateStubSummary(): InterviewSummaryResult {
   return {
     overallScore: 70,
     grade: "B",
     gradeNext: "再练2次可达B+",
+    verdict: "整体表现尚可，但缺少亮点和量化指标",
     strengths: ["表达清晰", "思路完整"],
     weaknesses: ["缺少量化指标", "项目细节不足"],
     suggestions: ["补充数据指标", "提前准备关键案例"],
@@ -790,12 +799,17 @@ function generateStubSummary(): InterviewSummaryResult {
       { name: "自我认知", score: 70, comment: "对自身优劣势有基本认知" },
       { name: "文化匹配", score: 73, comment: "价值观基本契合" },
     ],
+    questionBreakdown: [],
+    nextActions: [
+      { title: "准备量化指标", reason: "回答中缺少数据支撑", doneWhen: "能用数字说明成果", priority: "high" },
+    ],
   };
 }
 
 /**
  * 基于已有的单题评估数据动态生成降级总结（替代固定 stub）
  * 当 LLM 调用失败但有单题评估数据时使用
+ * 不使用随机分数，所有维度分数基于实际数据计算
  */
 function generateFallbackSummary(assessments: any[]): InterviewSummaryResult {
   // 从单题评估中提取分数
@@ -837,18 +851,13 @@ function generateFallbackSummary(assessments: any[]): InterviewSummaryResult {
     }
   }
 
-  // 收集 summary 文本用于提取优劣势
-  const summaries: string[] = assessments
-    .filter(a => a?.summary && typeof a.summary === 'string')
-    .map(a => a.summary);
-
   const defaultDimNames = ["专业深度", "逻辑表达", "应变能力", "项目理解", "沟通技巧", "自我认知", "文化匹配"];
   const dimensions: InterviewDimension[] = defaultDimNames.map((name) => {
     const s = dimScores[name];
     const c = dimComments[name];
     return {
       name,
-      score: s && s.length > 0 ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : Math.max(0, Math.min(100, avg + Math.round((Math.random() - 0.5) * 16))),
+      score: s && s.length > 0 ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : avg,
       comment: c && c.length > 0 ? c[c.length - 1] : "",
     };
   });
@@ -865,37 +874,73 @@ function generateFallbackSummary(assessments: any[]): InterviewSummaryResult {
   if (strengths.length === 0) strengths.push("有一定基础");
   if (weaknesses.length === 0) weaknesses.push("整体可进一步提升");
 
+  // 从评估中提取 questionBreakdown
+  const questionBreakdown: InterviewSummaryResult["questionBreakdown"] = assessments
+    .filter(a => a && typeof a === 'object')
+    .map((a, i) => ({
+      questionId: a.questionId || `q${i + 1}`,
+      score: a.score ?? a.overallScore ?? avg,
+      decisiveFinding: a.summary || a.dimensions?.[0]?.comment || "",
+    }));
+
+  // 生成 nextActions
+  const nextActions: InterviewSummaryResult["nextActions"] = [];
+  if (lowDims.length > 0) {
+    for (const d of lowDims.slice(0, 3)) {
+      nextActions.push({
+        title: `提升${d.name}`,
+        reason: `${d.name}得分偏低（${d.score}分）`,
+        doneWhen: `能在模拟面试中稳定达到${Math.min(100, d.score + 15)}分以上`,
+        priority: d.score < 50 ? "urgent" : "high",
+      });
+    }
+  }
+  if (nextActions.length === 0) {
+    nextActions.push({
+      title: "保持练习节奏",
+      reason: "整体表现稳定",
+      doneWhen: "完成下一轮模拟面试",
+      priority: "normal",
+    });
+  }
+
   return {
     overallScore: avg,
     grade,
     gradeNext: grade === "S" ? "保持S级水准" : `继续努力，向${nextGrade}级进发`,
+    verdict: strengths.length > 0 ? strengths[0] : "整体表现尚可",
     strengths,
     weaknesses,
     suggestions: ["多做模拟练习", "针对薄弱维度专项提升"],
     dimensions,
+    questionBreakdown,
+    nextActions,
   };
 }
 
 /**
  * 生成面试总结
- * 
+ *
  * @param jd 职位描述
  * @param roundType 面试轮次类型
  * @param assessments 所有题目的评估结果数组
+ * @param questions 面试题目（用于 questionBreakdown 的真实 ID 和文本）
  * @returns 面试总结
  */
 export async function summarizeInterview({
   jd,
   roundType,
   assessments,
+  questions,
 }: {
   jd: string;
   roundType: RoundType;
-  assessments: any[]; // 使用 any 因为可能是新格式（score, dimensions, summary）或旧格式
+  assessments: any[];
+  questions?: Array<{ id: string; question_text: string }>;
 }): Promise<InterviewSummaryResult> {
-  // 检查是否使用 stub 模式（显式启用 stub）
+  // 检查是否使用 stub 模式（显式启用 stub，仅测试用）
   const useStub = process.env.LLM_STUB === "1";
-  
+
   if (useStub) {
     console.warn("使用 stub 模式生成面试总结（LLM_STUB=1）");
     return generateStubSummary();
@@ -903,47 +948,68 @@ export async function summarizeInterview({
 
   // 验证 assessments 不为空
   if (!assessments || assessments.length === 0) {
-    console.warn("assessments 为空，使用 stub 模式");
-    return generateStubSummary();
+    throw new Error("无法生成总结：没有可用的评估数据");
   }
 
-  try {
-    // 构建 prompt
-    const systemPrompt = `你是一名资深面试官。请基于候选人本轮的所有面试回答与评估，生成一份结构化的面试总结。
+  // 过滤出有真实分数的评估（排除 needs_more_input 的）
+  const validAssessments = assessments.filter(
+    a => a && typeof a === 'object' && typeof (a.score ?? a.overallScore) === 'number'
+  );
+
+  // 如果没有有效评估数据，拒绝总结
+  if (validAssessments.length === 0) {
+    throw new Error("无法生成总结：所有回答均为低信息回答或评估失败，缺少可评分的答题数据");
+  }
+
+  // 构建 prompt
+  const systemPrompt = `你是一名资深面试官。请基于候选人本轮的所有面试回答与评估，生成一份结构化的面试总结。
 
 任务：
 1. 根据"所有题目的评估结果"生成最终的整体评价
 2. 输出以下结构：
    - overallScore: 0-100 的整数，综合所有题目的得分
    - grade: 能力等级，取值为 "S"(90-100) / "A"(80-89) / "B+"(75-79) / "B"(60-74) / "C"(40-59) / "D"(0-39)
-   - gradeNext: 简短的进阶提示，如"再练2次可达A"、"距离B+只差一步"等
+   - gradeNext: 简短的进阶提示
+   - verdict: 一句话总结本轮面试表现
    - strengths: 数组，列出 2-4 个优势表现
    - weaknesses: 数组，列出 2-4 个薄弱环节
    - suggestions: 数组，列出 2-4 个下一步提升建议
-   - dimensions: 7个维度的评分数组，每个维度包含 name、score(0-100)、comment(一句话点评)
+   - dimensions: 7个维度的评分数组
      七个维度固定为：专业深度、逻辑表达、应变能力、项目理解、沟通技巧、自我认知、文化匹配
+   - questionBreakdown: 数组，每题的决定性发现
+   - nextActions: 数组，最多 3 个可执行下一步
 3. 请严格按照 JSON 返回，不要输出任何解释
 
 输出格式要求：
 - 必须是一个 JSON 对象
 - overallScore 必须是 0-100 的整数
 - grade 必须是 "S"/"A"/"B+"/"B"/"C"/"D" 之一
-- gradeNext 必须是字符串，简短鼓励性的进阶提示
+- verdict 必须是一句话总结
 - strengths、weaknesses、suggestions 必须是字符串数组
-- dimensions 必须是包含7个对象的数组，每个对象有 name(string)、score(number 0-100)、comment(string)
+- dimensions 必须是包含7个对象的数组
+- questionBreakdown 必须包含每题的 questionId、score、decisiveFinding
+- nextActions 必须是 1-3 个对象，每个包含 title、reason、doneWhen、priority
 - 禁止输出任何其他内容，只输出 JSON`;
 
-    // 将 assessments 转换为字符串（处理可能的复杂对象）
-    const assessmentsStr = JSON.stringify(assessments, null, 2);
+  // 将 assessments 转换为字符串
+  const assessmentsStr = JSON.stringify(assessments, null, 2);
 
-    const userPrompt = `【岗位 JD】
+  // 将 questions 转换为字符串（如果提供）
+  const questionsStr = questions && questions.length > 0
+    ? questions.map((q, i) => `题${i + 1} [${q.id}]: ${q.question_text}`).join("\n")
+    : "暂无题目详情";
+
+  const userPrompt = `【岗位 JD】
 ${jd}
 
 【面试轮次】
 ${roundType}
 
+【面试题目】
+${questionsStr}
+
 【单题评估列表】
-（这是各题的评估结果，请综合它们生成最终总结）
+（这是各题的评估结果，请综合它们生成最终总结。questionBreakdown 中的 questionId 必须使用上面的题目 ID）
 
 ${assessmentsStr}
 
@@ -953,6 +1019,7 @@ ${assessmentsStr}
   "overallScore": 85,
   "grade": "A",
   "gradeNext": "再练1次稳冲S级",
+  "verdict": "项目经验扎实，但数据分析能力有待提升",
   "strengths": ["...", "..."],
   "weaknesses": ["...", "..."],
   "suggestions": ["...", "..."],
@@ -964,138 +1031,168 @@ ${assessmentsStr}
     {"name": "沟通技巧", "score": 90, "comment": "..."},
     {"name": "自我认知", "score": 78, "comment": "..."},
     {"name": "文化匹配", "score": 83, "comment": "..."}
+  ],
+  "questionBreakdown": [
+    {"questionId": "q1", "score": 80, "decisiveFinding": "清晰描述了项目背景和角色"},
+    {"questionId": "q2", "score": 90, "decisiveFinding": "数据分析方法论完整"}
+  ],
+  "nextActions": [
+    {"title": "准备量化指标", "reason": "回答中缺少数据支撑", "doneWhen": "能用数字说明成果", "priority": "high"}
   ]
 }
 
 注意：只输出 JSON，不要有任何其他文字。`;
 
-    // 调用 LLM（使用与 chat 相同的模型配置）
-    const response = await callLLM(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      {
-        model: process.env.LLM_MODEL_CHAT, // 使用与 chat 相同的模型
-        temperature: 0.7,
-        maxTokens: 1000,
-        timeoutMs: 30000, // 30 秒超时，给 LLM 足够时间生成总结
-        maxRetries: 2,
-      }
-    );
-
-    // 解析 JSON 响应
-    let cleaned = response.trim();
-    
-    // 移除可能的 markdown 代码块标记
-    if (cleaned.startsWith("```json")) {
-      cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
-    } else if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
+  // 调用 LLM
+  const response = await callLLM(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    {
+      model: process.env.LLM_MODEL_CHAT,
+      temperature: 0.7,
+      maxTokens: 1500,
+      timeoutMs: 30000,
+      maxRetries: 2,
     }
-    
-    cleaned = cleaned.trim();
+  );
 
-    // 尝试从 LLM 文本中提取 JSON
-    let extracted = cleaned.match(/\{[\s\S]*\}/);
-    if (!extracted) {
-      throw new Error("无法从 LLM 响应中提取 JSON");
-    }
+  // 解析 JSON 响应
+  let cleaned = response.trim();
 
-    let jsonText = extracted[0];
-
-    // --- 清洗非法字符：控制字符（0x00-0x1F except \t \n \r）
-    jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
-
-    // --- 去除多余的逗号，比如 ["a", "b", ] 或 { "key": "value", }
-    jsonText = jsonText.replace(/,\s*}/g, "}");
-    jsonText = jsonText.replace(/,\s*]/g, "]");
-
-    // --- finally parse
-    let rawData;
-    try {
-      rawData = JSON.parse(jsonText);
-    } catch (e) {
-      console.error("JSON 解析失败：", jsonText);
-      throw new Error("LLM 返回内容不是有效 JSON");
-    }
-    
-    // 验证必需字段
-    if (typeof rawData.overallScore !== "number" || rawData.overallScore < 0 || rawData.overallScore > 100) {
-      throw new Error("LLM 返回的 overallScore 格式不正确（必须是 0-100 的数字）");
-    }
-    
-    if (!Array.isArray(rawData.strengths) || rawData.strengths.length === 0) {
-      throw new Error("LLM 返回的 strengths 格式不正确（必须是非空字符串数组）");
-    }
-    
-    if (!Array.isArray(rawData.weaknesses) || rawData.weaknesses.length === 0) {
-      throw new Error("LLM 返回的 weaknesses 格式不正确（必须是非空字符串数组）");
-    }
-    
-    if (!Array.isArray(rawData.suggestions) || rawData.suggestions.length === 0) {
-      throw new Error("LLM 返回的 suggestions 格式不正确（必须是非空字符串数组）");
-    }
-
-    // 验证数组元素都是字符串
-    if (!rawData.strengths.every((s: any) => typeof s === "string")) {
-      throw new Error("LLM 返回的 strengths 数组元素必须是字符串");
-    }
-    
-    if (!rawData.weaknesses.every((s: any) => typeof s === "string")) {
-      throw new Error("LLM 返回的 weaknesses 数组元素必须是字符串");
-    }
-    
-    if (!rawData.suggestions.every((s: any) => typeof s === "string")) {
-      throw new Error("LLM 返回的 suggestions 数组元素必须是字符串");
-    }
-
-    // 验证 grade（容错：如果LLM没返回，根据分数自动计算）
-    const validGrades = ["S", "A", "B+", "B", "C", "D"];
-    let grade = rawData.grade;
-    if (!grade || !validGrades.includes(grade)) {
-      const s = rawData.overallScore;
-      grade = s >= 90 ? "S" : s >= 80 ? "A" : s >= 75 ? "B+" : s >= 60 ? "B" : s >= 40 ? "C" : "D";
-    }
-
-    // 验证 gradeNext（容错）
-    const gradeNext = typeof rawData.gradeNext === "string" ? rawData.gradeNext : `继续加油，向${grade === "S" ? "S" : validGrades[validGrades.indexOf(grade) - 1] || "S"}级进发`;
-
-    // 验证 dimensions（容错：缺失时生成默认值）
-    const defaultDimNames = ["专业深度", "逻辑表达", "应变能力", "项目理解", "沟通技巧", "自我认知", "文化匹配"];
-    let dimensions: InterviewDimension[];
-    if (Array.isArray(rawData.dimensions) && rawData.dimensions.length === 7) {
-      dimensions = rawData.dimensions.map((d: any, i: number) => ({
-        name: typeof d.name === "string" ? d.name : defaultDimNames[i],
-        score: typeof d.score === "number" && d.score >= 0 && d.score <= 100 ? Math.round(d.score) : rawData.overallScore,
-        comment: typeof d.comment === "string" ? d.comment : "",
-      }));
-    } else {
-      // LLM未正确返回dimensions，根据总分生成近似值
-      const base = rawData.overallScore;
-      dimensions = defaultDimNames.map((name) => ({
-        name,
-        score: Math.max(0, Math.min(100, base + Math.round((Math.random() - 0.5) * 16))),
-        comment: "",
-      }));
-    }
-
-    // 构建最终结果
-    const result: InterviewSummaryResult = {
-      overallScore: Math.round(rawData.overallScore),
-      grade,
-      gradeNext,
-      strengths: rawData.strengths,
-      weaknesses: rawData.weaknesses,
-      suggestions: rawData.suggestions,
-      dimensions,
-    };
-
-    return result;
-  } catch (error: any) {
-    console.error("LLM 生成面试总结失败，基于已有评估数据生成降级总结:", error?.message || error);
-    
-    // 基于已有评估数据动态生成总结，而非返回固定硬编码内容
-    return generateFallbackSummary(assessments);
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
   }
+
+  cleaned = cleaned.trim();
+
+  let extracted = cleaned.match(/\{[\s\S]*\}/);
+  if (!extracted) {
+    throw new Error("无法从 LLM 响应中提取 JSON");
+  }
+
+  let jsonText = extracted[0];
+
+  // 清洗非法字符
+  jsonText = jsonText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  jsonText = jsonText.replace(/,\s*}/g, "}");
+  jsonText = jsonText.replace(/,\s*]/g, "]");
+
+  let rawData;
+  try {
+    rawData = JSON.parse(jsonText);
+  } catch (e) {
+    console.error("JSON 解析失败：", jsonText);
+    throw new Error("LLM 返回内容不是有效 JSON");
+  }
+
+  // 验证必需字段
+  if (typeof rawData.overallScore !== "number" || rawData.overallScore < 0 || rawData.overallScore > 100) {
+    throw new Error("LLM 返回的 overallScore 格式不正确（必须是 0-100 的数字）");
+  }
+
+  if (!Array.isArray(rawData.strengths) || rawData.strengths.length === 0) {
+    throw new Error("LLM 返回的 strengths 格式不正确（必须是非空字符串数组）");
+  }
+
+  if (!Array.isArray(rawData.weaknesses) || rawData.weaknesses.length === 0) {
+    throw new Error("LLM 返回的 weaknesses 格式不正确（必须是非空字符串数组）");
+  }
+
+  if (!Array.isArray(rawData.suggestions) || rawData.suggestions.length === 0) {
+    throw new Error("LLM 返回的 suggestions 格式不正确（必须是非空字符串数组）");
+  }
+
+  if (!rawData.strengths.every((s: any) => typeof s === "string")) {
+    throw new Error("LLM 返回的 strengths 数组元素必须是字符串");
+  }
+
+  if (!rawData.weaknesses.every((s: any) => typeof s === "string")) {
+    throw new Error("LLM 返回的 weaknesses 数组元素必须是字符串");
+  }
+
+  if (!rawData.suggestions.every((s: any) => typeof s === "string")) {
+    throw new Error("LLM 返回的 suggestions 数组元素必须是字符串");
+  }
+
+  // 验证 grade（容错：根据分数自动计算）
+  const validGrades = ["S", "A", "B+", "B", "C", "D"];
+  let grade = rawData.grade;
+  if (!grade || !validGrades.includes(grade)) {
+    const s = rawData.overallScore;
+    grade = s >= 90 ? "S" : s >= 80 ? "A" : s >= 75 ? "B+" : s >= 60 ? "B" : s >= 40 ? "C" : "D";
+  }
+
+  const gradeNext = typeof rawData.gradeNext === "string" ? rawData.gradeNext : `继续加油，向${grade === "S" ? "S" : validGrades[validGrades.indexOf(grade) - 1] || "S"}级进发`;
+
+  const verdict = typeof rawData.verdict === "string" ? rawData.verdict : (rawData.strengths[0] || "整体表现尚可");
+
+  // 验证 dimensions（不使用随机分数）
+  const defaultDimNames = ["专业深度", "逻辑表达", "应变能力", "项目理解", "沟通技巧", "自我认知", "文化匹配"];
+  let dimensions: InterviewDimension[];
+  if (Array.isArray(rawData.dimensions) && rawData.dimensions.length === 7) {
+    dimensions = rawData.dimensions.map((d: any, i: number) => ({
+      name: typeof d.name === "string" ? d.name : defaultDimNames[i],
+      score: typeof d.score === "number" && d.score >= 0 && d.score <= 100 ? Math.round(d.score) : rawData.overallScore,
+      comment: typeof d.comment === "string" ? d.comment : "",
+    }));
+  } else {
+    // LLM未正确返回dimensions，根据总分生成近似值（不使用随机数）
+    const base = rawData.overallScore;
+    dimensions = defaultDimNames.map((name) => ({
+      name,
+      score: base,
+      comment: "",
+    }));
+  }
+
+  // 总结必须绑定真实回答对应的题目，不能接受模型编造的题目 ID。
+  const rawBreakdown = Array.isArray(rawData.questionBreakdown) ? rawData.questionBreakdown : [];
+  const questionBreakdown: InterviewSummaryResult["questionBreakdown"] = validAssessments.map((assessment, i) => {
+    const questionId = typeof assessment.questionId === "string"
+      ? assessment.questionId
+      : (questions?.[i]?.id || `q${i + 1}`);
+    const modelFinding = rawBreakdown.find((item: any) => item?.questionId === questionId) || rawBreakdown[i];
+    const candidateScore = modelFinding?.score ?? assessment.score ?? assessment.overallScore ?? rawData.overallScore;
+    return {
+      questionId,
+      score: Math.max(0, Math.min(100, Math.round(Number(candidateScore) || 0))),
+      decisiveFinding: typeof modelFinding?.decisiveFinding === "string" && modelFinding.decisiveFinding.trim()
+        ? modelFinding.decisiveFinding.trim()
+        : String(assessment.summary || "需要继续补充具体证据"),
+    };
+  });
+
+  // 验证 nextActions（容错）
+  const nextActions: InterviewSummaryResult["nextActions"] = Array.isArray(rawData.nextActions)
+    ? rawData.nextActions.slice(0, 3).map((a: any) => ({
+        title: typeof a.title === "string" ? a.title : "",
+        reason: typeof a.reason === "string" ? a.reason : "",
+        doneWhen: typeof a.doneWhen === "string" ? a.doneWhen : "",
+        priority: ["urgent", "high", "normal"].includes(a.priority) ? a.priority : "normal" as const,
+      })).filter((action: InterviewSummaryResult["nextActions"][number]) => action.title && action.doneWhen)
+    : [];
+
+  if (nextActions.length === 0) {
+    throw new Error("LLM 返回的 nextActions 格式不正确（必须包含 1-3 个可执行行动）");
+  }
+
+  // 构建最终结果
+  const result: InterviewSummaryResult = {
+    overallScore: Math.round(rawData.overallScore),
+    grade,
+    gradeNext,
+    verdict,
+    strengths: rawData.strengths,
+    weaknesses: rawData.weaknesses,
+    suggestions: rawData.suggestions,
+    dimensions,
+    questionBreakdown,
+    nextActions,
+  };
+
+  return result;
 }

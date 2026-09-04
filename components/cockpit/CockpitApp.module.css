@@ -170,6 +170,7 @@
 .primaryButton:hover { background: #dc5b23; }
 .primaryButton:disabled, .secondaryButton:disabled { cursor: not-allowed; opacity: .48; }
 .interviewActions { display: flex; align-items: center; gap: 8px; }
+.ctaHint { margin: 10px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
 .secondaryButton { background: #fff; border-color: var(--line-strong); color: var(--ink); }
 .evidenceTableHeader { display: grid; grid-template-columns: minmax(170px,.9fr) minmax(230px,1.3fr) minmax(110px,.6fr); gap: 24px; padding: 13px 0 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .08em; }
 .versionLine { min-height: 44px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
@@ -263,10 +264,70 @@
 .roundtableFeedback section { padding-top: 10px; border-top: 1px solid #dfe4fb; }
 .roundtableFeedback section b { display: block; margin-bottom: 5px; font-size: 9px; }
 .roundtableFeedback section span { color: var(--muted); font-size: 9px; line-height: 1.6; }
-.roundtableComplete { max-width: 620px; padding: 48px 0; }
-.roundtableComplete > svg { color: var(--green); }
-.roundtableComplete > strong { display: block; margin: 14px 0 7px; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 28px; }
-.roundtableComplete > div { display: flex; gap: 8px; }
+.roundtableComplete { max-width: 760px; padding: 40px 0; }
+.roundtableComplete > svg { color: var(--accent-deep); }
+.roundtableComplete h3 { margin: 12px 0 8px; font-size: 21px; }
+.roundtableComplete > p { margin: 0 0 20px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.roundtableComplete > div { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 单题反馈：assessed */
+.assessmentCard { margin-top: 22px; padding: 19px 20px; border: 1px solid #dfe4fb; border-radius: 12px; background: #fafbff; }
+.assessmentCard > header { display: flex; align-items: center; gap: 10px; color: #4057b7; font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.assessmentCard > header strong { margin-left: auto; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 26px; line-height: 1; }
+.assessmentCard > p { margin: 9px 0 0; font-size: 12px; line-height: 1.75; }
+.assessmentBlock { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dfe4fb; }
+.assessmentBlock b { display: block; margin-bottom: 6px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.assessmentBlock ul, .assessmentBlock ol { margin: 0; padding-left: 17px; }
+.assessmentBlock li { color: var(--ink); font-size: 11px; line-height: 1.75; }
+.assessmentDimensions { margin-top: 15px; padding-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 13px; border-top: 1px solid #dfe4fb; }
+.assessmentDimensions b { display: block; margin-bottom: 4px; font-size: 10px; }
+.assessmentDimensions span { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.assessmentCard > footer, .assessmentBlocked > footer { margin-top: 15px; padding: 12px 13px; border-radius: 9px; background: var(--paper); }
+.assessmentCard > footer b, .assessmentBlocked > footer b { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.assessmentCard > footer p, .assessmentBlocked > footer p { margin: 0; font-size: 11px; line-height: 1.7; }
+
+/* 单题反馈：needs_more_input —— 不给分，只给补充方向 */
+.assessmentBlocked { margin-top: 22px; padding: 19px 20px; border: 1px solid #e7cbbc; border-radius: 12px; background: #fff9f5; }
+.assessmentBlocked > header { display: flex; align-items: center; gap: 8px; color: var(--accent-deep); }
+.assessmentBlocked > header svg { flex: 0 0 auto; }
+.assessmentBlocked > header strong { font-size: 13px; }
+.assessmentBlocked > p { margin: 9px 0 0; font-size: 12px; line-height: 1.75; }
+.assessmentBlocked .assessmentBlock { border-top-color: #efdbcf; }
+.demoBadge { min-height: 19px; padding: 0 7px; display: inline-flex; align-items: center; border-radius: 999px; background: #eeebe5; color: #625e57; font-size: 9px; font-style: normal; font-weight: 800; letter-spacing: .04em; }
+
+.roundtableActions { padding-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.roundtableActions > span { color: var(--muted); font-size: 9px; }
+.retryBlock { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.retryBlock > p { flex: 1; }
+
+/* 整轮总结 */
+.roundSummary { margin-top: 6px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.roundSummary > header strong { display: block; margin-top: 7px; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 30px; line-height: 1.1; }
+.roundSummary > header p { max-width: 70ch; margin: 12px 0 0; font-size: 13px; line-height: 1.8; }
+.summarySection { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.summarySection > h3 { margin: 0 0 13px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.dimensionGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 13px; }
+.dimensionItem { padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); }
+.dimensionItem b { font-size: 11px; }
+.dimensionScore { float: right; color: var(--accent-deep); font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 17px; }
+.dimensionItem p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.breakdownList { margin: 0; padding-left: 20px; }
+.breakdownItem { padding: 9px 0; }
+.breakdownItem > span { float: left; margin-left: -20px; color: var(--accent-deep); font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 15px; }
+.breakdownItem b { display: block; font-size: 11px; line-height: 1.6; }
+.breakdownItem p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.summaryColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.summaryColumns h3 { margin: 0 0 8px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.summaryColumns ul { margin: 0; padding-left: 17px; }
+.summaryColumns li { font-size: 11px; line-height: 1.75; }
+.nextActionList { display: grid; gap: 10px; }
+.nextActionItem { padding: 14px 15px; border-radius: 11px; background: var(--accent-soft); }
+.nextActionItem > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.nextActionItem b { font-size: 12px; line-height: 1.5; }
+.nextActionItem p { margin: 7px 0 0; color: #7a4a3c; font-size: 10px; line-height: 1.65; }
+.nextActionItem footer { margin-top: 9px; padding-top: 8px; border-top: 1px solid #f0d3c4; color: var(--accent-deep); font-size: 10px; }
+.priorityChip { flex: 0 0 auto; min-height: 19px; padding: 0 7px; display: inline-flex; align-items: center; border-radius: 999px; background: #fff; color: #7a4a3c; font-size: 9px; font-weight: 800; }
+.priorityChip[data-priority="urgent"] { background: var(--accent); color: #fff; }
 .reviewComposer { max-width: 760px; padding: 38px 0; }
 .reviewComposer > svg { color: var(--accent); }
 .reviewComposer h3 { margin: 16px 0 8px; font-size: 20px; }
@@ -436,8 +497,13 @@
   .interviewActions button { width: 100%; }
   .practiceResult > div, .roundtableRoles, .roundtableFeedback > div { grid-template-columns: 1fr; }
   .roundtableHeader { align-items: flex-start; }
-  .roundtableQuestion footer { align-items: stretch; flex-direction: column; }
-  .roundtableQuestion footer button { width: 100%; }
+  .roundtableQuestion footer, .roundtableActions { align-items: stretch; flex-direction: column; }
+  .roundtableQuestion footer button, .roundtableActions button { width: 100%; }
+  .roundtableActions { gap: 9px; }
+  .roundSummary { padding: 18px 17px; }
+  .summaryColumns { grid-template-columns: 1fr; gap: 16px; }
+  .assessmentDimensions { grid-template-columns: 1fr; }
+  .retryBlock { align-items: stretch; flex-direction: column; }
   .reviewReport { padding: 19px; }
   .insightNote { grid-template-columns: 1fr; }
   .createPage { padding: 40px 18px 60px; }

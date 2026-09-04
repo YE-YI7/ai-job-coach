@@ -29,9 +29,12 @@ import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota"
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import type {
+  RoundType,
   StartInterviewRequest,
   StartInterviewResponse,
 } from "@/lib/interview/types";
+
+const ALLOWED_ROUNDS = new Set<RoundType>(["业务面", "技术面", "HR面", "项目深挖", "总监面"]);
 
 export async function POST(request: Request) {
   let reservation: QuotaReservation | null = null;
@@ -66,16 +69,7 @@ export async function POST(request: Request) {
     // 3. 验证请求参数
     const { jd, roundType, questionCount, opportunityId } = body;
     const useResume = body.useResume !== false; // 默认使用简历
-    if (!jd || typeof jd !== "string" || jd.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "缺少或无效的 jd 字段" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-    if (!roundType || typeof roundType !== "string") {
+    if (!roundType || typeof roundType !== "string" || !ALLOWED_ROUNDS.has(roundType as RoundType)) {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 roundType 字段" }),
         {
@@ -84,9 +78,9 @@ export async function POST(request: Request) {
         }
       );
     }
-    if (!questionCount || typeof questionCount !== "number" || questionCount < 1) {
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 10) {
       return new Response(
-        JSON.stringify({ ok: false, error: "缺少或无效的 questionCount 字段（必须 >= 1）" }),
+        JSON.stringify({ ok: false, error: "questionCount 必须是 1-10 的整数" }),
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
@@ -106,13 +100,21 @@ export async function POST(request: Request) {
       );
     }
 
+    let effectiveJd = typeof jd === "string" ? jd.trim() : "";
     if (opportunityId) {
       const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
-        .select("id").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+        .select("id, jd_text").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
       if (opportunityError) throw opportunityError;
       if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
         status: 404, headers: { "Content-Type": "application/json" },
       });
+      effectiveJd = String(opportunity.jd_text || "").trim();
+    }
+    if (!effectiveJd) {
+      return new Response(
+        JSON.stringify({ ok: false, error: opportunityId ? "当前岗位还没有 JD，请先补充" : "缺少或无效的 jd 字段" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
@@ -142,7 +144,7 @@ export async function POST(request: Request) {
 
     const knowledge = await buildAgentKnowledgeContext({
       task: "mock_interview",
-      query: `${roundType} ${jd.slice(0, 240)}`,
+      query: `${roundType} ${effectiveJd.slice(0, 240)}`,
       limit: 6,
     });
 
@@ -153,9 +155,10 @@ export async function POST(request: Request) {
       .insert({
         id: sessionId,
         user_id: userId,
-        jd: jd.trim(),
+        jd: effectiveJd,
         round_type: roundType,
         question_count: questionCount,
+        opportunity_id: opportunityId || null,
         created_at: new Date().toISOString(),
       });
 
@@ -173,12 +176,18 @@ export async function POST(request: Request) {
     }
 
     // 7. 生成面试题（可能耗时 30-120 秒）
-    const questions = await runWithGenerationContext({
-      userId,
-      operation: "mock_interview_start",
-      requestId,
-      knowledgeDocumentIds: knowledge.items.map((item) => item.id),
-    }, () => generateInterviewQuestions(jd, roundType, questionCount, sessionId, resumeText, knowledge.contextText));
+    let questions;
+    try {
+      questions = await runWithGenerationContext({
+        userId,
+        operation: "mock_interview_start",
+        requestId,
+        knowledgeDocumentIds: knowledge.items.map((item) => item.id),
+      }, () => generateInterviewQuestions(effectiveJd, roundType, questionCount, sessionId, resumeText, knowledge.contextText));
+    } catch (generationError) {
+      await db.from("interview_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+      throw generationError;
+    }
 
     // 8. 保存题目到数据库
     if (questions.length > 0) {
@@ -196,7 +205,8 @@ export async function POST(request: Request) {
 
       if (questionsError) {
         console.error("保存面试题失败:", questionsError);
-        // 不中断流程，继续返回响应
+        await db.from("interview_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+        throw new Error(`保存面试题失败：${questionsError.message}`);
       }
     }
 

@@ -10,6 +10,7 @@ type Message = {
 };
 
 type LlmOptions = {
+  onDelta?: (text: string) => void;
   onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}) => void;
   model?: string;
   temperature?: number;
@@ -219,6 +220,31 @@ export async function callLLM(
 
   // wrapper to call SDK
   const clientCall = async () => {
+    if (options?.onDelta) {
+      // Abort the actual upstream request, not just the promise waiting for it.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 45000);
+      const firstTokenTimer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const stream = await client.chat.completions.create({
+          ...buildChatCompletionRequest(messages, provider, model, options),
+          stream: true, stream_options: { include_usage: true },
+        } as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming, { signal: controller.signal });
+        let content = "";
+        let usage: OpenAI.Completions.CompletionUsage | undefined;
+        let actualModel = model;
+        let finished = false;
+        for await (const chunk of stream) {
+          if (chunk.model) actualModel = chunk.model;
+          if (chunk.usage) usage = chunk.usage;
+          if (chunk.choices[0]?.finish_reason) finished = true;
+          const delta = chunk.choices[0]?.delta?.content;
+          if (delta) { clearTimeout(firstTokenTimer); content += delta; options.onDelta(delta); }
+        }
+        if (!finished || !content) throw new Error("模型输出中断，请重试");
+        return { choices: [{ message: { content } }], usage, model: actualModel };
+      } finally { clearTimeout(timer); clearTimeout(firstTokenTimer); }
+    }
     const completion = await client.chat.completions.create(
       buildChatCompletionRequest(messages, provider, model, options) as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
     );

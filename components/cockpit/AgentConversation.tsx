@@ -4,6 +4,7 @@ import {ArrowUp,Copy,Plus,BookOpen} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import {parseMarkdownBold} from "@/lib/markdown-utils";
 import {type ChatMode,CHAT_MODELS} from "@/lib/coach-harness/chat-options";
+import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 type Turn={id:string;question:string;answer:string;learning_trace?:{suggestions?:string[];model?:string;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
 type Session={id:string;title:string;status:"active"|"archived";summary?:string};
 export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string};
@@ -15,6 +16,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const [turns,setTurns]=useState<Turn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[sessions,setSessions]=useState<Session[]>([]),[session,setSession]=useState<Session|null>(null);
  const [pending,setPending]=useState("");
+ const [draft,setDraft]=useState("");
  const [modelMode,setModelMode]=useState<ChatMode>("auto");
  const [modelAccess,setModelAccess]=useState<{connected:boolean;available:string[]}|null>(null);
  useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(b.ok)setModelAccess(b);}).catch(()=>{});return()=>controller.abort();},[enabled]);
@@ -24,7 +26,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const scope=opportunityId?"opportunityId="+opportunityId:"";
  useEffect(()=>{
   const token=++generation.current;lock.current=false;
-  setTurns([]);setMessage("");setError("");setPending("");setBusy(false);setSession(null);setSessions([]);setLoading(true);
+  setTurns([]);setMessage("");setError("");setPending("");setDraft("");setBusy(false);setSession(null);setSessions([]);setLoading(true);
   if(!enabled){setLoading(false);return;}
   const controller=new AbortController();
   fetch("/api/coach/agent/sessions?"+scope,{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then(async b=>{
@@ -35,10 +37,10 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
   }).catch(e=>{if(token===generation.current&&!controller.signal.aborted)setError(e.message||"网络异常，请刷新找回记录");}).finally(()=>{if(token===generation.current)setLoading(false);});
   return()=>{generation.current=token+1;controller.abort();};
  },[scope,enabled]);
- useEffect(()=>{if(list.current)list.current.scrollTop=list.current.scrollHeight;},[turns,pending,busy]);
+ useEffect(()=>{if(list.current)list.current.scrollTop=list.current.scrollHeight;},[turns,pending,busy,draft]);
  const send=useCallback(async(text:string,newLesson=false,title?:string)=>{
   if(lock.current||!text.trim()||!enabled||loading)return;
-  lock.current=true;const token=generation.current;setBusy(true);setError("");setPending(text);
+  lock.current=true;const token=generation.current;setBusy(true);setError("");setPending(text);setDraft("");
   try{
    let selected=session;
    if(newLesson&&selected?.status==="active"&&turns.length){
@@ -52,10 +54,11 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    }
    const requestId=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.requestId:crypto.randomUUID();
    retry.current={text,sessionId:selected!.id,requestId};
-   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode})});
-   const b=await r.json().catch(()=>({error:"服务暂时没有返回答案，请保留问题后重试"}));
+   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode})});
+   const b=await readChatResponse<Turn&{ok?:boolean;error?:string}>(r,value=>{if(token===generation.current)setDraft(value);});
    if(token!==generation.current)return;if(!b.ok)throw Error(b.error||"回答暂时不可用");
    retry.current=null;
+   setDraft("");
    setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,learning_trace:b.learning_trace}]);setMessage(m=>m.trim()===text.trim()?"":m);
   }catch(e){if(token===generation.current){setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");setMessage(m=>m||text);}}
   finally{if(token===generation.current){setBusy(false);setPending("");lock.current=false;}}
@@ -82,7 +85,9 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    {t.learning_trace?.model&&<details className={styles.usage}><summary>{t.learning_trace.modelUsage?.model||t.learning_trace.model}{t.learning_trace.modelUsage?` · ${t.learning_trace.modelUsage.inputTokens+t.learning_trace.modelUsage.outputTokens} tokens${t.learning_trace.modelUsage.averageTokensPerSecond!==null?` · ${t.learning_trace.modelUsage.averageTokensPerSecond} tokens/s`:""}`:" · 用量未返回"}</summary>{t.learning_trace.modelUsage&&<p>输入 {t.learning_trace.modelUsage.inputTokens} / 输出 {t.learning_trace.modelUsage.outputTokens} tokens。速率是输出 tokens ÷ 请求耗时，包含等待，不是扣费倍率。</p>}<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenPay 实时价格（以账单为准）</a></details>}
    {index===turns.length-1&&!busy&&!loading&&session?.status!=="archived"&&!!t.learning_trace?.suggestions?.length&&<div className={styles.quickStarts} aria-label="继续这个问题">{t.learning_trace.suggestions.slice(0,2).map(q=><button key={q} type="button" disabled={!enabled} onClick={()=>void send(q)}>{q}</button>)}</div>}
    </div></div>)}
-   {pending&&<p className={styles.question}>{pending}</p>}{busy&&<p role="status">{pending?"正在结合材料组织讲解…":"正在整理并保存这次学习…"}</p>}
+   {pending&&<p className={styles.question}>{pending}</p>}
+   {draft&&<div className={styles.answer}><p>{parseMarkdownBold(draft)}</p>{!busy&&<small>回答未完成，尚未确认保存</small>}</div>}
+   {busy&&<p role="status">{draft?"正在回答…":pending?"正在读取材料并连接导师…":"正在整理并保存这次学习…"}</p>}
    {session?.status==="archived"&&session.summary&&<details open className={styles.summary}><summary>本次学习笔记 · 下次可读取</summary><p>{session.summary}</p><small>AI 复盘，未验证的能力仍待验证。</small></details>}
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}

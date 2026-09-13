@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { getDbClient } from "./db";
+import { getGenerationContext } from "./generation-context";
 
 const TOKENPAY_ORIGIN = "https://tokendance.space";
 const TOKENPAY_PORTAL = `${TOKENPAY_ORIGIN}/portal/api/v1`;
@@ -187,7 +188,16 @@ export async function saveTokenPayConnection(userId: string, apiKey: string) {
   if (error) throw error;
 }
 
+// Request-local only: never retain one user's key in a shared model cache.
+const credentialReads=new WeakMap<object,Promise<string|null>>();
 export async function getTokenPayCredential(userId: string) {
+  const context=getGenerationContext();
+  if(!context||context.userId!==userId)return readTokenPayCredential(userId);
+  let pending=credentialReads.get(context);
+  if(!pending){pending=readTokenPayCredential(userId);credentialReads.set(context,pending);}
+  return pending;
+}
+async function readTokenPayCredential(userId: string) {
   const client = await getDbClient();
   if (!client) return null;
   const { data, error } = await client.from("tokenpay_connections")

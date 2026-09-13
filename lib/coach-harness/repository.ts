@@ -277,9 +277,6 @@ export async function getContextBundleForUser(input: {
     (q, expression) => q.or(expression),
     (q) => q.is("opportunity_id", null),
   );
-  const { data: claimRows, error: claimError } = await claimQuery
-    .order("updated_at", { ascending: false }).limit(300);
-  if (claimError) throw claimError;
 
   let artifactQuery = db.from("coach_artifacts")
     .select("id, opportunity_id, artifact_type, version, title, status, content, created_by, created_at")
@@ -289,8 +286,11 @@ export async function getContextBundleForUser(input: {
     (q, expression) => q.or(expression),
     (q) => q.is("opportunity_id", null),
   );
-  const { data: artifactRows, error: artifactError } = await artifactQuery
-    .order("created_at", { ascending: false }).limit(100);
+  const [{data:claimRows,error:claimError},{data:artifactRows,error:artifactError}]=await Promise.all([
+    claimQuery.order("updated_at", { ascending: false }).limit(300),
+    artifactQuery.order("created_at", { ascending: false }).limit(100),
+  ]);
+  if (claimError) throw claimError;
   if (artifactError) throw artifactError;
   const relevantArtifacts = (artifactRows || []) as DbRow[];
 

@@ -1,6 +1,8 @@
 import {getTokenPayCredential} from "@/lib/tokenpay";
 import {CHAT_MODELS,chooseChatModel,type ChatMode} from "./chat-options";
 let cache:{until:number;ids:string[]}|undefined;
+const coolingUntil=new Map<string,number>();
+export function coolDownChatModel(model:string){coolingUntil.set(model,Date.now()+60000);}
 export async function chatModelAccess(userId:string){
  const connected=Boolean(await getTokenPayCredential(userId));
  if(!connected)return {connected,available:[] as string[]};
@@ -17,7 +19,8 @@ export async function chatModelAccess(userId:string){
 export async function resolveChatModel(userId:string,mode:ChatMode,query:string){
  const access=await chatModelAccess(userId);
  if(!access.connected&&mode!=="auto"&&mode!=="fast")throw Error("请先连接 TokenPay 才能使用该模型");
- const model=chooseChatModel(mode,query,access.available);
+ const available=mode==="auto"?access.available.filter(id=>(coolingUntil.get(id)||0)<=Date.now()):access.available;
+ const model=chooseChatModel(mode,query,available);
  if(!model)throw Error("该模型当前不可用，请改用自动或经济模式");
  return {model,connected:access.connected};
 }

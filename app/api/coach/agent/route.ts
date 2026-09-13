@@ -54,8 +54,15 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   if (readError) return NextResponse.json({ error: "读取状态失败" }, { status: 503, headers });
   if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,learning_trace:existing.learning_trace}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
-  const [turns,learningMemory,profileMemory] = await Promise.all([
-    history(user.id,id,sessionId),
+  const [{turns,context,selection},learningMemory,profileMemory] = await Promise.all([
+    history(user.id,id,sessionId).then(async turns=>{
+      const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
+      const [context,selection]=await Promise.all([
+        getContextBundleForUser({ userId:user.id, opportunityId:id, task:"mock_interview", currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:"single_inference", budget:{maxInputTokens:4000}, knowledgeLimit:2 }),
+        resolveChatModel(user.id,mode,retrievalQuery).catch(error=>({error})),
+      ]);
+      return {turns,context,selection};
+    }),
     sessionId?readLearningMemory(user.id,id):Promise.resolve(""),
     sessionId?refreshProfileMemory(user.id):Promise.resolve(""),
   ]);
@@ -64,16 +71,13 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
     const {data:updates,error} = await db.from("coach_market_updates").select("source_url,region,excerpt,checked_at").gte("checked_at",new Date(Date.now()-48*60*60*1000).toISOString()).limit(2);
     market=error||!updates?.length ? "没有 48 小时内验证的公开来源，明确告知尚无最新证据。" : updates.map((u:{source_url:string;region:string;excerpt:string;checked_at:string})=>`${u.region}\n来源 ${u.source_url}，抓取时间 ${u.checked_at}（不是发布日期）：\n${u.excerpt.slice(0,1800)}`).join("\n");
   }
-  const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
-  const context = await getContextBundleForUser({ userId:user.id, opportunityId:id, task:"mock_interview", currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:"single_inference", budget:{maxInputTokens:4000}, knowledgeLimit:2 });
   assertContextFits(context);
   const rendered = renderContextForPrompt(context).text;
   // Always recompile private facts; never share a cached answer across users or jobs.
   const recent = turns.slice(-4).map(t => `用户：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
   const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
   const fingerprint = createHash("sha256").update(user.id + ":" + id + ":" + prompt).digest("hex");
-  let selection;
-  try{selection=await resolveChatModel(user.id,mode,retrievalQuery);}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"模型不可用"},{status:503,headers});}
+  if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
   let modelCalls = 0;
@@ -82,7 +86,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
     return callLLM([
     { role:"system",content:LEARNING_SYSTEM },
     { role:"user",content:prompt }
-  ], {model,maxTokens:2400,maxRetries:0,timeout:45000,timeoutMs:45000,temperature:0.4,onUsage:details=>{modelUsage=details;},onDelta:onDelta?(text)=>{received=true;onDelta(text);}:undefined});
+  ], {model,maxTokens:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:0.4,onUsage:details=>{modelUsage=details;},onDelta:onDelta?(text)=>{received=true;onDelta(text);}:undefined});
   };
   let rawAnswer;
   try { rawAnswer=await generate(selection.model); }

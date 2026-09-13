@@ -4,6 +4,7 @@ import {createClient} from '@supabase/supabase-js';
 import {createHmac,randomUUID} from 'node:crypto';
 const scope=process.argv[2];
 const streaming=process.argv.includes('--stream');
+const streamModel=process.argv.find(arg=>arg.startsWith('--model='))?.slice(8)||'auto';
 if(!/^[0-9a-f-]{36}$/i.test(scope||''))throw Error('Explicit authorized opportunity required');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
 const {data:o,error}=await db.from('coach_opportunities').select('user_id').eq('id',scope).single();
@@ -32,7 +33,7 @@ try{
  const access=await request('/api/coach/agent/models');
  if(!access.connected)throw Error('No connected TokenPay account');
  const created=await request('/api/coach/agent/sessions',{title:'系统验证：模型连通性（临时）'});sessionId=created.session.id;
- for(const modelMode of streaming?['auto']:['qwen3.8-max-0902','kimi-k3','glm-5.3']){
+ for(const modelMode of streaming?[streamModel]:['qwen3.8-max-0902','kimi-k3','glm-5.3']){
   try{
    const input={sessionId,modelMode,requestId:randomUUID(),message:streaming?'请教我如何设计一个RAG召回评测，用一个简短例子说明，再给我一道练习题。不需要使用我的个人经历。':'这是产品连接测试，不是学习内容。不要引用个人材料。请只回复“已连接”，不用展开，后续问题留空。'};
    const b=await request('/api/coach/agent',input);

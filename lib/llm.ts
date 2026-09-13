@@ -11,6 +11,7 @@ type Message = {
 
 type LlmOptions = {
   onDelta?: (text: string) => void;
+  firstTokenTimeoutMs?: number;
   onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}) => void;
   model?: string;
   temperature?: number;
@@ -224,7 +225,7 @@ export async function callLLM(
       // Abort the actual upstream request, not just the promise waiting for it.
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 45000);
-      const firstTokenTimer = setTimeout(() => controller.abort(), 15000);
+      const firstTokenTimer = setTimeout(() => controller.abort(), options.firstTokenTimeoutMs ?? 15000);
       try {
         const stream = await client.chat.completions.create({
           ...buildChatCompletionRequest(messages, provider, model, options),

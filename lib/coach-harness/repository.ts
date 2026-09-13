@@ -244,6 +244,8 @@ export async function getContextBundleForUser(input: {
   deadline?: string | null;
   userOverride?: boolean;
   currentInput?: string | null;
+  retrievalQuery?: string | null;
+  retrievalTask?: AgentKnowledgeTask;
   questionSource?: { id: string; text: string; version?: string | null } | null;
   historySummary?: { id: string; text: string } | null;
   attachments?: ContextAttachment[];
@@ -319,10 +321,10 @@ export async function getContextBundleForUser(input: {
     ?? (routeClass === "direct" ? 0 : routeClass === "single_inference" ? 2 : 6);
   const knowledge = knowledgeLimit > 0
     ? await buildAgentKnowledgeContext({
-        task: knowledgeTask(input.task),
+        task: input.retrievalTask || knowledgeTask(input.task),
         company: opportunity?.company,
         role: opportunity?.role,
-        query: [opportunity?.company, opportunity?.role, opportunity?.jdText?.slice(0, 180), input.task].filter(Boolean).join(" "),
+        query: [input.retrievalQuery || input.currentInput, opportunity?.company, opportunity?.role, opportunity?.jdText?.slice(0, 180), input.task].filter(Boolean).join(" "),
         limit: knowledgeLimit,
       })
     : { items: [], contextText: "" };
@@ -336,6 +338,7 @@ export async function getContextBundleForUser(input: {
     knowledge: knowledge.items.map((item) => ({
       id: item.id,
       title: item.title,
+      content: `${item.content.slice(0,2600)}\n使用边界：${item.doNotUseWhen.join("；")}\n来源：${item.evidence.slice(0,2).map(s=>s.url).join("\n")}`,
       description: item.description,
       goal: item.goal,
       scope: item.scope,

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import AgentConversation from "./AgentConversation";
+import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -142,6 +142,8 @@ export function CockpitApp({
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<CockpitTab>(initialTab || "overview");
   const [surface, setSurface] = useState<"today" | "opportunity">(initialTab ? "opportunity" : "today");
+  const [coachingStart,setCoachingStart]=useState<CoachingStart|null>(null);
+  const [learningRevision,setLearningRevision]=useState(0);
   const [query, setQuery] = useState("");
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
@@ -763,8 +765,10 @@ export function CockpitApp({
           onFeedback={submitMentorFeedback}
           onShowRules={() => announce("跟踪、提醒与一致性检查免费；生成和模拟面试执行前明示额度")}
           onOpenPlans={() => setEntryGateOpen(true)}
+          learningRevision={learningRevision}
+          onStartCoaching={(title,prompt)=>setCoachingStart({id:crypto.randomUUID(),title,prompt,opportunityId:conversationOpportunity?.id})}
         />
-        <aside className={styles.todayAgent}><AgentConversation key={conversationOpportunity?.id ?? "general"} opportunityId={conversationOpportunity?.id} label={conversationOpportunity ? `${conversationOpportunity.company} · ${conversationOpportunity.role}` : "个人求职目标"} enabled={dataMode === "live" && (!conversationOpportunity || !localIds.includes(conversationOpportunity.id))} /></aside></div>
+<aside className={styles.todayAgent}><AgentConversation key={conversationOpportunity?.id ?? "general"} startRequest={coachingStart} onArchived={()=>setLearningRevision(v=>v+1)} onStartConsumed={(id)=>setCoachingStart(current=>current?.id===id?null:current)} opportunityId={conversationOpportunity?.id} label={conversationOpportunity ? `${conversationOpportunity.company} · ${conversationOpportunity.role}` : "个人求职目标"} enabled={dataMode === "live" && (!conversationOpportunity || !localIds.includes(conversationOpportunity.id))} /></aside></div>
         {entryGateModal}
       </>
     );

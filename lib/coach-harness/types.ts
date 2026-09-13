@@ -276,6 +276,7 @@ export interface ContextBundle {
   knowledge: Array<{
     id: string;
     title: string;
+    content?: string;
     description: string;
     goal: string;
     scope: string;

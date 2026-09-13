@@ -86,7 +86,7 @@ function resolveText(entry: ContextSelectionEntry, bundle: ContextBundle): strin
     case "knowledge": {
       const item = bundle.knowledge.find((k) => k.id === entry.refId);
       if (!item) return null;
-      return `${item.title}\n${item.description}\n目标：${item.goal}\n适用：${item.scope}`;
+      return `${item.title}\n${item.description}\n目标：${item.goal}\n适用：${item.scope}${item.content?`\n知识正文：\n${item.content}`:""}`;
     }
     case "history_summary":
       return bundle.historySummary?.text || null;

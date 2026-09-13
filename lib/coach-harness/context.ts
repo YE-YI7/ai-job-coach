@@ -297,7 +297,7 @@ export function compileContextBundle(input: {
 
   const keptKnowledge: ContextBundle["knowledge"] = [];
   for (const item of knowledge) {
-    const tokens = estimateTokens(item.description + item.goal + item.scope);
+    const tokens = estimateTokens(item.title + item.description + item.goal + item.scope + (item.content||""));
     const ok = tryInclude({
       kind: "knowledge",
       refId: item.id,

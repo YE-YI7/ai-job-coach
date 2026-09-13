@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
-import { createSessionToken, sessionCookie } from "@/lib/session";
+import { createSessionToken, sessionCookie, verifySessionToken } from "@/lib/session";
 import { normalizeRedirectPath, readCookieValue } from "@/lib/auth-redirect";
 
 export const runtime = "nodejs";
@@ -48,8 +48,7 @@ export async function GET(request: Request) {
       hasCode: !!code, 
       hasState: !!state, 
       error, 
-      errorDescription,
-      fullUrl: request.url 
+      hasErrorDescription: !!errorDescription,
     });
 
     // 用户拒绝授权或出错
@@ -71,10 +70,25 @@ export async function GET(request: Request) {
     const cookieState = readCookieValue(cookieHeader, "watcha_oauth_state");
 
     console.log("[WATCHA OAuth] state 验证:", { 
-      urlState: state, 
-      cookieState: cookieState ? `${cookieState.slice(0, 8)}...` : "无",
-      allCookies: cookieHeader.split(";").map(c => c.trim().split("=")[0])
+      hasState: !!state,
+      hasCookieState: !!cookieState,
+      matches: !!state && state === cookieState,
     });
+
+    // A completed login clears its one-time state cookie. Reloading that callback
+    // may resume an already verified session, but must never exchange another code
+    // or bypass a mismatched state belonging to an in-progress authorization.
+    if (state && !cookieState) {
+      const session = await verifySessionToken(
+        readCookieValue(cookieHeader, sessionCookie.name) || undefined
+      );
+      if (session) {
+        const response = NextResponse.redirect(new URL("/cockpit", baseUrl));
+        response.headers.set("Cache-Control", "private, no-store");
+        console.log("[WATCHA OAuth] 重复回调，继续已有有效会话");
+        return response;
+      }
+    }
 
     if (!state || !cookieState || state !== cookieState) {
       console.warn("[WATCHA OAuth] state 不匹配，可能存在 CSRF 攻击");

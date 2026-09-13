@@ -241,6 +241,7 @@ export async function callLLM(
           const delta = chunk.choices[0]?.delta?.content;
           if (delta) { clearTimeout(firstTokenTimer); content += delta; options.onDelta(delta); }
         }
+        if (controller.signal.aborted) throw new Error("Request timed out.");
         if (!finished || !content) throw new Error("模型输出中断，请重试");
         return { choices: [{ message: { content } }], usage, model: actualModel };
       } finally { clearTimeout(timer); clearTimeout(firstTokenTimer); }

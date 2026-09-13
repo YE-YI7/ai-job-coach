@@ -20,4 +20,12 @@ describe("upstream streaming",()=>{
   await expect(callLLM([{role:"user",content:"hi"}],{onDelta:()=>{},maxRetries:0,timeoutMs:100})).rejects.toThrow("中断");
   expect(create).toHaveBeenCalledTimes(1);
  });
+ test("SDK ending normally on abort is still classified as timeout",async()=>{
+  const create=jest.fn().mockImplementation(async(_request,{signal})=>(async function*(){
+    await new Promise<void>(resolve=>signal.addEventListener("abort",()=>resolve(),{once:true}));
+    yield {choices:[]};
+  })());
+  (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+  await expect(callLLM([{role:"user",content:"hi"}],{onDelta:()=>{},maxRetries:0,timeoutMs:10})).rejects.toThrow("timed out");
+ });
 });

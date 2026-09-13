@@ -14,9 +14,10 @@ async function request(path,body){
  const started=Date.now();
  const r=await fetch('https://www.ai-job-coach.xin'+path,{method:body?'POST':'GET',headers:{cookie,'Content-Type':'application/json',...(streaming&&path==='/api/coach/agent'?{Accept:'application/x-ndjson'}:{}),'x-idempotency-key':body?.requestId||randomUUID()},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000)});
  if(r.headers.get('content-type')?.includes('application/x-ndjson')){
+  const decoder=new TextDecoder();
   let buffer='',firstDeltaMs=null,deltaCount=0,result;
   for await(const bytes of r.body){
-   buffer+=Buffer.from(bytes).toString('utf8');
+   buffer+=decoder.decode(bytes,{stream:true});
    const lines=buffer.split('\n');buffer=lines.pop()||'';
    for(const line of lines){if(!line)continue;const event=JSON.parse(line);if(event.type==='delta'){firstDeltaMs??=Date.now()-started;deltaCount++;}if(event.type==='done')result=event;}
   }

@@ -5,7 +5,14 @@ import {randomUUID,createHmac} from 'node:crypto';
 import assert from 'node:assert/strict';
 const base=process.argv[2]||'http://localhost:3000';
 if(!['http://localhost:3000','https://www.ai-job-coach.xin'].includes(base))throw Error('Unexpected test destination');
-const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
+// Retry only read-side transport failures; never replay a potentially committed write.
+const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{global:{fetch:async(input,init)=>{
+ const attempts=(init?.method||'GET').toUpperCase()==='GET'?3:1;
+ for(let attempt=0;attempt<attempts;attempt++){
+  try{return await fetch(input,init);}catch(error){if(attempt===attempts-1)throw error;}
+ }
+ throw Error('Read retries exhausted');
+}}});
 const id=randomUUID(),other=randomUUID();
 function cookie(uid){const p=Buffer.from(JSON.stringify({userId:uid,version:2,exp:Math.floor(Date.now()/1000)+600})).toString('base64url');return 'sb-access-token='+p+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(p).digest('base64url');}
 async function request(path,body,uid=id){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{cookie:cookie(uid),'Content-Type':'application/json','x-idempotency-key':body?.requestId||randomUUID()},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000)});const b=await r.json();assert.equal(r.ok,true,JSON.stringify({path,status:r.status,body:b}));return b;}

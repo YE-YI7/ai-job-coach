@@ -10,6 +10,7 @@ type Message = {
 };
 
 type LlmOptions = {
+  onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}) => void;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -48,6 +49,9 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
     request.thinking = { type: options?.thinking || "disabled" };
   }
   if (options?.responseFormat) request.response_format = { type: options.responseFormat };
+  // Kimi thinking models may require fixed sampling parameters; omit rather
+  // than sending the application's generic temperature (TokenDance Kimi guide).
+  if(provider==="tokendance"&&model.startsWith("kimi-"))delete request.temperature;
   return request;
 }
 
@@ -203,6 +207,7 @@ export async function callLLM(
 
   const client = new OpenAI({
     apiKey,
+    maxRetries: options?.maxRetries ?? 2,
     baseURL: provider === "deepseek"
       ? "https://api.deepseek.com"
       : provider === "tokendance"
@@ -236,6 +241,8 @@ export async function callLLM(
     if (!content) throw new Error("Empty response from LLM");
 
     const usage = normalizeGenerationUsage(completion.usage as Record<string, unknown> | undefined);
+    const latencyMs=Date.now()-startedAt;
+    if(completion.usage)options?.onUsage?.({model:completion.model||model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,latencyMs,averageTokensPerSecond:latencyMs>0?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null});
     const cost = estimateGenerationCost(provider, model, usage);
     await recordGenerationEvent({
       userId: trace?.userId,

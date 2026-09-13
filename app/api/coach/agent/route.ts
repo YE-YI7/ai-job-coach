@@ -8,6 +8,8 @@ import { getContextBundleForUser } from "@/lib/coach-harness/repository";
 import { assertContextFits, renderContextForPrompt } from "@/lib/coach-harness";
 import {LEARNING_SYSTEM,learningKnowledgeTask,makeLearningQuery,readLearningMemory,readLearningSession,refreshProfileMemory,boundedLearningPrompt} from "@/lib/coach-harness/learning-memory";
 import {estimateTokens} from "@/lib/coach-harness/context";
+import {isChatMode,parseTutorReply} from "@/lib/coach-harness/chat-options";
+import {resolveChatModel} from "@/lib/coach-harness/chat-models";
 
 export const runtime = "nodejs";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -15,7 +17,7 @@ const headers = { "Cache-Control": "private, no-store" };
 async function history(userId: string, opportunityId: string | null, sessionId:string|null=null, limit=12) {
   const db = await getDbClient();
   if (!db) throw new Error("数据库不可用");
-  let q = db.from("coach_agent_turns").select("id,question,answer,created_at").eq("user_id", userId);
+  let q = db.from("coach_agent_turns").select("id,question,answer,created_at,learning_trace").eq("user_id", userId);
   q = opportunityId ? q.eq("opportunity_id", opportunityId) : q.is("opportunity_id", null);
   q = sessionId ? q.eq("session_id",sessionId) : q.is("session_id",null);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
@@ -38,6 +40,8 @@ export const POST = withMeteredAiRoute(async (req: Request) => {
   let body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "请求格式错误" }, { status: 400, headers }); }
   const id = body?.opportunityId ?? null;
+  const mode=body?.modelMode??"auto";
+  if(!isChatMode(mode))return NextResponse.json({error:"模型选项无效"},{status:400,headers});
   const sessionId=body?.sessionId??null;
   if(sessionId!==null&&(typeof sessionId!=="string"||!uuid.test(sessionId)))return NextResponse.json({error:"会话无效"},{status:400,headers});
   if ((id !== null && (typeof id !== "string" || !uuid.test(id))) || typeof body?.message !== "string" || !body.message.trim() || body.message.length > 4000 || !uuid.test(body.requestId || "")) {
@@ -45,9 +49,9 @@ export const POST = withMeteredAiRoute(async (req: Request) => {
   }
   const db = await getDbClient();
   if (!db) return NextResponse.json({ error: "数据库不可用，未开始生成" }, { status: 503, headers });
-  const { data: existing, error: readError } = await db.from("coach_agent_turns").select("id,answer,opportunity_id,session_id").eq("user_id", user.id).eq("request_id", body.requestId).maybeSingle();
+  const { data: existing, error: readError } = await db.from("coach_agent_turns").select("id,answer,opportunity_id,session_id,learning_trace").eq("user_id", user.id).eq("request_id", body.requestId).maybeSingle();
   if (readError) return NextResponse.json({ error: "读取状态失败" }, { status: 503, headers });
-  if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
+  if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,learning_trace:existing.learning_trace}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
   const turns = await history(user.id, id,sessionId);
   const learningMemory=sessionId?await readLearningMemory(user.id,id):"";
@@ -65,13 +69,17 @@ export const POST = withMeteredAiRoute(async (req: Request) => {
   const recent = turns.slice(-4).map(t => `用户：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
   const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
   const fingerprint = createHash("sha256").update(user.id + ":" + id + ":" + prompt).digest("hex");
-  const answer = await callLLM([
+  let selection;
+  try{selection=await resolveChatModel(user.id,mode,retrievalQuery);}catch(e){return NextResponse.json({error:e instanceof Error?e.message:"模型不可用"},{status:503,headers});}
+  let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
+  const rawAnswer = await callLLM([
     { role:"system",content:LEARNING_SYSTEM },
     { role:"user",content:prompt }
-  ], { maxTokens:1200, temperature:0.4 });
+  ], {model:selection.model,maxTokens:2400,maxRetries:0,temperature:0.4,onUsage:details=>{modelUsage=details;}});
+  const {answer,suggestions}=parseTutorReply(rawAnswer);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
-  const trace={promptVersion:"learning-v1",knowledgeIds:context.knowledge.map(k=>k.id),inputTokens:estimateTokens(LEARNING_SYSTEM)+estimateTokens(prompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls:1};
+  const trace={promptVersion:"learning-v2",knowledgeIds:context.knowledge.map(k=>k.id),inputTokens:estimateTokens(LEARNING_SYSTEM)+estimateTokens(prompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls:1,suggestions,model:selection.model,modelUsage};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
-  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint},{headers});
+  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,learning_trace:trace},{headers});
 }, {operation:"cockpit_agent",quotaType:"chat"});

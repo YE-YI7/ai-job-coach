@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
+import ChatResizeHandle from "./ChatResizeHandle";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -753,7 +754,7 @@ export function CockpitApp({
     const conversationOpportunity = opportunities.find(item => item.id === focusId) ?? active;
     return (
       <>
-        <div className={styles.todayWithAgent}><TodayCoach
+        <div className={styles.todayWithAgent} data-chat-layout="today"><ChatResizeHandle/><TodayCoach
           opportunities={opportunities}
           activeId={active?.id ?? ""}
           accountLabel={compactAccountLabel(userEmail)}
@@ -808,7 +809,7 @@ export function CockpitApp({
         </div>
       </header>
 
-      <div className={styles.workspace}>
+      <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
           activeId={active?.id ?? ""}
           opportunities={filtered}

@@ -15,6 +15,11 @@ describe("DeepSeek completion request", () => {
     });
   });
 
+  test("Kimi requests do not inherit incompatible fixed sampling or thinking fields",()=>{
+    const request=buildChatCompletionRequest(messages,"tokendance","kimi-k3",{temperature:0.4});
+    expect(request.temperature).toBeUndefined();expect(request.thinking).toBeUndefined();
+  });
+
   test("reads TokenDance recovery actions from direct and wrapped SDK errors", () => {
     const headers = new Headers({ "TokenDance-Recovery-Action": "top_up_balance" });
     expect(tokenDanceRecoveryActionFromError({ headers })).toBe("top_up_balance");

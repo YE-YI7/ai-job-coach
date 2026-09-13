@@ -10,6 +10,7 @@ import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota"
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
+import {intakeErrorMessage} from "@/lib/opportunities/intake-error";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -343,9 +344,7 @@ export async function POST(request: Request) {
     console.error("Opportunity analysis failed", error);
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
-    const message = error instanceof Error && /请|不能|不支持|无法|没有|太大/.test(error.message)
-      ? error.message
-      : "材料暂时读不了，请直接粘贴文字后重试";
+    const message = intakeErrorMessage(error);
     return NextResponse.json({ ok: false, error: message }, { status: 503 });
   }
 }

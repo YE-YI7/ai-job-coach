@@ -158,6 +158,7 @@ export function CockpitApp({
   const [reviewingInterview, setReviewingInterview] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
+  const localStorageHealthy = useRef(true);
   // 四类入口（PRD §3.1）：null=未知，首访无 active 计划时自动弹出
   const [entryGateOpen, setEntryGateOpen] = useState<boolean | null>(null);
   const viewTracked = useRef(false);
@@ -199,14 +200,15 @@ export function CockpitApp({
         setLocalIds(valid.map((item) => item.id));
       }
     } catch {
-      window.localStorage.removeItem(LOCAL_OPPORTUNITIES_KEY);
+      // Preserve unreadable local data for recovery; never overwrite it with [].
+      localStorageHealthy.current=false;
     } finally {
       setLocalLoaded(true);
     }
   }, [dataMode]);
 
   useEffect(() => {
-    if (!localLoaded || dataMode === "demo") return;
+    if (!localLoaded || dataMode === "demo" || !localStorageHealthy.current) return;
     const local = opportunities.filter((item) => localIds.includes(item.id));
     window.localStorage.setItem(LOCAL_OPPORTUNITIES_KEY, JSON.stringify(local));
   }, [dataMode, localIds, localLoaded, opportunities]);
@@ -817,7 +819,7 @@ export function CockpitApp({
           query={query}
           mobileOpen={mobileRail === "opportunities"}
           onQueryChange={setQuery}
-          localCount={localIds.length}
+          localCount={dataMode === "live" ? opportunities.length : localIds.length}
           onSelect={(id) => { setCreating(false); setActiveId(id); setActiveTab("overview"); setQuestionSnoozed(false); setMobileRail(null); }}
           onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
           onClose={() => setMobileRail(null)}
@@ -913,7 +915,7 @@ function OpportunityRail({ activeId, opportunities, totalCount, localCount, quer
   return (
     <aside className={`${styles.opportunityRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="岗位机会">
       <div className={styles.railHeading}>
-        <div><h2>机会</h2><p>{localCount ? `${localCount} 个我的 · ${totalCount - localCount} 个示例` : `${totalCount} 个示例岗位`}</p></div>
+        <div><h2>机会</h2><p>{localCount === totalCount ? `${totalCount} 个我的岗位` : localCount ? `${localCount} 个我的 · ${totalCount - localCount} 个示例` : `${totalCount} 个示例岗位`}</p></div>
         <button className={styles.mobileClose} onClick={onClose} aria-label="关闭机会列表"><X size={19} /></button>
       </div>
       <label className={styles.searchBox}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索公司或岗位</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索公司或岗位" /></label>

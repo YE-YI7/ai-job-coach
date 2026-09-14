@@ -524,3 +524,4 @@
 @media (prefers-reduced-motion: reduce) {
   .opportunityRail, .actionRail, .toast { transition: none; }
 }
+.rightTool{height:calc(100dvh - 100px);overflow:auto;min-width:0;padding:4px}.rightTool h2{font-size:22px}.rightTool h3{font-size:18px}.rightTool .pageIntro,.rightTool .roundtableHeader{display:block}.rightTool .interviewActions{display:flex;flex-wrap:wrap;margin-top:16px}.rightTool .roundtableRoles{display:none}.rightTool .roundtableQuestion{padding:12px 0}.rightTool textarea{width:100%;min-width:0}.rightTool .roundtableActions{flex-wrap:wrap}.exportControls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:16px 0}.exportControls select{padding:8px;background:white;border:1px solid #d9d5ce;border-radius:6px}.exportControls small{width:100%;color:#686159;font-size:12px}

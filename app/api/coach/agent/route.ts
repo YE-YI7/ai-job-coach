@@ -63,8 +63,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
       ]);
       return {turns,context,selection};
     }),
-    sessionId?readLearningMemory(user.id,id):Promise.resolve(""),
-    sessionId?refreshProfileMemory(user.id):Promise.resolve(""),
+    // Optional compaction/cache must not prevent a reply. The authoritative
+    // context and session ownership checks above still fail closed.
+    sessionId?readLearningMemory(user.id,id).catch(()=>""):Promise.resolve(""),
+    sessionId?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
   if (/就业形势|行情|招聘趋势|就业市场|最新.*招聘/.test(body.message)) {

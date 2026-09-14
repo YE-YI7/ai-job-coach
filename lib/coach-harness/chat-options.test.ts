@@ -1,4 +1,7 @@
 import {chooseChatModel,isChatMode,parseTutorReply,CHAT_MODELS} from "./chat-options";
+test("tutor-to-user prompts are not offered as user replies",()=>{
+ expect(parseTutorReply('内容<followups>["你能举个例子吗？","请带我拆解这个指标"]</followups>').suggestions).toEqual(["请带我拆解这个指标"]);
+});
 test("automatic mode uses task-specific eligible models",()=>{
  expect(chooseChatModel("auto","面试练习",[...CHAT_MODELS])).toBe("kimi-k3");
  expect(chooseChatModel("auto","RAG召回评测",[...CHAT_MODELS])).toBe("glm-5.3");

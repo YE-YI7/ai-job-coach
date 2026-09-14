@@ -6,6 +6,18 @@ import { extractPdfText } from "@/lib/pdf-text";
 
 export const runtime = "nodejs";
 
+export async function GET(request:Request){
+ const user=await getCurrentUserFromRequest();
+ const headers={"Cache-Control":"private, no-store"};
+ if(!user)return NextResponse.json({error:"请先登录"},{status:401,headers});
+ const params=new URL(request.url).searchParams;
+ const opportunityId=params.get("opportunityId")||"",artifactId=params.get("artifactId")||"";
+ const uuid=/^[0-9a-f-]{36}$/i;
+ if(!uuid.test(opportunityId)||!uuid.test(artifactId))return NextResponse.json({error:"版本参数无效"},{status:400,headers});
+ try{const artifact=await getArtifactForUser(user.id,opportunityId,artifactId);const c=artifact.content as {resumeText?:string;previewText?:string};const text=c.resumeText||c.previewText;if(!text)return NextResponse.json({error:"这个版本还没有简历正文"},{status:422,headers});return NextResponse.json({ok:true,text},{headers});}
+ catch{return NextResponse.json({error:"无法读取这个简历版本，请刷新后重试"},{status:503,headers});}
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });

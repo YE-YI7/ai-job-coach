@@ -11,9 +11,11 @@ const {data:o,error}=await db.from('coach_opportunities').select('user_id').eq('
 if(error)throw Error('Scoped owner lookup failed');
 const payload=Buffer.from(JSON.stringify({userId:o.user_id,version:2,exp:Math.floor(Date.now()/1000)+600})).toString('base64url');
 const cookie='sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
+const origin=process.env.COACH_VERIFY_ORIGIN||'https://www.ai-job-coach.xin';
+if(!['http://localhost:3000','https://www.ai-job-coach.xin'].includes(origin))throw Error('Unapproved verification origin');
 async function request(path,body){
  const started=Date.now();
- const r=await fetch('https://www.ai-job-coach.xin'+path,{method:body?'POST':'GET',headers:{cookie,'Content-Type':'application/json',...(streaming&&path==='/api/coach/agent'?{Accept:'application/x-ndjson'}:{}),'x-idempotency-key':body?.requestId||randomUUID()},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000)});
+ const r=await fetch(origin+path,{method:body?'POST':'GET',headers:{cookie,'Content-Type':'application/json',...(streaming&&path==='/api/coach/agent'?{Accept:'application/x-ndjson'}:{}),'x-idempotency-key':body?.requestId||randomUUID()},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000)});
  if(r.headers.get('content-type')?.includes('application/x-ndjson')){
   const decoder=new TextDecoder();
   let buffer='',firstDeltaMs=null,deltaCount=0,result;

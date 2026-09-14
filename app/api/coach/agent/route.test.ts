@@ -4,6 +4,8 @@ import {getDbClient} from "@/lib/db";
 import {callLLM} from "@/lib/llm";
 import {resolveChatModel} from "@/lib/coach-harness/chat-models";
 import {getContextBundleForUser} from "@/lib/coach-harness/repository";
+import {readLearningMemory,refreshProfileMemory,readLearningSession} from "@/lib/coach-harness/learning-memory";
+jest.mock("@/lib/coach-harness/learning-memory",()=>({...jest.requireActual("@/lib/coach-harness/learning-memory"),readLearningMemory:jest.fn(),refreshProfileMemory:jest.fn(),readLearningSession:jest.fn()}));
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
 jest.mock("@/lib/llm");
@@ -22,6 +24,12 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("optional memory failure does not block a scoped, persisted reply",async()=>{
+  setupGeneration();(readLearningSession as jest.Mock).mockResolvedValue({opportunity_id:null,status:"active"});
+  (readLearningMemory as jest.Mock).mockRejectedValue(Error("cache down"));(refreshProfileMemory as jest.Mock).mockRejectedValue(Error("cache down"));(callLLM as jest.Mock).mockResolvedValue("正常回答");
+  const r=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({sessionId:"22222222-2222-4222-8222-222222222222",message:"问题",requestId:"11111111-1111-4111-8111-111111111111"})}));
+  expect((await r.json()).ok).toBe(true);expect(readLearningSession).toHaveBeenCalled();
+ });
  test("streams deltas, then persisted answer and structured suggestions",async()=>{
   const q=setupGeneration();
   (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("开始解释");expect(q.insert).not.toHaveBeenCalled();return '开始解释<followups>["继续"]</followups>';});

@@ -39,6 +39,7 @@ import type {
 } from "@/lib/opportunities/types";
 import JobTimeline from "./JobTimeline";
 import ResumeExport from "./ResumeExport";
+import VoiceControls from "./VoiceControls";
 import {currentJourneyStage} from "@/lib/opportunities/timeline";
 import { EntryGate } from "./EntryGate";
 import {
@@ -1400,6 +1401,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             <p>{turn.rationale}</p>
             <details><summary>答题提示</summary><p>先说结论，再说你实际负责的动作、判断依据和结果；最后说明取舍。没有做过的部分明确说明，不补造数字。</p><p>这道题重点考察：{turn.rationale||"回答是否有清楚的判断与可追溯的证据"}</p></details>
             {!isAssessed && <textarea rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder={isBlocked ? "在上面这条补充提示的基础上，把回答补完整。" : "像真实面试一样回答。数字不确定可以明确说待核实。"} />}
+            {!isAssessed && <VoiceControls key={turn.questionId} value={roundtableAnswer} onChange={setRoundtableAnswer} readText={turn.question} disabled={submittingRoundtable}/>}
           </article>}
           {isBlocked && lastFeedback && <section className={styles.assessmentBlocked}>
             <header><CircleAlert size={16} /><strong>信息不足，暂不评分</strong>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}</header>
@@ -1443,6 +1445,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         onSubmit={onSupplement}
       />)}
       {practicing && currentQuestion && <section className={styles.practicePanel}><span>免费单题 · 回答会保存到当前岗位</span><h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && practiceFeedback.question === currentQuestion.question && <article className={styles.practiceResult}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? practiceFeedback.strengths.map((item) => <p key={item}>{item}</p>) : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b>{practiceFeedback.gaps.map((item) => <p key={item}>{item}</p>)}</section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师分析中…" : "保存并分析回答"}</button></div></section>}
+      {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
       <div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
         <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>

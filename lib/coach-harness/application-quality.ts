@@ -45,7 +45,7 @@ export function reviewAtsText(resumeText: string, jobDescription: string) {
 }
 
 function compactText(value: string) {
-  return value.toLowerCase().replace(/\s+/g, "").replace(/[^\p{L}\p{N}]/gu, "");
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, "").replace(/[^\p{L}\p{N}]/gu, "");
 }
 
 export function reviewPdfText(pdfText: string, expectedResumeText: string) {

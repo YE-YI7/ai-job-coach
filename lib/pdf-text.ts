@@ -15,7 +15,9 @@ export async function extractPdfText(input: Buffer | Uint8Array | ArrayBuffer) {
 
   try {
     const result = await parser.getText();
-    return result.text;
+    // macOS Chinese fonts may encode visually identical Kangxi radicals.
+    // Normalize them before résumé matching and import, preserving readable Han text.
+    return result.text.normalize("NFKC");
   } finally {
     await parser.destroy();
   }

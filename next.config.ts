@@ -54,6 +54,10 @@ const nextConfig: NextConfig = {
             : []),
         ],
       },
+      {
+        source: "/cockpit/:path*",
+        headers: [{ key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" }],
+      },
     ];
   },
 

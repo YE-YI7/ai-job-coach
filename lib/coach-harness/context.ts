@@ -181,7 +181,8 @@ export function compileContextBundle(input: {
   }
 
   const artifacts = [...(input.artifacts || [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const knowledge = [...(input.knowledge || [])].sort((a, b) => a.id.localeCompare(b.id));
+  // Preserve retrieval relevance order when a tight budget admits only one document.
+  const knowledge = [...(input.knowledge || [])];
 
   // 2. 按优先级装填预算。
   //    关键原句装不下时拆任务或请求选择，不能截断后继续作结论。

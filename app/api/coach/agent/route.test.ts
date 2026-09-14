@@ -17,7 +17,7 @@ function setupGeneration(saveError=false){
  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:"owner"});
  const q={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),is:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),insert:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[]}),maybeSingle:jest.fn().mockResolvedValue({data:null}),single:jest.fn().mockResolvedValue(saveError?{error:{message:"db down"}}:{data:{id:"saved"}})};
  (getDbClient as jest.Mock).mockResolvedValue({from:()=>q});
- (getContextBundleForUser as jest.Mock).mockResolvedValue({knowledge:[]});
+ (getContextBundleForUser as jest.Mock).mockResolvedValue({knowledge:[],selection:{included:[],excluded:[]}});
  (resolveChatModel as jest.Mock).mockResolvedValue({model:"glm-5.3"});
  return q;
 }

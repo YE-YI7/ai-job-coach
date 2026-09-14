@@ -13,6 +13,16 @@ const cases=[
  {topic:"面试要讲搜索推荐广告的召回、排序和供给机制",expected:"pm.search-recommendation-and-ads.v1"},
 ];
 describe("learning retrieval: topic, follow-up and topic switch",()=>{
+ test("tight context budget preserves the top retrieved document, not alphabetical ID order",()=>{
+  const docs=retrieveKnowledgeDocuments({task:"mock_interview",query:cases[0].topic,role:"产品经理",limit:2});
+  const knowledge=docs.map((doc,index)=>({...doc,id:index===0?"z-top":"a-secondary",content:"评测正文".repeat(100),evidenceUrls:[]}));
+  const budget=400+Math.ceil("评测正文".repeat(100).length/1.5)+100;
+  const bundle=compileContextBundle({userId:"test",task:"mock_interview",claims:[],knowledge,budget:{maxInputTokens:budget}});
+  expect(bundle.knowledge.map(k=>k.id)).toEqual(["z-top"]);
+ });
+ test("hard tenure gates and requested deliverables are explicit tutor rules",()=>{
+  expect(learningGuide({reason:"5年经验无证据",title:"岗位要求",tab:"evidence"} as MentorNextAction).prompt).toContain("客观门槛");
+ });
  test("actual knowledge body reaches prompt and counts against budget",()=>{
   const doc=retrieveKnowledgeDocuments({task:"mock_interview",query:cases[0].topic,role:"产品经理",limit:1})[0];
   const knowledge=[{...doc,evidenceUrls:doc.evidence.map(e=>e.url)}];

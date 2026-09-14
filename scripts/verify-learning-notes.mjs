@@ -4,11 +4,13 @@ import {createHmac} from 'node:crypto';
 const scope=process.argv[2];
 if(!/^[0-9a-f-]{36}$/i.test(scope||''))throw Error('Explicit opportunity scope required');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
+const origin=process.env.COACH_VERIFY_ORIGIN||'http://localhost:3000';
+if(!['http://localhost:3000','https://www.ai-job-coach.xin'].includes(origin))throw Error('Unapproved verification origin');
 const {data:owner,error}=await db.from('coach_opportunities').select('user_id').eq('id',scope).single();
 if(error)throw Error('Owner lookup failed');
 const payload=Buffer.from(JSON.stringify({userId:owner.user_id,version:2,exp:Math.floor(Date.now()/1000)+600})).toString('base64url');
 const cookie='sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
-async function request(method,body){const r=await fetch('http://localhost:3000/api/coach/agent/sessions',{method,headers:{cookie,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});return {status:r.status,body:await r.json()};}
+async function request(method,body){const r=await fetch(origin+'/api/coach/agent/sessions',{method,headers:{cookie,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});return {status:r.status,body:await r.json()};}
 let id;
 try{
  const created=await request('POST',{title:'系统验收：可编辑笔记（临时）'});if(!created.body.ok)throw Error('Create failed: '+created.status);id=created.body.session.id;

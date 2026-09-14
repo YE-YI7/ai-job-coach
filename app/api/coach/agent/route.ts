@@ -10,6 +10,7 @@ import {LEARNING_SYSTEM,learningKnowledgeTask,makeLearningQuery,readLearningMemo
 import {estimateTokens} from "@/lib/coach-harness/context";
 import {isChatMode,parseTutorReply} from "@/lib/coach-harness/chat-options";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
+import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -85,10 +86,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   let modelCalls = 0;
   const generate = async (model:string) => {
     modelCalls++;
-    return callLLM([
+    return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
     { role:"system",content:LEARNING_SYSTEM },
     { role:"user",content:prompt }
-  ], {model,maxTokens:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:0.4,onUsage:details=>{modelUsage=details;},onDelta:onDelta?(text)=>{received=true;onDelta(text);}:undefined});
+  ], {model,maxTokens:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:0.4,onUsage:details=>{modelUsage=details;},onDelta:onDelta?(text)=>{received=true;onDelta(text);}:undefined}));
   };
   let rawAnswer;
   try { rawAnswer=await generate(selection.model); }
@@ -102,7 +103,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   }
   const {answer,suggestions}=parseTutorReply(rawAnswer);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
-  const trace={promptVersion:"learning-v2",knowledgeIds:context.knowledge.map(k=>k.id),inputTokens:estimateTokens(LEARNING_SYSTEM)+estimateTokens(prompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage};
+  const trace={promptVersion:"learning-v3",knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(LEARNING_SYSTEM)+estimateTokens(prompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
   return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,learning_trace:trace},{headers});

@@ -833,7 +833,7 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
     if (!candidate) return;
     const supported = /\.(pdf|docx|txt|md)$/i.test(candidate.name);
     if (!supported) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
-    if (candidate.size > 10 * 1024 * 1024) return setError("文件不能超过 10MB");
+    if (candidate.size > 4 * 1024 * 1024) return setError("文件不能超过 4MB，请压缩 PDF 或上传文字版");
     setFile(candidate);
     setError("");
   };
@@ -888,7 +888,7 @@ function NewOpportunityForm({ onCreate, onCancel }: { onCreate: (intake: Opportu
               <UploadCloud size={16} />选择文件
               <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => chooseFile(event.target.files?.[0])} />
             </label>
-            <span>也可以粘贴或拖进来 · 10MB 以内</span>
+            <span>也可以粘贴或拖进来 · 4MB 以内</span>
           </div>
         </div>
         <div className={styles.mentorPromise}>
@@ -924,7 +924,7 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
   const submit = async (file: File | null = null) => {
     if (loading || (!file && !sourceText.trim())) return;
     if (file && !/\.(pdf|docx|txt|md)$/i.test(file.name)) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
-    if (file && file.size > 10 * 1024 * 1024) return setError("文件不能超过 10MB");
+    if (file && file.size > 4 * 1024 * 1024) return setError("文件不能超过 4MB，请压缩 PDF 或上传文字版");
     setError("");
     try {
       await onSubmit({ kind, sourceText, file });

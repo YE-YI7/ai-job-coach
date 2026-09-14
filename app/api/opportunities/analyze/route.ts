@@ -11,15 +11,17 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
 import {intakeErrorMessage} from "@/lib/opportunities/intake-error";
+import {deferredIntake} from "@/lib/opportunities/deferred-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 const strengths = new Set<EvidenceStrength>(["strong", "weak", "missing", "unverified"]);
 const recommendations = new Set<OpportunityRecommendation>(["apply", "prepare_then_apply", "skip"]);
 const MAX_SOURCE_LENGTH = 30_000;
 const MAX_REMOTE_BYTES = 1_500_000;
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -130,7 +132,7 @@ async function fetchPublicPage(rawUrl: string) {
 }
 
 async function extractFileText(file: File) {
-  if (file.size > MAX_FILE_BYTES) throw new Error("文件不能超过 10MB");
+  if (file.size > MAX_FILE_BYTES) throw new Error("文件不能超过 4MB，请压缩 PDF 或上传文字版");
   const filename = file.name.toLowerCase();
   const buffer = Buffer.from(await file.arrayBuffer());
   if (filename.endsWith(".pdf")) return extractPdfText(buffer);
@@ -207,8 +209,10 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
 
   let reservation: QuotaReservation | null = null;
+  let extracted: Awaited<ReturnType<typeof readIntake>> | null = null;
   try {
     const intake = await readIntake(request);
+    extracted = intake;
     const requestId = intake.requestId && /^[a-zA-Z0-9_-]{8,180}$/.test(intake.requestId)
       ? intake.requestId
       : crypto.randomUUID();
@@ -263,7 +267,7 @@ export async function POST(request: Request) {
         role: "user",
         content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n本次补充：${intake.materialKindHint || "首次导入"}\n\n原始材料：\n${intake.jdText}\n\n另附用户简历或经历：\n${intake.resumeText || "（未提供）"}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
       },
-    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 1 }));
+    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 0 }));
 
     const parsed = asRecord(parseJson(result));
     const materialKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";
@@ -344,6 +348,13 @@ export async function POST(request: Request) {
     console.error("Opportunity analysis failed", error);
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
+    // Only after successful text extraction and a transient/empty model response.
+    // Original material is preserved; there is explicitly no reliable analysis.
+    const detail=error instanceof Error?error.message:"";
+    if(extracted&&/timeout|timed out|gateway|empty response|未返回可解析|connection|fetch failed|502|503|504/i.test(detail)){
+      const input=deferredIntake(extracted);
+      if(input)return NextResponse.json({ok:true,input,analysis:null,analysisDeferred:true,error:"材料已读取，分析暂未完成；原文会保存，可以稍后继续辅导。"});
+    }
     const message = intakeErrorMessage(error);
     return NextResponse.json({ ok: false, error: message }, { status: 503 });
   }

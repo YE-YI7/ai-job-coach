@@ -5,6 +5,7 @@ import {createHmac,randomUUID} from 'node:crypto';
 const scope=process.argv[2];
 const streaming=process.argv.includes('--stream');
 const streamModel=process.argv.find(arg=>arg.startsWith('--model='))?.slice(8)||'auto';
+const tutorQuality=process.argv.includes('--tutor-quality');
 if(!/^[0-9a-f-]{36}$/i.test(scope||''))throw Error('Explicit authorized opportunity required');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
 const {data:o,error}=await db.from('coach_opportunities').select('user_id').eq('id',scope).single();
@@ -38,9 +39,15 @@ try{
  for(const modelMode of streaming?[streamModel]:['qwen3.8-max-0902','kimi-k3','glm-5.3']){
   try{
    const input={sessionId,modelMode,requestId:randomUUID(),message:streaming?'请教我如何设计一个RAG召回评测，用一个简短例子说明，再给我一道练习题。不需要使用我的个人经历。':'这是产品连接测试，不是学习内容。不要引用个人材料。请只回复“已连接”，不用展开，后续问题留空。'};
+   if(tutorQuality)input.message='仅讨论以下虚构案例，不引用账号个人材料：应届生申请明确要求5年经验的产品经理岗位，年限不满足能否说成只是材料缺口？另有事实：独立定义会议摘要MVP，写过3条评测样本，尚未上线、没有效果数据。请先明确年限门槛，再给我一条可放进简历的短草稿，不编造效果数字；最后说明评测样本如何验证。';
    const b=await request('/api/coach/agent',input);
    console.log(JSON.stringify({requested:modelMode,ok:Boolean(b.answer),trace:b.learning_trace?.modelUsage,protocolHidden:!b.answer.includes('<followups>')}));
    if(!b.answer||!b.learning_trace?.modelUsage)process.exitCode=1;
+   if(tutorQuality){
+    const signals={version:b.learning_trace?.promptVersion,knowledgeIds:b.learning_trace?.knowledgeIds||[],mentionsTenure:/5年|五年|年限/.test(b.answer),mentionsUnreleased:/尚未上线|未上线|还未上线/.test(b.answer),mentionsSamples:/3条|三条|3 条/.test(b.answer)};
+    console.log(JSON.stringify({tutorQualitySignals:signals,caveat:'Keyword signals are not a complete semantic evaluation.'}));
+    if(signals.version!=='learning-v3'||!signals.knowledgeIds.length||!signals.mentionsTenure||!signals.mentionsUnreleased||!signals.mentionsSamples)process.exitCode=1;
+   }
    if(streaming){const history=await request('/api/coach/agent?sessionId='+sessionId);if(!history.turns.some(t=>t.id===b.id&&t.answer===b.answer))throw Error('Saved history mismatch');const again=await request('/api/coach/agent',input);if(again.id!==b.id)throw Error('Idempotency mismatch');console.log('History readback and idempotent replay verified.');}
   }catch(e){console.log(JSON.stringify({requested:modelMode,ok:false,error:e.message}));process.exitCode=1;}
  }

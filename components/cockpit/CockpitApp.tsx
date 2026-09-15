@@ -727,7 +727,7 @@ export function CockpitApp({
             {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); setQuestionSnoozed(false); }} onSupplement={supplementOpportunity} onConfirmEvidence={(requirement)=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补齐关键经历",prompt:`请带我梳理能证明「${requirement}」的真实经历，先问一个具体问题，不要替我编造。`});setMobileRail("actions");}} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
             {activeTab === "resume" && <ResumeTab opportunity={active} onUpdate={updateResumeChange} onEdit={editResumeChange} onGenerate={generateResumeDraft} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
-            {activeTab === "interview" && <section><h2>面试准备与反馈</h2><p>在右侧练习，回答和点评会关联到当前岗位。</p><button className={styles.primaryButton} onClick={()=>setMobileRail("actions")}>到右侧开始练习</button>{active.interviewFocus.map(f=><details key={f.id}><summary>{f.question}</summary><p>考察重点：{f.rationale}</p></details>)}<p>已保存 {active.interviewPractices?.length||0} 次单题反馈 · {active.mockInterviews?.filter(m=>m.summary).length||0} 份整轮评价</p></section>}
+            {activeTab === "interview" && <InterviewStageOverview opportunity={active} onStart={() => setMobileRail("actions")} />}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} analyzing={reviewingInterview} />}
             {activeTab === "activity" && <><h2>投递跟踪</h2><p>这里只展示已记录的动作，不把冻结简历当作已经投递。</p><ActivityTab opportunity={active} /></>}
             {activeTab === "salary" && <section><h2>谈薪与 Offer</h2><p>先核对薪酬结构、截止时间与自己的取舍。不要求重新做简历或课程。</p><button className={styles.primaryButton} onClick={()=>setEntryGateOpen(true)}>管理 Offer 条款</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>请导师帮我准备沟通</button></section>}
@@ -788,6 +788,57 @@ function DemoNotice({ onCreate }: { onCreate: () => void }) {
     <section className={styles.demoNotice} aria-label="示例工作区说明">
       <div><strong>你正在查看示例机会</strong><p>这些公司、经历和结果都不是你的数据；页面操作仅用于体验，刷新后恢复。</p></div>
       <button onClick={onCreate}><Plus size={15} />新建我的岗位</button>
+    </section>
+  );
+}
+
+function InterviewStageOverview({ opportunity, onStart }: { opportunity: Opportunity; onStart: () => void }) {
+  const practices = opportunity.interviewPractices || [];
+  const completedRounds = (opportunity.mockInterviews || []).filter((item) => item.summary);
+  const latestPractice = practices[0];
+  const priorityFocus = opportunity.interviewFocus.filter((item) => item.readiness !== "ready").slice(0, 3);
+  const readyCount = opportunity.interviewFocus.filter((item) => item.readiness === "ready").length;
+  const focusCount = opportunity.interviewFocus.length;
+  const primaryLabel = completedRounds.length > 0 ? "复盘并再练一轮" : practices.length > 0 ? "按反馈继续练" : "开始第一次练习";
+
+  return (
+    <section className={styles.interviewOverview}>
+      <header className={styles.interviewOverviewHero}>
+        <div>
+          <span className={styles.eyebrow}>面试阶段</span>
+          <h2>{latestPractice ? "把反馈变成下一次更好的回答" : "先把最容易失分的一题练透"}</h2>
+          <p>{latestPractice ? latestPractice.summary : "导师已经根据当前岗位和你的经历整理了优先练习方向。练习、点评和整轮复盘都在右侧完成。"}</p>
+        </div>
+        <button className={styles.interviewOverviewCta} onClick={onStart}>
+          <span><MessageSquareText size={17} />{primaryLabel}</span>
+          <ArrowRight size={17} />
+        </button>
+      </header>
+
+      <div className={styles.interviewReadiness} aria-label="面试准备进度">
+        <div><strong>{focusCount ? `${readyCount}/${focusCount}` : "待生成"}</strong><span>重点题已准备</span></div>
+        <div><strong>{practices.length}</strong><span>单题反馈</span></div>
+        <div><strong>{completedRounds.length}</strong><span>整轮复盘</span></div>
+      </div>
+
+      <section className={styles.interviewPriority}>
+        <div className={styles.interviewPriorityHeading}>
+          <div><span>导师建议</span><h3>{priorityFocus.length ? "接下来优先练这些" : "当前重点题已准备完成"}</h3></div>
+          <small>{priorityFocus.length ? "按岗位证据缺口排序" : "可以进入整轮模拟"}</small>
+        </div>
+        {priorityFocus.length ? <ol className={styles.interviewPriorityList}>{priorityFocus.map((focus, index) => (
+          <li key={focus.id}>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <div><strong>{focus.question}</strong><p>{focus.rationale}</p></div>
+            <em>{focus.readiness === "practice" ? "需要练习" : "先补证据"}</em>
+          </li>
+        ))}</ol> : <div className={styles.interviewReadyState}><CircleCheck size={22} /><div><strong>开始整轮模拟，检查临场表达</strong><p>右侧会按真实节奏连续追问，并在结束后保存综合评价。</p></div></div>}
+      </section>
+
+      <footer className={styles.interviewOverviewFooter}>
+        <span><ShieldCheck size={15} />所有回答和反馈只关联当前岗位</span>
+        <button type="button" onClick={onStart}>打开面试训练台<ChevronRight size={15} /></button>
+      </footer>
     </section>
   );
 }

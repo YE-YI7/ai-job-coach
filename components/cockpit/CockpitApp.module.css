@@ -589,6 +589,40 @@
 .resumeChange footer{padding-top:12px;border-top:1px solid #efede8}
 
 /* Interview tool is primarily rendered in the adjustable right rail. */
+.interviewOverview{max-width:920px;margin:0 auto;color:var(--ink)}
+.interviewOverviewHero{min-height:190px;padding:30px 32px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:34px;background:#2b2723;color:#fff}
+.interviewOverviewHero .eyebrow{color:#ef9a71}
+.interviewOverviewHero h2{max-width:600px;margin:10px 0 10px;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:clamp(26px,3vw,35px);line-height:1.25;letter-spacing:-.025em}
+.interviewOverviewHero p{max-width:65ch;margin:0;color:#d4cec8;font-size:12px;line-height:1.75}
+.interviewOverviewCta{min-width:190px;min-height:52px;padding:0 15px 0 18px;display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid #e9672d;border-radius:9px;background:#e9672d;color:#fff;cursor:pointer;font-size:12px;font-weight:750;box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.interviewOverviewCta>span{display:flex;align-items:center;gap:8px}
+.interviewOverviewCta:hover{background:#d95a24;border-color:#d95a24}
+.interviewReadiness{min-height:82px;padding:0 30px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;border:1px solid var(--line);border-top:0;background:#fff}
+.interviewReadiness>div{min-height:44px;padding:0 24px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid var(--line)}
+.interviewReadiness>div:first-child{padding-left:0}
+.interviewReadiness>div:last-child{padding-right:0;border-right:0}
+.interviewReadiness strong{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums}
+.interviewReadiness span{margin-top:5px;color:var(--muted);font-size:10px}
+.interviewPriority{margin-top:24px;padding:25px 27px 8px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.interviewPriorityHeading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.interviewPriorityHeading span{color:var(--accent-deep);font-size:9px;font-weight:800;letter-spacing:.08em}
+.interviewPriorityHeading h3{margin:5px 0 0;font-size:16px}
+.interviewPriorityHeading small{color:var(--muted);font-size:10px}
+.interviewPriorityList{margin:0;padding:0;list-style:none}
+.interviewPriorityList li{min-height:88px;padding:17px 0;display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:start;gap:15px;border-bottom:1px solid var(--line)}
+.interviewPriorityList li:last-child{border-bottom:0}
+.interviewPriorityList li>span{padding-top:2px;color:#aaa39a;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:18px;font-variant-numeric:tabular-nums}
+.interviewPriorityList strong{display:block;font-size:12px;line-height:1.55}
+.interviewPriorityList p{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.65}
+.interviewPriorityList em{margin-top:2px;padding:4px 7px;border-radius:999px;background:#fff0e8;color:#9b3915;font-size:9px;font-style:normal;font-weight:700;white-space:nowrap}
+.interviewReadyState{min-height:110px;display:flex;align-items:center;gap:14px;color:var(--green)}
+.interviewReadyState>div{color:var(--ink)}
+.interviewReadyState strong{font-size:13px}
+.interviewReadyState p{margin:5px 0 0;color:var(--muted);font-size:10px}
+.interviewOverviewFooter{min-height:58px;padding:0 4px;display:flex;align-items:center;justify-content:space-between;gap:20px;color:var(--muted);font-size:10px}
+.interviewOverviewFooter>span,.interviewOverviewFooter button{display:inline-flex;align-items:center;gap:7px}
+.interviewOverviewFooter>span svg{color:var(--green)}
+.interviewOverviewFooter button{padding:8px 0;border:0;background:transparent;color:var(--accent-deep);cursor:pointer;font-size:10px;font-weight:750}
 .interviewIntro h2{margin-top:7px}
 .rightTool .interviewIntro{padding-bottom:20px}
 .rightTool .interviewIntro h2{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:25px;line-height:1.35}
@@ -627,6 +661,10 @@
 .rightTool .practicePanel textarea{font-size:15px;min-height:190px}
 
 @media(max-width:700px){
+  .interviewOverviewHero{min-height:0;padding:24px 21px;grid-template-columns:1fr;align-items:start;gap:22px}.interviewOverviewHero h2{font-size:27px}.interviewOverviewCta{width:100%}
+  .interviewReadiness{padding:0 16px}.interviewReadiness>div{padding:0 12px}.interviewReadiness strong{font-size:19px}
+  .interviewPriority{margin-top:17px;padding:21px 18px 6px}.interviewPriorityHeading{align-items:flex-start;flex-direction:column;gap:5px}.interviewPriorityList li{grid-template-columns:30px minmax(0,1fr)}.interviewPriorityList li>em{grid-column:2;justify-self:start;margin-top:-5px}
+  .interviewOverviewFooter{align-items:flex-start;flex-direction:column;padding:14px 2px;gap:5px}
   .resumeStudioIntro{align-items:stretch}.resumeStudioIntro>.primaryButton{width:100%}
   .resumeSteps{grid-template-columns:1fr}.resumeSteps span{border-right:0;border-bottom:1px solid var(--line)}.resumeSteps span:last-child{border-bottom:0}
   .resumeExportRow{align-items:flex-start;flex-direction:column}.resumeExportRow .exportControls{width:100%;justify-content:flex-start}.resumeExportRow .exportControls small{text-align:left}

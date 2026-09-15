@@ -1190,8 +1190,15 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   });
   /** 当前题目的反馈：needs_more_input 时停在本题，assessed 时才允许推进。 */
   const [lastFeedback, setLastFeedback] = useState<InterviewAssessmentView | null>(null);
+  const roundtableWorkspaceRef = useRef<HTMLElement>(null);
   const currentQuestion = opportunity.interviewFocus[0];
   const hasJd = Boolean(opportunity.jdText?.trim());
+
+  useEffect(() => {
+    if (!roundtableOpen) return;
+    const scrollParent = roundtableWorkspaceRef.current?.closest(`.${styles.rightTool}`);
+    if (scrollParent instanceof HTMLElement) scrollParent.scrollTo({ top: 0 });
+  }, [roundtableOpen, roundtable?.currentIndex, roundtable?.status]);
 
   useEffect(() => {
     const running = opportunity.mockInterviews?.find((item) => item.status === "running") || null;
@@ -1365,18 +1372,28 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     const isLastQuestion = Boolean(roundtable && roundtable.currentIndex >= roundtable.turns.length - 1);
     const answeredCount = roundtable?.turns.filter((item) => item.answer).length ?? 0;
     return (
-      <section className={styles.roundtableWorkspace}>
+      <section ref={roundtableWorkspaceRef} className={styles.roundtableWorkspace}>
         <header className={styles.roundtableHeader}>
           <div><button type="button" className={styles.textButton} onClick={() => setRoundtableOpen(false)}>返回面试准备</button><h2>模拟面试圆桌</h2><p>{opportunity.company} · {opportunity.role} · {roundtable?.round || round}</p></div>
           {roundtable && <span className={styles.roundtableProgress}>{roundtable.status === "completed" ? "本轮完成" : `${roundtable.currentIndex + 1} / ${roundtable.turns.length}`}</span>}
         </header>
         {!roundtable ? <div className={styles.roundtableStart}>
-          <span className={styles.eyebrow}>岗位材料已关联</span>
-          <h3>选择这一轮要练什么</h3>
-          <p>益职会直接使用当前 JD 和基础简历，不再让你重复粘贴。</p>
-          <div className={styles.roundPicker} role="group" aria-label="选择模拟面试类型">{mockRoundOptions.map((item) => <button key={item} type="button" aria-pressed={round === item} onClick={() => setRound(item)}>{item}</button>)}</div>
-          <div className={styles.roundtableSourceLine}><ShieldCheck size={15} /><span>当前 JD</span><span>{opportunity.resumeText ? "基础简历已关联" : "未关联简历，将只按 JD 提问"}</span></div>
-          <button className={styles.primaryButton} disabled={!hasJd || startingRoundtable} onClick={startRoundtable}>{startingRoundtable ? "正在准备问题…" : `开始 3 题模拟 · ${quotaLabel}`}<ArrowRight size={15} /></button>
+          <div className={styles.interviewStageHero}>
+            <div className={styles.interviewSignal} aria-hidden="true"><span /><MessageSquareText size={26} /></div>
+            <div><span className={styles.eyebrow}>AI 面试官已就位</span><h3>现在，练一场真的</h3><p>围绕当前岗位连续追问，答完每题立刻指出证据和缺口。</p></div>
+          </div>
+          <div className={styles.interviewFlow} aria-label="模拟面试流程"><span data-state="ready"><b>1</b>岗位材料</span><span><b>2</b>3 题实战</span><span><b>3</b>逐题复盘</span></div>
+          <div className={styles.roundtableSetup}>
+            <div className={styles.setupLabel}><span>选择面试轮次</span><small>题目难度和追问视角会随轮次变化</small></div>
+            <div className={styles.roundPicker} role="group" aria-label="选择模拟面试类型">{mockRoundOptions.map((item) => <button key={item} type="button" aria-pressed={round === item} onClick={() => setRound(item)}>{item}</button>)}</div>
+            <div className={styles.interviewerStrip} aria-label="本轮面试席位">
+              <article><i data-tone="orange"><BriefcaseBusiness size={16} /></i><div><b>业务面试官</b><span>连续追问你的判断</span></div></article>
+              <article><i data-tone="blue"><MessageSquareText size={16} /></i><div><b>用人经理</b><span>判断岗位胜任力</span></div></article>
+              <article><i data-tone="green"><ShieldCheck size={16} /></i><div><b>证据审校</b><span>识别事实与缺口</span></div></article>
+            </div>
+            <div className={styles.roundtableSourceLine}><ShieldCheck size={15} /><span>材料已同步</span><span>当前 JD</span><span>{opportunity.resumeText ? "基础简历" : "未关联简历，将只按 JD 提问"}</span></div>
+            <button className={`${styles.primaryButton} ${styles.startInterviewButton}`} disabled={!hasJd || startingRoundtable} onClick={startRoundtable}>{startingRoundtable ? "正在为你准备问题…" : `进入 ${round} · 3 题`}<span>{quotaLabel}</span><ArrowRight size={17} /></button>
+          </div>
           {!hasJd && <p className={styles.inlineError}>当前岗位还没有 JD，圆桌只能按真实 JD 出题，先回岗位档案补上再开始。</p>}
           {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
         </div> : roundtable.status === "completed" ? <div className={styles.roundtableComplete}>
@@ -1397,14 +1414,17 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             </div>
           </>}
         </div> : <>
-          <div className={styles.roundtableRoles} aria-label="圆桌分工"><span><b>面试官</b>按岗位追问</span><span><b>用人经理</b>判断是否可录用</span><span><b>证据审校</b>检查事实缺口</span></div>
           {turn && <article className={styles.roundtableQuestion}>
-            <span className={styles.eyebrow}>面试官 · 第 {roundtable.currentIndex + 1} 题</span>
-            <h3>{turn.question}</h3>
-            <p>{turn.rationale}</p>
-            <details><summary>答题提示</summary><p>先说结论，再说你实际负责的动作、判断依据和结果；最后说明取舍。没有做过的部分明确说明，不补造数字。</p><p>这道题重点考察：{turn.rationale||"回答是否有清楚的判断与可追溯的证据"}</p></details>
-            {!isAssessed && <textarea rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder={isBlocked ? "在上面这条补充提示的基础上，把回答补完整。" : "像真实面试一样回答。数字不确定可以明确说待核实。"} />}
-            {!isAssessed && <VoiceControls key={turn.questionId} value={roundtableAnswer} onChange={setRoundtableAnswer} readText={turn.question} disabled={submittingRoundtable}/>}
+            <div className={styles.interviewScene}>
+              <div className={styles.interviewerAvatar} aria-hidden="true"><span>AI</span><i /></div>
+              <div className={styles.questionBubble}>
+                <div className={styles.questionMeta}><span>业务面试官</span><div aria-label={`第 ${roundtable.currentIndex + 1} 题，共 ${roundtable.turns.length} 题`}>{roundtable.turns.map((item, index) => <i key={item.questionId} data-state={index < roundtable.currentIndex ? "done" : index === roundtable.currentIndex ? "current" : "waiting"} />)}</div></div>
+                <h3>{turn.question}</h3>
+                <p>{turn.rationale}</p>
+              </div>
+            </div>
+            <details className={styles.coachingHint}><summary><Sparkles size={15} />卡住了？看答题提示</summary><div><p>先说结论，再说你实际负责的动作、判断依据和结果；最后说明取舍。没有做过的部分明确说明，不补造数字。</p><p><b>这道题重点考察：</b>{turn.rationale||"回答是否有清楚的判断与可追溯的证据"}</p></div></details>
+            {!isAssessed && <div className={styles.answerComposer}><label htmlFor={`roundtable-answer-${turn.questionId}`}><span>你的回答</span><small>{roundtableAnswer.trim().length ? `${roundtableAnswer.trim().length} 字` : "可以打字，也可以直接说"}</small></label><textarea id={`roundtable-answer-${turn.questionId}`} rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder={isBlocked ? "根据反馈把证据补完整…" : "像真实面试一样回答，不确定的数字可以明确说待核实…"} /><VoiceControls key={turn.questionId} value={roundtableAnswer} onChange={setRoundtableAnswer} readText={turn.question} disabled={submittingRoundtable}/></div>}
           </article>}
           {isBlocked && lastFeedback && <section className={styles.assessmentBlocked}>
             <header><CircleAlert size={16} /><strong>信息不足，暂不评分</strong>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}</header>

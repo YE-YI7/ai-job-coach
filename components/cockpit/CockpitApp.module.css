@@ -634,3 +634,124 @@
   .resumeChange{padding:16px}.resumeChange header,.resumeChange footer{align-items:flex-start;flex-direction:column;gap:8px}
   .rightTool .interviewActions{grid-template-columns:1fr}
 }
+
+/* 模拟面试：从文字表单升级为有角色、节奏和反馈的面试工作区。 */
+.roundtableWorkspace{--interview-ink:#201d1a;--interview-orange:#c94f1d;--interview-blue:#4a5da8;--interview-green:#34745a;color:var(--interview-ink)}
+.roundtableHeader{align-items:center;padding-bottom:17px}
+.roundtableHeader .textButton{margin-bottom:9px}
+.roundtableHeader h2{font-size:24px}
+.roundtableHeader p{font-size:11px}
+.roundtableProgress{min-width:54px;justify-content:center;background:#eceffa;color:var(--interview-blue);font-size:11px;font-variant-numeric:tabular-nums}
+.roundtableStart{max-width:none;padding:22px 0 4px}
+.interviewStageHero{min-height:164px;padding:27px 28px;display:grid;grid-template-columns:82px 1fr;align-items:center;gap:24px;background:#28231f;color:#fff;box-shadow:0 18px 38px rgba(48,34,25,.13)}
+.interviewStageHero .eyebrow{color:#ef9a71}
+.interviewStageHero h3{margin:7px 0 7px;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:28px;line-height:1.2;letter-spacing:-.025em}
+.interviewStageHero p{max-width:38ch;margin:0;color:#d5cfca;font-size:12px;line-height:1.7}
+.interviewSignal{position:relative;width:76px;height:76px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.16);border-radius:50%;background:#362f2a;color:#fff}
+.interviewSignal::before,.interviewSignal::after{content:"";position:absolute;border:1px solid rgba(239,154,113,.25);border-radius:50%;inset:9px}
+.interviewSignal::after{inset:19px;border-color:rgba(239,154,113,.5)}
+.interviewSignal svg{position:relative;z-index:1}
+.interviewSignal>span{position:absolute;top:3px;right:5px;width:11px;height:11px;border:2px solid #28231f;border-radius:50%;background:#69b88b;animation:interview-live 1.8s ease-in-out infinite}
+@keyframes interview-live{0%,100%{transform:scale(.86);opacity:.72}50%{transform:scale(1.12);opacity:1}}
+.interviewFlow{height:54px;padding:0 18px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;border:1px solid var(--line);border-top:0;background:#fff}
+.interviewFlow span{position:relative;display:flex;align-items:center;gap:8px;color:#817a73;font-size:11px;font-weight:650}
+.interviewFlow span:not(:last-child)::after{content:"";position:absolute;right:16px;width:36px;height:1px;background:#ddd7cf}
+.interviewFlow b{width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#eeebe6;color:#777069;font-size:9px}
+.interviewFlow span[data-state="ready"]{color:var(--interview-green)}
+.interviewFlow span[data-state="ready"] b{background:#dfeee6;color:var(--interview-green)}
+.roundtableSetup{padding:26px 2px 4px}
+.setupLabel{margin-bottom:13px;display:flex;align-items:baseline;justify-content:space-between;gap:18px}
+.setupLabel>span{font-size:13px;font-weight:750}
+.setupLabel>small{color:var(--muted);font-size:10px}
+.roundtableSetup .roundPicker{margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.roundtableSetup .roundPicker button{min-height:43px;border-color:#dfd9d1;background:#fff;font-size:12px;transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.roundtableSetup .roundPicker button:hover{transform:translateY(-1px)}
+.roundtableSetup .roundPicker button[aria-pressed="true"]{border-color:var(--interview-orange);background:#fff4ee;color:#9b3915;box-shadow:inset 0 0 0 1px var(--interview-orange)}
+.interviewerStrip{margin-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.interviewerStrip article{min-width:0;padding:12px 10px;display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:9px;background:#f5f2ed}
+.interviewerStrip i{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;font-style:normal}
+.interviewerStrip i[data-tone="orange"]{background:#f8dfd2;color:var(--interview-orange)}
+.interviewerStrip i[data-tone="blue"]{background:#e4e8f7;color:var(--interview-blue)}
+.interviewerStrip i[data-tone="green"]{background:#dfeee6;color:var(--interview-green)}
+.interviewerStrip b,.interviewerStrip span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.interviewerStrip b{font-size:10px}
+.interviewerStrip span{margin-top:3px;color:var(--muted);font-size:9px}
+.roundtableSetup .roundtableSourceLine{margin:18px 0 12px;padding:12px 13px;border:0;background:#edf5f0;color:#5e6d65}
+.roundtableSetup .roundtableSourceLine span{position:relative}
+.roundtableSetup .roundtableSourceLine span+span::before{content:"·";position:absolute;left:-10px;color:#9ba8a1}
+.startInterviewButton{width:100%;min-height:50px;display:flex;justify-content:center;font-size:13px}
+.startInterviewButton>span{margin-left:auto;padding-left:10px;border-left:1px solid rgba(255,255,255,.28);font-size:10px;font-weight:550;opacity:.82}
+
+.roundtableQuestion{padding:24px 0 0}
+.interviewScene{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:start;gap:14px}
+.interviewerAvatar{position:relative;width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#28231f;color:#fff;box-shadow:0 8px 20px rgba(42,34,28,.18)}
+.interviewerAvatar span{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:13px;font-weight:800;letter-spacing:.03em}
+.interviewerAvatar i{position:absolute;right:0;bottom:1px;width:11px;height:11px;border:2px solid #fbfaf7;border-radius:50%;background:#69b88b}
+.questionBubble{position:relative;padding:18px 19px 17px;background:#fff;border:1px solid #e3ded7;box-shadow:0 12px 30px rgba(58,43,33,.07)}
+.questionBubble::before{content:"";position:absolute;top:18px;left:-7px;width:12px;height:12px;border-left:1px solid #e3ded7;border-bottom:1px solid #e3ded7;background:#fff;transform:rotate(45deg)}
+.questionMeta{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.questionMeta>span{color:var(--interview-orange);font-size:10px;font-weight:800;letter-spacing:.045em}
+.questionMeta>div{display:flex;gap:5px}
+.questionMeta i{width:18px;height:4px;border-radius:99px;background:#dedbd5}
+.questionMeta i[data-state="done"]{background:#9fbfad}
+.questionMeta i[data-state="current"]{background:var(--interview-orange)}
+.questionBubble h3{max-width:none;margin:13px 0 9px;font-size:21px;line-height:1.48}
+.questionBubble>p{margin:0;color:var(--muted);font-size:11px;line-height:1.65}
+.coachingHint{margin:13px 0 0 62px;border:1px solid #e7e2db;background:#f5f2ed}
+.coachingHint summary{padding:11px 13px;display:flex;align-items:center;gap:8px;cursor:pointer;color:#5f5851;font-size:11px;font-weight:700;list-style:none}
+.coachingHint summary::-webkit-details-marker{display:none}
+.coachingHint summary svg{color:var(--interview-orange)}
+.coachingHint>div{padding:0 13px 12px}
+.coachingHint p{margin:7px 0 0;color:var(--muted);font-size:11px;line-height:1.65}
+.coachingHint b{color:var(--ink)}
+.answerComposer{margin:15px 0 0 62px;padding:15px 16px 13px;border:1px solid #ddd7cf;background:#fff;box-shadow:0 13px 28px rgba(58,43,33,.06)}
+.answerComposer>label{margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.answerComposer>label span{font-size:11px;font-weight:750}
+.answerComposer>label small{color:var(--muted);font-size:9px;font-variant-numeric:tabular-nums}
+.answerComposer textarea,.rightTool .answerComposer textarea{min-height:190px;padding:0;border:0;border-radius:0;background:transparent;font-size:14px;line-height:1.75;box-shadow:none}
+.answerComposer textarea:focus{border:0;box-shadow:none}
+.answerComposer textarea::placeholder{color:#aaa39a}
+.assessmentCard,.assessmentBlocked{margin-left:62px}
+.assessmentCard{border:0;border-left:4px solid var(--interview-blue);background:#f1f3fa;box-shadow:0 12px 26px rgba(54,65,112,.08)}
+.assessmentBlocked{border:0;border-left:4px solid var(--interview-orange);background:#fff3ed}
+.roundtableActions{margin-left:62px;padding:14px 0 0}
+.roundtableActions>span{font-size:10px;line-height:1.55}
+
+.rightTool .roundtableWorkspace{padding-bottom:12px}
+.rightTool .roundtableStart{padding-top:16px}
+.rightTool .interviewStageHero{min-height:150px;padding:22px 20px;grid-template-columns:64px 1fr;gap:17px}
+.rightTool .interviewSignal{width:62px;height:62px}
+.rightTool .interviewStageHero h3{font-size:24px}
+.rightTool .interviewStageHero p{font-size:11px}
+.rightTool .interviewFlow{padding:0 12px}
+.rightTool .interviewFlow span:not(:last-child)::after{display:none}
+.rightTool .roundtableSetup .roundPicker{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rightTool .interviewerStrip{grid-template-columns:1fr}
+.rightTool .interviewerStrip article{grid-template-columns:34px 1fr auto}
+.rightTool .interviewerStrip span{margin:0;text-align:right}
+.rightTool .roundtableQuestion{padding-top:20px}
+.rightTool .questionBubble h3{font-size:20px}
+.rightTool .coachingHint,.rightTool .answerComposer,.rightTool .assessmentCard,.rightTool .assessmentBlocked,.rightTool .roundtableActions{margin-left:0}
+.rightTool .roundtableActions{position:sticky;bottom:-4px;padding:12px 0 4px;background:#fbfaf7}
+
+@media(max-width:700px){
+  .interviewStageHero{min-height:146px;padding:22px 18px;grid-template-columns:58px 1fr;gap:15px}
+  .interviewSignal{width:58px;height:58px}
+  .interviewStageHero h3{font-size:23px}
+  .interviewStageHero p{font-size:11px}
+  .interviewFlow{padding:0 10px}
+  .interviewFlow span{gap:5px;font-size:9px}
+  .interviewFlow span:not(:last-child)::after{display:none}
+  .roundtableSetup .roundPicker{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .setupLabel{align-items:flex-start;flex-direction:column;gap:4px}
+  .interviewerStrip{grid-template-columns:1fr}
+  .interviewerStrip article{grid-template-columns:34px 1fr auto}
+  .interviewerStrip span{margin:0;text-align:right}
+  .interviewScene{grid-template-columns:38px minmax(0,1fr);gap:10px}
+  .interviewerAvatar{width:38px;height:38px}
+  .questionBubble{padding:16px}
+  .questionBubble h3{font-size:19px}
+  .coachingHint,.answerComposer,.assessmentCard,.assessmentBlocked,.roundtableActions{margin-left:0}
+}
+
+@media(prefers-reduced-motion:reduce){.interviewSignal>span{animation:none}}

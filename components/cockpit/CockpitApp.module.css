@@ -553,3 +553,84 @@
 @media(max-width:1180px) and (min-width:981px){.workspace{grid-template-columns:184px minmax(0,1fr) var(--chat-width,min(420px,39vw))}.documentBody{padding:24px}.actionRail{padding:20px 16px}}
 @media(max-width:980px){.workspace{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.documentBody{padding:24px 20px 48px}.demoNotice{padding:8px 20px}.primaryButton,.secondaryButton,.roundPicker button{min-height:44px}.actionRail{padding:20px}.diffGrid{grid-template-columns:1fr}.pageIntro{gap:12px}}
+
+/* Resume studio: one clear sequence instead of a stack of unrelated controls. */
+.resumeStudio{max-width:920px;margin:0 auto}
+.resumeStudioIntro{align-items:flex-end}
+.resumeStudioIntro h2{margin-top:7px;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:27px;font-weight:700}
+.resumeSteps{margin:20px 0 8px;display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;background:#fbfaf7;overflow:hidden}
+.resumeSteps span{min-height:52px;padding:0 15px;display:flex;align-items:center;gap:9px;border-right:1px solid var(--line);color:#77736c;font-size:12px}
+.resumeSteps span:last-child{border-right:0}
+.resumeSteps b{width:24px;height:24px;display:grid;place-items:center;border:1px solid #d9d5ce;border-radius:50%;background:#fff;font-size:10px}
+.resumeSteps span[data-state="active"]{background:#fff7f1;color:var(--accent-deep);font-weight:650}
+.resumeSteps span[data-state="active"] b{border-color:var(--accent);background:var(--accent);color:#fff}
+.resumeSteps span[data-state="done"]{color:var(--green)}
+.resumeSteps span[data-state="done"] b{border-color:#c6ddce;background:var(--green-soft)}
+.resumeExportRow{min-height:74px;padding:12px 0 16px;display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line)}
+.resumeExportRow>div:first-child{display:flex;flex-direction:column;gap:4px}
+.resumeExportRow>div:first-child strong{font-size:13px}
+.resumeExportRow>div:first-child span{color:var(--muted);font-size:11px}
+.resumeExportRow .exportControls{margin:0;padding:0;justify-content:flex-end}
+.resumeExportRow .exportControls small{max-width:260px;text-align:right}
+.qualityGate{padding:18px 20px;background:#fbfaf7;border-radius:12px}
+.qualityGate>div:first-child strong{font-size:14px}
+.qualityReviewList{margin-top:13px;display:grid;gap:8px}
+.qualityReviewList p{margin:0;padding:10px 12px;display:flex;align-items:flex-start;gap:9px;border-radius:8px;background:#fff0ed;color:#75311f;font-size:12px;line-height:1.55}
+.qualityReviewList svg{margin-top:2px;flex:0 0 auto}
+.qualityReviewList span{display:flex;flex-direction:column;gap:2px}
+.qualityReviewList b{font-size:11px}
+.resumeChangeList{display:grid;gap:14px;margin-top:22px}
+.resumeChange{padding:19px 20px 18px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.resumeChange:last-child{border-bottom:1px solid var(--line)}
+.resumeChange header span{padding:3px 8px;border-radius:999px;background:#f0eee9}
+.diffGrid{margin:16px 0 13px;border-radius:9px}
+.diffGrid>div{min-height:128px}
+.diffGrid>div:last-child{background:#fffdfb}
+.resumeChange footer{padding-top:12px;border-top:1px solid #efede8}
+
+/* Interview tool is primarily rendered in the adjustable right rail. */
+.interviewIntro h2{margin-top:7px}
+.rightTool .interviewIntro{padding-bottom:20px}
+.rightTool .interviewIntro h2{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:25px;line-height:1.35}
+.rightTool .interviewIntro p{font-size:13px;line-height:1.7}
+.rightTool .interviewActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}
+.rightTool .focusList{display:grid;gap:9px;margin-top:18px}
+.rightTool .focusItem{min-height:0;padding:13px 14px;grid-template-columns:auto 1fr;border:1px solid var(--line);border-radius:9px;background:#fff}
+.rightTool .focusItem>span:last-child{grid-column:2;margin-top:3px}
+.rightTool .focusItem strong{font-size:13px;line-height:1.55}
+.rightTool .focusItem p{font-size:11px;line-height:1.6}
+.rightTool .roundtableWorkspace{max-width:none;margin:0}
+.rightTool .roundtableHeader{padding:0 0 20px;display:flex;align-items:flex-start}
+.rightTool .roundtableHeader .textButton{margin:0 0 16px;font-size:12px}
+.rightTool .roundtableHeader h2{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:26px;line-height:1.3}
+.rightTool .roundtableHeader p{font-size:12px;line-height:1.6}
+.rightTool .roundtableProgress{margin-top:5px;font-size:11px}
+.rightTool .roundtableStart{max-width:none;padding:28px 0}
+.rightTool .roundtableStart h3{margin:9px 0 8px;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:23px}
+.rightTool .roundtableStart>p{font-size:13px;line-height:1.7}
+.rightTool .roundPicker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.rightTool .roundPicker button{min-height:44px;width:100%;font-size:13px}
+.rightTool .roundtableSourceLine{margin:20px 0;padding:13px 14px;border:0;border-radius:9px;background:var(--green-soft);font-size:11px}
+.rightTool .roundtableStart>.primaryButton{width:100%;min-height:46px;font-size:13px}
+.rightTool .roundtableQuestion{padding:24px 0 0}
+.rightTool .roundtableQuestion h3{margin:10px 0 9px;font-size:23px;line-height:1.45}
+.rightTool .roundtableQuestion>p{font-size:12px;line-height:1.65}
+.rightTool .roundtableQuestion details{margin:0 0 16px;padding:12px 14px;border-radius:9px;background:#f3f1ec;color:var(--muted);font-size:12px;line-height:1.65}
+.rightTool .roundtableQuestion details summary{color:var(--ink);cursor:pointer;font-weight:650}
+.rightTool .roundtableQuestion textarea{min-height:220px;padding:15px;font-size:15px;line-height:1.75;border-radius:10px}
+.rightTool .roundtableActions{position:sticky;bottom:-4px;margin-top:18px;padding:14px 0 4px;border-top:1px solid var(--line);background:#fbfaf7}
+.rightTool .roundtableActions>span{font-size:11px;line-height:1.55}
+.rightTool .practicePanel{margin:18px 0;padding:18px;border-radius:11px}
+.rightTool .practicePanel>span{font-size:10px}
+.rightTool .practicePanel h3{font-size:19px}
+.rightTool .practicePanel p{font-size:12px}
+.rightTool .practicePanel textarea{font-size:15px;min-height:190px}
+
+@media(max-width:700px){
+  .resumeStudioIntro{align-items:stretch}.resumeStudioIntro>.primaryButton{width:100%}
+  .resumeSteps{grid-template-columns:1fr}.resumeSteps span{border-right:0;border-bottom:1px solid var(--line)}.resumeSteps span:last-child{border-bottom:0}
+  .resumeExportRow{align-items:flex-start;flex-direction:column}.resumeExportRow .exportControls{width:100%;justify-content:flex-start}.resumeExportRow .exportControls small{text-align:left}
+  .qualityActions{display:grid}.qualityActions>*{width:100%}
+  .resumeChange{padding:16px}.resumeChange header,.resumeChange footer{align-items:flex-start;flex-direction:column;gap:8px}
+  .rightTool .interviewActions{grid-template-columns:1fr}
+}

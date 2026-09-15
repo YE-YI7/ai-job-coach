@@ -12,6 +12,12 @@ describe("application package quality", () => {
     expect(result.findings[0].code).toBe("replacement_missed");
   });
 
+  test("does not treat a section heading as resume source text", () => {
+    const result = applyResumeChanges("腾讯｜产品经理\n负责模型评测和上线复盘", [{ id: "1", section: "实习经历 > 腾讯 | 产品经理", before: "实习经历 > 腾讯 | 产品经理", after: "腾讯｜AI 产品经理", reason: "岗位匹配", evidenceId: "claim-1", status: "accepted" }]);
+    expect(result.text).toContain("腾讯｜产品经理");
+    expect(result.findings).toEqual([expect.objectContaining({ code: "replacement_missed" })]);
+  });
+
   test("flags PDF without a usable text layer", () => {
     expect(reviewPdfText("图片", "这是完整的简历正文，包含很多经历说明").ok).toBe(false);
   });

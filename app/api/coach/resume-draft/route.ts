@@ -55,7 +55,9 @@ export async function POST(request: Request) {
         userId: user.id,
         task: "resume_workshop",
         opportunityId,
-        questionSource,
+        // 岗位本身已经携带 JD；这里把另一份不可缺的原文槽位留给简历，
+        // 避免把 JD 计入预算两次、简历却完全没进预算。
+        questionSource: { id: "base-resume", text: resumeText },
         budget: { maxInputTokens: RESUME_WORKSHOP_BUDGET },
       });
     } else {
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
         userId: user.id,
         claims,
         questionSource,
+        attachments: [{ id: "base-resume", label: "基础简历原文", text: resumeText, required: true }],
         budget: { maxInputTokens: RESUME_WORKSHOP_BUDGET },
       });
     }
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
       requestId,
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
-      { role: "user", content: `目标 JD：\n${jobDescription}\n\n带编号的简历事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须来自原文。` },
+      { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。` },
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
@@ -105,8 +108,9 @@ export async function POST(request: Request) {
       const after = String(raw.after || "").trim().slice(0, 2000);
       const before = String(raw.before || "").trim().slice(0, 2000);
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
-      if (!after || !before || !report.ok) {
-        rejected.push({ index, reasons: report.issues.map((issue) => issue.message) });
+      const mappingIssues = before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : [];
+      if (!after || !before || !report.ok || mappingIssues.length) {
+        rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];
       }
       return [{

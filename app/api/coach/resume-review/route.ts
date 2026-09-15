@@ -40,7 +40,9 @@ export async function POST(request: Request) {
       userId: user.id,
       task: "resume_workshop",
       opportunityId,
-      questionSource: { id: "job-description", text: jobDescription },
+      // opportunity 已经携带 JD；questionSource 用于完整计入基础简历，避免重复计价。
+      questionSource: { id: "base-resume", text: resumeText },
+      knowledgeLimit: 0,
       budget: { maxInputTokens: 12_000 },
     });
     assertContextFits(context);
@@ -117,8 +119,12 @@ export async function POST(request: Request) {
       claimLinks: activeChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` }))),
     });
 
+    const factFindings = [...applied.findings, ...facts.issues];
+    const factSummary = factsPassed
+      ? "用户修改后的表述均关联已确认事实。"
+      : String(factFindings[0]?.message || "存在无法定位、未确认或数字不一致的内容。");
     const reviews = await Promise.all([
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsPassed ? "passed" : "failed", summary: factsPassed ? "用户修改后的表述均关联已确认事实。" : "存在无法定位、未确认或数字不一致的内容。", findings: [...applied.findings, ...facts.issues], contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsPassed ? "passed" : "failed", summary: factSummary, findings: factFindings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: reviewer.summary, findings: reviewer.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),

@@ -1067,6 +1067,8 @@ function ResumeTab({ opportunity, onUpdate, onEdit, onGenerate, onValidate, onFr
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const submittedVersion = Math.max(0, ...(opportunity.snapshots || []).filter((snapshot) => snapshot.snapshotType === "submitted_resume").map((snapshot) => snapshot.version));
+  const pendingCount = opportunity.resumeChanges.filter((item) => item.status === "pending").length;
+  const failedReviews = opportunity.applicationQuality?.reviews.filter((review) => review.status === "failed") || [];
   const verifyPdf = async (file: File) => {
     if (!opportunity.applicationQuality) return;
     setCheckingPdf(true);
@@ -1090,13 +1092,14 @@ function ResumeTab({ opportunity, onUpdate, onEdit, onGenerate, onValidate, onFr
     );
   }
   return (
-    <section>
-      <div className={styles.pageIntro}><div><h2>岗位简历工作室</h2><p>AI 先给建议，你可以逐句修改。每次人工调整都会保存，冻结投递版前再检查一次事实和岗位匹配。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "AI 生成岗位版本"} · ${quotaLabel}`}</button></div>
-      <ResumeExport opportunityId={opportunity.id} artifactId={opportunity.applicationQuality?.artifactId} baseText={opportunity.resumeText} disabledReason={editingId!==null||opportunity.resumeChanges.some(c=>c.status==="pending")||(opportunity.resumeChanges.length>0&&opportunity.applicationQuality?.status!=="ready")?"先确认修改并完成质检，再导出当前版本，避免误导出旧稿。":undefined}/>
-      <div className={styles.versionLine}><span>{submittedVersion ? `已冻结投递版本 V${submittedVersion}` : "尚未冻结投递版本"}</span><span>{opportunity.resumeChanges.filter((item) => item.status === "pending").length} 处待审阅</span></div>
+    <section className={styles.resumeStudio}>
+      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><span className={styles.eyebrow}>岗位版本</span><h2>把简历改到可以投</h2><p>先逐条决定，再做一次事实与岗位检查；通过后冻结，避免误投旧版本。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "生成岗位版本"} · ${quotaLabel}`}</button></div>
+      <div className={styles.resumeSteps} aria-label="简历处理进度"><span data-state={pendingCount ? "active" : "done"}><b>1</b>确认建议</span><span data-state={opportunity.applicationQuality?.status === "ready" ? "done" : pendingCount ? "waiting" : "active"}><b>2</b>检查版本</span><span data-state={submittedVersion ? "done" : "waiting"}><b>3</b>冻结导出</span></div>
+      <div className={styles.resumeExportRow}><div><strong>{submittedVersion ? `投递版本 V${submittedVersion}` : "还没有冻结投递版"}</strong><span>{pendingCount ? `${pendingCount} 处修改等你决定` : opportunity.resumeChanges.length ? "修改已确认，可以检查" : "先生成一版岗位建议"}</span></div><ResumeExport opportunityId={opportunity.id} artifactId={opportunity.applicationQuality?.artifactId} baseText={opportunity.resumeText} disabledReason={editingId!==null||pendingCount>0||(opportunity.resumeChanges.length>0&&opportunity.applicationQuality?.status!=="ready")?"确认修改并通过检查后即可导出。":undefined}/></div>
       {opportunity.applicationQuality && <div className={styles.qualityGate}>
         <div><strong>投递质检</strong><span>{opportunity.applicationQuality.status === "draft" ? "修改后待检查" : opportunity.applicationQuality.status === "blocked" ? "有阻断项" : opportunity.resumeChanges.some((item) => item.status === "pending") ? "等待你确认" : "可以冻结版本"}</span></div>
         <div className={styles.qualityChecks}>{opportunity.applicationQuality.reviews.map((review) => <span key={review.reviewerType} title={review.summary} data-status={review.status}>{review.reviewerType === "facts" ? "事实" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()} · {review.status === "passed" ? "通过" : review.status === "failed" ? "未通过" : "待检查"}</span>)}</div>
+        {failedReviews.length > 0 && <div className={styles.qualityReviewList}>{failedReviews.map((review) => <p key={review.reviewerType}><CircleAlert size={15}/><span><b>{review.reviewerType === "facts" ? "事实检查" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()}</b>{review.summary}</span></p>)}</div>}
         <div className={styles.qualityActions}>{opportunity.applicationQuality.status !== "ready" && <button className={styles.primaryButton} disabled={validating || editingId !== null} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "检查我的修改"}</button>}<button className={styles.primaryButton} disabled={freezing || opportunity.applicationQuality.status !== "ready" || opportunity.resumeChanges.some((item) => item.status === "pending")} onClick={onFreeze}>{freezing ? "正在冻结…" : "冻结投递版本"}</button>
           <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label></div>
       </div>}
@@ -1433,7 +1436,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 
   return (
     <section>
-      <div className={styles.pageIntro}><div><h2>面试作战准备</h2><p>{hasJd ? "问题来自当前岗位的证据风险；回答、反馈和整轮记录都留在这里。" : "先选定目标岗位，圆桌才会按对应 JD 追问；当前题目仅来自基础简历。"}</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />快速练一题（免费）</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `模拟面试圆桌 · ${quotaLabel}` : "模拟面试圆桌 · 需要 JD"}</button></div>
+      <div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><span className={styles.eyebrow}>面试训练</span><h2>先练最可能被追问的题</h2><p>{hasJd ? "题目来自当前 JD 与经历缺口；每次回答都会留下反馈和下一步。" : "先选定目标岗位，才能按真实 JD 追问。"}</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />免费练一题</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `开始模拟面试 · ${quotaLabel}` : "模拟面试 · 需要 JD"}</button></div>
       {!hasJd && <p className={styles.ctaHint}>这个岗位还没有 JD。圆桌的每一题都必须能追溯到当前 JD，缺 JD 时不会用通用题顶上。</p>}
       </div>
       {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction

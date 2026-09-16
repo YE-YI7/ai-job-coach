@@ -16,7 +16,7 @@ describe("learning archive",()=>{
   (readLearningSession as jest.Mock).mockResolvedValue({id:sid,status:"active",version:3,title:"练习"});
   const turns={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[{id:"turn-1",question:"我的回答",answer:"反馈"}],error:null})};
   const save={update:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),select:jest.fn().mockReturnThis(),maybeSingle:jest.fn().mockResolvedValue({data:conflict?null:{id:sid},error:null})};
-  (getDbClient as jest.Mock).mockResolvedValue({from:(name:string)=>name==="coach_agent_turns"?turns:save});(callLLM as jest.Mock).mockResolvedValue("已练习，迁移题待验证");
+  (getDbClient as jest.Mock).mockResolvedValue({from:(name:string)=>name==="coach_agent_turns"?turns:save});(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({userEvidence:[{turnId:"turn-1",quote:"我的回答"}],nextExercise:[]}));
   const r=await POST(request());const b=await r.json();expect(r.status).toBe(conflict?409:200);expect(Boolean(b.ok)).toBe(!conflict);expect(save.eq).toHaveBeenCalledWith("version",3);expect(save.eq).toHaveBeenCalledWith("user_id","owner");expect(turns.eq).toHaveBeenCalledWith("session_id",sid);
  });
 });

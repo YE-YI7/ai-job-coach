@@ -15,7 +15,7 @@ export function parseTutorReply(raw:string){
  const answer=raw.slice(0,marker).trim();
  try{
   const items:unknown=JSON.parse(raw.slice(marker+11).split("</followups>")[0]);
-  const suggestions=Array.isArray(items)?Array.from(new Set(items.filter((x):x is string=>typeof x==="string"&&x.trim().length>0&&x.length<=40&&!/^(你|您|说说|谈谈|试着|请你|请您|能否说|能说说)/.test(x.trim())).map(x=>x.trim()))).slice(0,2):[];
+  const suggestions=Array.isArray(items)?Array.from(new Set(items.filter((x):x is string=>typeof x==="string"&&x.trim().length>0&&x.length<=40&&/^(请|我想|帮我|如何|怎么|为什么|能否|能不能|可以|怎样|what|how|can|please)|[？?]$/i.test(x.trim())&&!/^(你|您|说说|谈谈|试着|请你|请您|能否说|能说说|我已经|我做过|我完成|我画了|我写了|我负责|我没有|我会了)/.test(x.trim())).map(x=>x.trim()))).slice(0,2):[];
   return {answer,suggestions};
  }catch{return {answer,suggestions:[] as string[]};}
 }

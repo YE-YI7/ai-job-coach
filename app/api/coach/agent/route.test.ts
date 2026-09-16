@@ -24,6 +24,15 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("resume drafts are checked before any draft text is streamed",async()=>{
+  setupGeneration();(callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({resumeQuotes:[],nextStep:"请补充真实项目动作"}));
+  const req=new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({message:"帮我写一条简历项目描述",requestId:"11111111-1111-4111-8111-111111111111"})});
+  const events=(await (await POST(req)).text()).trim().split("\n").map(x=>JSON.parse(x));
+  expect(callLLM).toHaveBeenCalledTimes(1);
+  expect((callLLM as jest.Mock).mock.calls[0][1].onDelta).toBeUndefined();
+  expect(events.at(-1)).toMatchObject({ok:true,learning_trace:{groundedDraft:true,modelCalls:1}});
+  expect(events.at(-1).answer).not.toContain("未经核实");
+ });
  test("optional memory failure does not block a scoped, persisted reply",async()=>{
   setupGeneration();(readLearningSession as jest.Mock).mockResolvedValue({opportunity_id:null,status:"active"});
   (readLearningMemory as jest.Mock).mockRejectedValue(Error("cache down"));(refreshProfileMemory as jest.Mock).mockRejectedValue(Error("cache down"));(callLLM as jest.Mock).mockResolvedValue("正常回答");
@@ -32,10 +41,10 @@ describe("agent boundary",()=>{
  });
  test("streams deltas, then persisted answer and structured suggestions",async()=>{
   const q=setupGeneration();
-  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("开始解释");expect(q.insert).not.toHaveBeenCalled();return '开始解释<followups>["继续"]</followups>';});
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("开始解释");expect(q.insert).not.toHaveBeenCalled();return '开始解释<followups>["请继续"]</followups>';});
   const events=(await (await POST(streamRequest())).text()).trim().split("\n").map(x=>JSON.parse(x));
   expect(events[1]).toEqual({type:"delta",text:"开始解释"});
-  expect(events.at(-1)).toMatchObject({ok:true,id:"saved",answer:"开始解释",learning_trace:{suggestions:["继续"]}});
+  expect(events.at(-1)).toMatchObject({ok:true,id:"saved",answer:"开始解释",learning_trace:{suggestions:["请继续"]}});
   expect(q.insert).toHaveBeenCalledTimes(1);
  });
  test("storage failure never emits successful completion",async()=>{

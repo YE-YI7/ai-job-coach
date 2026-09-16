@@ -11,6 +11,7 @@ import {estimateTokens} from "@/lib/coach-harness/context";
 import {isChatMode,parseTutorReply} from "@/lib/coach-harness/chat-options";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
 import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
+import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from "@/lib/coach-harness/resume-grounding";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
   catch { return NextResponse.json({ error: "暂时无法读取对话" }, { status: 503, headers }); }
 }
 async function handlePost(req: Request, onDelta?: (text:string)=>void) {
+  const startedAt=Date.now();
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401, headers });
   let body;
@@ -55,6 +57,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   if (readError) return NextResponse.json({ error: "读取状态失败" }, { status: 503, headers });
   if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,learning_trace:existing.learning_trace}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
+  const groundedDraft=needsResumeGrounding(body.message);
   const [{turns,context,selection},learningMemory,profileMemory] = await Promise.all([
     history(user.id,id,sessionId).then(async turns=>{
       const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
@@ -66,8 +69,8 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
     }),
     // Optional compaction/cache must not prevent a reply. The authoritative
     // context and session ownership checks above still fail closed.
-    sessionId?readLearningMemory(user.id,id).catch(()=>""):Promise.resolve(""),
-    sessionId?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?readLearningMemory(user.id,id).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
   if (/就业形势|行情|招聘趋势|就业市场|最新.*招聘/.test(body.message)) {
@@ -79,19 +82,28 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   // Always recompile private facts; never share a cached answer across users or jobs.
   const recent = turns.slice(-4).map(t => `用户：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
   const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
-  const fingerprint = createHash("sha256").update(user.id + ":" + id + ":" + prompt).digest("hex");
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
+  let firstTextAt:number|null=null;
   let modelCalls = 0;
+  let sourceBudget=4500;
+  const sources=[{id:"current",text:body.message},...turns.slice(-4).reverse().map(t=>({id:t.id,text:t.question})),...(context.claims||[]).filter(c=>c.status==="confirmed").map(c=>({id:c.id,text:c.displayText}))].flatMap(s=>{
+    if(s.text.length>sourceBudget)return [];sourceBudget-=s.text.length;return [s];
+  });
+  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:LEARNING_SYSTEM;
+  const actualPrompt=groundedDraft?`当前请求：${body.message}\n仅以下来源可用于简历事实（提问不代表经历）：\n${JSON.stringify(sources)}\n知识参考仅用于下一步练习，不可作用户经历：\n${context.knowledge.map(k=>k.content).join("\n").slice(0,2000)}`:prompt;
+  if(estimateTokens(actualSystem)+estimateTokens(actualPrompt)>8000)return NextResponse.json({error:"材料较长，请分段提交简历经历"},{status:400,headers});
+  const fingerprint=createHash("sha256").update(user.id+":"+id+":"+actualSystem+actualPrompt).digest("hex");
+  const contextReadyMs=Date.now()-startedAt;
   const generate = async (model:string) => {
     modelCalls++;
     return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
-    { role:"system",content:LEARNING_SYSTEM },
-    { role:"user",content:prompt }
-  ], {model,maxTokens:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:0.4,onUsage:details=>{modelUsage=details;},onDelta:onDelta?(text)=>{received=true;onDelta(text);}:undefined}));
+    { role:"system",content:actualSystem },
+    { role:"user",content:actualPrompt }
+  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();onDelta(text);}:undefined}));
   };
-  let rawAnswer;
+  let rawAnswer:string;
   try { rawAnswer=await generate(selection.model); }
   catch(error) {
     // Never retry after showing text, or on authorization/balance failures.
@@ -101,9 +113,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
     selection.model="deepseek-v4-flash";
     rawAnswer=await generate(selection.model);
   }
+  if(groundedDraft)rawAnswer=renderGroundedResume(rawAnswer,sources);
   const {answer,suggestions}=parseTutorReply(rawAnswer);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
-  const trace={promptVersion:"learning-v3",knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(LEARNING_SYSTEM)+estimateTokens(prompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage};
+  const trace={promptVersion:"learning-v4",groundedDraft,timing:{contextReadyMs,firstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
   return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,learning_trace:trace},{headers});

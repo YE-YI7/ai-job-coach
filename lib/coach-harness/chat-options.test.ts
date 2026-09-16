@@ -2,6 +2,9 @@ import {chooseChatModel,isChatMode,parseTutorReply,CHAT_MODELS} from "./chat-opt
 test("tutor-to-user prompts are not offered as user replies",()=>{
  expect(parseTutorReply('内容<followups>["你能举个例子吗？","请带我拆解这个指标"]</followups>').suggestions).toEqual(["请带我拆解这个指标"]);
 });
+test("followups do not fabricate user actions or mastery",()=>{
+ expect(parseTutorReply('内容<followups>["我画了界面草图","我已经掌握了","请带我做评测"]</followups>').suggestions).toEqual(["请带我做评测"]);
+});
 test("automatic mode uses task-specific eligible models",()=>{
  expect(chooseChatModel("auto","面试练习",[...CHAT_MODELS])).toBe("kimi-k3");
  expect(chooseChatModel("auto","RAG召回评测",[...CHAT_MODELS])).toBe("glm-5.3");
@@ -19,5 +22,5 @@ test("followups are linked to the actual model reply and never static fallbacks"
 });
 test("invalid followups are dropped without exposing protocol text",()=>{
  expect(parseTutorReply("回答<followups>unfinished")).toEqual({answer:"回答",suggestions:[]});
- expect(parseTutorReply('回答<followups>["a","a",4,"b","c"]</followups>').suggestions).toEqual(["a","b"]);
+ expect(parseTutorReply('回答<followups>["请继续","请继续",4,"我想看例子","帮我练习"]</followups>').suggestions).toEqual(["请继续","我想看例子"]);
 });

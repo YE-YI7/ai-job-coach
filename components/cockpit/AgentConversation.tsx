@@ -103,5 +103,6 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的理解、回答，或直接说没听懂…" rows={3} maxLength={4000} disabled={!enabled} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
    <footer><select className={styles.modelSelect} aria-label="选择导师模型" title="自动模式按问题从已接入优选池选择；未连接TokenPay使用托管Flash，单价以供应商为准" value={modelMode} disabled={busy||loading||!enabled} onChange={e=>setModelMode(e.target.value as ChatMode)}><option value="auto">{modelAccess?.connected?"自动 · 优选模型":"自动 · 托管 Flash"}</option><option value="fast">经济 · DeepSeek V4 Flash</option>{CHAT_MODELS.map(id=><option key={id} value={id} disabled={!modelAccess?.available.includes(id)}>{id}</option>)}</select><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
+  <p className={styles.disclaimer}>AI 也会犯错，请核实重要信息。</p>
  </section>;
 }

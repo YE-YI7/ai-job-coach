@@ -1,9 +1,5 @@
 .wrap{position:relative;min-width:0;flex:1}
-// The trigger and each card are plain <button> descendants of AgentConversation's
-// `.panel`, which defines generic `.panel button` / `.panel footer button` rules
-// (orange background, transparent, min-width, disabled tinting). Every button-level
-// rule below is scoped under `.wrap` AND doubles its class name so its specificity
-// (0,0,3,1) beats those panel rules and the picker keeps its own look.
+/* Scope picker buttons above the conversation panel's generic button rules. */
 .wrap .trigger.trigger{display:flex;align-items:center;gap:8px;width:100%;max-width:100%;min-width:0;font:inherit;font-size:12px;border:1px solid #d3cbc0;background:#fff;color:#292b2d;padding:6px 8px;border-radius:9px;cursor:pointer;text-align:left;min-height:40px}
 .wrap .trigger.trigger:hover:not(:disabled){background:#f6f3ee}
 .wrap .trigger.trigger:disabled{opacity:.55;cursor:not-allowed;background:#fff;color:#8a8277}

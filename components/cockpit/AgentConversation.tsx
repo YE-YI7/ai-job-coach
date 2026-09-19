@@ -4,7 +4,9 @@ import {ArrowUp,Copy,Plus,BookOpen} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
 import VoiceControls from "./VoiceControls";
-import {type ChatMode,CHAT_MODELS} from "@/lib/coach-harness/chat-options";
+import ModelPicker from "./ModelPicker";
+import {type ChatMode} from "@/lib/coach-harness/chat-options";
+import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 type Turn={id:string;question:string;answer:string;learning_trace?:{suggestions?:string[];model?:string;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
 type Session={id:string;title:string;status:"active"|"archived";summary?:string};
@@ -18,10 +20,11 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[sessions,setSessions]=useState<Session[]>([]),[session,setSession]=useState<Session|null>(null);
  const [pending,setPending]=useState("");
  const [draft,setDraft]=useState("");
+ const [progress,setProgress]=useState("");
  const [editingNotes,setEditingNotes]=useState(false),[notes,setNotes]=useState(""),[savingNotes,setSavingNotes]=useState(false);
  const [modelMode,setModelMode]=useState<ChatMode>("auto");
- const [modelAccess,setModelAccess]=useState<{connected:boolean;available:string[]}|null>(null);
- useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(b.ok)setModelAccess(b);}).catch(()=>{});return()=>controller.abort();},[enabled]);
+ const [modelAccess,setModelAccess]=useState<{connected:boolean;available:string[];catalog:CatalogEntryAvailability[]}|null>(null);
+ useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(!b.ok)return;const available:string[]=Array.isArray(b.available)?b.available:[];const catalog=Array.isArray(b.catalog)&&b.catalog.length?b.catalog as CatalogEntryAvailability[]:catalogWithAvailability(available);setModelAccess({connected:!!b.connected,available,catalog});}).catch(()=>{});return()=>controller.abort();},[enabled]);
  const generation=useRef(0),lock=useRef(false),seen=useRef("");
  const retry=useRef<{text:string;sessionId:string;requestId:string}|null>(null);
  const list=useRef<HTMLDivElement>(null),input=useRef<HTMLTextAreaElement>(null);
@@ -42,7 +45,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  useEffect(()=>{if(list.current)list.current.scrollTop=list.current.scrollHeight;},[turns,pending,busy,draft]);
  const send=useCallback(async(text:string,newLesson=false,title?:string)=>{
   if(lock.current||!text.trim()||!enabled||loading)return;
-  lock.current=true;const token=generation.current;setBusy(true);setError("");setPending(text);setDraft("");
+  lock.current=true;const token=generation.current;setBusy(true);setError("");setPending(text);setDraft("");setProgress("正在连接导师…");
   try{
    let selected=session;
    // Starting a separate lesson must not depend on a paid AI archive succeeding.
@@ -55,7 +58,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    const requestId=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.requestId:crypto.randomUUID();
    retry.current={text,sessionId:selected!.id,requestId};
    const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode})});
-   const b=await readChatResponse<Turn&{ok?:boolean;error?:string}>(r,value=>{if(token===generation.current)setDraft(value);});
+   const b=await readChatResponse<Turn&{ok?:boolean;error?:string}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});
    if(token!==generation.current)return;if(!b.ok)throw Error(b.error||"回答暂时不可用");
    retry.current=null;
    setDraft("");
@@ -94,14 +97,14 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    {editingNotes&&<div className={styles.summary}><p>只留下有用的草稿或练习结果。保存为本次学习笔记，不会自动改写简历。</p><textarea aria-label="编辑本轮成果" maxLength={6000} value={notes} onChange={e=>setNotes(e.target.value)}/><button disabled={savingNotes} onClick={()=>void saveNotes()}>{savingNotes?"保存中…":"确认保存成果"}</button><button disabled={savingNotes} onClick={()=>setEditingNotes(false)}>取消</button></div>}
    {pending&&<p className={styles.question}>{pending}</p>}
    {draft&&<div className={styles.answer}><TutorMarkdown>{draft}</TutorMarkdown>{!busy&&<small>回答未完成，尚未确认保存</small>}</div>}
-   {busy&&<p role="status">{draft?"正在回答…":pending?"正在读取材料并连接导师…":"正在整理并保存这次学习…"}</p>}
+   {busy&&<p role="status">{pending?progress||"正在连接导师…":"导师正在整理进展…"}</p>}
    {session&&session.id!=="legacy"&&<details className={styles.summary}><summary>学习笔记{session.summary?" · 已保存":" · 添加关键收获"}</summary>{editingNotes?<><textarea aria-label="编辑学习笔记" maxLength={6000} value={notes} onChange={e=>setNotes(e.target.value)}/><button disabled={savingNotes} onClick={()=>void saveNotes()}>{savingNotes?"保存中…":"保存笔记"}</button><button disabled={savingNotes} onClick={()=>setEditingNotes(false)}>取消</button></>:<><TutorMarkdown>{session.summary||"只记值得下次带走的收获、难点和练习。"}</TutorMarkdown><button disabled={busy} onClick={()=>{setNotes(session.summary||"");setEditingNotes(true);}}>编辑 / 添加</button>{session.status==="active"&&!!turns.length&&<button disabled={busy} onClick={()=>void archive()}>整理本次进展（AI 额度）</button>}</>}</details>}
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <form onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
    <VoiceControls key={`${opportunityId||"general"}:${session?.id||"new"}`} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/>
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的理解、回答，或直接说没听懂…" rows={3} maxLength={4000} disabled={!enabled} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
-   <footer><select className={styles.modelSelect} aria-label="选择导师模型" title="自动模式按问题从已接入优选池选择；未连接TokenPay使用托管Flash，单价以供应商为准" value={modelMode} disabled={busy||loading||!enabled} onChange={e=>setModelMode(e.target.value as ChatMode)}><option value="auto">{modelAccess?.connected?"自动 · 优选模型":"自动 · 托管 Flash"}</option><option value="fast">经济 · DeepSeek V4 Flash</option>{CHAT_MODELS.map(id=><option key={id} value={id} disabled={!modelAccess?.available.includes(id)}>{id}</option>)}</select><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()} type="submit"><ArrowUp size={18}/></button></footer>
+   <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
   <p className={styles.disclaimer}>AI 也会犯错，请核实重要信息。</p>
  </section>;

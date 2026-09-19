@@ -3,6 +3,8 @@
  * 完成面试会话并生成总结
  * 
  * - 读取题目、回答和评价，生成 questionBreakdown + nextActions
+ * - 客户端应先引导用户完成自我复盘，并把复盘文本放进 userReflection 一起提交；
+ *   AI 点评会先回应用户自己的判断，再补充观察
  * - 写入当前岗位的 interview_feedback snapshot（幂等）
  * - 缺少真实回答时拒绝总结
  */
@@ -34,6 +36,11 @@ const SUMMARY_BUDGET = 8_000;
 interface CompleteRequest {
   session_id: string;
   opportunityId?: string;
+  /**
+   * 用户先写的自我复盘（整轮收尾的第一步）。AI 点评必须建立在它之上：
+   * 先回应候选人自己的判断，再补充观察；不再由系统凭空替用户复盘。
+   */
+  userReflection?: string;
 }
 
 export async function POST(request: Request) {
@@ -61,6 +68,7 @@ export async function POST(request: Request) {
 
     // 3. 验证请求参数
     const { session_id, opportunityId } = body;
+    const userReflection = typeof body.userReflection === "string" ? body.userReflection.trim().slice(0, 4_000) : "";
     if (!session_id || typeof session_id !== "string") {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 session_id 字段" }),
@@ -220,6 +228,7 @@ export async function POST(request: Request) {
         questions: questions || undefined,
         contextText: rendered.text,
         warnings: rendered.warnings,
+        candidateSelfReview: userReflection || undefined,
       }));
 
       // 10. 写入 interview_feedback snapshot（幂等）
@@ -245,12 +254,16 @@ export async function POST(request: Request) {
             totalQuestions: questions?.length || 0,
             answeredQuestions: answers.length,
             lowInfoAnswers: answers.length - assessments.length,
+            // 用户先写的自我复盘与 AI 点评分开保存：以后回看时能分清
+            // 「我自己当时怎么判断」和「模型补了什么」。
+            candidateSelfReview: userReflection || null,
           },
           createdBy: "hosted_ai",
           metadata: {
             mode: "mock_interview_summary",
             sessionId: session_id,
             roundType: session.round_type,
+            hasCandidateSelfReview: Boolean(userReflection),
           },
         });
         snapshotId = String(snapshot.id || "");

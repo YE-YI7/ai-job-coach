@@ -9,6 +9,7 @@ import { assertContextFits, renderContextForPrompt } from "@/lib/coach-harness";
 import {LEARNING_SYSTEM,learningKnowledgeTask,makeLearningQuery,readLearningMemory,readLearningSession,refreshProfileMemory,boundedLearningPrompt} from "@/lib/coach-harness/learning-memory";
 import {estimateTokens} from "@/lib/coach-harness/context";
 import {isChatMode,parseTutorReply} from "@/lib/coach-harness/chat-options";
+import {guardInsufficientReply} from "@/lib/coach-harness/insufficiency-guard";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
 import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
 import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from "@/lib/coach-harness/resume-grounding";
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
   try { return NextResponse.json({ ok: true, turns: await history(user.id, id,sessionId,200) }, { headers }); }
   catch { return NextResponse.json({ error: "暂时无法读取对话" }, { status: 503, headers }); }
 }
-async function handlePost(req: Request, onDelta?: (text:string)=>void) {
+async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?: (message:string)=>void) {
   const startedAt=Date.now();
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401, headers });
@@ -86,6 +87,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
   let firstTextAt:number|null=null;
+  let visibleTextAt:number|null=null;
+  let generatedChars=0;
+  let lastProgressAt=0;
   let modelCalls = 0;
   let sourceBudget=4500;
   const sources=[{id:"current",text:body.message},...turns.slice(-4).reverse().map(t=>({id:t.id,text:t.question})),...(context.claims||[]).filter(c=>c.status==="confirmed").map(c=>({id:c.id,text:c.displayText}))].flatMap(s=>{
@@ -98,10 +102,11 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
   const contextReadyMs=Date.now()-startedAt;
   const generate = async (model:string) => {
     modelCalls++;
+    onStatus?.(`正在等待 ${model} 响应…`);
     return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
     { role:"system",content:actualSystem },
     { role:"user",content:actualPrompt }
-  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();onDelta(text);}:undefined}));
+  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在组织回答，已生成 ${generatedChars} 字符；核对后展示…`);}}:undefined}));
   };
   let rawAnswer:string;
   try { rawAnswer=await generate(selection.model); }
@@ -114,16 +119,21 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void) {
     rawAnswer=await generate(selection.model);
   }
   if(groundedDraft)rawAnswer=renderGroundedResume(rawAnswer,sources);
-  const {answer,suggestions}=parseTutorReply(rawAnswer);
+  const parsed=parseTutorReply(rawAnswer);
+  // 信息不足分级守卫：blocking 轮的超长“伪完整”回答收敛为一句澄清问句；
+  // 无依据的“已确认/已掌握”类断言就地降级为待确认。纯字符串级，不触网。
+  const guarded=guardInsufficientReply({answer:parsed.answer,suggestions:parsed.suggestions,userText:`${body.message}\n${turns.slice(-4).map(t=>t.question).join("\n")}`});
+  const {answer,suggestions}=guarded;
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
-  const trace={promptVersion:"learning-v4",groundedDraft,timing:{contextReadyMs,firstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage};
+  if(onDelta){visibleTextAt=Date.now();onDelta(answer);onStatus?.("回答已核对，正在保存…");}
+  const trace={promptVersion:"learning-v5",groundedDraft,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,claimsHedged:guarded.claimsHedged}};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
-  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,learning_trace:trace},{headers});
+  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,learning_trace:trace},{headers});
 }
 
 export async function POST(req:Request) {
-  const metered=(onDelta?: (text:string)=>void)=>withMeteredAiRoute((request:Request)=>handlePost(request,onDelta),{operation:"cockpit_agent",quotaType:"chat"});
+  const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void)=>withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus),{operation:"cockpit_agent",quotaType:"chat"});
   if(!req.headers.get("accept")?.includes("application/x-ndjson"))return metered()(req);
   const encoder=new TextEncoder();
   let cancelled=false;
@@ -132,8 +142,11 @@ export async function POST(req:Request) {
       const emit=(event:unknown)=>{if(!cancelled)controller.enqueue(encoder.encode(JSON.stringify(event)+"\n"));};
       try {
         emit({type:"status",message:"正在读取相关材料…"});
-        const response=await metered(text=>emit({type:"delta",text}))(req);
+        // Only guarded text crosses the wire; status events carry no draft text.
+        let shown=false;
+        const response=await metered(text=>{shown=true;emit({type:"delta",text});},message=>emit({type:"status",message}))(req);
         const result=await response.json();
+        if(!shown&&result?.ok&&typeof result.answer==="string")emit({type:"delta",text:result.answer});
         // Completion is emitted only AFTER persistence and quota finalization.
         emit({type:"done",...result});
       } catch(error) {

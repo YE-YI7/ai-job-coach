@@ -939,6 +939,8 @@ function generateStubSummary(): InterviewSummaryResult {
  * @param roundType 面试轮次类型
  * @param assessments 所有题目的评估结果数组
  * @param questions 面试题目（用于 questionBreakdown 的真实 ID 和文本）
+ * @param candidateSelfReview 候选人自己先写的整轮复盘（可选）。存在时，
+ *        总结必须先回应候选人的自我判断，再补充 AI 观察——不再"系统凭空替我复盘"。
  * @returns 面试总结
  */
 export async function summarizeInterview({
@@ -948,6 +950,7 @@ export async function summarizeInterview({
   questions,
   contextText,
   warnings,
+  candidateSelfReview,
 }: {
   jd: string;
   roundType: RoundType;
@@ -957,6 +960,8 @@ export async function summarizeInterview({
   contextText?: string;
   /** 预算裁剪提示。 */
   warnings?: string[];
+  /** 候选人的自我复盘原文；trim 后非空才生效。 */
+  candidateSelfReview?: string;
 }): Promise<InterviewSummaryResult> {
   // 检查是否使用 stub 模式（显式启用 stub，仅测试用）
   const useStub = process.env.LLM_STUB === "1";
@@ -982,7 +987,7 @@ export async function summarizeInterview({
   }
 
   // 构建 prompt
-  const systemPrompt = `你是一名资深面试官。请基于候选人本轮的所有面试回答与评估，生成一份结构化的面试总结。
+  let systemPrompt = `你是一名资深面试官。请基于候选人本轮的所有面试回答与评估，生成一份结构化的面试总结。
 
 任务：
 1. 根据"所有题目的评估结果"生成最终的整体评价
@@ -1011,6 +1016,14 @@ export async function summarizeInterview({
 - nextActions 必须是 1-3 个对象，每个包含 title、reason、doneWhen、priority
 - 禁止输出任何其他内容，只输出 JSON`;
 
+  // 候选人先写了自我复盘：总结必须先回应这段判断，再补充 AI 观察。
+  const selfReviewText = typeof candidateSelfReview === "string" ? candidateSelfReview.trim().slice(0, 4_000) : "";
+  if (selfReviewText) {
+    systemPrompt += `
+
+特别注意：候选人已经先做了一轮自我复盘（见【候选人的自我复盘】）。verdict 与 suggestions 必须先回应候选人自己的判断——他看准了什么、哪里看漏或高估了，再补充你基于回答观察到的部分。不要替他下他没做过的复盘，也不要无视他的自我判断自说自话。`;
+  }
+
   // 将 assessments 转换为字符串（带护栏：超预算先瘦身、再截断，warnings 如实上报）
   const serialized = serializeAssessmentsForPrompt(assessments);
   const assessmentsStr = serialized.text;
@@ -1033,6 +1046,14 @@ ${jd}`;
     ? "以上材料按可信度标注，事实以 [id] 标注的为依据。"
     : "";
 
+  const selfReviewBlock = selfReviewText
+    ? `
+【候选人的自我复盘（生成点评前先读）】
+${selfReviewText}
+（请先回应这段自我复盘，再补充你的整轮点评。）
+`
+    : "";
+
   const userPrompt = `${contextHeader}
 ${contextNote}
 
@@ -1046,7 +1067,7 @@ ${questionsStr}
 （这是各题的评估结果，请综合它们生成最终总结。questionBreakdown 中的 questionId 必须使用上面的题目 ID）
 
 ${assessmentsStr}
-${warningBlock}
+${selfReviewBlock}${warningBlock}
 
 请基于以上信息生成面试总结，返回严格 JSON 格式：
 

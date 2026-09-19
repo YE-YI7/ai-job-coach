@@ -3,6 +3,7 @@ import { setTimeout as setTimeoutPromise } from "timers/promises";
 import { getGenerationContext } from "./generation-context";
 import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationUsage, recordGenerationEvent } from "./llm-telemetry";
 import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
+import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -154,7 +155,15 @@ export async function callLLM(
       apiKey = tokenPayKey;
     }
   }
-  const model = options?.model || (provider === "openai" ? "gpt-3.5-turbo" : "deepseek-v4-flash");
+  let model = options?.model || (provider === "openai" ? "gpt-3.5-turbo" : "deepseek-v4-flash");
+  // The model is only valid if it exists on the provider we actually hit. Once a
+  // connected TokenPay account flips the provider to the TokenDance gateway, the
+  // caller-supplied DeepSeek model id has to be reconciled with the gateway
+  // catalog, or every interview/analyze/quick-practice call fails with a raw
+  // 400 "模型不存在". Hosted (unconnected) users never enter this branch.
+  if (provider === "tokendance" && trace?.userId) {
+    model = await resolveTokenDanceModel(trace.userId, model);
+  }
   const startedAt = Date.now();
   let retryCount = 0;
 

@@ -797,3 +797,65 @@
 }
 
 @media(prefers-reduced-motion:reduce){.interviewSignal>span{animation:none}}
+
+/* ===== 面试工作台搬到中栏后的收尾样式（2026-09 统一动线） ===== */
+/* 中栏面试 tab：概览 + 训练台同栏纵向排布，宽度与简历工作台一致，避免斜视。 */
+.interviewWorkbench{display:grid;gap:14px}
+.interviewWorkbench>section{width:100%;min-width:0;max-width:960px;margin:0 auto}
+.interviewWorkbench .interviewOverview{border-bottom:1px solid var(--line-strong);padding-bottom:6px}
+
+/* 轮次选择（模拟面试与复盘共用）：快捷项 + 自填「第几面」 */
+.roundPickerRow{margin:0 0 22px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.roundPickerRow .roundPicker{margin:0}
+.roundCurrentChip{min-height:30px;padding:0 10px;display:inline-flex;align-items:center;border-radius:999px;background:var(--blue-soft);color:#4057b7;font-size:11px;font-weight:700}
+.roundCustomInput{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:11px}
+.roundCustomInput input{min-height:34px;width:110px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;color:var(--ink);font-size:12px}
+.roundCustomInput input:focus{border-color:var(--accent);outline:0}
+
+/* 单题练习的选题条 */
+.practiceQuestionPicker{margin:10px 0 2px;display:flex;flex-wrap:wrap;gap:7px}
+.practiceQuestionPicker button{min-height:30px;padding:0 10px;border:1px solid var(--line-strong);border-radius:999px;background:#fff;color:var(--muted);cursor:pointer;font-size:11px;font-weight:700}
+.practiceQuestionPicker button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep)}
+
+/* 整轮收尾：先自我复盘，再 AI 点评 */
+.selfReviewPanel{width:100%;max-width:680px;margin:22px auto 18px;padding:20px 22px;border:1px solid var(--line-strong);border-radius:13px;background:#fff;text-align:left}
+.selfReviewQuestion{margin-bottom:14px}
+.selfReviewQuestion label{display:block;margin-bottom:6px;font-size:13px;font-weight:650;line-height:1.6}
+.selfReviewQuestion textarea{width:100%;min-height:58px;padding:10px 12px;resize:vertical;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:13px;line-height:1.7}
+.selfReviewQuestion textarea:focus{border-color:var(--accent);outline:0}
+.selfReviewActions{margin-top:14px;padding-top:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line)}
+.selfReviewActions>span{color:var(--muted);font-size:11px;line-height:1.6}
+.selfReviewRecap{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.selfReviewRecap li{padding:11px 13px;border-radius:9px;background:#f5f2ed}
+.selfReviewRecap b{display:block;font-size:11px;color:var(--muted);font-weight:650;line-height:1.6}
+.selfReviewRecap p{margin:5px 0 0;font-size:13px;line-height:1.75}
+
+/* 简历：单一进度条旁按状态出现的动作行 */
+.resumeActionRow{padding:14px 2px 4px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.resumeActionRow p{margin:0;color:var(--muted);font-size:12px;line-height:1.65;flex:1;min-width:220px}
+.resumeActionRow>div{display:flex;gap:8px;flex-wrap:wrap}
+.resumeActionRow label{cursor:pointer}
+
+/* 投递跟踪：说明与下一步提示 */
+.activityGuide{margin:16px 0 4px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#fbfaf7;color:var(--muted);font-size:12px;line-height:1.75}
+.activityGuide strong{color:var(--ink)}
+.activityNextStep{margin:12px 0 4px;padding:13px 15px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border:1px solid #e7cbbc;border-radius:12px;background:#fff9f5;font-size:12px;line-height:1.7}
+.activityNextStep>span{flex:1;min-width:220px}
+
+/* 右栏：导师对话常驻，存储说明收进一行折叠 */
+.privacyLine{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+.privacyLine summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;color:var(--muted);font-size:11px}
+.privacyLine summary::-webkit-details-marker{display:none}
+.privacyLine summary svg{color:var(--green);flex:0 0 auto}
+.privacyLine p{margin:8px 2px 0;color:var(--muted);font-size:11px;line-height:1.65}
+
+@media(max-width:700px){
+  .roundPickerRow{align-items:flex-start;flex-direction:column}
+  .roundCustomInput input{width:150px}
+  .resumeActionRow{align-items:flex-start;flex-direction:column}
+  .resumeActionRow>div{width:100%}
+  .resumeActionRow .primaryButton,.resumeActionRow label{flex:1;justify-content:center}
+  .selfReviewPanel{margin:16px 0;padding:16px}
+  .activityNextStep{align-items:flex-start;flex-direction:column}
+  .activityNextStep button{width:100%;justify-content:center}
+}

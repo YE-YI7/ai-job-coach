@@ -1,4 +1,10 @@
 import {readChatResponse,visibleTutorText} from "./chat-stream";
+test("progress updates do not render as answer text",async()=>{
+ const onText=jest.fn(),onStatus=jest.fn();
+ const r=new Response('{"type":"status","message":"正在核对…"}\n{"type":"done","ok":true}\n',{headers:{"Content-Type":"application/x-ndjson"}});
+ await readChatResponse(r,onText,onStatus);
+ expect(onStatus).toHaveBeenCalledWith("正在核对…");expect(onText).not.toHaveBeenCalled();
+});
 test("hides complete and split follow-up trailers",()=>{
  expect(visibleTutorText('答复<followups>["继续"]')).toBe("答复");
  expect(visibleTutorText("答复<follow")).toBe("答复");

@@ -32,6 +32,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // 公开免费工具页（/tools/ 前缀全部免登录）：offer-compare、resume-jd-gap 等
+  if (pathname === "/tools" || pathname.startsWith("/tools/")) {
+    return NextResponse.next();
+  }
+
   if (process.env.NODE_ENV === "development" && pathname === "/cockpit/preview") {
     return NextResponse.next();
   }

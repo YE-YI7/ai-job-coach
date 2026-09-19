@@ -7,7 +7,7 @@ export function visibleTutorText(text:string) {
   return text;
 }
 
-export async function readChatResponse<T>(response:Response,onText:(text:string)=>void):Promise<T> {
+export async function readChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void):Promise<T> {
   if(!response.headers.get("content-type")?.includes("application/x-ndjson"))return response.json();
   if(!response.body)throw Error("连接中断，请检查历史后重试");
   const reader=response.body.getReader(),decoder=new TextDecoder();
@@ -21,6 +21,7 @@ export async function readChatResponse<T>(response:Response,onText:(text:string)
       for(const line of lines){
         if(!line.trim())continue;
         const event=JSON.parse(line);
+        if(event.type==="status"&&typeof event.message==="string")onStatus?.(event.message);
         if(event.type==="delta"&&typeof event.text==="string"){text+=event.text;onText(visibleTutorText(text));}
         if(event.type==="done")return event as T;
       }

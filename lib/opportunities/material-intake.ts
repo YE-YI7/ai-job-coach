@@ -1,7 +1,10 @@
+import type { Opportunity } from "./types";
+
 export type OpportunityMaterialKind = "job" | "resume" | "experience";
 
 type ResumeShareCandidate = {
-  workspaceType?: "job" | "preparation";
+  /** 跟随 Opportunity 的 workspaceType 联合，避免新增工作区类型时在此重复维护 */
+  workspaceType?: Opportunity["workspaceType"];
   resumeText?: string;
   profileText?: string;
 };

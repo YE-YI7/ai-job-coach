@@ -43,14 +43,40 @@ describe("agent boundary",()=>{
   const q=setupGeneration();
   (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("开始解释");expect(q.insert).not.toHaveBeenCalled();return '开始解释<followups>["请继续"]</followups>';});
   const events=(await (await POST(streamRequest())).text()).trim().split("\n").map(x=>JSON.parse(x));
-  expect(events[1]).toEqual({type:"delta",text:"开始解释"});
+  expect(events.filter(e=>e.type==="delta")).toEqual([{type:"delta",text:"开始解释"}]);
+  expect(events.some(e=>e.type==="status"&&e.message.includes("已生成"))).toBe(true);
   expect(events.at(-1)).toMatchObject({ok:true,id:"saved",answer:"开始解释",learning_trace:{suggestions:["请继续"]}});
   expect(q.insert).toHaveBeenCalledTimes(1);
+ });
+ test("blocking raw chunks never escape and only guarded text is emitted",async()=>{
+  setupGeneration();
+  const raw='<clarify level="blocking">你想申请什么岗位？</clarify>'+"你已经掌握所有技能。".repeat(30);
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{for(const part of [raw.slice(0,5),raw.slice(5,33),raw.slice(33)])o.onDelta(part);return raw;});
+  const events=(await (await POST(streamRequest())).text()).trim().split("\n").map(x=>JSON.parse(x));
+  expect(events.filter(e=>e.type==="delta")).toEqual([{type:"delta",text:"你想申请什么岗位？"}]);
+  expect(events.at(-1)).toMatchObject({blocked:true,needsMoreInput:true});
+  expect(events.at(-1).learning_trace.timing.firstTextMs).toBeGreaterThanOrEqual(events.at(-1).learning_trace.timing.modelFirstTextMs);
  });
  test("storage failure never emits successful completion",async()=>{
   setupGeneration(true);(callLLM as jest.Mock).mockResolvedValue("回答");
   const events=(await (await POST(streamRequest())).text()).trim().split("\n").map(x=>JSON.parse(x));
   expect(events.at(-1).ok).not.toBe(true);expect(events.at(-1).error).toContain("未确认保存");
+ });
+ test("guarded answer is visible while persistence is still pending",async()=>{
+  const q=setupGeneration();
+  let finishSave!:(value:unknown)=>void;
+  q.single.mockImplementation(()=>new Promise(resolve=>{finishSave=resolve;}));
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("正常回答。");return "正常回答。";});
+  const reader=(await POST(streamRequest())).body!.getReader();
+  let wire="";
+  try{
+   while(!wire.includes('"type":"delta"')){const chunk=await reader.read();if(chunk.done)throw Error("premature EOF");wire+=new TextDecoder().decode(chunk.value);}
+   expect(wire).toContain("正常回答。");expect(wire).not.toContain('"type":"done"');
+  }finally{finishSave({data:{id:"saved"}});}
+  while(true){const chunk=await reader.read();if(chunk.done)break;wire+=new TextDecoder().decode(chunk.value);}
+  const events=wire.trim().split("\n").map(x=>JSON.parse(x));
+  expect(events.filter(e=>e.type==="delta")).toHaveLength(1);
+  expect(events.at(-1)).toMatchObject({ok:true,id:"saved"});
  });
  test("auto retries timeout once on Flash before any output",async()=>{
   setupGeneration();(callLLM as jest.Mock).mockRejectedValueOnce(Error("Request timed out.")).mockResolvedValueOnce("回答");

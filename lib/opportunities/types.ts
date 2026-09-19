@@ -1,3 +1,5 @@
+import type { OfferMetrics } from "@/lib/offer/compare";
+
 export type OpportunityStage =
   | "captured"
   | "evaluating"
@@ -115,9 +117,50 @@ export interface InterviewRoundtableSession {
   };
 }
 
+/** 单个 offer 的输入回显 + 计算结果摘要（口径见 lib/offer/compare.ts 顶部注释） */
+export interface OfferSnapshot {
+  name: string;
+  cityLabel?: string;
+  /** 税前月薪（元） */
+  monthlySalary: number;
+  /** 发放月数，如 12/13/14/16 */
+  monthsPaid: number;
+  /** 年终奖（元，税前）。months 模式已折算为 月薪×倍数 */
+  yearEndBonus: number;
+  /** 签字费（元），仅首年口径 */
+  signingFee: number;
+  /** 期权/股票年化税前（元/年） */
+  equityAnnualPreTax: number;
+  /** 每周工作小时 */
+  weeklyHours: number;
+  /** 计算结果摘要，复用 lib/offer/compare 的 OfferMetrics 字段 */
+  computed: Pick<
+    OfferMetrics,
+    | "grossAnnualPackage"
+    | "firstYearGrossPackage"
+    | "monthlyNet"
+    | "annualSalaryTax"
+    | "bonusTax"
+    | "annualDeduction"
+    | "annualNet"
+    | "hourlyNet"
+    | "firstYearTotalNet"
+  >;
+}
+
+/** 保存进作战盘的 offer 对比快照 */
+export interface OfferComparison {
+  offers: OfferSnapshot[];
+  /** 服务端计算时间（ISO 8601） */
+  computedAt: string;
+  note?: string;
+}
+
 export interface Opportunity {
   id: string;
-  workspaceType?: "job" | "preparation";
+  workspaceType?: "job" | "preparation" | "offer";
+  /** workspaceType === "offer" 时携带的对比快照（经 metadata jsonb 往返） */
+  offerComparison?: OfferComparison;
   company: string;
   role: string;
   location: string;

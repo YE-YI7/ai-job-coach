@@ -1,8 +1,15 @@
-export type ChatMode = "auto" | "fast" | "qwen3.8-max-0902" | "kimi-k3" | "glm-5.3";
-export const CHAT_MODELS = ["qwen3.8-max-0902", "kimi-k3", "glm-5.3"] as const;
-export function isChatMode(value:unknown):value is ChatMode{return typeof value==="string"&&["auto","fast",...CHAT_MODELS].includes(value);}
+import {PREMIUM_MODEL_IDS,SELECTABLE_MODEL_IDS,type SelectableModelId} from "./model-catalog";
+// auto = pick from the premium pool by task; fast = economy managed fallback;
+// every remaining member is a concrete, user-selectable catalog id. The union is
+// derived from the shared catalog so the picker, the server guard (isChatMode) and
+// the gateway intersection in chat-models.ts can never drift apart.
+export type ChatMode = "auto" | "fast" | SelectableModelId;
+// The auto premium pool. Kept as its own list because auto mode is allowed to fall
+// back to the economy model, whereas these are the only ids auto actively rotates.
+export const CHAT_MODELS = PREMIUM_MODEL_IDS;
 // Curated candidates, not an assertion of a universal leaderboard. Availability
 // is checked against the gateway; a new catalog entry is not auto-trusted.
+export function isChatMode(value:unknown):value is ChatMode{return typeof value==="string"&&["auto","fast",...(SELECTABLE_MODEL_IDS as readonly string[])].includes(value);}
 export function chooseChatModel(mode:ChatMode,query:string,available:string[]){
  if(mode==="fast")return "deepseek-v4-flash";
  if(mode!=="auto")return available.includes(mode)?mode:null;

@@ -51,11 +51,12 @@ export interface ModelEntry {
   id: SelectableModelId;
   name: string;
   vendor: string;
-  // Short brand mark rendered as text (never a copied official logo).
+  // Short brand mark kept as a text fallback (e.g. very small trigger chips).
   monogram: string;
-  // Accent colour for the monogram chip — a reference palette we own, not the
-  // vendor's trademarked asset.
+  // Accent colour for the monogram chip fallback — a reference palette we own.
   color: string;
+  // Official vendor brand logo (simple-icons artwork) served from /public/models.
+  logo: string;
   tier: PricingTier;
   // Relative throughput/speed reference anchored on glm-5.3 = 0.8 (see top).
   speedIndex: number;
@@ -64,6 +65,14 @@ export interface ModelEntry {
   blurb: string;
 }
 
+// Vendor-family brand logos (official marks via simple-icons), mapped per card.
+const MODEL_LOGOS = {
+  deepseek: "/models/deepseek.svg",
+  zhipu: "/models/zhipu-glm.svg",
+  kimi: "/models/kimi.svg",
+  qwen: "/models/qwen.svg",
+} as const;
+
 export const MODEL_CATALOG: ModelEntry[] = [
   {
     id: "deepseek-v4-flash-0731",
@@ -71,6 +80,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "DeepSeek",
     monogram: "D",
     color: "#5b7cfa",
+    logo: MODEL_LOGOS.deepseek,
     tier: "cheap",
     speedIndex: 1.0,
     premium: false,
@@ -82,6 +92,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "DeepSeek",
     monogram: "D",
     color: "#5b7cfa",
+    logo: MODEL_LOGOS.deepseek,
     tier: "cheap",
     speedIndex: 0.95,
     premium: false,
@@ -93,6 +104,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "DeepSeek",
     monogram: "D",
     color: "#4c66d6",
+    logo: MODEL_LOGOS.deepseek,
     tier: "cheap",
     speedIndex: 0.9,
     premium: false,
@@ -104,6 +116,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "DeepSeek",
     monogram: "D",
     color: "#3f57bd",
+    logo: MODEL_LOGOS.deepseek,
     tier: "expensive",
     speedIndex: 0.6,
     premium: false,
@@ -115,6 +128,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "智谱 Zhipu",
     monogram: "G",
     color: "#2f6fed",
+    logo: MODEL_LOGOS.zhipu,
     tier: "expensive",
     speedIndex: SPEED_BASELINE_VALUE,
     premium: true,
@@ -126,6 +140,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "月之暗面 Moonshot",
     monogram: "K",
     color: "#7c4dff",
+    logo: MODEL_LOGOS.kimi,
     tier: "expensive",
     speedIndex: 0.7,
     premium: true,
@@ -137,6 +152,7 @@ export const MODEL_CATALOG: ModelEntry[] = [
     vendor: "通义千问 Qwen",
     monogram: "Q",
     color: "#615ced",
+    logo: MODEL_LOGOS.qwen,
     tier: "expensive",
     speedIndex: 0.55,
     premium: true,

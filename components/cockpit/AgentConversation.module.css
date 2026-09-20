@@ -6,15 +6,18 @@
 .panel button:disabled{opacity:.45;cursor:not-allowed}
 .context{margin:8px 0 16px;font-size:12px;color:#605c55;line-height:1.6;overflow-wrap:anywhere}
 .history{display:flex;align-items:center;gap:8px;font-size:12px;color:#605c55;margin-bottom:12px}
-.history select{min-width:0;flex:1;padding:8px;border:1px solid #d9d5ce;background:#fff;border-radius:8px;color:#292b2d;font:inherit}
+.historyMenu{flex:1;min-width:0}
 .messages{flex:1;overflow:auto;overscroll-behavior:contain;padding:4px 4px 16px;line-height:1.8;min-height:150px}
 .welcome{padding:24px 0;color:#605c55}.welcome h3{font-size:17px;color:#292b2d;margin:12px 0 8px}.welcome p{margin:0}
 .question{margin:16px 0 16px 20px;padding:10px 13px;border-radius:12px 12px 2px 12px;background:#e9e5de;white-space:pre-wrap;overflow-wrap:anywhere}
 .answer{margin:0 0 24px}.answer p,.summary p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.answer button{color:#605c55;font-size:11px}
 .quickStarts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0}.quickStarts button{border:1px solid #d9d5ce;background:#fff;font-size:12px}
+.stageConfirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid #d9d5ce;border-radius:10px;background:#fbf9f4;font-size:12px;line-height:1.6}
+.stageConfirm span{flex:1;min-width:180px}
+.stageConfirm button{border:1px solid #d9d5ce;background:#fff;text-align:left;white-space:normal;line-height:1.5;font-weight:600}
 .panel form{background:white;border:1px solid #a7a198;border-radius:12px;padding:12px}
-.panel textarea{resize:vertical;min-height:70px;max-height:180px;border:0;background:none;font:inherit;width:100%;outline-offset:3px;color:#292b2d}.panel textarea::placeholder{color:#686159}
-.panel footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.panel footer button{background:#a64317;color:#fff;min-width:40px;min-height:40px}
+.panel textarea{resize:vertical;min-height:70px;max-height:180px;border:0;outline:none;background:none;font:inherit;width:100%;color:#292b2d}.panel textarea::placeholder{color:#686159}
+.panel footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.panel footer [type="submit"]{background:#a64317;color:#fff;min-width:40px;min-height:40px;border:0;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .panel small{font-size:11px;color:#605c55}.archive{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.archive button{font-size:12px;text-decoration:underline;text-underline-offset:4px}
 .summary{padding:14px 0;border-top:1px solid #d9d5ce}.summary summary{cursor:pointer;font-weight:650;margin-bottom:10px}.error{font-size:12px;color:#9b3013;line-height:1.6}
 .memoryDownload{font-size:12px;color:#605c55;text-underline-offset:4px;padding:8px 0}
@@ -30,5 +33,5 @@
 .welcome{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:230px;padding:24px 8px}.welcome>svg{width:32px;height:32px;stroke-width:1.3;color:#96755f}.welcome h3{font-family:"Songti SC","Noto Serif SC",serif;font-weight:500;font-size:24px;line-height:1.4;letter-spacing:-.02em;margin:18px 0 10px}.welcome p{font-size:13px;color:#6d6a61;line-height:1.8;max-width:28ch}
 .messages{scrollbar-width:thin;scrollbar-color:#d5d1c8 transparent;padding:0 6px 16px;line-height:1.85}
 .question{background:#efeae1;margin:18px 0 18px 32px;padding:12px 15px;border-radius:12px 12px 3px 12px}
-.panel form{border-color:#d3cbc0;padding:14px;border-radius:12px;box-shadow:0 4px 12px #30271805}.panel form:focus-within{border-color:#ab8063}.panel textarea{min-height:82px;font-size:14px;line-height:1.7}.panel footer{border-top:1px solid #f0ece5;padding-top:6px}.panel footer button{border-radius:8px;background:#a7441a}.modelSelect{font-size:11px}.panel button:disabled{opacity:1;color:#8a8277;background:#f1eee7}
+.panel form{border-color:#d3cbc0;padding:14px;border-radius:14px;background:linear-gradient(180deg,#fffdfb,#fbf8f3);box-shadow:0 4px 12px #30271805;transition:border-color .16s ease,box-shadow .16s ease}.panel form:focus-within{border-color:#ab8063;box-shadow:0 0 0 3px rgba(166,67,23,.10),0 6px 16px #3027180a}.panel textarea{min-height:82px;font-size:14px;line-height:1.7}.panel footer{border-top:1px solid #f0ece5;padding-top:6px}.panel footer [type="submit"]{border-radius:8px;background:#a7441a}.modelSelect{font-size:11px}.panel button:disabled{opacity:1;color:#8a8277;background:#f1eee7}
 @media(max-width:700px){.panel{height:calc(100dvh - 110px);min-height:440px}.welcome{min-height:180px}.panel textarea{font-size:16px}}

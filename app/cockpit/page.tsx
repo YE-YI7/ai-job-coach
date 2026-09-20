@@ -5,14 +5,14 @@ import { listCockpitOpportunities } from "@/lib/coach-harness/repository";
 
 export const dynamic = "force-dynamic";
 
-const allowedTabs = new Set(["overview", "evidence", "resume", "interview", "review", "activity"]);
+const allowedTabs = new Set(["overview", "evidence", "resume", "interview", "review", "salary"]);
 
 export default async function CockpitPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await getCurrentUserFromRequest();
   if (!user) redirect("/login?redirect=%2Fcockpit");
 
   const params = await searchParams;
-  const initialTab = params.tab && allowedTabs.has(params.tab) ? params.tab as "overview" | "evidence" | "resume" | "interview" | "review" | "activity" : undefined;
+  const initialTab = params.tab && allowedTabs.has(params.tab) ? params.tab as "overview" | "evidence" | "resume" | "interview" | "review" | "salary" : undefined;
   // A failed read is not an empty account. Let the recovery boundary render.
   const opportunities = await listCockpitOpportunities(user.id);
   return <CockpitApp initialOpportunities={opportunities} userEmail={user.email} dataMode="live" initialTab={initialTab} />;

@@ -85,7 +85,7 @@ export function seedTaskForEntry(goalType: GoalType, opportunityLabel?: string):
         title: "第一课：拆解一个 AI 产品问题",
         description: "一个具体案例、一段短讲解、一个可完成的判断练习。结束留下你的首份产物和下一步。",
         status: "todo",
-        reason: "你选择从零学。第一课不需要 JD 或简历。",
+        reason: "这份计划从「从零学」入口创建，随时可换目标。第一课不需要 JD 或简历。",
         entryType: goalType,
       };
     case "prepare_apply":
@@ -94,7 +94,7 @@ export function seedTaskForEntry(goalType: GoalType, opportunityLabel?: string):
         title: opportunityLabel ? `明确「${opportunityLabel}」的筛选条件` : "明确岗位筛选条件",
         description: "写下你在意的范围（方向/地点/规模），有候选岗位时做一次比较。原版简历会被保留，不会自动重写。",
         status: "todo",
-        reason: "你选择准备投递。先定筛选条件，不默认改简历。",
+        reason: "这份计划从「准备投递」入口创建，随时可换目标。先定筛选条件，不默认改简历。",
         entryType: goalType,
       };
     case "interviewing":
@@ -103,7 +103,7 @@ export function seedTaskForEntry(goalType: GoalType, opportunityLabel?: string):
         title: "选一项本轮最值得准备的",
         description: "从公司/岗位/轮次里挑当前最缺的一项，产出真实练习反馈或提问清单。",
         status: "todo",
-        reason: "你选择准备面试。不需要先完成任何课程。",
+        reason: "这份计划从「准备面试」入口创建，随时可换目标。不需要先完成任何课程。",
         entryType: goalType,
       };
     case "negotiating":
@@ -112,7 +112,7 @@ export function seedTaskForEntry(goalType: GoalType, opportunityLabel?: string):
         title: "梳理 offer 条款与个人取舍",
         description: "逐项录入条款（缺项如实记未知），写下你在意的优先级，生成谈判问题与沟通草稿。",
         status: "todo",
-        reason: "你选择谈薪。不需要 JD、简历或第一课。",
+        reason: "这份计划从「谈薪」入口创建，随时可换目标。不需要 JD、简历或第一课。",
         entryType: goalType,
       };
   }
@@ -242,7 +242,7 @@ export async function switchPlan(input: {
       status: "active",
       focused_at: new Date().toISOString(),
       tasks: [seedTaskForEntry(input.goalType, input.opportunityLabel ?? undefined)],
-      revision_reason: `用户选择入口：${GOAL_LABELS[input.goalType]}`,
+      revision_reason: `从入口「${GOAL_LABELS[input.goalType]}」创建计划`,
     })
     .select("*").single();
   if (error) throw error;

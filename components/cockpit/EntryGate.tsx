@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import SelectMenu from "@/components/ui/SelectMenu";
 import styles from "./EntryGate.module.css";
 
 /**
@@ -481,13 +482,10 @@ function OfferFlow({ onSaved }: { onSaved: () => void }) {
       <h2 className={styles.heading}>梳理 offer 条款</h2>
       <p className={styles.muted}>缺项会如实标记为「未知」，不会猜测市场行情。</p>
 
-      <label className={styles.fieldLabel}>
+      <div className={styles.fieldLabel}>
         挂到哪个岗位
-        <select className={styles.select} value={opportunityId} onChange={(e) => setOpportunityId(e.target.value)}>
-          <option value="">— 新建岗位 —</option>
-          {opps.map((o) => <option key={o.id} value={o.id}>{o.company} · {o.role}</option>)}
-        </select>
-      </label>
+        <SelectMenu value={opportunityId} onChange={setOpportunityId} ariaLabel="挂到哪个岗位" placeholder="— 新建岗位 —" options={[{ value: "", label: "— 新建岗位 —" }, ...opps.map((o) => ({ value: o.id, label: `${o.company} · ${o.role}` }))]} />
+      </div>
       {!opportunityId && (
         <div className={styles.row}>
           <input className={styles.input} placeholder="公司" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} />

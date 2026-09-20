@@ -1,4 +1,5 @@
 import { POST } from "./route";
+import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota } from "@/lib/quota";
@@ -56,5 +57,18 @@ describe("resume draft source mapping", () => {
       opportunityId: "opp-1",
       questionSource: { id: "base-resume", text: "AI Job Coach：负责模型评测" },
     }));
+  });
+});
+
+describe("isTrivialRewrite (同义换词不进确认列表)", () => {
+  it("仅换一两个字的润色视为无信息增量", () => {
+    expect(isTrivialRewrite("擅长把模糊需求拆成知识组织与评测流程", "擅长把模糊需求拆解为知识组织与评测流程")).toBe(true);
+    expect(isTrivialRewrite("负责一个 AI 项目的产品落地", "负责一个AI项目的产品落地")).toBe(true);
+  });
+  it("带来结构或信息变化的改写不算 trivial", () => {
+    expect(isTrivialRewrite(
+      "做过模型评测工作",
+      "独立完成 3 个 LLM 场景的评测方案设计，覆盖准确率与幻觉率，评测周期从 2 周压缩到 3 天",
+    )).toBe(false);
   });
 });

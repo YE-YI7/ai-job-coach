@@ -209,4 +209,8 @@ export interface Opportunity {
       summary: string;
     }>;
   };
+  /** 冻结后又改动了正文（如拖拽改顺序）：旧投递产物不再等于当前简历，导出与进度都要如实标记过期。 */
+  frozenStale?: boolean;
+  /** 当前正文是否需要重新检查；与冻结产物是否过期独立。 */
+  resumeCheckStale?: boolean;
 }

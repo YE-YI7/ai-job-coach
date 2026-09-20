@@ -1,6 +1,6 @@
 import {getTokenPayCredential} from "@/lib/tokenpay";
 import {chooseChatModel,type ChatMode} from "./chat-options";
-import {intersectSelectable,intersectHostedChat} from "./model-catalog";
+import {intersectSelectable,intersectHostedChat,ECONOMY_MODEL_ID,findModel,isSelectableModelId} from "./model-catalog";
 let cache:{until:number;ids:string[];hosted:string[]}|undefined;
 const coolingUntil=new Map<string,number>();
 export function coolDownChatModel(model:string){coolingUntil.set(model,Date.now()+60000);}
@@ -11,6 +11,14 @@ export function pickHostedOrFallback(
 ): { model: string; substituted: boolean } {
   if (hosted.includes(requested)) return { model: requested, substituted: false };
   throw new Error(`TokenPay 模型「${requested}」当前不可用，未替换模型。请选择其他模型后重试。`);
+}
+// A system-default economy model disappearing from the catalog may only degrade
+// to another CHEAP-tier model — never an expensive one (e.g. deepseek-v4-pro).
+// Returning null means "no same-tier substitute": the caller must fail visibly
+// instead of silently billing a higher tier.
+export function pickEconomySubstitute(hosted: string[]): string | null {
+  const cheap = hosted.filter((id) => isSelectableModelId(id) && findModel(id)?.tier === "cheap");
+  return cheap.find((id) => /flash/i.test(id)) ?? cheap[0] ?? null;
 }
 export async function chatModelAccess(userId:string){
  const connected=Boolean(await getTokenPayCredential(userId));
@@ -31,9 +39,24 @@ export async function chatModelAccess(userId:string){
 }
 // Catalog failure is not proof of absence: preserve the requested model and let
 // the gateway decide. A confirmed absence fails visibly without another charge.
+// USER-EXPlicit picks are never silently rewritten. System-default ids
+// (ECONOMY_MODEL_ID and hosted fallbacks callers never chose) may degrade to a
+// same-family model the gateway actually serves — otherwise a catalog rename
+// blocks the whole cockpit for TokenPay users who never selected a model.
+const SYSTEM_DEFAULT_MODEL_IDS = new Set<string>([ECONOMY_MODEL_ID]);
 export async function resolveTokenDanceModel(userId:string,requested:string){
  const {hosted}=await chatModelAccess(userId);
  if(hosted.length===0)return requested; // catalog unreachable: never invent a swap
+ if(hosted.includes(requested))return requested;
+ if(SYSTEM_DEFAULT_MODEL_IDS.has(requested)){
+  const sameFamily=pickEconomySubstitute(hosted);
+  if(sameFamily){
+   console.warn(`系统默认模型「${requested}」不在网关目录，按同为实惠档的可用模型「${sameFamily}」执行`);
+   return sameFamily;
+  }
+  // No cheap substitute exists: do NOT silently bill an expensive model.
+  throw new Error(`默认经济模型「${requested}」当前不可用，且没有同为实惠档的模型可替换；未擅自改用高阶模型，请在模型选择中手动更换。`);
+ }
  const {model}=pickHostedOrFallback(requested,hosted);
  return model;
 }

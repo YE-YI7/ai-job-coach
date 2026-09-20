@@ -1,19 +1,32 @@
 import type {Opportunity} from "./types";
 export const journeyStages = [
  {id:"overview",label:"项目准备"},{id:"resume",label:"简历修改"},
- {id:"activity",label:"投递跟踪"},{id:"interview",label:"模拟面试"},
+ {id:"interview",label:"模拟面试"},
  {id:"review",label:"面试复盘"},{id:"salary",label:"谈薪"},
 ] as const;
 export type JourneyStage=typeof journeyStages[number]["id"];
 export function currentJourneyStage(o:Opportunity):JourneyStage {
  if(o.stage==="negotiating"||o.stage==="won")return "salary";
- if(o.stage==="interviewing")return "interview";
- if(o.stage==="applied")return "activity";
+ if(o.stage==="interviewing"||o.stage==="applied")return "interview";
  if(o.stage==="preparing_application"||o.resumeText?.trim())return "resume";
  return "overview";
 }
-export function resumeGate(o:Opportunity){
- const frozen=o.snapshots?.filter(s=>s.snapshotType==="submitted_resume").sort((a,b)=>b.version-a.version)[0];
+// 左栏状态词：投递跟踪页删除后，岗位的真实阶段只在这个词里体现。
+// 只反映已确认的动作（投了/约面/谈薪），不预测企业侧的实时状态。
+export const STAGE_STATUS_WORDS:Record<string,string>={
+ applied:"已投递",
+ interviewing:"面试中",
+ negotiating:"谈薪中",
+ won:"已 offer",
+ lost:"未通过",
+ withdrawn:"已撤回",
+ archived:"已归档",
+ preparing_application:"待投递",
+};
+export function stageStatusWord(o:Opportunity):string{
+ return STAGE_STATUS_WORDS[o.stage]||"评估中";
+}
+export function resumeGate(o:Opportunity){ const frozen=o.snapshots?.filter(s=>s.snapshotType==="submitted_resume").sort((a,b)=>b.version-a.version)[0];
  const pending=o.resumeChanges.filter(c=>c.status==="pending").length;
  const review=o.applicationQuality?.reviews.find(r=>r.status==="failed");
  const ready=o.workspaceType!=="preparation"&&Boolean(o.resumeText?.trim()&&o.jdText?.trim())&&o.applicationQuality?.status==="ready"&&!pending;
@@ -70,9 +83,11 @@ export function resumeProgress(o:Opportunity):{steps:Array<{id:string;label:stri
  const gate=resumeGate(o);
  const total=o.resumeChanges.length;
  const pending=o.resumeChanges.filter(c=>c.status==="pending").length;
- const checked=o.applicationQuality?.status==="ready"&&total>0;
+ // 冻结后正文又被改写（如拖拽换顺序）：旧产物不再等于当前简历，检查/冻结都要重来。
+ const stale=Boolean(o.frozenStale);
+ const checked=o.applicationQuality?.status==="ready"&&total>0&&!o.resumeCheckStale&&(!stale||o.resumeCheckStale===false);
  const checkedClean=checked&&pending===0; // 检查过、且没有新的待确认修改，才算「版本已检查」
- const frozen=Boolean(gate.frozen);
+ const frozen=Boolean(gate.frozen)&&!stale;
  const steps=[
   {id:"confirm",label:"确认建议",state:(!total?"waiting":pending?"active":"done")as ResumeStepState},
   {id:"check",label:"检查版本",state:(checkedClean?"done":!total||pending?"waiting":"active")as ResumeStepState},
@@ -82,7 +97,7 @@ export function resumeProgress(o:Opportunity):{steps:Array<{id:string;label:stri
  const hints:Record<ResumeProgressAction,string>={
   generate:"先生成一版岗位建议，再逐条决定。",
   confirm:`还有 ${pending} 处建议等你决定：采用、自己改或保留原文。`,
-  check:"逐条确认完成后，做一次事实与岗位检查。",
+  check:stale?"简历正文在冻结后又改过：旧投递版本已过期，先重新检查，再冻结新版本。":"逐条确认完成后，做一次事实与岗位检查。",
   freeze:"检查通过。确认后冻结投递版本，避免误投旧版。",
   export:"版本已冻结：导出后用真实 PDF 校验文字层，这步只能你来完成。",
  };

@@ -1,5 +1,5 @@
 import { buildProductEventWrite } from "./product-events";
-import { pickHostedOrFallback } from "./coach-harness/chat-models";
+import { pickHostedOrFallback, pickEconomySubstitute } from "./coach-harness/chat-models";
 import { intersectHostedChat, TIER_LABEL } from "./coach-harness/model-catalog";
 
 // Release-gating honesty fixes: login tracking must not depend on the anon
@@ -52,6 +52,22 @@ describe("pickHostedOrFallback (no silent model rewrite)", () => {
 
   it("never invents a Flash model absent from the gateway", () => {
     expect(()=>pickHostedOrFallback("deepseek-chat", ["glm-5.3"])).toThrow("当前不可用");
+  });
+});
+
+describe("pickEconomySubstitute (economy fallback never bills high tier)", () => {
+  it("prefers a flash/economy model over an expensive one in the same family", () => {
+    // Gateway dropped deepseek-v4-flash; Pro is present but must not be chosen.
+    const hosted = ["deepseek-v4-pro", "deepseek-v4-flash-0731", "glm-5.3"];
+    expect(pickEconomySubstitute(hosted)).toBe("deepseek-v4-flash-0731");
+  });
+
+  it("returns null when only expensive models remain", () => {
+    expect(pickEconomySubstitute(["deepseek-v4-pro", "kimi-k3", "qwen3.8-max-0902"])).toBeNull();
+  });
+
+  it("accepts any cheap-tier substitute when no flash is available", () => {
+    expect(pickEconomySubstitute(["deepseek-v3.2", "glm-5.3"])).toBe("deepseek-v3.2");
   });
 });
 

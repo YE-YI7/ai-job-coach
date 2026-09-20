@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { createCockpitOpportunity, listCockpitOpportunities, updateCockpitOpportunity } from "@/lib/coach-harness/repository";
+import { createCockpitOpportunity, deleteCockpitOpportunity, listCockpitOpportunities, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
+import { STAGE_STATUS_WORDS } from "@/lib/opportunities/timeline";
 import type { Opportunity } from "@/lib/opportunities/types";
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const runtime = "nodejs";
 
@@ -46,11 +49,32 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
   try {
     const body = await request.json();
+    if (body.stageUpdate !== undefined) {
+      const { id, stage } = body.stageUpdate || {};
+      if (typeof id !== "string" || !uuid.test(id) || typeof stage !== "string" || !Object.hasOwn(STAGE_STATUS_WORDS, stage)) {
+        return NextResponse.json({ ok: false, error: "岗位状态无效" }, { status: 400 });
+      }
+      await updateCockpitOpportunityStage(user.id, id, stage as Opportunity["stage"]);
+      return NextResponse.json({ ok: true });
+    }
     const opportunity = body.opportunity as Opportunity;
     if (!opportunity?.id || !opportunity.company || !opportunity.role) return NextResponse.json({ ok: false, error: "岗位字段不完整" }, { status: 400 });
-    await updateCockpitOpportunity(user.id, opportunity);
+    await updateCockpitOpportunity(user.id, opportunity, body.preserveStage === true);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false, error: "岗位同步失败" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const user = await getCurrentUserFromRequest();
+  if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id || !uuid.test(id)) return NextResponse.json({ ok: false, error: "岗位无效" }, { status: 400 });
+  try {
+    await deleteCockpitOpportunity(user.id, id);
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: "岗位删除失败" }, { status: 500 });
   }
 }

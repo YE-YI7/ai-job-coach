@@ -56,3 +56,36 @@ test("冻结后动作是 export；再改建议回到 confirm，但已冻结状�
   expect(edited.frozenVersion).toBe(2);
   expect(edited.steps[2].state).toBe("done");
 });
+
+test("冻结后正文被改写（frozenStale）：不再停在 export，必须重新检查并冻结", () => {
+  const stale = resumeProgress(opportunity({
+    resumeChanges: [change("accepted")],
+    applicationQuality: qualityReady,
+    snapshots: frozenSnapshot,
+    frozenStale: true,
+  }));
+  expect(stale.action).toBe("check");
+  expect(stale.steps.map((step) => step.state)).toEqual(["done", "active", "waiting"]);
+  expect(stale.hint).toContain("已过期");
+  // 冻结版本仍可展示，但要标明是旧的
+  expect(stale.frozenVersion).toBe(2);
+});
+
+test("重新冻结（frozenStale 清除）后恢复 export 动作", () => {
+  const progress = resumeProgress(opportunity({
+    resumeChanges: [change("accepted")],
+    applicationQuality: qualityReady,
+    snapshots: frozenSnapshot,
+    frozenStale: false,
+  }));
+  expect(progress.action).toBe("export");
+});
+
+test("冻结过期后重新检查通过可以冻结，但不能复用旧产物导出", () => {
+  const stale = opportunity({ resumeChanges: [change("accepted")], applicationQuality: qualityReady, snapshots: frozenSnapshot, frozenStale: true, resumeCheckStale: true });
+  expect(resumeProgress(stale).action).toBe("check");
+  const rechecked = { ...stale, resumeCheckStale: false };
+  expect(resumeProgress(rechecked).action).toBe("freeze");
+  expect(rechecked.frozenStale).toBe(true);
+  expect(resumeProgress({ ...rechecked, frozenStale: false }).action).toBe("export");
+});

@@ -1,5 +1,7 @@
 "use client";
 import {useEffect,useRef,useState,useSyncExternalStore} from "react";
+import {Waveform,SpeakerHigh} from "@phosphor-icons/react";
+import styles from "./VoiceControls.module.css";
 
 type RecognitionResult = {isFinal:boolean;0:{transcript:string}};
 type Recognition = {
@@ -27,7 +29,7 @@ export default function VoiceControls({value,onChange,readText,disabled=false}:{
   window.speechSynthesis?.cancel();setSpeaking(false);setError("");base.current=value.trim();
   const r=new Constructor();recognition.current=r;r.lang="zh-CN";r.continuous=true;r.interimResults=true;
   r.onresult=e=>{const spoken=Array.from(e.results).map(result=>result[0].transcript).join("");change.current([base.current,spoken].filter(Boolean).join("\n"));};
-  r.onerror=e=>{setListening(false);setError(e.error==="not-allowed"?"麦克风未授权，请在浏览器中允许麦克风，或继续打字。":e.error==="no-speech"?"没有听到声音，已有文字保留，可以重试。":"语音识别未完成，已有文字保留，请重试或打字。");};
+  r.onerror=e=>{setListening(false);setError(e.error==="not-allowed"?"麦克风未授权：请在浏览器里允许麦克风，或继续打字。":e.error==="no-speech"?"没听到声音，已有文字保留，可重试。":"语音识别未完成，已有文字保留，请重试或打字。");};
   r.onend=()=>setListening(false);
   try{r.start();setListening(true);}catch{setError("无法开启麦克风，请重试或继续打字。");}
  }
@@ -39,12 +41,11 @@ export default function VoiceControls({value,onChange,readText,disabled=false}:{
   u.onend=()=>setSpeaking(false);u.onerror=()=>{setSpeaking(false);setError("朗读未完成，可重试。");};
   window.speechSynthesis.cancel();window.speechSynthesis.speak(u);setSpeaking(true);
  }
- return <div style={{fontSize:12,lineHeight:1.6,margin:"8px 0"}}>
-  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-   <button type="button" disabled={disabled||!supported} aria-pressed={listening} onClick={toggle}>{listening?"停止听写":"语音输入"}</button>
-   {readText&&<button type="button" disabled={disabled} aria-pressed={speaking} onClick={read}>{speaking?"停止朗读":"朗读题目 / 回答"}</button>}
-  </div>
-  <small role="status">{listening?"正在听写，停止后检查文字再提交。":supported?"浏览器语音识别；文字可修改，确认后才提交和点评。":"当前浏览器不支持语音输入，请用 Chrome / Safari 或打字。"}</small>
-  {error&&<p role="alert">{error}</p>}
- </div>;
+ const status=listening?"正在听写，停止后检查文字再提交。":supported?"语音识别结果可修改，确认后才提交。":"当前浏览器不支持语音输入，请用 Chrome / Safari 或打字。";
+ return <span className={styles.wrap}>
+  {error&&<span className={styles.error} role="alert">{error}</span>}
+  <button type="button" className={`${styles.icon} ${listening?styles.on:""}`} disabled={disabled||!supported} aria-pressed={listening} aria-label={listening?"停止听写":"语音输入"} title={supported?(listening?"停止听写":"语音输入"):"当前浏览器不支持语音输入"} onClick={toggle}><Waveform size={16} weight={listening?"bold":"regular"}/></button>
+  {readText&&<button type="button" className={`${styles.icon} ${speaking?styles.on:""}`} disabled={disabled} aria-pressed={speaking} aria-label={speaking?"停止朗读":"朗读上一条"} title={speaking?"停止朗读":"朗读上一条"} onClick={read}><SpeakerHigh size={16}/></button>}
+  <span className="sr-only" role="status">{status}</span>
+ </span>;
 }

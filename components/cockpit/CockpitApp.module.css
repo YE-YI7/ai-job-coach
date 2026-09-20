@@ -362,6 +362,18 @@
 .reviewReport details { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
 .reviewReport summary { color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 700; }
 .reviewReport details pre { max-height: 280px; margin: 13px 0 0; padding: 14px; overflow: auto; border-radius: 10px; background: var(--paper); color: var(--ink); font: 11px/1.7 "Noto Sans SC", "PingFang SC", sans-serif; white-space: pre-wrap; }
+
+/* 引导式复盘 composer + 待引导记录卡 */
+.reviewComposer { padding: 26px 0 8px; }
+.reviewComposerHead { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.reviewComposerHead span { color: var(--ink); font-size: 15px; font-weight: 700; }
+.reviewComposerHead small { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.reviewNotesHeader { margin: 18px 0 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.reviewNotesHeader label { color: var(--ink); font-size: 11px; font-weight: 750; }
+.reviewActions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; }
+.reviewActions > button { flex: 1; justify-content: center; min-width: 200px; }
+.reviewReportPending { background: #fbfaf7; }
+.reviewReportPending > header strong { font-family: inherit; font-size: 15px; }
 .activityList article { min-height: 74px; display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; border-bottom: 1px solid var(--line); }
 .activityList strong { font-size: 11px; } .activityList p { margin: 4px 0 0; color: var(--muted); font-size: 10px; } .activityList time { color: var(--muted); font-size: 9px; }
 
@@ -859,3 +871,84 @@
   .activityNextStep{align-items:flex-start;flex-direction:column}
   .activityNextStep button{width:100%;justify-content:center}
 }
+
+/* ===== 简历分块工作台（ResumeBlockBoard） ===== */
+.resumeGapNote{margin:16px 0 0;padding:13px 15px;width:100%;display:flex;align-items:flex-start;gap:11px;text-align:left;border:1px solid #f0d9c4;border-radius:12px;background:#fff6ef;color:var(--accent-deep);cursor:pointer;font:inherit}
+.resumeGapNote>svg{margin-top:1px;flex:0 0 auto;color:var(--accent)}
+.resumeGapNote>span{flex:1;display:flex;flex-direction:column;gap:3px}
+.resumeGapNote strong{font-size:13px}
+.resumeGapNote em{font-style:normal;color:#8a5a3c;font-size:12px;line-height:1.6}
+.resumeGapNote>svg:last-child{margin-top:6px;align-self:flex-start;transform:rotate(-90deg)}
+.blockToolbar{margin:20px 0 10px;display:flex;align-items:center;color:var(--muted);font-size:11px}
+.blockToolbar>span{display:inline-flex;align-items:center;gap:3px}
+.inlineGlyph{display:inline-block;vertical-align:-2px;color:var(--line-strong)}
+.blockList{display:grid;gap:12px}
+.resumeBlock{border:1px solid var(--line);border-left-width:4px;border-radius:12px;background:#fff;overflow:hidden;transition:box-shadow .16s,border-color .16s}
+.resumeBlock:hover{box-shadow:0 4px 16px rgba(37,39,45,.06)}
+.blockHeader{border-left-color:#8a8f98;background:#fafafa}
+.blockSummary{border-left-color:#7c4dff;background:#f7f4ff}
+.blockEducation{border-left-color:#2f6fed;background:#f3f7ff}
+.blockExperience{border-left-color:#0f9d76;background:#f1faf6}
+.blockProject{border-left-color:#e9672d;background:#fff5ef}
+.blockSkill{border-left-color:#b8891b;background:#fdf8ec}
+.blockOther{border-left-color:#b0aca5;background:#faf9f7}
+.blockDragging{opacity:.5;border-style:dashed}
+.blockHead{display:flex;align-items:center;gap:9px;padding:12px 14px;cursor:pointer;user-select:none}
+.blockGrip{flex:0 0 auto;color:var(--line-strong);cursor:grab}
+.blockGrip:active{cursor:grabbing}
+.blockKind{flex:0 0 auto;padding:3px 8px;border-radius:6px;background:rgba(37,39,45,.06);color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.02em}
+.blockTitle{flex:1;min-width:0;font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blockBadge{flex:0 0 auto;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);font-size:10px;font-weight:650}
+.blockChevron{flex:0 0 auto;color:var(--muted);transition:transform .16s}
+.blockChevronOpen{transform:rotate(180deg)}
+.blockBody{padding:2px 14px 14px}
+.blockBody p{margin:0 0 6px;font-size:12.5px;line-height:1.85;color:#3a3d43;white-space:pre-wrap;overflow-wrap:anywhere}
+.blockBody p:last-child{margin-bottom:0}
+/* 改动用不同"笔色"高亮；悬停/聚焦显示改动理由气泡。 */
+.blockPen{position:relative;padding:1px 3px;border-radius:5px;background:#fff2c9;color:#8a5a00;box-decoration-break:clone;-webkit-box-decoration-break:clone;cursor:help}
+.blockPen:hover::after,.blockPen:focus::after{content:attr(data-reason);position:absolute;left:0;top:calc(100% + 6px);z-index:20;max-width:260px;padding:8px 10px;border-radius:8px;background:var(--ink);color:#fff;font-size:11px;line-height:1.5;white-space:normal;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.blockStrike{padding:1px 3px;border-radius:5px;background:#f4f4f4;color:var(--muted);text-decoration:line-through;text-decoration-color:#c9c4bd}
+.blockChanges{border-top:1px dashed var(--line);padding:4px 14px 14px;display:grid;gap:12px}
+.blockChange{padding-top:12px}
+.blockChange:first-child{padding-top:6px}
+.blockChangeHead{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--muted)}
+.blockChangeHead span{font-weight:700}
+.blockChangeHead em{font-style:normal}
+.blockChangeText{margin:6px 0 0;font-size:12.5px;line-height:1.7;color:var(--ink)}
+.blockChangeReason{margin:6px 0 0;padding:8px 10px;border-radius:8px;background:#faf9f7;color:#7a6a55;font-size:11.5px;line-height:1.6}
+.blockChange>textarea{width:100%;margin-top:8px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;outline:0;background:#fff;color:var(--ink);font:inherit;font-size:12.5px;line-height:1.7;resize:vertical}
+.blockChange>textarea:focus{border-color:var(--accent)}
+.blockChangeActions{margin-top:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.blockNoChange{margin:0;padding:12px 14px 14px;border-top:1px dashed var(--line);color:var(--muted);font-size:11.5px}
+
+/* ===== 简历版式可视化选择（ResumeExport） ===== */
+.templatePicker{display:flex;gap:10px;flex-wrap:wrap;width:100%}
+.templateTile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font:inherit}
+.templateTile[data-active="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.templatePreview{display:flex;flex-direction:column;gap:3px;width:74px;height:96px;padding:8px 7px;border:1px solid #ececec;border-radius:5px;background:#fff;overflow:hidden}
+.templatePreview b{font-size:6px;font-weight:700;border-bottom:1px solid;padding-bottom:2px;margin-bottom:2px}
+.templatePreview i{display:block;height:2px;width:60%;border-radius:2px;margin-bottom:3px}
+.templatePreview em{display:block;height:2.5px;border-radius:2px;background:#dcdcdc}
+.templateName{font-size:10px;color:var(--muted)}
+.templateTile[data-active="true"] .templateName{color:var(--accent-deep);font-weight:650}
+
+/* 左栏岗位行：拖拽排序 + 置顶 + 删除（悬停/聚焦显现，移动端常显） */
+.opportunityRow{position:relative;display:flex;align-items:stretch;gap:2px;margin:3px 0;padding-right:4px;border:1px solid transparent;border-radius:12px}
+.opportunityRow:hover{background:rgba(255,255,255,.7);border-color:var(--line)}
+.opportunityRow .opportunityItem{flex:1;min-width:0;margin:0;border:0;background:transparent}
+.opportunityRow.opportunityActive{background:#fff;border-color:#e1d9cf;box-shadow:none}
+.opportunityDragging{opacity:.45}
+.opportunityDropTarget{box-shadow:inset 0 2px 0 var(--accent)}
+.rowGrip{display:flex;align-items:center;padding-left:4px;color:#b8b2a8;cursor:grab}
+.rowGrip:active{cursor:grabbing}
+.rowActions{display:flex;flex-direction:column;justify-content:center;gap:2px;opacity:0;transition:opacity .12s ease}
+.opportunityRow:hover .rowActions,.opportunityRow:focus-within .rowActions{opacity:1}
+.rowAction{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:transparent;color:#8a8277;cursor:pointer}
+.rowAction:hover{background:#f1ece4;color:#5f5950}
+.rowAction[aria-pressed="true"]{color:var(--accent-deep)}
+.rowActionDanger{color:#9b3013}
+.rowActionDanger:hover{background:#f4e4de;color:#9b3013}
+.rowPinIcon{display:inline-block;margin-right:4px;color:var(--accent-deep);vertical-align:-1px}
+@media(hover:none){.rowActions{opacity:1}}
+
+

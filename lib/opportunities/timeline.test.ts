@@ -4,7 +4,7 @@ const opportunity=(extra:Partial<Opportunity>={})=>({stage:"captured",resumeChan
 test("current stage follows real job status, not visited screens",()=>{
  expect(currentJourneyStage(opportunity())).toBe("overview");
  expect(currentJourneyStage(opportunity({resumeText:"真实简历"}))).toBe("resume");
- expect(currentJourneyStage(opportunity({stage:"applied"}))).toBe("activity");
+ expect(currentJourneyStage(opportunity({stage:"applied"}))).toBe("interview");
  expect(currentJourneyStage(opportunity({stage:"interviewing"}))).toBe("interview");
  expect(currentJourneyStage(opportunity({stage:"negotiating"}))).toBe("salary");
 });

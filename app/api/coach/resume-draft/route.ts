@@ -16,6 +16,7 @@ import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota"
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
+import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 
 export const runtime = "nodejs";
 
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
       operation: "resume_draft",
       requestId,
     }, () => callLLM([
-      { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
+      { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。禁止同义换词式改写（如「拆成」改「拆解为」这类没有信息增量的润色）——这样的段落直接不要输出；每条修改必须带来新信息、可核实量化或与该 JD 要求的明确对应。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。` },
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
 
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
       const before = String(raw.before || "").trim().slice(0, 2000);
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const mappingIssues = before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : [];
+      if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
       if (!after || !before || !report.ok || mappingIssues.length) {
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];

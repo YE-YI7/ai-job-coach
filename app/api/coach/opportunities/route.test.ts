@@ -1,6 +1,6 @@
-import { POST } from "./route";
+import { POST, PATCH } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { createCockpitOpportunity } from "@/lib/coach-harness/repository";
+import { createCockpitOpportunity, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
 import type { Opportunity } from "@/lib/opportunities/types";
 
 jest.mock("@/lib/auth");
@@ -73,4 +73,38 @@ describe("coach opportunities POST", () => {
     expect(response.status).toBe(400);
     expect(createCockpitOpportunity).not.toHaveBeenCalled();
   });
+});
+
+describe("stage PATCH", () => {
+const id = "12345678-1234-4234-8234-123456789012";
+const request = (body: unknown) => new Request("http://localhost/api/coach/opportunities", { method: "PATCH", body: JSON.stringify(body) });
+beforeEach(() => {
+  jest.resetAllMocks();
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "owner" });
+});
+test("确认阶段只保存指定用户岗位的阶段，不提交旧正文", async () => {
+  expect((await PATCH(request({ stageUpdate: { id, stage: "won" } }))).status).toBe(200);
+  expect(updateCockpitOpportunityStage).toHaveBeenCalledWith("owner", id, "won");
+  expect(updateCockpitOpportunity).not.toHaveBeenCalled();
+});
+test("后台自动同步保留数据库阶段", async () => {
+  const opportunity = { id, company: "公司", role: "PM", stage: "applied" };
+  expect((await PATCH(request({ opportunity, preserveStage: true }))).status).toBe(200);
+  expect(updateCockpitOpportunity).toHaveBeenCalledWith("owner", opportunity, true);
+});
+test("数据库失败不报告保存成功", async () => {
+  (updateCockpitOpportunityStage as jest.Mock).mockRejectedValue(new Error("unavailable"));
+  const response = await PATCH(request({ stageUpdate: { id, stage: "won" } }));
+  expect(response.status).toBe(500);
+  expect((await response.json()).ok).toBe(false);
+});
+test.each(["invalid", "__proto__"])("拒绝未知阶段 %s", async (stage) => {
+  expect((await PATCH(request({ stageUpdate: { id, stage } }))).status).toBe(400);
+  expect(updateCockpitOpportunityStage).not.toHaveBeenCalled();
+});
+test("未登录不能改阶段", async () => {
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
+  expect((await PATCH(request({ stageUpdate: { id, stage: "won" } }))).status).toBe(401);
+});
+
 });

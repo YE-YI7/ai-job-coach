@@ -13,6 +13,8 @@ import {guardInsufficientReply} from "@/lib/coach-harness/insufficiency-guard";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
 import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
 import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from "@/lib/coach-harness/resume-grounding";
+import {advanceStage,inferStageIntent} from "@/lib/coach-harness/stage-intent";
+import type {OpportunityStage} from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -27,6 +29,32 @@ async function history(userId: string, opportunityId: string | null, sessionId:s
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return (data || []).reverse() as Array<{id:string;question:string;answer:string;created_at:string}>;
+}
+/** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
+async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, userId: string, opportunityId: string | null): Promise<string> {
+  if (!db || !opportunityId) return "";
+  const { data, error } = await db.from("coach_opportunities").select("metadata").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+  if (error || !data?.metadata) return "";
+  const meta = data.metadata as {
+    reviewReports?: Array<{round?:string;grade?:string;overallComment?:string;improvements?:string[];sourceNotes?:string}>;
+    mockInterviews?: Array<{round?:string;status?:string;summary?:{grade?:string;overallScore?:number;weaknesses?:string[]}}>;
+  };
+  const lines: string[] = [];
+  for (const report of (meta.reviewReports || []).slice(0, 3)) {
+    if (!report?.round) continue;
+    if (report.grade === "待引导复盘" && report.sourceNotes?.trim()) {
+      // 引导式复盘的原始面试记录：导师带练时必须看得到用户自己写下的内容。
+      lines.push(`真实面试原始素材 · ${report.round}（用户自己记录、尚未复盘，引导追问围绕这段展开）：${report.sourceNotes.slice(0, 800)}`);
+      continue;
+    }
+    const improvements = (report.improvements || []).slice(0, 3).join("；");
+    lines.push(`真实面试复盘 · ${report.round}（${report.grade || "未评级"}）：${report.overallComment || ""}${improvements ? `；待改进：${improvements}` : ""}`);
+  }
+  for (const mock of (meta.mockInterviews || []).filter((item) => item?.status === "completed").slice(0, 3)) {
+    const weaknesses = (mock.summary?.weaknesses || []).slice(0, 2).join("；");
+    lines.push(`模拟面试 · ${mock.round || "未标轮次"}${mock.summary ? `（${[mock.summary.grade, mock.summary.overallScore!==undefined?`${mock.summary.overallScore} 分`:null].filter(Boolean).join(" · ")}）${weaknesses?`；短板：${weaknesses}`:""}` : "（已完成，无整轮总结）"}`);
+  }
+  return lines.join("\n").slice(0, 1800);
 }
 export async function GET(req: Request) {
   const user = await getCurrentUserFromRequest();
@@ -80,9 +108,13 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   }
   assertContextFits(context);
   const rendered = renderContextForPrompt(context).text;
+  const interviewLedger = await interviewLedgerFor(db, user.id, id).catch(() => "");
   // Always recompile private facts; never share a cached answer across users or jobs.
   const recent = turns.slice(-4).map(t => `用户：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
-  const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
+  // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
+  // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
+  const pageContext = typeof body?.pageContext === "string" ? body.pageContext.slice(0, 1200) : "";
+  const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录（真实内容，引用时说明轮次；记录里没有的如实说没有）：\n${interviewLedger}`:"",pageContext?`用户当前界面与最近操作（操作日志，不是结论依据；可据此主动追问，但不要当作已核实事实）：\n${pageContext}`:"",rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
@@ -129,7 +161,18 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const trace={promptVersion:"learning-v5",groundedDraft,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,claimsHedged:guarded.claimsHedged}};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
-  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,learning_trace:trace},{headers});
+  // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：
+  // 正则识别无法区分陈述与假设，推进岗位状态必须由用户点头。
+  let stageSuggestion:string|null=null;
+  if(id){
+    stageSuggestion=advanceStage(await currentStageOf(db,user.id,id),inferStageIntent(body.message));
+  }
+  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,learning_trace:trace},{headers});
+}
+
+async function currentStageOf(db: NonNullable<Awaited<ReturnType<typeof getDbClient>>>, userId: string, opportunityId: string): Promise<OpportunityStage> {
+  const { data } = await db.from("coach_opportunities").select("stage").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+  return (data?.stage as OpportunityStage) ?? "captured";
 }
 
 export async function POST(req:Request) {

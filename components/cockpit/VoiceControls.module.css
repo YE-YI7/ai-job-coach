@@ -1,0 +1,7 @@
+.wrap{display:inline-flex;align-items:center;gap:2px;min-width:0}
+.icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;padding:0;border:0;border-radius:8px;background:transparent;color:#8a8277;cursor:pointer;transition:background .14s ease,color .14s ease}
+.icon:hover:not(:disabled){background:#f1ece4;color:#5f5950}
+.icon:focus-visible{outline:2px solid #a64317;outline-offset:2px}
+.icon:disabled{opacity:.4;cursor:not-allowed}
+.icon.on{background:#f7e9df;color:#a64317}
+.error{font-size:11px;color:#9b3013;margin-right:6px;line-height:1.5}

@@ -324,8 +324,14 @@ export async function POST(request: Request) {
         readiness: ["ready", "practice", "missing"].includes(readiness) ? readiness : "practice",
       };
     }) : [];
-    const recommendationValue = String(parsed.recommendation || "prepare_then_apply") as OpportunityRecommendation;
-    const recommendation = recommendations.has(recommendationValue) ? recommendationValue : "prepare_then_apply";
+    const recommendationValue = String(parsed.recommendation || "");
+    const modelGaveVerdict = recommendations.has(recommendationValue as OpportunityRecommendation);
+    const recommendation = (modelGaveVerdict ? recommendationValue : "prepare_then_apply") as OpportunityRecommendation;
+    const labelByRecommendation: Record<OpportunityRecommendation, string> = {
+      apply: "优先投递",
+      prepare_then_apply: "补充后投递",
+      skip: "暂不投入",
+    };
     await finalizeQuota(reservation, true);
     const quota = { source: reservation.source, remaining: reservation.remaining };
     reservation = null;
@@ -335,8 +341,8 @@ export async function POST(request: Request) {
       input: { workspaceType, company, role, location, jdText, resumeText, profileText, sourceLabel: intake.sourceLabel },
       analysis: {
         recommendation,
-        recommendationLabel: String(parsed.recommendationLabel || "补充后投递").slice(0, 80),
-        recommendationReason: String(parsed.recommendationReason || "还需补充关键证据。").slice(0, 800),
+        recommendationLabel: String(parsed.recommendationLabel || (modelGaveVerdict ? labelByRecommendation[recommendation] : "等待完成分析")).slice(0, 80),
+        recommendationReason: String(parsed.recommendationReason || (modelGaveVerdict ? "还需补充关键证据。" : "本次分析未形成可靠结论，可重试或继续补充材料。")).slice(0, 800),
         evidenceCoverage,
         requirements,
         actions,

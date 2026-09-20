@@ -22,17 +22,15 @@ import styles from "./TodayCoach.module.css";
 type TodayTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
 
 
-function deadlineFor(opportunity: Opportunity, index: number) {
-  if (opportunity.nextEventLabel) return opportunity.nextEventLabel;
-  if (index === 0) return "等待导师安排";
-  return opportunity.capturedAtLabel || "已收录";
+function deadlineFor(opportunity: Opportunity) {
+  return opportunity.nextEventLabel || opportunity.capturedAtLabel || "已收录";
 }
 
-function recommendationFor(opportunity: Opportunity, index: number) {
-  if (index === 0) return "投递准备中";
+/** 与岗位列表行同源：显示机会自身的阶段，不替导师预写「准备中」。 */
+function stageFor(opportunity: Opportunity) {
   if (opportunity.stage === "applied") return "已投递";
-  if (opportunity.stage === "interviewing") return "准备面试";
-  return opportunity.stageLabel || "待评估";
+  if (opportunity.stage === "interviewing") return "面试准备中";
+  return opportunity.stageLabel || "评估中";
 }
 
 export function TodayCoach({
@@ -126,7 +124,7 @@ export function TodayCoach({
 
           <div className={styles.opportunityRail}>
             <div className={styles.railTitle}>正在推进 <span>({visibleOpportunities.length})</span></div>
-            {visibleOpportunities.map((opportunity, index) => (
+            {visibleOpportunities.map((opportunity) => (
               <button
                 key={opportunity.id}
                 className={opportunity.id === active?.id ? styles.opportunityActive : undefined}
@@ -137,7 +135,7 @@ export function TodayCoach({
                 <span>
                   <small>{opportunity.company}</small>
                   <strong>{opportunity.role}</strong>
-                  <em>{recommendationFor(opportunity, index)} · {deadlineFor(opportunity, index)}</em>
+                  <em>{stageFor(opportunity)} · {deadlineFor(opportunity)}</em>
                 </span>
               </button>
             ))}

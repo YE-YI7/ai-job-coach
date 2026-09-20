@@ -20,6 +20,7 @@ import type {
   VerificationLevel,
 } from "./types";
 import type { Opportunity } from "@/lib/opportunities/types";
+import { STAGE_STATUS_WORDS } from "@/lib/opportunities/timeline";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
 
 export function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
@@ -580,15 +581,15 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
       stage: String(row.stage) as Opportunity["stage"],
       jdText: row.jd_text ? String(row.jd_text) : undefined,
       location: metadata.location || "地点待确认",
-      stageLabel: metadata.stageLabel || "评估中",
+      stageLabel: STAGE_STATUS_WORDS[String(row.stage)] || metadata.stageLabel || "评估中",
       priority: metadata.priority || "medium",
       sourceLabel: metadata.sourceLabel || "网页端",
       capturedAtLabel: metadata.capturedAtLabel || "已同步",
       nextEventLabel: metadata.nextEventLabel || null,
       scheduledInterviewAt: row.scheduled_interview_at ? String(row.scheduled_interview_at) : metadata.scheduledInterviewAt || null,
       recommendation: metadata.recommendation || "prepare_then_apply",
-      recommendationLabel: metadata.recommendationLabel || "补充后投递",
-      recommendationReason: metadata.recommendationReason || "等待补充证据。",
+      recommendationLabel: metadata.recommendationLabel || "等待完成分析",
+      recommendationReason: metadata.recommendationReason || "岗位已收录。当前未形成可靠结论，请继续补充真实经历。",
       evidenceCoverage: metadata.evidenceCoverage || { strong: 0, weak: 0, missing: 0, unverified: 0 },
       requirements: metadata.requirements || [],
       actions: metadata.actions || [],
@@ -648,7 +649,15 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
   return { ...opportunity, id: opportunityId } satisfies Opportunity;
 }
 
-export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity) {
+export async function updateCockpitOpportunityStage(userId: string, id: string, stage: Opportunity["stage"]) {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_opportunities").update({ stage, updated_at: new Date().toISOString() })
+    .eq("id", id).eq("user_id", userId).select("id").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("岗位不存在或已删除");
+}
+
+export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity, preserveStage = false) {
   const db = requireDb(await getDbClient());
   const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
   const { data: current, error: currentError } = await db.from("coach_opportunities").select("jd_text, jd_version, metadata")
@@ -673,7 +682,7 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const jdChanged = Boolean(nextJd && nextJd !== current.jd_text);
   const resumeChanged = Boolean(nextResume && nextResume !== prevResume);
   const { error } = await db.from("coach_opportunities").update({
-    company, role, stage, jd_text: nextJd || null, scheduled_interview_at: scheduledInterviewAt || null,
+    company, role, ...(preserveStage ? {} : { stage }), jd_text: nextJd || null, scheduled_interview_at: scheduledInterviewAt || null,
     jd_version: jdChanged ? Number(current.jd_version) + 1 : Number(current.jd_version), metadata: mergedMetadata, updated_at: new Date().toISOString(),
   }).eq("id", id).eq("user_id", userId);
   if (error) throw error;
@@ -686,4 +695,11 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
     await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "base_resume", title: `${role} 使用的简历`, content: { text: nextResume }, sourceId: source.id, createdBy: "user" });
     await recordResumeClaims({ userId, opportunityId: id, sourceId: source.id, content: nextResume, global: opportunity.workspaceType === "preparation" });
   }
+}
+
+/** 删除岗位机会。仅按 id + user_id 定位，RLS 兜底跨用户；关联快照/证据由级联清理。 */
+export async function deleteCockpitOpportunity(userId: string, id: string): Promise<void> {
+  const db = requireDb(await getDbClient());
+  const { error } = await db.from("coach_opportunities").delete().eq("id", id).eq("user_id", userId);
+  if (error) throw error;
 }

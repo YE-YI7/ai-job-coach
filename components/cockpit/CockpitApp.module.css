@@ -957,3 +957,39 @@
 @media(hover:none){.rowActions{opacity:1}}
 
 
+
+/* ===== 中栏版面重排（T-07 去卡片 / T-18 并排汲取） ===== */
+/* 概览：判断通栏；中栏够宽时覆盖度与决定性要求并排——读要求时正要看覆盖分布。 */
+.documentBody { container-type: inline-size; }
+.overviewFlow { display: grid; grid-template-columns: minmax(0, 1fr); }
+.decisionSection, .coverageSection, .evidencePreviewSection { padding: 0; border: 0; border-radius: 0; background: none; }
+.decisionSection { grid-column: 1 / -1; padding-bottom: 30px; }
+.coverageSection { grid-column: 1; padding: 28px 0 30px; border-top: 1px solid var(--line-strong); }
+.evidencePreviewSection { grid-column: 1; padding: 28px 0 30px; border-top: 1px solid var(--line-strong); }
+.coverageSummary h2, .sectionHeading h2 { white-space: nowrap; }
+@container (min-width: 620px) {
+  .overviewFlow { grid-template-columns: .82fr 1.18fr; column-gap: 48px; }
+  .coverageSection { grid-column: 1; grid-row: 2; padding: 28px 48px 30px 0; }
+  .evidencePreviewSection { grid-column: 2; grid-row: 2; padding: 28px 0 30px; }
+}
+.insightNote { grid-column: 1 / -1; margin: 0; padding: 24px 0 0; display: block; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+.insightNote .insightGlyph { width: auto; height: auto; display: inline-grid; place-items: center; border: 0; border-radius: 0; background: none; color: var(--accent-deep); vertical-align: -6px; margin-right: 8px; }
+.insightNote > span + div { display: inline; }
+.insightNote strong { font-size: 12.5px; }
+.insightNote p { display: inline; margin: 0 0 0 10px; font-size: 11.5px; }
+/* 徽章一律改「圆点+文字」，语义靠颜色不靠胶囊底。 */
+.decisionLabel { min-height: 0; padding: 0; background: none; border-radius: 0; font-size: 12px; }
+.decisionLabel::before { content: ""; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--accent); }
+.stageToken { min-height: 0; padding: 0; border-radius: 0; background: none; }
+.stageToken::before { content: ""; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--blue); }
+.evidenceStatus { min-height: 0; padding: 0; border-radius: 0; background: none; font-size: 10px; }
+.evidenceStatus::before { content: ""; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: currentColor; }
+/* 覆盖度：数字抬大做层级，条保持细线。 */
+.coverageSummary > strong { font-size: 44px; font-variant-numeric: tabular-nums; }
+.coverageBar { height: 8px; }
+/* 简历台/面试台的功能块同样去卡：细线分组，输入控件保留边框。 */
+.qualityGate { padding: 20px 0 4px; border: 0; border-top: 1px solid var(--line-strong); border-radius: 0; background: none; }
+.practicePanel { padding: 26px 0 30px; margin: 0; border: 0; border-top: 1px solid var(--line-strong); border-radius: 0; background: none; }
+.practiceResult { padding: 15px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+.diffGrid { border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }
+.diffGrid > div:first-child { border-right: 1px solid var(--line); }

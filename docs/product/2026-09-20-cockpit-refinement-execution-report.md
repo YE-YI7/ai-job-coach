@@ -155,3 +155,16 @@
 - 把 Markdown 行内分段提取到 `lib/opportunities/resume-markdown.ts`，只在整行去除结构符，不对行内片段 trim；保留英文空格和行内连字符。UI 使用同一函数，新增四个回归输入。
 - 独立验证：78 套 / 693 用例全过；tsc 零错误；本轮修复文件 ESLint 零问题；生产 build 通过。上述为本地验证，本轮没有真人登录态浏览器端到端验收。
 - 此次用户授权是修复并 push，不是重新部署 production；正式部署状态应单独查询，不把推送等同上线。
+
+## 十、按 yi-s-froniter-taste 的前端质感整改（2026-09-21）
+
+### 发布复核说明
+
+以下 canvas 数值与截图检查为上一执行者的报告，属于模拟合成与局部验证，不是当前所有设备、纹理背景像素或全站 WCAG 达标证明。中文继续采用无衬线回退，不引入得意黑正文；Noto Sans SC 仅是字体栈候选，并未新增该字体的网络加载。旧 Outfit 文件无法与所核查包版本的哈希对应，发布时换为固定版本 `@fontsource-variable/outfit@5.3.0` 的原始 latin 可变字体，随附许可证、来源与 SHA-256；此前 32 KB 和 canvas 字宽数值不沿用为新文件实测。本轮浏览器连接超时，未宣称重新完成真人界面验收。
+
+- 字体栈（T-01/T-29）：`app/globals.css` 新增 Outfit 可变字体 `@font-face`（`public/fonts/outfit-latin-wght.woff2`，jsDelivr fontsource 子集），body 与 `.shell` 字体栈改为西文在前、中文自动回退；原 body 声明的 Inter 从未加载、一直在静默回退。canvas 量宽实测 Outfit 真加载（97.4px vs 回退 108.9px），页面零意外溢出。
+- 静态颗粒（T-32）：`.shell` 定义 `--grain`（feTurbulence baseFrequency .75 / numOctaves 2，噪声重映射成 alpha：A=1.6R−0.5，rect opacity .17），挂在 shell 纸面、左栏机会列、右栏动作列与今日 Agent 面；中栏 `.document` 保持纯白纸面。页面内 canvas 合成实测：偏离均值 5.98 阶、≥5 阶占比 51.5%（对齐 T-32 参考值）、≥8 阶 31.4%——是离散颗粒不是灰雾。
+- 文字级色补偿（T-32 ⚠）：颗粒使纸面中位压暗约 13 阶，逐色复算 WCAG 后调整三个不过线的小字色：`.opportunityCompany` #696b64→#63655e（4.45→4.86）、搜索占位 #858991/#74736c→#6b6a63（→4.63）；`--muted`、accent-deep 在颗粒面上 4.61–6.22 全过，未动。
+- 小字号档位（T-22）：只抬底部挤在一起的档位——9px→10.5px（6 处）、10px→11.5px（17 处），含 `ModelPicker.module.css` 5 处；标题/正文层级不动；`.templatePreview b` 的 6px 是模板缩略 mock，保留。数字统一 `font-variant-numeric: tabular-nums`。
+- 踩坑记录：`.opportunityRail/.actionRail` 后段「视觉收敛」规则用 `background` 简写把早先挂的 `background-image:var(--grain)` 静默重置为 none——补挂后 computed style 复核才生效（改背景层必须查后段覆盖，同 T-22「场景内覆盖要一起改」）。
+- 验证：`tsc --noEmit` 零错误；jest 78 套 / 693 用例全绿（与第九节修复共存）；`next build` 成功；preview 页截图复查布局无换行爆炸。得意黑是否进 app（T-01 全局默认 vs 全量 CJK 体积与斜体正文取舍）留待用户决定，本轮正文保持 Noto Sans SC。

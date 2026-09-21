@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* T-01 字体栈分工：西文/数字走 Outfit（可变字重，自托管 latin 子集），
+   中文自动回退 Noto Sans SC / 苹方，不做语言检测。 */
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/outfit-latin-wght.woff2") format("woff2-variations");
+}
+
 :root {
   /* ========== 设计系统 - 色彩变量 ========== */
   
@@ -453,7 +463,7 @@
 }
 
 body {
-  font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Outfit', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--background);
   color: var(--gray-700);
   line-height: 1.6;

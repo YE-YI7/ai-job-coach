@@ -10,7 +10,7 @@
 .triggerLogo{display:block;height:16px;width:auto;max-width:22px;object-fit:contain}
 .triggerText{display:flex;flex-direction:column;min-width:0;flex:1;gap:1px}
 .triggerName{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.triggerHint{font-size:10.5px;color:#6d6a61;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.triggerHint{font-size:11.5px;color:#6d6a61;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .caret{flex-shrink:0;color:#8a8277;transition:transform .15s ease}
 .trigger[aria-expanded="true"] .caret{transform:rotate(180deg)}
 
@@ -28,17 +28,17 @@
 .cardMain{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .cardTop{display:flex;align-items:center;gap:8px;min-width:0}
 .cardName{font-weight:650;font-size:13.5px;color:#292b2d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tier{flex-shrink:0;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.02em}
+.tier{flex-shrink:0;font-size:11.5px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.02em}
 .tier[data-tier="free"]{background:#e7f1e9;color:#2f6b45}
 .tier[data-tier="cheap"]{background:#f4ecd8;color:#8a5b12}
 .tier[data-tier="expensive"]{background:#f4e4de;color:#9b3013}
 .tier[data-tier="auto"]{background:#eae7e1;color:#6b6459}
 .note{font-size:11.5px;color:#6d6a61;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
-.speed{display:inline-flex;align-items:center;gap:6px;margin-top:2px;color:#8d8779;font-size:10.5px}
+.speed{display:inline-flex;align-items:center;gap:6px;margin-top:2px;color:#8d8779;font-size:11.5px}
 .speedBar{position:relative;width:70px;height:5px;border-radius:3px;background:#ece7de;overflow:hidden}
 .speedFill{position:absolute;inset:0 auto 0 0;border-radius:3px;background:linear-gradient(90deg,#cf9d6b,#a64317)}
 .speedVal{font-variant-numeric:tabular-nums}
 .check{flex-shrink:0;color:#a64317;margin-top:2px}
-.disclaimer{margin:2px 0 0;font-size:10.5px;line-height:1.55;color:#6d6a61;border-top:1px solid #f0ece5;padding-top:8px}
+.disclaimer{margin:2px 0 0;font-size:11.5px;line-height:1.55;color:#6d6a61;border-top:1px solid #f0ece5;padding-top:8px}
 .disclaimer a{color:#8d3a17;text-underline-offset:2px}
 @media(max-width:700px){.panel{max-height:70dvh}.triggerHint{display:none}}

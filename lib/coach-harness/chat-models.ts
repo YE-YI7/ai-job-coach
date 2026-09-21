@@ -1,6 +1,6 @@
 import {getTokenPayCredential} from "@/lib/tokenpay";
 import {chooseChatModel,type ChatMode} from "./chat-options";
-import {intersectSelectable,intersectHostedChat,ECONOMY_MODEL_ID,findModel,isSelectableModelId} from "./model-catalog";
+import {intersectSelectable,intersectHostedChat,findModel,isSelectableModelId} from "./model-catalog";
 let cache:{until:number;ids:string[];hosted:string[]}|undefined;
 const coolingUntil=new Map<string,number>();
 export function coolDownChatModel(model:string){coolingUntil.set(model,Date.now()+60000);}
@@ -19,6 +19,15 @@ export function pickHostedOrFallback(
 export function pickEconomySubstitute(hosted: string[]): string | null {
   const cheap = hosted.filter((id) => isSelectableModelId(id) && findModel(id)?.tier === "cheap");
   return cheap.find((id) => /flash/i.test(id)) ?? cheap[0] ?? null;
+}
+// Server-side default ids (env LLM_MODEL_CHAT, the fast preset) can never have
+// been clicked in the picker — the UI only offers selectable ids — so they are
+// allowed to degrade, but only within the same vendor family first and only to
+// a cheap-tier model. An explicit (selectable) pick is still never rewritten.
+export function pickSystemDefaultSubstitute(requested: string, hosted: string[]): string | null {
+  const family = requested.split("-")[0];
+  const sameFamily = family ? hosted.filter((id) => id.startsWith(`${family}-`)) : [];
+  return pickEconomySubstitute(sameFamily) ?? pickEconomySubstitute(hosted);
 }
 export async function chatModelAccess(userId:string){
  const connected=Boolean(await getTokenPayCredential(userId));
@@ -40,22 +49,22 @@ export async function chatModelAccess(userId:string){
 // Catalog failure is not proof of absence: preserve the requested model and let
 // the gateway decide. A confirmed absence fails visibly without another charge.
 // USER-EXPlicit picks are never silently rewritten. System-default ids
-// (ECONOMY_MODEL_ID and hosted fallbacks callers never chose) may degrade to a
-// same-family model the gateway actually serves — otherwise a catalog rename
-// blocks the whole cockpit for TokenPay users who never selected a model.
-const SYSTEM_DEFAULT_MODEL_IDS = new Set<string>([ECONOMY_MODEL_ID]);
+// (ECONOMY_MODEL_ID, env LLM_MODEL_CHAT, hosted fallbacks callers never chose)
+// may degrade to a cheap model the gateway actually serves — otherwise a
+// catalog rename blocks the whole cockpit for TokenPay users who never
+// selected a model.
 export async function resolveTokenDanceModel(userId:string,requested:string){
  const {hosted}=await chatModelAccess(userId);
  if(hosted.length===0)return requested; // catalog unreachable: never invent a swap
  if(hosted.includes(requested))return requested;
- if(SYSTEM_DEFAULT_MODEL_IDS.has(requested)){
-  const sameFamily=pickEconomySubstitute(hosted);
-  if(sameFamily){
-   console.warn(`系统默认模型「${requested}」不在网关目录，按同为实惠档的可用模型「${sameFamily}」执行`);
-   return sameFamily;
+ if(!isSelectableModelId(requested)){
+  const substitute=pickSystemDefaultSubstitute(requested,hosted);
+  if(substitute){
+   console.warn(`服务端默认模型「${requested}」不在网关目录，按同档可用模型「${substitute}」执行（用户从未经手这个 id）`);
+   return substitute;
   }
   // No cheap substitute exists: do NOT silently bill an expensive model.
-  throw new Error(`默认经济模型「${requested}」当前不可用，且没有同为实惠档的模型可替换；未擅自改用高阶模型，请在模型选择中手动更换。`);
+  throw new Error(`默认模型「${requested}」当前不可用，且没有实惠档模型可替换；未擅自改用高阶模型，请改用自动模式或在模型选择中手动更换。`);
  }
  const {model}=pickHostedOrFallback(requested,hosted);
  return model;

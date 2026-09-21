@@ -16,7 +16,8 @@ export interface ResumeBlock {
 
 // A line is a section header only when it is short AND opens with a known
 // resume keyword, so ordinary bullets ("负责项目重构") are never mistaken for
-// a header.
+// a header. Markdown-authored resumes ("## 教育经历"、"**实习经历**") must
+// classify the same as plain text, or the whole resume collapses into one block.
 const SECTION_PATTERNS: Array<{ kind: ResumeBlockKind; test: RegExp }> = [
   { kind: "education", test: /^(教育背景|教育经历|学历|教育)/ },
   { kind: "project", test: /^(项目经历|项目经验|代表项目|主要项目|项目)/ },
@@ -25,8 +26,20 @@ const SECTION_PATTERNS: Array<{ kind: ResumeBlockKind; test: RegExp }> = [
   { kind: "summary", test: /^(自我评价|个人简介|个人总结|自我介绍|简介|总结)/ },
 ];
 
+// Display/classification view of a line: heading markers (##), bullets (- * •)
+// and inline emphasis (**x**、__x__、`x`) are structural decoration, not content.
+export function stripResumeMarkdown(line: string): string {
+  return line
+    .replace(/^\s*#{1,6}\s+/, "")
+    .replace(/^\s*[-*•·]+\s+/, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
+}
+
 function classifyHeader(line: string): { kind: ResumeBlockKind; title: string } | null {
-  const trimmed = line.trim();
+  const trimmed = stripResumeMarkdown(line);
   if (!trimmed || trimmed.length > 16) return null;
   // A header labels a section; it carries no data itself. "技能：Python" is a
   // content line — treating it as a header would swallow the text after the
@@ -47,6 +60,34 @@ function normalize(value: string): string {
 
 function isSplitKind(kind: ResumeBlockKind): boolean {
   return kind === "experience" || kind === "project";
+}
+
+// A new entry opens with a date (plain or markdown resumes) or with a bold
+// company/project line ("**字节跳动 · 产品经理**") whose date sits on the next
+// line — both must start a new card, not extend the previous one.
+function isDateOnly(line: string): boolean {
+  return /^\d{4}(?:[.\/年-]\d{1,2}(?:月)?)?\s*[-–—~～至]\s*(?:\d{4}(?:[.\/年-]\d{1,2}(?:月)?)?|至今|现在|present)$/i.test(stripResumeMarkdown(line));
+}
+
+// Strong openers: a bold-leading line or a date-leading line. Used to split
+// adjacent entries that have no blank line between them (common in LLM
+// markdown resumes). A description line merely containing a year is neither.
+function isStrongEntryOpener(line: string): boolean {
+  return /^\s*(?:[-*•·]\s*)?\*\*\S/.test(line) || /^\s*\d{4}/.test(line);
+}
+
+// Card name for an entry: the first line with date ranges and separator crumbs
+// removed ("2023.01-2023.06 智能客服工作台" → "智能客服工作台").
+function entryTitle(line: string): string {
+  const clean = stripResumeMarkdown(line);
+  const t = clean
+    .replace(/\d{4}\s*[.\-/年]\s*\d{1,2}\s*[月日]?/g, "")
+    .replace(/[（(]\s*[)）]/g, "")
+    .replace(/^[\s:：|·、\-–—~～]+/, "")
+    .replace(/[\s:：|·、\-–—~～]+$/, "")
+    .trim();
+  const title = t || clean;
+  return title.length > 24 ? `${title.slice(0, 24)}…` : title;
 }
 
 /**
@@ -90,16 +131,31 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
       for (const group of madeGroups) {
         let entry: string[] = [];
         for (const line of group) {
-          if (entry.length && /\d{4}/.test(line) && !/\d{4}/.test(entry[0])) { entries.push(entry); entry = [line]; }
+          // Only a strong opener (bold-leading or date-leading line) starts a
+          // new card — a description line merely containing a year ("接手于
+          // 2022 年的老系统…") must never split the current entry. When the
+          // card already opens with an opener (bold company + its date line),
+          // a strong opener splits only after the card has body content, so
+          // the company line and its date stay together.
+          // 公司名与紧随的日期行属于同一条目；日期行可附带职责。
+          // 不能用“含任意年份”判断是否已有正文，否则年份成果会吞掉下一家公司。
+          const dateCompanion = entry.length === 1 && (
+            (/^\d{4}/.test(stripResumeMarkdown(line)) && !/^\d{4}/.test(stripResumeMarkdown(entry[0]))) || isDateOnly(entry[0])
+          );
+          const reopens = entry.length > 0 && isStrongEntryOpener(line) && !dateCompanion;
+          if (reopens) { entries.push(entry); entry = [line]; }
           else entry.push(line);
         }
         if (entry.length) entries.push(entry);
       }
       for (const entry of entries) {
-        blocks.push({ id: `${sectionKind}-${blocks.length}`, kind: sectionKind, title: sectionTitle, lines: entry, changeIds: [], heading: sectionHeading });
+        // Entry cards carry their own name (公司 / 项目) as the title so two
+        // internships read as two distinct cards; the section stays reachable
+        // through `heading` for change matching.
+        blocks.push({ id: `${sectionKind}-${blocks.length}`, kind: sectionKind, title: entryTitle(entry[0]) || sectionTitle, lines: entry, changeIds: [], heading: sectionHeading });
       }
     } else {
-      blocks.push({ id: `${sectionKind}-${blocks.length}`, kind: sectionKind, title: sectionTitle || madeGroups[0][0], lines: madeGroups.flat(), changeIds: [], heading: sectionTitle ? sectionHeading : null });
+      blocks.push({ id: `${sectionKind}-${blocks.length}`, kind: sectionKind, title: sectionTitle || entryTitle(madeGroups[0][0]), lines: madeGroups.flat(), changeIds: [], heading: sectionTitle ? sectionHeading : null });
     }
   };
 
@@ -138,7 +194,10 @@ export function assignChangesToBlocks(blocks: ResumeBlock[], changes: ResumeChan
     if (needle) target = next.find((block) => normalize(block.lines.join("\n")).includes(needle));
     if (!target) {
       const sectionNeedle = normalize(change.section);
-      if (sectionNeedle) target = next.find((block) => normalize(block.title).includes(sectionNeedle) || block.lines.some((l) => normalize(l).includes(sectionNeedle)));
+      // Entry cards are titled by their own first line, so also match the raw
+      // section heading they were split from ("实习经历" changes still find the
+      // internship cards).
+      if (sectionNeedle) target = next.find((block) => normalize(block.title).includes(sectionNeedle) || (block.heading ? normalize(stripResumeMarkdown(block.heading)).includes(sectionNeedle) : false) || block.lines.some((l) => normalize(l).includes(sectionNeedle)));
     }
     if (target) target.changeIds.push(change.id);
     else unmatched.push(change);

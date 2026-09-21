@@ -122,6 +122,116 @@ describe("reorderResumeText", () => {
 
 const nonBlank = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 
+test.each(["字节跳动 · 产品实习生", "**字节跳动 · 产品实习生**"])("公司与日期同卡：%s", (company) => {
+  const text = `实习经历\n${company}\n2023.01-2023.06\n负责需求分析`;
+  const blocks = splitResumeBlocks(text);
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0].lines).toEqual(text.split("\n").slice(1));
+});
+
+test("带年份的成果是正文，下一家公司独立成卡，拖拽不丢行", () => {
+  const text = "## 实习经历\n**字节跳动**\n2023.01-2023.06\n- 2023 年完成上线\n**美团**\n2022.01-2022.06\n- 搭建报表";
+  const blocks = splitResumeBlocks(text);
+  expect(blocks).toHaveLength(2);
+  expect(blocks[0].lines).toContain("- 2023 年完成上线");
+  expect(blocks[1].lines[0]).toBe("**美团**");
+  const reordered = reorderResumeText(text, blocks[1].id, blocks[0].id)!;
+  for (const line of nonBlank(text)) expect(reordered).toContain(line);
+});
+
+describe("markdown 简历（## 标题、**加粗**）也能按节/条目分块", () => {
+  const md = [
+    "# 张三",
+    "电话：138 | 邮箱：z@x.com",
+    "",
+    "## **实习经历**",
+    "**字节跳动 · AI 产品实习生**",
+    "2023.01-2023.06",
+    "- 主导智能客服工作台需求验证到上线，准确率提升 12%",
+    "",
+    "**美团 · 产品实习生**",
+    "2022.03-2022.08",
+    "- 搭建指标体系，替代人工报表",
+    "",
+    "## 项目经历",
+    "**数据看板重构**",
+    "2022.01-2022.06 负责核心链路",
+    "",
+    "## 教育经历",
+    "2018-2022 某某大学 计算机 本科",
+  ].join("\n");
+
+  it("带 markdown 符号的章节标题被识别，每段实习/项目各自成卡", () => {
+    const blocks = splitResumeBlocks(md);
+    const experience = blocks.filter((b) => b.kind === "experience");
+    const projects = blocks.filter((b) => b.kind === "project");
+    expect(experience).toHaveLength(2);
+    expect(projects).toHaveLength(1);
+    expect(blocks.map((b) => b.kind)).toContain("education");
+    // 卡片标题用条目自己的名字，不再全部叫「实习经历」。
+    expect(experience[0].title).toContain("字节跳动");
+    expect(experience[1].title).toContain("美团");
+  });
+
+  it("条目卡里的 bullet 内容是正文，不会被当成标题吞掉", () => {
+    const blocks = splitResumeBlocks(md);
+    const rebuilt = reconstructResumeText(blocks);
+    for (const line of nonBlank(md)) expect(rebuilt).toContain(line);
+  });
+
+  it("拖动实习卡改写真实文本且逐行不丢", () => {
+    const blocks = splitResumeBlocks(md);
+    const experience = blocks.filter((b) => b.kind === "experience");
+    const next = reorderResumeText(md, experience[1].id, experience[0].id);
+    expect(next).not.toBeNull();
+    expect(next!.indexOf("美团")).toBeLessThan(next!.indexOf("字节跳动"));
+    for (const line of nonBlank(md)) expect(next).toContain(line);
+  });
+
+  it("change.section 仍能落回对应节的条目卡（标题已换成条目名）", () => {
+    const blocks = splitResumeBlocks(md);
+    const changes = [change({ id: "m1", section: "实习经历", before: "完全不在原文里的建议句", after: "改写" })];
+    const withChanges = assignChangesToBlocks(blocks, changes);
+    const carried = withChanges.filter((b) => b.changeIds.includes("m1"));
+    expect(carried.length).toBe(1);
+    expect(carried[0].kind).toBe("experience");
+  });
+});
+
+describe("条目之间没有空行也要逐条拆卡（LLM 紧凑 markdown 简历）", () => {
+  it("相邻加粗开场行各自成卡，公司行和自己的日期行不被拆散", () => {
+    const text = [
+      "## 实习经历",
+      "**字节跳动 · AI 产品实习生**",
+      "2023.01-2023.06",
+      "- 主导客服工作台，准确率提升 12%",
+      "**美团 · 产品实习生**",
+      "2022.03-2022.08",
+      "- 搭建指标体系",
+    ].join("\n");
+    const experience = splitResumeBlocks(text).filter((b) => b.kind === "experience");
+    expect(experience).toHaveLength(2);
+    expect(experience[0].lines).toContain("2023.01-2023.06");
+    expect(experience[1].title).toContain("美团");
+    for (const line of nonBlank(text)) expect(reconstructResumeText(splitResumeBlocks(text))).toContain(line);
+  });
+
+  it("纯文本简历：日期开场行相邻无空行也拆成两卡", () => {
+    const text = ["项目经历", "2023 A 项目", "内容A", "2022 B 项目", "内容B"].join("\n");
+    const projects = splitResumeBlocks(text).filter((b) => b.kind === "project");
+    expect(projects).toHaveLength(2);
+    expect(projects[0].lines).toEqual(["2023 A 项目", "内容A"]);
+    expect(projects[1].lines).toEqual(["2022 B 项目", "内容B"]);
+  });
+
+  it("描述行只是句中带年份，不会把同一条目劈成两卡", () => {
+    const text = ["项目经历", "智能客服工作台", "接手于 2022 年的老系统，重构后 QPS 提升 40%", "并沉淀了评测集"].join("\n");
+    const projects = splitResumeBlocks(text).filter((b) => b.kind === "project");
+    expect(projects).toHaveLength(1);
+    expect(projects[0].lines).toHaveLength(3);
+  });
+});
+
 describe("重排不丢内容（round-trip 不变量）", () => {
   // GPT 复现：拖动项目后「技能：Python」整行消失——行内带内容的「技能：…」被
   // 误判为章节标题后没有落进任何块，reconstruct 无法还原。

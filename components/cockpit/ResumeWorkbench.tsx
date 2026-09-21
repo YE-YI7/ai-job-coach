@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Check, ChevronDown, GripVertical, ShieldCheck } from "lucide-react";
 import type { Opportunity, RequirementEvidence, ResumeChange } from "@/lib/opportunities/types";
 import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "@/lib/opportunities/resume-blocks";
+import { markdownSegments } from "@/lib/opportunities/resume-markdown";
 import styles from "./CockpitApp.module.css";
 
 // Per-kind palette: a distinct border + background so each section reads as its
@@ -36,6 +37,18 @@ function renderLine(line: string, pool: ResumeChange[], used: Set<string>): Reac
       {renderLine(tail, pool, used)}
     </>
   );
+}
+
+// Markdown-authored resumes read as noise ("**字节跳动**", "## 项目经历"). The
+// board renders the decoration instead of showing it: structural markers are
+// dropped, **bold** becomes bold. resumeText itself stays byte-exact — this is
+// display only; export/checks still see the original characters.
+function renderMarkdownLine(line: string, pool: ResumeChange[], used: Set<string>): ReactNode {
+  const segments = markdownSegments(line);
+  if (segments.length === 1 && !segments[0].bold) return renderLine(segments[0].text, pool, used);
+  return segments.map((segment, index) => segment.bold
+    ? <strong key={index}>{renderLine(segment.text, pool, used)}</strong>
+    : <span key={index}>{renderLine(segment.text, pool, used)}</span>);
 }
 
 export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder }: {
@@ -105,7 +118,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
                 <ChevronDown size={16} className={`${styles.blockChevron} ${isExpanded ? styles.blockChevronOpen : ""}`} />
               </header>
               <div className={styles.blockBody}>
-                {block.lines.map((line, index) => <p key={index}>{renderLine(line, changes, usedIds)}</p>)}
+                {block.lines.map((line, index) => <p key={index}>{renderMarkdownLine(line, changes, usedIds)}</p>)}
               </div>
               {isExpanded && (changes.length > 0 ? (
                 <div className={styles.blockChanges}>

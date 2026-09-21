@@ -1,5 +1,5 @@
 import { buildProductEventWrite } from "./product-events";
-import { pickHostedOrFallback, pickEconomySubstitute } from "./coach-harness/chat-models";
+import { pickHostedOrFallback, pickEconomySubstitute, pickSystemDefaultSubstitute } from "./coach-harness/chat-models";
 import { intersectHostedChat, TIER_LABEL } from "./coach-harness/model-catalog";
 
 // Release-gating honesty fixes: login tracking must not depend on the anon
@@ -68,6 +68,25 @@ describe("pickEconomySubstitute (economy fallback never bills high tier)", () =>
 
   it("accepts any cheap-tier substitute when no flash is available", () => {
     expect(pickEconomySubstitute(["deepseek-v3.2", "glm-5.3"])).toBe("deepseek-v3.2");
+  });
+});
+
+describe("pickSystemDefaultSubstitute (env defaults degrade within cheap tier, same family first)", () => {
+  // 线上 LLM_MODEL_CHAT=deepseek-chat：这个 id 用户从未在选模器里点过（不在可选目录），
+  // 网关改名后必须能在实惠档里替换，否则出题/面试整条链路被一个没人选过的 id 卡死。
+  const hosted = ["deepseek-v4-pro", "deepseek-v4-flash-0731", "deepseek-v4.1-flash", "deepseek-v3.2", "glm-5.3"];
+
+  it("replaces an unknown server-default id with a cheap same-family flash, never Pro", () => {
+    expect(pickSystemDefaultSubstitute("deepseek-chat", hosted)).toBe("deepseek-v4-flash-0731");
+  });
+
+  it("crosses vendor family only when the family has no cheap model at all", () => {
+    expect(pickSystemDefaultSubstitute("llama-3-chat", ["deepseek-v4-pro", "deepseek-v3.2", "glm-5.3"])).toBe("deepseek-v3.2");
+    expect(pickSystemDefaultSubstitute("llama-3-chat", ["glm-5.3"])).toBeNull();
+  });
+
+  it("returns null instead of silently billing a high tier", () => {
+    expect(pickSystemDefaultSubstitute("deepseek-chat", ["deepseek-v4-pro", "kimi-k3"])).toBeNull();
   });
 });
 

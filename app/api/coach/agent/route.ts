@@ -114,7 +114,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const pageContext = typeof body?.pageContext === "string" ? body.pageContext.slice(0, 1200) : "";
-  const prompt=boundedLearningPrompt(body.message,[`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录（真实内容，引用时说明轮次；记录里没有的如实说没有）：\n${interviewLedger}`:"",pageContext?`用户当前界面与最近操作（操作日志，不是结论依据；可据此主动追问，但不要当作已核实事实）：\n${pageContext}`:"",rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
+  // 界面实时上下文排在最前：预算截断按顺序丢段，操作日志若排在长历史之后，
+  // 会被 profile/学习/近期对话挤掉，导师就再也「看不见用户刚做了什么」。
+  const prompt=boundedLearningPrompt(body.message,[pageContext?`用户当前界面与最近操作（操作日志，不是结论依据；可据此主动追问，但不要当作已核实事实）：\n${pageContext}`:"",`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录（真实内容，引用时说明轮次；记录里没有的如实说没有）：\n${interviewLedger}`:"",rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;

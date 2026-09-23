@@ -269,6 +269,83 @@ describe("重排不丢内容（round-trip 不变量）", () => {
   });
 });
 
+describe("条目边界不被行内加粗破坏（串位回归）", () => {
+  // 用户报告：上一个项目经历的内容被放进了下一个块。根因是加粗样式的
+  // 正文行（bullet 里的「**核心成果**：…」和裸标签「**核心职责**」）被
+  // 当成新条目开场，把同一条目从中间劈开、尾部落进下一张卡。
+  it("bullet 中的加粗标签行不劈卡，前一个项目的尾部内容留在自己的卡", () => {
+    const text = [
+      "## 项目经历",
+      "**智能客服工作台**",
+      "- 负责需求验证到上线",
+      "- **核心成果**：准确率提升 12%",
+      "- 沉淀评测集 300 条",
+      "**数据看板重构**",
+      "- 搭建指标体系",
+    ].join("\n");
+    const projects = splitResumeBlocks(text).filter((b) => b.kind === "project");
+    expect(projects).toHaveLength(2);
+    expect(projects[0].lines).toEqual([
+      "**智能客服工作台**",
+      "- 负责需求验证到上线",
+      "- **核心成果**：准确率提升 12%",
+      "- 沉淀评测集 300 条",
+    ]);
+    expect(projects[1].title).toContain("数据看板");
+    for (const line of nonBlank(text)) expect(reconstructResumeText(splitResumeBlocks(text))).toContain(line);
+  });
+
+  it("裸加粗小节标签（**核心职责**）是正文，不另起一卡吞掉后续内容", () => {
+    const text = [
+      "项目经历",
+      "**智能客服工作台 · 负责人**",
+      "**核心职责**",
+      "主导需求验证",
+      "**数据看板重构 · 独立开发**",
+      "搭建指标体系",
+    ].join("\n");
+    const projects = splitResumeBlocks(text).filter((b) => b.kind === "project");
+    expect(projects).toHaveLength(2);
+    expect(projects[0].lines).toEqual(["**智能客服工作台 · 负责人**", "**核心职责**", "主导需求验证"]);
+    expect(projects[1].lines).toEqual(["**数据看板重构 · 独立开发**", "搭建指标体系"]);
+  });
+
+  it("无空行紧凑简历里，加粗 bullet 不会各自劈成新卡", () => {
+    const text = [
+      "实习经历",
+      "**字节跳动 · 产品实习生**",
+      "2023.01-2023.06",
+      "- **主导**客服工作台从 0 到 1",
+      "**美团 · 产品实习生**",
+      "2022.03-2022.08",
+      "- 搭建指标体系",
+    ].join("\n");
+    const experience = splitResumeBlocks(text).filter((b) => b.kind === "experience");
+    expect(experience).toHaveLength(2);
+    expect(experience[0].lines).toContain("- **主导**客服工作台从 0 到 1");
+    expect(experience[1].title).toContain("美团");
+  });
+
+  it("整行加粗的项目名仍是合法开场（不能被标签规则误伤）", () => {
+    const text = ["项目经历", "**库存优化平台**", "**推荐召回系统**"].join("\n");
+    expect(splitResumeBlocks(text).filter((b) => b.kind === "project")).toHaveLength(2);
+  });
+
+  it("「2022.07 - 至今」的条目卡片标题不残留「- 至今」尾巴", () => {
+    const text = [
+      "工作经历",
+      "**星启科技 AI 产品经理** 2022.07 - 至今",
+      "- 负责智能客服工作台",
+      "**云帆网络 产品经理** 2020.09 - 2022.06",
+      "- 负责增长活动平台",
+    ].join("\n");
+    const experience = splitResumeBlocks(text).filter((b) => b.kind === "experience");
+    expect(experience).toHaveLength(2);
+    expect(experience[0].title).toBe("星启科技 AI 产品经理");
+    expect(experience[1].title).toBe("云帆网络 产品经理");
+  });
+});
+
 describe("applyReorderToOpportunity", () => {
   const base = {
     id: "o-1",

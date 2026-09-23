@@ -26,6 +26,20 @@ function parseJson(text: string) {
   return JSON.parse(match[0]);
 }
 
+// 模型偶发把 after 生成成半截话（用户实测：「…周活约10，已上线腾」——词都断在
+// 中间，还把「周活」写成了「腾活」）。事实校验管不到文字完整性，这里补两道：
+// 能确定性判定的（悬挂标点、括号不配对）在解析层直接拒；断词/错字这类只有
+// 语义层能看出来的，交给独立质检员，error 级发现的建议不再下发。
+const DANGLING_TAIL = /[，、；：,;:（(\[【「『“—–-]$/;
+function detectBrokenTail(text: string): string | null {
+  if (DANGLING_TAIL.test(text)) return "结尾是悬挂标点，疑似半句截断";
+  const opens = (text.match(/[（(\[【「『]/g) || []).length;
+  const closes = (text.match(/[）)\]】」』]/g) || []).length;
+  if (opens > closes) return "括号未闭合";
+  if ((text.match(/[「『“]/g) || []).length > (text.match(/[」』”]/g) || []).length) return "引号未闭合";
+  return null;
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
@@ -111,6 +125,8 @@ export async function POST(request: Request) {
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const mappingIssues = before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : [];
       if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
+      const brokenTail = after ? detectBrokenTail(after) : null;
+      if (brokenTail) mappingIssues.push(`改写文本不完整：${brokenTail}`);
       if (!after || !before || !report.ok || mappingIssues.length) {
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];
@@ -132,20 +148,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，请补充更完整的经历；本次未扣额度" }, { status: 422 });
     }
     const reviewerOutput = await callLLM([
-      { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
-      { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n待审修改：\n${JSON.stringify(changes)}` },
+      { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值；5. after 文字完整通顺——句子没有在词中间被截断（如「已上线腾」）、没有与 before 对不上的可疑错字换字（如「周活」写成「腾活」）、括号引号成对。第 5 条任一成立即 severity=error，并在 message 里写明断在哪。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
+      { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes)}` },
     ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" });
     const reviewer = parseJson(reviewerOutput) as { status?: string; summary?: string; findings?: unknown[] };
     const reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
     const reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
-    const preview = applyResumeChanges(resumeText, changes);
+    // 质检 error 对应的建议直接不下发（用户实测残缺文本「已上线腾」就是从这漏出去的）：
+    // 与其让用户面对一条半截话的黄色高亮，不如宁缺毋滥。
+    const errorChangeIds = new Set(reviewerFindings
+      .filter((finding) => String((finding as Record<string, unknown>)?.severity) === "error")
+      .map((finding) => String((finding as Record<string, unknown>)?.changeId || "")));
+    const finalChanges = changes.filter((change) => !errorChangeIds.has(change.id));
+    if (!finalChanges.length) {
+      await finalizeQuota(reservation, false);
+      reservation = null;
+      return NextResponse.json({ ok: false, error: "改写未通过文字与事实质检，请重试或补充更完整的经历；本次未扣额度" }, { status: 422 });
+    }
+    const preview = applyResumeChanges(resumeText, finalChanges);
     const ats = reviewAtsText(preview.text, jobDescription);
     let applicationQuality;
     if (opportunityId) {
-      const claimLinks = changes.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
+      const claimLinks = finalChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
       const artifact = await createArtifactWithClaims({
         userId: user.id, opportunityId, artifactType: "target_resume", title: "岗位简历候选版本",
-        content: { baseResumeText: resumeText, jobDescription, changes, previewText: preview.text },
+        content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text },
         status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
         createdBy: "hosted_ai", claimLinks,
       });
@@ -167,8 +194,8 @@ export async function POST(request: Request) {
     reservation = null;
     return NextResponse.json({
       ok: true,
-      changes,
-      rejectedCount: rejected.length,
+      changes: finalChanges,
+      rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       applicationQuality,
       contextFingerprint: context.fingerprint,

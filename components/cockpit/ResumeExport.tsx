@@ -1,6 +1,7 @@
 "use client";
 import {useState} from "react";
 import {printTemplates,renderResumePrintWindow,type PrintTemplate} from "@/lib/resume-print";
+import {useResumeTemplate} from "@/lib/resume-template-preference";
 import styles from "./CockpitApp.module.css";
 
 // Visual mini-previews instead of a native <select> label list (per design ask).
@@ -12,7 +13,7 @@ const TEMPLATE_PREVIEWS: Record<PrintTemplate, {label:string; accent:string; ser
 };
 
 export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string}){
- const [template,setTemplate]=useState<PrintTemplate>("classic"),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [template,setTemplate]=useResumeTemplate(),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  async function open(){
   if(disabledReason)return;
   // Open during the click, before fetching, so browsers don't block the result.

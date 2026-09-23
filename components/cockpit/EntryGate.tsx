@@ -80,12 +80,18 @@ const ENTRY_SUBTITLE: Record<GoalType, string> = {
   negotiating: "录入条款、写下取舍、生成沟通草稿",
 };
 
-export function EntryGate({ onOpenInterview, onClose }: { onOpenInterview?: () => void; onClose?: () => void }) {
+export function EntryGate({ onOpenInterview, onClose, initialView, initialOpportunityId }: {
+  onOpenInterview?: () => void;
+  onClose?: () => void;
+  // 「管理 Offer 条款」等场景直接落在对应视图，不再让用户重走选目标向导
+  initialView?: "entries" | "offers";
+  initialOpportunityId?: string;
+}) {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<EntriesResponse["entries"]>([]);
   const [plan, setPlan] = useState<CoachPlan | null>(null);
   const [history, setHistory] = useState<PlanHistoryItem[]>([]);
-  const [view, setView] = useState<"entries" | "plan" | "lesson" | "offers" | "compare">("entries");
+  const [view, setView] = useState<"entries" | "plan" | "lesson" | "offers" | "compare">(initialView ?? "entries");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -106,7 +112,7 @@ export function EntryGate({ onOpenInterview, onClose }: { onOpenInterview?: () =
         setHistory(body.history ?? []);
         if (!keepView) {
           setPlan(body.activePlan);
-          setView(body.activePlan ? "plan" : "entries");
+          setView(initialView ?? (body.activePlan ? "plan" : "entries"));
         }
       } else setMessage("计划读取失败，请稍后重新打开。");
     } catch {
@@ -114,7 +120,7 @@ export function EntryGate({ onOpenInterview, onClose }: { onOpenInterview?: () =
     } finally {
       if (!keepView) setLoading(false);
     }
-  }, []);
+  }, [initialView]);
 
   useEffect(() => { void loadEntries(); }, [loadEntries]);
 
@@ -231,7 +237,7 @@ export function EntryGate({ onOpenInterview, onClose }: { onOpenInterview?: () =
       })()}
 
       {view === "lesson" && <FirstLesson key={plan?.id ?? "independent"} planId={plan?.id ?? null} onSaved={() => void loadEntries({ keepView: true })} />}
-      {view === "offers" && <OfferFlow onSaved={() => void loadEntries({ keepView: true })} />}
+      {view === "offers" && <OfferFlow initialOpportunityId={initialOpportunityId} onSaved={() => void loadEntries({ keepView: true })} />}
       {view === "compare" && <CompareFlow />}
 
       {view !== "entries" && (
@@ -395,9 +401,9 @@ function FirstLesson({ planId, onSaved }: { planId: string | null; onSaved: () =
 
 // ---------- offer 条款 + 草稿（谈薪） ----------
 
-function OfferFlow({ onSaved }: { onSaved: () => void }) {
+function OfferFlow({ onSaved, initialOpportunityId }: { onSaved: () => void; initialOpportunityId?: string }) {
   const [opps, setOpps] = useState<OpportunityLite[]>([]);
-  const [opportunityId, setOpportunityId] = useState("");
+  const [opportunityId, setOpportunityId] = useState(initialOpportunityId ?? "");
   const [newCompany, setNewCompany] = useState("");
   const [newRole, setNewRole] = useState("");
   const [terms, setTerms] = useState({ currency: "CNY", base: "", bonus: "", equity: "", deadline: "", probation: "" });
@@ -414,6 +420,30 @@ function OfferFlow({ onSaved }: { onSaved: () => void }) {
       if (body.ok) setOpps(body.opportunities ?? []);
     })();
   }, []);
+
+  // 从岗位工作台「管理 Offer 条款」进来时回填已存条款——管理不是重新录入。
+  useEffect(() => {
+    if (!initialOpportunityId) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/coach/offers?opportunity_id=${encodeURIComponent(initialOpportunityId)}`);
+        const body = await res.json();
+        const offer = body.ok && Array.isArray(body.offers) && body.offers.length ? body.offers[0] : null;
+        if (!offer) return;
+        setOfferId(offer.id);
+        const t = offer.terms ?? {};
+        setTerms({
+          currency: t.currency || "CNY",
+          base: t.base != null ? String(t.base) : "",
+          bonus: t.bonus != null ? String(t.bonus) : "",
+          equity: t.equity || "",
+          deadline: t.deadline || "",
+          probation: t.probation || "",
+        });
+        if (Array.isArray(offer.priorities)) setPriorities(offer.priorities.join("、"));
+      } catch { /* 回填失败不阻断：仍可手动录入 */ }
+    })();
+  }, [initialOpportunityId]);
 
   const saveTerms = async () => {
     setBusy(true);

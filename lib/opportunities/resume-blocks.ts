@@ -72,8 +72,23 @@ function isDateOnly(line: string): boolean {
 // Strong openers: a bold-leading line or a date-leading line. Used to split
 // adjacent entries that have no blank line between them (common in LLM
 // markdown resumes). A description line merely containing a year is neither.
+// Two bold-looking shapes are entry *body*, not openers, and must never split
+// the current card — otherwise the previous project's trailing lines land in
+// the next block:
+//   • any bullet line ("- **核心成果**：QPS 提升 40%") — bullets are body;
+//     separate entries without blank lines appear as bare bold/date lines.
+//   • a bare bold label line ("**核心职责**" / "**项目简介：**") — an in-entry
+//     sub-heading, not a company or project name.
+const BOLD_BODY_LABEL = /^\s*(?:核心|主要)?(职责|工作内容|工作描述|工作成果|项目简介|项目介绍|项目描述|项目背景|项目成果|成果|业绩|亮点|技术栈|解决方案)\s*[:：]?\s*$/;
+
 function isStrongEntryOpener(line: string): boolean {
-  return /^\s*(?:[-*•·]\s*)?\*\*\S/.test(line) || /^\s*\d{4}/.test(line);
+  // Bullet marker must be followed by whitespace (or line end) — the first
+  // "*" of a bare "**公司名**" opener is not a bullet.
+  if (/^\s*(?:[-*•·]\s|[-*•·]$)/.test(line)) return false;
+  const bareBold = /^\s*\*\*([^*]+)\*\*\s*[:：]?\s*$/.exec(line);
+  if (bareBold && BOLD_BODY_LABEL.test(bareBold[1].trim())) return false;
+  if (/^\s*\*\*[^*]+\*\*\s*[:：]\s*\S/.test(line)) return false; // "**标签**：正文" 行内标签
+  return /^\s*\*\*\S/.test(line) || /^\s*\d{4}/.test(line);
 }
 
 // Card name for an entry: the first line with date ranges and separator crumbs
@@ -81,6 +96,7 @@ function isStrongEntryOpener(line: string): boolean {
 function entryTitle(line: string): string {
   const clean = stripResumeMarkdown(line);
   const t = clean
+    .replace(/\d{4}\s*[.\-/年]\s*\d{1,2}\s*[月日]?\s*[-–—~～至]?\s*(?:至今|现在|present)/gi, "")
     .replace(/\d{4}\s*[.\-/年]\s*\d{1,2}\s*[月日]?/g, "")
     .replace(/[（(]\s*[)）]/g, "")
     .replace(/^[\s:：|·、\-–—~～]+/, "")

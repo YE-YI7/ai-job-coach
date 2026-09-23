@@ -64,6 +64,7 @@ import type {
 } from "./interview-assessment-logic";
 import { detectLowInfoAnswer } from "@/lib/interview/low-info-detector";
 import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
+import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
 import { applyReorderToOpportunity } from "@/lib/opportunities/resume-blocks";
 import { commitStage, mergeStageResult } from "@/lib/opportunities/stage-save";
@@ -150,6 +151,7 @@ export function CockpitApp({
   const [activeTab, setActiveTab] = useState<CockpitTab>(initialTab || (initialOpportunities[0] ? currentJourneyStage(initialOpportunities[0]) : "overview"));
   const [, setSurface] = useState<"today" | "opportunity">(initialTab ? "opportunity" : "today");
   const [coachingStart,setCoachingStart]=useState<CoachingStart|null>(null);
+  const gapCoachingFired = useRef<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
@@ -170,6 +172,8 @@ export function CockpitApp({
   const localStorageHealthy = useRef(true);
   // 四类入口（PRD §3.1）：null=未知，首访无 active 计划时自动弹出
   const [entryGateOpen, setEntryGateOpen] = useState<boolean | null>(null);
+  // 「管理 Offer 条款」要直接落到条款表单，不是重新走一遍选目标向导；view 留空 = 走默认（有计划看计划）
+  const [entryGateInitial, setEntryGateInitial] = useState<{ view?: "entries" | "offers"; opportunityId?: string }>({});
   const viewTracked = useRef(false);
 
   useEffect(() => {
@@ -498,6 +502,7 @@ export function CockpitApp({
       announce(result.analysis
         ? `已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`
         : `已收到${supplement.kind === "job" ? "岗位 JD" : supplement.kind === "resume" ? "简历" : "经历"}，材料已保存，AI 判断稍后自动补上`);
+      raiseGapCoaching(updated);
     } catch (error) {
       if (dataMode === "live") trackProductEvent("opportunity_material_failed", { opportunity_id: active.id, material_kind: supplement.kind });
       throw error;
@@ -581,6 +586,19 @@ export function CockpitApp({
     }
   };
 
+  // 不是改简历措辞或练回答能补的差距（缺真实经历/证据待核实）→ 让右栏导师主动提问。
+  // 导师对话只在云端工作区可用；示例与本地岗位不触发，避免点了没人回应的假任务。
+  const raiseGapCoaching = (item: Opportunity) => {
+    if (dataMode !== "live" || localIds.includes(item.id)) return;
+    const gap = uncoverableGap(item.requirements);
+    if (!gap) return;
+    const key = `${item.id}:${gap.id}`;
+    if (gapCoachingFired.current.has(key)) return;
+    gapCoachingFired.current.add(key);
+    setCoachingStart({ id: crypto.randomUUID(), opportunityId: item.id, title: "改简历补不了的差距", prompt: `我刚检查了这个岗位：硬要求「${gap.requirement}」${gap.strength === "unverified" ? "还没有可核实的证据" : "在简历里缺少对应经历"}，这不是改简历措辞或练回答能补上的。请先问我一个具体问题，帮我弄清我有没有没写进简历的相关经历，或有没有能短期补上这块证据的办法；不要替我编造经历。` });
+    setMobileRail("actions");
+  };
+
   const generateResumeDraft = async () => {
     if (!active?.resumeText || !active.jdText || generatingResume) {
       announce("请先补充简历和 JD");
@@ -605,6 +623,7 @@ export function CockpitApp({
       if (dataMode === "live") trackProductEvent("resume_generation_completed", { opportunity_id: active.id, change_count: result.changes.length });
       logAction(`生成了 ${result.changes.length} 处岗位简历建议，等待逐条确认`);
       announce(`${result.changes.length} 处建议已生成并完成事实校验${typeof result.quota?.remaining === "number" ? ` · 剩余 ${result.quota.remaining} 次` : ""}`);
+      raiseGapCoaching(active);
     } catch (error) {
       if (dataMode === "live") trackProductEvent("resume_generation_failed", { opportunity_id: active.id });
       announce(error instanceof Error ? error.message : "简历生成失败");
@@ -705,6 +724,7 @@ export function CockpitApp({
       } : item));
       if (dataMode === "live") trackProductEvent("interview_review_completed", { opportunity_id: active.id, round, grade: report.grade });
       announce(`${round}复盘完成${response.headers.get("x-yi-zhi-quota-remaining") ? ` · 剩余 ${response.headers.get("x-yi-zhi-quota-remaining")} 次` : ""}`);
+      raiseGapCoaching(active);
     } catch (error) {
       if (dataMode === "live") trackProductEvent("interview_review_failed", { opportunity_id: active.id, round });
       announce(error instanceof Error ? error.message : "复盘失败");
@@ -767,10 +787,10 @@ export function CockpitApp({
         question,
         answer,
         verdict: "证据不足",
-        summary: "回答提到了方法，但还没有说清你的个人动作和验证结果。",
-        strengths: ["方向与问题相关"],
+        summary: "示例反馈（演示数据，非真实模型输出）：回答提到了方法，但还没有说清你的个人动作和验证结果。",
+        strengths: ["示例数据 · 方向与问题相关"],
         gaps: ["缺少个人负责的动作", "缺少可核实的结果"],
-        followUp: "你具体定义了哪个指标，最后看到什么变化？",
+        followUp: "示例追问：你具体定义了哪个指标，最后看到什么变化？",
         improvedOutline: ["先给结论", "说明你负责的动作", "补充验证方法", "给出真实结果或明确待核实"],
         createdAt: new Date().toISOString(),
       };
@@ -842,6 +862,8 @@ export function CockpitApp({
       <div style={{ width: "min(680px, 100%)", maxHeight: "90vh", overflow: "auto", borderRadius: 14 }}>
         <EntryGate
           onClose={() => setEntryGateOpen(false)}
+          initialView={entryGateInitial.view}
+          initialOpportunityId={entryGateInitial.opportunityId}
           onOpenInterview={() => {
             setEntryGateOpen(false);
             if (active) { setSurface("opportunity"); setActiveTab("interview"); }
@@ -866,7 +888,7 @@ export function CockpitApp({
           {dataMode !== "demo" && (
             <button
               type="button"
-              onClick={() => setEntryGateOpen(true)}
+              onClick={() => { setEntryGateInitial({}); setEntryGateOpen(true); }}
               title="查看当前计划 / 切换目标"
               style={{ border: "0", background: "transparent", color: "inherit", fontSize: 12, cursor: "pointer", padding: "4px 6px", borderRadius: 8 }}
             >
@@ -921,7 +943,7 @@ export function CockpitApp({
               <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={setActiveId} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onAnalyze={analyzeInterviewAnswer} onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
             </div>}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} onGuide={guideReview} analyzing={reviewingInterview} />}
-            {activeTab === "salary" && <>{active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}<section><h2>谈薪与 Offer</h2><p>先核对薪酬结构、截止时间与自己的取舍。不要求重新做简历或课程。</p><button className={styles.primaryButton} onClick={()=>setEntryGateOpen(true)}>管理 Offer 条款</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>请导师帮我准备沟通</button></section></>}
+            {activeTab === "salary" && <>{active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}<section><h2>谈薪与 Offer</h2><p>先核对薪酬结构、截止时间与自己的取舍。不要求重新做简历或课程。</p><button className={styles.primaryButton} onClick={()=>{setEntryGateInitial({view:"offers",opportunityId:active.id});setEntryGateOpen(true);}}>管理 Offer 条款</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>请导师帮我准备沟通</button></section></>}
           </div></>}
         </section>
 
@@ -1443,6 +1465,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 }) {
   const quotaLabel = useQuotaLabel("interview");
   const [practicing, setPracticing] = useState(false);
+  // 重点题逐题呈现（一次只给一题），不再整页罗列
+  const [focusIndex, setFocusIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [practiceError, setPracticeError] = useState("");
   const [practiceFeedback, setPracticeFeedback] = useState<InterviewPracticeFeedback | null>(opportunity.interviewPractices?.[0] || null);
@@ -1497,6 +1521,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     setRoundtableError("");
     setSelfReflection(null);
     setReflectionAnswers(ROUND_REFLECTION_QUESTIONS.map(() => ""));
+    setFocusIndex(0);
     // Switching jobs resets the local composer; updates within the same job are
     // already applied locally before the opportunity snapshot is synchronized.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1759,12 +1784,21 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             {lastFeedback.followUp && <footer><b>先回答这一个</b><p>{lastFeedback.followUp}</p></footer>}
           </section>}
           {isAssessed && lastFeedback && <section className={styles.assessmentCard}>
-            <header><span>本题反馈</span><strong>{lastFeedback.score}</strong>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}</header>
-            <p>{lastFeedback.summary}</p>
-            {lastFeedback.evidence.length > 0 && <div className={styles.assessmentBlock}><b>回答里的证据</b><ul>{lastFeedback.evidence.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-            {lastFeedback.missingEvidence.length > 0 && <div className={styles.assessmentBlock}><b>缺口与冲突</b><ul>{lastFeedback.missingEvidence.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-            {lastFeedback.rewritePlan.length > 0 && <div className={styles.assessmentBlock}><b>重答提纲</b><ol>{lastFeedback.rewritePlan.map((item) => <li key={item}>{item}</li>)}</ol></div>}
-            {lastFeedback.dimensions.length > 0 && <div className={styles.assessmentDimensions}>{lastFeedback.dimensions.map((dimension) => <article key={dimension.name}><b>{dimension.name}{typeof dimension.score === "number" ? ` · ${dimension.score}` : ""}</b><span>{dimension.comment}</span></article>)}</div>}
+            <header><span>本题反馈</span>{lastFeedback.source === "demo" && <em className={styles.demoBadge}>示例</em>}<strong>{lastFeedback.score}<small>分</small></strong></header>
+            <p className={styles.assessmentSummary}>{lastFeedback.summary}</p>
+            {lastFeedback.dimensions.length > 0 && <div className={styles.dimensionBars}>{lastFeedback.dimensions.map((dimension) => {
+              const pct = typeof dimension.score === "number" ? Math.max(0, Math.min(100, dimension.score)) : null;
+              return <div key={dimension.name} className={styles.dimensionRow} title={dimension.comment}>
+                <span>{dimension.name}</span>
+                <i className={styles.dimensionTrack}><b style={{ width: pct === null ? "0%" : `${pct}%` }} data-tone={pct === null ? "na" : pct >= 70 ? "good" : pct >= 45 ? "mid" : "low"} /></i>
+                <em>{pct === null ? "未评分" : pct}</em>
+              </div>;
+            })}</div>}
+            {(lastFeedback.evidence.length > 0 || lastFeedback.missingEvidence.length > 0) && <div className={styles.assessmentSplit}>
+              {lastFeedback.evidence.length > 0 && <section><b>站得住的证据</b><ul className={styles.dotListGood}>{lastFeedback.evidence.map((item) => <li key={item}>{item}</li>)}</ul></section>}
+              {lastFeedback.missingEvidence.length > 0 && <section><b>缺口与冲突</b><ul className={styles.dotListWarn}>{lastFeedback.missingEvidence.map((item) => <li key={item}>{item}</li>)}</ul></section>}
+            </div>}
+            {lastFeedback.rewritePlan.length > 0 && <div className={styles.rewriteSteps}><b>重答走这条线</b><ol>{lastFeedback.rewritePlan.map((item, index) => <li key={item}><i>{index + 1}</i>{item}</li>)}</ol></div>}
             {lastFeedback.followUp && <footer><b>面试官会继续问</b><p>{lastFeedback.followUp}</p></footer>}
           </section>}
           <div className={styles.roundtableActions}>
@@ -1793,12 +1827,26 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         loading={supplementing}
         onSubmit={onSupplement}
       />)}
-      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}><span>单题速练 · 不生成新题，只对你选的这题给反馈（会消耗一次额度）；回答会保存到当前岗位</span>{opportunity.interviewFocus.length > 1 && <div className={styles.practiceQuestionPicker} role="group" aria-label="选择要练的重点题">{opportunity.interviewFocus.slice(0, 6).map((focus, index) => <button key={focus.id} type="button" title={focus.question} aria-pressed={focus.id === currentQuestion.id} onClick={() => { if (focus.id !== currentQuestion.id) { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); } }}>第{index + 1}题</button>)}</div>}<h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && feedbackFor === currentQuestion.question && <article className={styles.practiceResult}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? practiceFeedback.strengths.map((item) => <p key={item}>{item}</p>) : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b>{practiceFeedback.gaps.map((item) => <p key={item}>{item}</p>)}</section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); setFeedbackFor(currentQuestion.question); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师分析中…" : "保存并分析回答"}</button></div></section>}
+      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}><span>单题速练 · 不生成新题，只对你选的这题给反馈（{exampleRecords ? "示例工作区给出的是演示反馈，不消耗额度" : "会消耗一次额度"}）；回答会保存到当前岗位</span>{opportunity.interviewFocus.length > 1 && <div className={styles.practiceQuestionPicker} role="group" aria-label="选择要练的重点题">{opportunity.interviewFocus.slice(0, 6).map((focus, index) => <button key={focus.id} type="button" title={focus.question} aria-pressed={focus.id === currentQuestion.id} onClick={() => { if (focus.id !== currentQuestion.id) { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); } }}>第{index + 1}题</button>)}</div>}<h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && feedbackFor === currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? <ul className={styles.dotListGood}>{practiceFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map((item) => <li key={item}>{item}</li>)}</ul></section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); setFeedbackFor(currentQuestion.question); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师分析中…" : "保存并分析回答"}</button></div></section>}
       {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
-      <details><summary>查看岗位重点题（{opportunity.interviewFocus.length}）</summary><div className={styles.focusList}>{opportunity.interviewFocus.length ? opportunity.interviewFocus.map((focus) => (
-        <article key={focus.id} className={styles.focusItem}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><span>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</span></article>
-      )) : <EmptySection label="岗位重点题尚未生成，可以先练基础项目介绍。" />}</div></details>
+      {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper}><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>
+        {(() => {
+          const safeIndex = Math.min(focusIndex, opportunity.interviewFocus.length - 1);
+          const focus = opportunity.interviewFocus[safeIndex];
+          return <div className={styles.focusOne}>
+            <div className={styles.focusDots} aria-label={`第 ${safeIndex + 1} 题，共 ${opportunity.interviewFocus.length} 题`}>
+              {opportunity.interviewFocus.map((item, index) => <i key={item.id} data-state={index < safeIndex ? "done" : index === safeIndex ? "current" : "waiting"} />)}
+            </div>
+            <article><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><em>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</em></article>
+            <div className={styles.focusStepperActions}>
+              <button type="button" className={styles.secondaryButton} disabled={safeIndex === 0} onClick={() => setFocusIndex(safeIndex - 1)}>上一题</button>
+              <button type="button" className={styles.secondaryButton} onClick={() => { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); setPracticing(true); }}><MessageSquareText size={15} />练这一题</button>
+              {safeIndex < opportunity.interviewFocus.length - 1 && <button type="button" className={styles.primaryButton} onClick={() => setFocusIndex(safeIndex + 1)}>下一题<ArrowRight size={15} /></button>}
+            </div>
+          </div>;
+        })()}
+      </details> : <details><summary>查看岗位重点题（0）</summary><div className={styles.focusList}><EmptySection label="岗位重点题尚未生成，可以先练基础项目介绍。" /></div></details>}
       {(opportunity.mockInterviews || []).length > 0 && <section className={styles.mockHistory}><header><h3>模拟记录{exampleRecords ? <span style={{marginLeft:6,fontSize:12,color:"#9a6b1f"}}>· 示例数据</span> : null}</h3><span>{opportunity.mockInterviews?.length} 轮</span></header>{opportunity.mockInterviews?.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => { setRoundtable(toSessionView(session)); setRoundOrdinalLabel(normalizeRoundLabel(session.round) || session.round || roundOrdinalLabel); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}><span><strong>{session.round}</strong><small>{new Date(session.createdAt).toLocaleDateString("zh-CN")} · {session.turns.filter((turn) => turn.answer).length}/{session.turns.length} 题{exampleRecords ? " · 示例" : ""}</small></span><em>{session.status === "completed" ? "已完成" : "继续练习"}</em></button>)}</section>}
     </section>
   );
@@ -1811,7 +1859,7 @@ function RoundSummary({ summary, turns, selfReflection }: { summary: InterviewRo
   return (
     <article className={styles.roundSummary}>
       <header>
-        <div><span className={styles.eyebrow}>整轮总结</span><strong>{summary.grade} · {summary.overallScore}</strong></div>
+        <div><span className={styles.eyebrow}>整轮总结</span><strong className={styles.roundGrade}><i>{summary.grade}</i>{summary.overallScore}<small>/100</small></strong></div>
         {summary.verdict && <p>{summary.verdict}</p>}
       </header>
       {reflectionEntries.length > 0 && <section className={styles.summarySection}>
@@ -1820,27 +1868,27 @@ function RoundSummary({ summary, turns, selfReflection }: { summary: InterviewRo
       </section>}
       {summary.dimensions.length > 0 && <section className={styles.summarySection}>
         <h3>七维评价</h3>
-        <div className={styles.dimensionGrid}>{summary.dimensions.map((dimension) => (
-          <article key={dimension.name} className={styles.dimensionItem}>
-            <b>{dimension.name}</b>
-            <span className={styles.dimensionScore}>{dimension.score}</span>
+        <div className={styles.summaryDimensions}>{summary.dimensions.map((dimension) => {
+          const pct = Math.max(0, Math.min(100, dimension.score));
+          return <div key={dimension.name} className={styles.summaryDimRow}>
+            <div className={styles.summaryDimHead}><span>{dimension.name}</span><i className={styles.dimensionTrack}><b style={{ width: `${pct}%` }} data-tone={pct >= 70 ? "good" : pct >= 45 ? "mid" : "low"} /></i><em>{dimension.score}</em></div>
             <p>{dimension.comment}</p>
-          </article>
-        ))}</div>
+          </div>;
+        })}</div>
       </section>}
       {summary.questionBreakdown.length > 0 && <section className={styles.summarySection}>
         <h3>逐题决定性问题</h3>
         <ol className={styles.breakdownList}>{summary.questionBreakdown.map((entry, index) => (
           <li key={`${entry.questionId || index}-${index}`} className={styles.breakdownItem}>
-            <span>{entry.score === null ? "未评分" : entry.score}</span>
+            <span data-tone={entry.score === null ? "na" : entry.score >= 70 ? "good" : entry.score >= 45 ? "mid" : "low"}>{entry.score === null ? "未评分" : entry.score}</span>
             <div>{questionText(entry.questionId) && <b>{questionText(entry.questionId)}</b>}<p>{entry.decisiveFinding}</p></div>
           </li>
         ))}</ol>
       </section>}
       {(summary.strengths.length > 0 || summary.weaknesses.length > 0) && <section className={styles.summarySection}>
         <div className={styles.summaryColumns}>
-          {summary.strengths.length > 0 && <div><h3>保留</h3><ul>{summary.strengths.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-          {summary.weaknesses.length > 0 && <div><h3>先改</h3><ul>{summary.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          {summary.strengths.length > 0 && <div><h3>保留</h3><ul className={styles.dotListGood}>{summary.strengths.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+          {summary.weaknesses.length > 0 && <div><h3>先改</h3><ul className={styles.dotListWarn}>{summary.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul></div>}
         </div>
       </section>}
       {summary.nextActions.length > 0 && <section className={styles.summarySection}>
@@ -1885,10 +1933,10 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
             <p>{report.overallComment}</p>
             {guided ? <details><summary>查看已保存的面试素材</summary><pre>{report.sourceNotes}</pre></details> : <>
               <div className={styles.reviewColumns}>
-                <section><h3>保留的优势</h3>{report.strengths.length ? <ul>{report.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <span>本次没有识别到稳定优势</span>}</section>
-                <section><h3>下一轮先改</h3>{report.improvements.length ? <ul>{report.improvements.map((item) => <li key={item}>{item}</li>)}</ul> : <span>暂无明确改进项</span>}</section>
+                <section><h3>保留的优势</h3>{report.strengths.length ? <ul className={styles.dotListGood}>{report.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <span>本次没有识别到稳定优势</span>}</section>
+                <section><h3>下一轮先改</h3>{report.improvements.length ? <ul className={styles.dotListWarn}>{report.improvements.map((item) => <li key={item}>{item}</li>)}</ul> : <span>暂无明确改进项</span>}</section>
               </div>
-              {report.actions.length > 0 && <footer><h3>训练任务</h3><ol>{report.actions.map((item) => <li key={item}>{item}</li>)}</ol></footer>}
+              {report.actions.length > 0 && <footer className={styles.reviewSteps}><h3>训练任务</h3><ol>{report.actions.map((item, index) => <li key={item}><i>{index + 1}</i>{item}</li>)}</ol></footer>}
               <details><summary>查看原始面试记录</summary><pre>{report.sourceNotes}</pre></details>
             </>}
           </article>

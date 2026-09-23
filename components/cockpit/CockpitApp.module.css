@@ -212,6 +212,20 @@
 .focusItem { min-height: 79px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); }
 .readinessDot { width: 9px; height: 9px; border-radius: 50%; } .readiness_ready { background: var(--green); } .readiness_practice { background: #aa741e; } .readiness_missing { background: var(--accent); }
 .focusItem strong { font-size: 12px; } .focusItem p { margin: 6px 0 0; color: var(--muted); font-size: 10px; } .focusItem > span:last-child { color: var(--muted); font-size: 9px; }
+/* 重点题逐题呈现：一次一题 + 进度细线，不整页罗列 */
+.focusStepper { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--line); }
+.focusStepper > summary { color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 750; }
+.focusStepper[open] > summary { color: var(--ink); }
+.focusOne { padding-top: 12px; }
+.focusDots { display: flex; gap: 5px; margin-bottom: 12px; }
+.focusDots i { width: 18px; height: 3px; border-radius: 2px; background: var(--line-strong); }
+.focusDots i[data-state="done"] { background: var(--green); }
+.focusDots i[data-state="current"] { background: var(--accent); }
+.focusOne article { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 12px; }
+.focusOne strong { font-size: 13.5px; line-height: 1.6; }
+.focusOne p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.focusOne em { font-style: normal; color: var(--muted); font-size: 11px; white-space: nowrap; padding-top: 2px; }
+.focusStepperActions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .practicePanel { margin: 22px 0 30px; padding: 23px; border: 1px solid #e7cbbc; border-radius: 14px; background: #fff9f5; }
 .practicePanel > span { color: var(--accent-deep); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
 .practicePanel h3 { max-width: 700px; margin: 12px 0 7px; font-size: 18px; line-height: 1.5; }
@@ -221,7 +235,9 @@
 .practicePanel > div { margin-top: 11px; display: flex; justify-content: flex-end; gap: 8px; }
 .practiceResult { margin-top: 16px; padding: 17px 18px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
 .practiceResult header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.practiceResult header span { padding: 4px 8px; border-radius: 999px; background: var(--blue-soft); color: #4057b7; font-size: 9px; font-weight: 800; }
+.practiceResult header span { padding: 4px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 9px; font-weight: 800; }
+.practiceResult[data-verdict="证据不足"] header span { background: #fff4e0; color: #8a5a00; }
+.practiceResult[data-verdict="表达失焦"] header span { background: var(--accent-soft); color: var(--accent-deep); }
 .practiceResult time { color: var(--muted); font-size: 9px; }
 .practiceResult > strong { display: block; margin-top: 12px; font-size: 12px; line-height: 1.65; }
 .practiceResult > div { margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
@@ -285,15 +301,39 @@
 /* 单题反馈：assessed */
 .assessmentCard { margin-top: 22px; padding: 19px 20px; border: 1px solid #dfe4fb; border-radius: 12px; background: #fafbff; }
 .assessmentCard > header { display: flex; align-items: center; gap: 10px; color: #4057b7; font-size: 9px; font-weight: 800; letter-spacing: .06em; }
-.assessmentCard > header strong { margin-left: auto; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 26px; line-height: 1; }
-.assessmentCard > p { margin: 9px 0 0; font-size: 12px; line-height: 1.75; }
+.assessmentCard > header strong { margin-left: auto; font-family: "Outfit", "Songti SC", "Noto Serif SC", serif; font-size: 30px; line-height: 1; color: var(--ink); }
+.assessmentCard > header strong small { font-size: 11px; font-weight: 700; color: var(--muted); margin-left: 2px; }
+.assessmentCard > p, .assessmentSummary { margin: 9px 0 0; font-size: 13px; line-height: 1.75; font-weight: 600; }
+/* 维度分：8px 细线圆角条，颜色只给数据（T-07/T-16） */
+.dimensionBars { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dfe4fb; display: grid; gap: 9px; }
+.dimensionRow { display: grid; grid-template-columns: 88px 1fr 34px; align-items: center; gap: 10px; }
+.dimensionRow span { font-size: 11px; color: var(--muted); }
+.dimensionRow em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--ink); text-align: right; }
+.dimensionTrack { display: block; height: 8px; border-radius: 4px; background: rgba(127,127,127,.16); overflow: hidden; }
+.dimensionTrack b { display: block; height: 100%; border-radius: 4px; background: var(--muted); }
+.dimensionTrack b[data-tone="good"] { background: var(--green); }
+.dimensionTrack b[data-tone="mid"] { background: #aa741e; }
+.dimensionTrack b[data-tone="low"] { background: var(--accent); }
+/* 证据 | 缺口 并排：读一边时想看另一边（T-18） */
+.assessmentSplit { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dfe4fb; display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+.assessmentSplit section b { display: block; margin-bottom: 7px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.assessmentSplit section p, .assessmentSplit section li { color: var(--ink); font-size: 11.5px; line-height: 1.7; }
+.dotListGood, .dotListWarn { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dotListGood li, .dotListWarn li { position: relative; padding-left: 14px; color: var(--ink); font-size: 11.5px; line-height: 1.7; }
+.dotListGood li::before, .dotListWarn li::before { content: ""; position: absolute; left: 0; top: .58em; width: 6px; height: 6px; border-radius: 50%; }
+.dotListGood li::before { background: var(--green); }
+.dotListWarn li::before { background: #aa741e; }
+/* 重答提纲：一条横向步骤线（流程图语言，不是列表堆料） */
+.rewriteSteps { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dfe4fb; }
+.rewriteSteps b { display: block; margin-bottom: 9px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.rewriteSteps ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.rewriteSteps li { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.6; color: var(--ink); }
+.rewriteSteps li i { font-style: normal; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9px; font-weight: 700; flex: 0 0 auto; }
+.rewriteSteps li + li::before { content: "→"; color: var(--line-strong); margin: 0 6px 0 2px; }
 .assessmentBlock { margin-top: 15px; padding-top: 12px; border-top: 1px solid #dfe4fb; }
 .assessmentBlock b { display: block; margin-bottom: 6px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; }
 .assessmentBlock ul, .assessmentBlock ol { margin: 0; padding-left: 17px; }
 .assessmentBlock li { color: var(--ink); font-size: 11px; line-height: 1.75; }
-.assessmentDimensions { margin-top: 15px; padding-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 13px; border-top: 1px solid #dfe4fb; }
-.assessmentDimensions b { display: block; margin-bottom: 4px; font-size: 10px; }
-.assessmentDimensions span { color: var(--muted); font-size: 10px; line-height: 1.6; }
 .assessmentCard > footer, .assessmentBlocked > footer { margin-top: 15px; padding: 12px 13px; border-radius: 9px; background: var(--paper); }
 .assessmentCard > footer b, .assessmentBlocked > footer b { display: block; margin-bottom: 5px; color: var(--muted); font-size: 9px; font-weight: 800; }
 .assessmentCard > footer p, .assessmentBlocked > footer p { margin: 0; font-size: 11px; line-height: 1.7; }
@@ -314,18 +354,28 @@
 
 /* 整轮总结 */
 .roundSummary { margin-top: 6px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
-.roundSummary > header strong { display: block; margin-top: 7px; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 30px; line-height: 1.1; }
+.roundSummary > header strong { display: block; margin-top: 7px; font-family: "Outfit", "Songti SC", serif; color: var(--accent-deep); font-size: 30px; line-height: 1.1; }
 .roundSummary > header p { max-width: 70ch; margin: 12px 0 0; font-size: 13px; line-height: 1.8; }
+/* 整轮分：等级小标签 + Outfit 大数字（T-01 数字走 Outfit） */
+.roundGrade { display: flex; align-items: baseline; gap: 10px; }
+.roundSummary > header strong.roundGrade { display: flex; }
+.roundGrade i { font-style: normal; padding: 3px 9px; border-radius: 6px; background: var(--ink); color: #fff; font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.roundGrade small { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 2px; }
 .summarySection { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 .summarySection > h3 { margin: 0 0 13px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.dimensionGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 13px; }
-.dimensionItem { padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); }
-.dimensionItem b { font-size: 11px; }
-.dimensionScore { float: right; color: var(--accent-deep); font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 17px; }
-.dimensionItem p { margin: 6px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+/* 七维：细线条形 + 灰字点评，不再一格一卡 */
+.summaryDimensions { display: grid; gap: 14px; }
+.summaryDimHead { display: grid; grid-template-columns: 88px 1fr 34px; align-items: center; gap: 10px; }
+.summaryDimHead span { font-size: 11.5px; color: var(--ink); font-weight: 650; }
+.summaryDimHead em { font-style: normal; font-family: "Outfit", sans-serif; font-size: 12px; font-weight: 700; text-align: right; }
+.summaryDimRow p { margin: 5px 0 0 98px; color: var(--muted); font-size: 10.5px; line-height: 1.65; }
 .breakdownList { margin: 0; padding-left: 20px; }
 .breakdownItem { padding: 9px 0; }
-.breakdownItem > span { float: left; margin-left: -20px; color: var(--accent-deep); font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: 15px; }
+.breakdownItem > span { float: left; margin-left: -20px; font-family: "Outfit", "Songti SC", serif; font-size: 14px; font-weight: 700; color: var(--accent); }
+.breakdownItem > span[data-tone="good"] { color: var(--green); }
+.breakdownItem > span[data-tone="mid"] { color: #aa741e; }
+.breakdownItem > span[data-tone="low"] { color: var(--accent); }
+.breakdownItem > span[data-tone="na"] { font-family: "Songti SC", serif; font-size: 10px; font-weight: 600; color: var(--muted); }
 .breakdownItem b { display: block; font-size: 11px; line-height: 1.6; }
 .breakdownItem p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
 .summaryColumns { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
@@ -356,14 +406,19 @@
 .reviewReport > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .reviewReport > header div { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 10px; }
 .reviewReport > header span { color: var(--ink); font-weight: 750; }
-.reviewReport > header strong { font-family: "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 28px; line-height: 1; }
+.reviewReport > header strong { font-family: "Outfit", "Songti SC", "Noto Serif SC", "STSong", serif; color: var(--accent-deep); font-size: 26px; line-height: 1; }
 .reviewReport > p { max-width: 72ch; margin: 18px 0 0; color: var(--ink); font-size: 13px; line-height: 1.8; }
 .reviewColumns { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 .reviewColumns section { padding-top: 15px; border-top: 1px solid var(--line); }
 .reviewReport h3 { margin: 0 0 9px; color: var(--muted); font-size: 10px; font-weight: 800; }
 .reviewReport ul, .reviewReport ol { margin: 0; padding-left: 18px; }
 .reviewReport li, .reviewColumns span { color: var(--ink); font-size: 11px; line-height: 1.75; }
-.reviewReport footer { margin-top: 22px; padding: 17px 19px; border-radius: 11px; background: var(--accent-soft); }
+.reviewReport footer { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.reviewSteps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.reviewSteps li { display: flex; align-items: flex-start; gap: 10px; }
+.reviewSteps li i { font-style: normal; display: inline-grid; place-items: center; width: 17px; height: 17px; margin-top: 2px; border-radius: 50%; background: var(--accent-deep); color: #fff; font-family: "Outfit", sans-serif; font-size: 10px; font-weight: 700; flex: 0 0 auto; }
+/* 圆点清单自带 14px 缩进，别再叠上列表 ul 的默认 padding（否则点离正文两格远） */
+.summaryColumns .dotListGood, .summaryColumns .dotListWarn, .reviewColumns .dotListGood, .reviewColumns .dotListWarn { padding-left: 0; }
 .reviewReport details { margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
 .reviewReport summary { color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 700; }
 .reviewReport details pre { max-height: 280px; margin: 13px 0 0; padding: 14px; overflow: auto; border-radius: 10px; background: var(--paper); color: var(--ink); font: 11px/1.7 "Noto Sans SC", "PingFang SC", sans-serif; white-space: pre-wrap; }
@@ -884,24 +939,37 @@
 .resumeGapNote strong{font-size:13px}
 .resumeGapNote em{font-style:normal;color:#8a5a3c;font-size:12px;line-height:1.6}
 .resumeGapNote>svg:last-child{margin-top:6px;align-self:flex-start;transform:rotate(-90deg)}
-.blockToolbar{margin:20px 0 10px;display:flex;align-items:center;color:var(--muted);font-size:11px}
+.blockToolbar{margin:20px 0 10px;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px}
 .blockToolbar>span{display:inline-flex;align-items:center;gap:3px}
+.sheetTemplates{margin-left:auto;display:inline-flex;align-items:center;gap:14px}
+.sheetTemplateBtn{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11.5px;cursor:pointer;padding:2px 0 3px;border-bottom:1.5px solid transparent}
+.sheetTemplateBtn:hover{color:var(--ink)}
+.sheetTemplateBtnActive{color:var(--ink);font-weight:700;border-bottom-color:var(--accent)}
 .inlineGlyph{display:inline-block;vertical-align:-2px;color:var(--line-strong)}
-.blockList{display:grid;gap:12px}
-.resumeBlock{border:1px solid var(--line);border-left-width:4px;border-radius:12px;background:#fff;overflow:hidden;transition:box-shadow .16s,border-color .16s}
-.resumeBlock:hover{box-shadow:0 4px 16px rgba(37,39,45,.06)}
-.blockHeader{border-left-color:#8a8f98;background:#fafafa}
-.blockSummary{border-left-color:#7c4dff;background:#f7f4ff}
-.blockEducation{border-left-color:#2f6fed;background:#f3f7ff}
-.blockExperience{border-left-color:#0f9d76;background:#f1faf6}
-.blockProject{border-left-color:#e9672d;background:#fff5ef}
-.blockSkill{border-left-color:#b8891b;background:#fdf8ec}
-.blockOther{border-left-color:#b0aca5;background:#faf9f7}
+/* One sheet, many hairline sections: the board must read as a complete
+   resume page (like a PDF), not as coloured cards floating on a web page. */
+.resumeSheet{background:#fff;border:1px solid var(--line-strong);border-radius:3px;box-shadow:0 1px 2px rgba(37,39,45,.05),0 22px 48px -26px rgba(37,39,45,.30);padding:42px 46px 50px;display:grid;gap:12px}
+.sheetSection{border:1px solid #e9e6e0;background:transparent;transition:border-color .16s,background .16s}
+.sheetSection:hover{border-color:var(--line-strong)}
+.sheetSection .blockHead{padding:9px 12px}
+.sheetSection .blockBody{padding:2px 14px 13px}
+.sheetSection .blockChanges{padding:4px 14px 13px}
+/* 6px kind dot — emphasis without pills (T-07); colour comes from the template accent */
+.blockKind::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;vertical-align:.5px;background:#b0aca5}
+/* the name line is the resume's name: bigger, upright, first thing on the page */
+.sheetSection[data-kind="header"] .blockBody>p:first-child{font-size:19px;font-weight:750;color:var(--ink);letter-spacing:.02em}
+/* templates mirror lib/resume-print.ts so the sheet shows exactly what exports */
+.sheetClassic{font-family:Georgia,'Songti SC','Noto Serif SC',serif;--sheet-accent:#242424}
+.sheetModern{--sheet-accent:#365571}
+.sheetWarm{--sheet-accent:#85502f;background:#fbf8f2}
+.sheetSection .blockKind{color:var(--muted)}
+.sheetSection .blockKind::before{background:var(--sheet-accent,#b0aca5)}
+.sheetSection[data-kind="header"] .blockBody>p:first-child{border-bottom:2px solid var(--sheet-accent,#b0aca5);display:inline-block;padding-bottom:2px}
 .blockDragging{opacity:.5;border-style:dashed}
 .blockHead{display:flex;align-items:center;gap:9px;padding:12px 14px;cursor:pointer;user-select:none}
 .blockGrip{flex:0 0 auto;color:var(--line-strong);cursor:grab}
 .blockGrip:active{cursor:grabbing}
-.blockKind{flex:0 0 auto;padding:3px 8px;border-radius:6px;background:rgba(37,39,45,.06);color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.02em}
+.blockKind{flex:0 0 auto;color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.02em}
 .blockTitle{flex:1;min-width:0;font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .blockBadge{flex:0 0 auto;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep);font-size:11.5px;font-weight:650}
 .blockChevron{flex:0 0 auto;color:var(--muted);transition:transform .16s}
@@ -925,6 +993,14 @@
 .blockChange>textarea:focus{border-color:var(--accent)}
 .blockChangeActions{margin-top:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
 .blockNoChange{margin:0;padding:12px 14px 14px;border-top:1px dashed var(--line);color:var(--muted);font-size:11.5px}
+
+/* 窄屏：纸面留白收窄，双栏退回单栏（T-18 的 @media 约定）。
+   必须放在 .resumeSheet/.assessmentSplit/.reviewColumns/.summaryDimRow 基础规则之后，同优先级后者覆盖前者。 */
+@media (max-width: 700px) {
+  .resumeSheet { padding: 22px 18px 28px; }
+  .assessmentSplit, .reviewColumns { grid-template-columns: 1fr; gap: 14px; }
+  .summaryDimRow p { margin-left: 0; }
+}
 
 /* ===== 简历版式可视化选择（ResumeExport） ===== */
 .templatePicker{display:flex;gap:10px;flex-wrap:wrap;width:100%}

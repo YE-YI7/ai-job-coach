@@ -1,8 +1,8 @@
 "use client";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
-import {CaretDown,Check,Gauge} from "@phosphor-icons/react";
+import {CaretDown,Check} from "@phosphor-icons/react";
 import type {ChatMode} from "@/lib/coach-harness/chat-options";
-import {TIER_LABEL,speedFraction,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
+import {TIER_LABEL,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import styles from "./ModelPicker.module.css";
 
 interface ModelOption {
@@ -92,7 +92,7 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
       {current.logo
         ? <span className={styles.markBox} aria-hidden="true"><img src={current.logo} alt="" className={styles.triggerLogo}/></span>
         : <span className={styles.triggerMark} style={{background:current.color}} aria-hidden="true">{current.monogram}</span>}
-      <span className={styles.triggerText}><span className={styles.triggerName}>{current.name}</span><span className={styles.triggerHint}>{current.speedIndex!==null?`速率 ≈${current.speedIndex.toFixed(1)} · ${TIER_LABEL[current.tier]}`:current.vendor}</span></span>
+      <span className={styles.triggerText}><span className={styles.triggerName}>{current.name}</span></span>
       <CaretDown size={14} className={styles.caret} aria-hidden="true"/>
     </button>
 
@@ -107,16 +107,15 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
                 ? <span className={`${styles.markBox} ${styles.cardMarkBox}`} aria-hidden="true"><img src={o.logo} alt="" className={styles.logo}/></span>
                 : <span className={styles.mark} style={{background:o.color}} aria-hidden="true">{o.monogram}</span>}
               <span className={styles.cardMain}>
-                <span className={styles.cardTop}><span className={styles.cardName}>{o.name}</span><span className={styles.tier} data-tier={o.tier}>{TIER_LABEL[o.tier]}</span></span>
-                {!o.available&&<span className={styles.note}>该模型当前不在网关可用列表中，或需先连接 TokenPay。</span>}
-                {o.speedIndex!==null&&<span className={styles.speed} aria-hidden="true"><Gauge size={12}/><span className={styles.speedBar}><span className={styles.speedFill} style={{width:`${speedFraction(o.speedIndex)*100}%`}}/></span><span className={styles.speedVal}>速率 ≈{o.speedIndex.toFixed(1)}</span></span>}
+                <span className={styles.cardName}>{o.name}</span>
               </span>
-              {selected&&<Check size={16} className={styles.check} aria-hidden="true"/>}
+              <span className={styles.rate}>{!o.available?"不可用":o.mode==="auto"?"按模型":o.mode==="fast"?"经济档":"价格待核实"}</span>
+              <span className={styles.check}>{selected&&<Check size={16} aria-hidden="true"/>}</span>
             </button>
           </li>;
         })}
       </ul>
-      <p className={styles.disclaimer}>名称、厂商标识与“速率/档位”均为参考估算，非官方扣费倍率；实际价格与用量请以 <a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenPay 实时价格（以账单为准）</a> 为准。</p>
+      <p className={styles.disclaimer}>扣费倍率尚未接通，暂不显示估算数字。<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">查看 TokenPay 价格</a></p>
     </div>}
   </div>;
 }

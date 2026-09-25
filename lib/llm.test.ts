@@ -2,6 +2,10 @@ import { buildChatCompletionRequest, tokenDanceRecoveryActionFromError } from ".
 
 describe("DeepSeek completion request", () => {
   const messages = [{ role: "user" as const, content: "return json" }];
+  test("GLM 5.3 uses supported low reasoning instead of the max default", () => {
+    expect(buildChatCompletionRequest(messages,"tokendance","glm-5.3")).toMatchObject({thinking:{type:"enabled"},reasoning_effort:"low"});
+    expect(buildChatCompletionRequest(messages,"openai","gpt-4").reasoning_effort).toBeUndefined();
+  });
 
   test("disables V4 thinking by default for bounded product responses", () => {
     expect(buildChatCompletionRequest(messages, "deepseek", "deepseek-v4-flash")).toMatchObject({

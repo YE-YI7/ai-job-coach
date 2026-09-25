@@ -55,6 +55,12 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
   // Kimi thinking models may require fixed sampling parameters; omit rather
   // than sending the application's generic temperature (TokenDance Kimi guide).
   if(provider==="tokendance"&&model.startsWith("kimi-"))delete request.temperature;
+  // GLM 5.3 is reasoning-only (default effort=max). Bounded tutoring needs
+  // lightweight reasoning, not an unsupported thinking=disabled request.
+  if (provider === "tokendance" && /^glm-5\.3(?:-|$)/i.test(model)) {
+    request.thinking = { type: "enabled" };
+    request.reasoning_effort = "low";
+  }
   return request;
 }
 
@@ -248,12 +254,19 @@ export async function callLLM(
           if (chunk.model) actualModel = chunk.model;
           if (chunk.usage) usage = chunk.usage;
           if (chunk.choices[0]?.finish_reason) finished = true;
-          const delta = chunk.choices[0]?.delta?.content;
+          const upstreamDelta = chunk.choices[0]?.delta as {content?: string | null; reasoning_content?: string; reasoning?: string} | undefined;
+          // Private reasoning proves the upstream is alive, but must never be
+          // forwarded to the user. The absolute request deadline still applies.
+          if (upstreamDelta?.reasoning_content || upstreamDelta?.reasoning) clearTimeout(firstTokenTimer);
+          const delta = upstreamDelta?.content;
           if (delta) { clearTimeout(firstTokenTimer); content += delta; options.onDelta(delta); }
         }
         if (controller.signal.aborted) throw new Error("Request timed out.");
         if (!finished || !content) throw new Error("模型输出中断，请重试");
         return { choices: [{ message: { content } }], usage, model: actualModel };
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error("LLM_REQUEST_TIMEOUT");
+        throw error;
       } finally { clearTimeout(timer); clearTimeout(firstTokenTimer); }
     }
     const completion = await client.chat.completions.create(

@@ -16,6 +16,7 @@ import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from 
 import {advanceStage,inferStageIntent} from "@/lib/coach-harness/stage-intent";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {hasReviewMaterial} from "@/lib/interview/review-evidence";
+import {chatFailureMessage} from "@/lib/coach-harness/chat-failure";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -145,7 +146,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
     { role:"system",content:actualSystem },
     { role:"user",content:actualPrompt }
-  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:45000,timeoutMs:45000,firstTokenTimeoutMs:mode==="auto"?8000:20000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在组织回答，已生成 ${generatedChars} 字符；核对后展示…`);}}:undefined}));
+  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:mode==="auto"?45000:60000,timeoutMs:mode==="auto"?45000:60000,firstTokenTimeoutMs:mode==="auto"?8000:35000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在组织回答，已生成 ${generatedChars} 字符；核对后展示…`);}}:undefined}));
   };
   let rawAnswer:string;
   try { rawAnswer=await generate(selection.model); }
@@ -200,7 +201,7 @@ export async function POST(req:Request) {
         // Completion is emitted only AFTER persistence and quota finalization.
         emit({type:"done",...result});
       } catch(error) {
-        emit({type:"done",ok:false,error:error instanceof Error&&/TokenPay/.test(error.message)?error.message:"本次回答未完成，请保留问题并重试"});
+        emit({type:"done",ok:false,error:chatFailureMessage(error)});
       } finally {if(!cancelled)controller.close();}
     },
     cancel(){cancelled=true;},

@@ -20,6 +20,27 @@ describe("upstream streaming",()=>{
   await expect(callLLM([{role:"user",content:"hi"}],{onDelta:()=>{},maxRetries:0,timeoutMs:100})).rejects.toThrow("中断");
   expect(create).toHaveBeenCalledTimes(1);
  });
+ test("private reasoning counts as activity without leaking to user deltas",async()=>{
+  const create=jest.fn().mockImplementation(async(_request,{signal})=>(async function*(){
+    yield {choices:[{delta:{reasoning_content:"private reasoning"}}]};
+    await new Promise(resolve=>setTimeout(resolve,30));
+    if(signal.aborted)throw new Error("aborted");
+    yield {choices:[{delta:{content:"你好"},finish_reason:"stop"}]};
+  })());
+  (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+  const onDelta=jest.fn();
+  expect(await callLLM([{role:"user",content:"hi"}],{onDelta,maxRetries:0,firstTokenTimeoutMs:10,timeoutMs:200})).toBe("你好");
+  expect(onDelta.mock.calls).toEqual([["你好"]]);
+ });
+ test("reasoning never removes the total request deadline",async()=>{
+  const create=jest.fn().mockImplementation(async(_request,{signal})=>(async function*(){
+    yield {choices:[{delta:{reasoning_content:"private"}}]};
+    await new Promise<void>(resolve=>signal.addEventListener("abort",()=>resolve(),{once:true}));
+    throw new Error("aborted");
+  })());
+  (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+  await expect(callLLM([{role:"user",content:"hi"}],{onDelta:()=>{},maxRetries:0,firstTokenTimeoutMs:5,timeoutMs:30})).rejects.toThrow("timed out");
+ });
  test("SDK ending normally on abort is still classified as timeout",async()=>{
   const create=jest.fn().mockImplementation(async(_request,{signal})=>(async function*(){
     await new Promise<void>(resolve=>signal.addEventListener("abort",()=>resolve(),{once:true}));

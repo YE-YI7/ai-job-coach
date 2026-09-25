@@ -62,7 +62,7 @@ export function classifyGenerationFailure(error: unknown) {
   const message = String(value?.message || "").toLowerCase();
   const code = String(value?.code || "").toLowerCase();
   const status = Number(value?.status || value?.statusCode || 0);
-  if (message.includes("timeout")) return "timeout";
+  if (/timeout|timed\s*out|aborted/.test(message)) return "timeout";
   if (status === 429 || code.includes("rate_limit")) return "rate_limit";
   if (status === 401 || code.includes("api_key") || message.includes("authentication")) return "authentication";
   if (status === 402 || code.includes("quota") || message.includes("balance")) return "provider_quota";

@@ -136,7 +136,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
                 <div className={styles.blockChanges}>
                   {changes.map((change) => (
                     <div key={change.id} className={styles.blockChange}>
-                      <div className={styles.blockChangeHead}><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span><em>{change.status === "accepted" ? "已采用" : change.status === "rejected" ? "保留原文" : "待确认"}</em></div>
+                      <div className={styles.blockChangeHead}><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span><em>{change.status === "accepted" ? "已选择此版本" : change.status === "rejected" ? "保留原文" : "待选择"}</em></div>
                       {editingId === change.id
                         ? <textarea aria-label={`修改 ${change.section}`} value={editValue} maxLength={2000} rows={4} autoFocus onChange={(e) => setEditValue(e.target.value)} />
                         : <p className={styles.blockChangeText}>{change.after}</p>}

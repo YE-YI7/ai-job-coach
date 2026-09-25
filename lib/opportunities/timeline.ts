@@ -91,15 +91,15 @@ export function resumeProgress(o:Opportunity):{steps:Array<{id:string;label:stri
  const steps=[
   {id:"confirm",label:"确认建议",state:(!total?"waiting":pending?"active":"done")as ResumeStepState},
   {id:"check",label:"检查版本",state:(checkedClean?"done":!total||pending?"waiting":"active")as ResumeStepState},
-  {id:"freeze",label:"冻结导出",state:(frozen?"done":checkedClean?"active":"waiting")as ResumeStepState},
+  {id:"freeze",label:"保存导出",state:(frozen?"done":checkedClean?"active":"waiting")as ResumeStepState},
  ];
  const action:ResumeProgressAction=!total?"generate":pending>0?"confirm":!checked?"check":!frozen?"freeze":"export";
  const hints:Record<ResumeProgressAction,string>={
   generate:"先生成一版岗位建议，再逐条决定。",
   confirm:`还有 ${pending} 处建议等你决定：采用、自己改或保留原文。`,
-  check:stale?"简历正文在冻结后又改过：旧投递版本已过期，先重新检查，再冻结新版本。":"逐条确认完成后，做一次事实与岗位检查。",
-  freeze:"检查通过。确认后冻结投递版本，避免误投旧版。",
-  export:"版本已冻结：导出后用真实 PDF 校验文字层，这步只能你来完成。",
+  check:stale?"旧投递版已过期：请检查新修改后重新保存，避免导出旧版本。":"版本已选好。下一步检查修改，不用再逐条点击。",
+  freeze:"检查通过。保存这一版后即可导出 PDF。",
+  export:"投递版已保存，可以导出 PDF；导出后也可上传检查文字是否完整。",
  };
  return {steps,action,hint:hints[action],frozenVersion:gate.frozen?.version??null,pending};
 }

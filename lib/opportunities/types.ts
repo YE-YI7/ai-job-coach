@@ -207,6 +207,7 @@ export interface Opportunity {
       reviewerType: "independent_ai" | "facts" | "ats" | "pdf";
       status: "passed" | "warning" | "failed" | "not_run";
       summary: string;
+      findings?: Array<{ message: string; changeId?: string; severity?: string }>;
     }>;
   };
   /** 冻结后又改动了正文（如拖拽改顺序）：旧投递产物不再等于当前简历，导出与进度都要如实标记过期。 */

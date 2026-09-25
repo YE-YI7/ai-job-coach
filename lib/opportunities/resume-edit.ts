@@ -11,6 +11,8 @@ export function applyUserResumeEdit(
 
   return {
     ...opportunity,
+    resumeCheckStale: true,
+    frozenStale: opportunity.frozenStale || Boolean(opportunity.snapshots?.some((snapshot) => snapshot.snapshotType === "submitted_resume")),
     resumeChanges: opportunity.resumeChanges.map((change) => change.id === changeId ? {
       ...change,
       after: nextText,

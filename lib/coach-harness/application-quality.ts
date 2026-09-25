@@ -4,18 +4,52 @@ export interface TextQualityFinding {
   code: "empty" | "too_short" | "missing_contact" | "low_keyword_coverage" | "replacement_missed" | "pdf_no_text" | "pdf_text_mismatch";
   severity: "error" | "warning";
   message: string;
+  changeId?: string;
+}
+
+// Keep original offsets: all edits are located against the immutable source,
+// never against text produced by a preceding suggestion.
+function normalizedOffsets(value: string) {
+  let text = "";
+  const offsets: number[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\s/u.test(value[index])) {
+      if (text.endsWith(" ") || !text) continue;
+      text += " ";
+    } else text += value[index];
+    offsets.push(index);
+  }
+  return { text: text.trimEnd(), offsets };
+}
+
+function uniqueRange(source: string, needle: string) {
+  const first = source.indexOf(needle);
+  if (!needle || first < 0) return null;
+  if (source.indexOf(needle, first + 1) >= 0) return null;
+  return { start: first, end: first + needle.length };
 }
 
 export function applyResumeChanges(source: string, changes: ResumeChange[]) {
-  let text = source;
   const findings: TextQualityFinding[] = [];
+  const edits: { start: number; end: number; after: string; change: ResumeChange }[] = [];
+  const normalized = normalizedOffsets(source);
   for (const change of changes.filter((item) => item.status !== "rejected")) {
-    if (!change.before || !text.includes(change.before)) {
-      findings.push({ code: "replacement_missed", severity: "error", message: `无法定位原文：${change.section}` });
+    let range = uniqueRange(source, change.before);
+    // An ambiguous exact anchor must never fall through to a looser match.
+    if (!source.includes(change.before) && change.before.trim().length >= 8) {
+      const match = uniqueRange(normalized.text, normalizedOffsets(change.before).text);
+      if (match) range = { start: normalized.offsets[match.start], end: normalized.offsets[match.end - 1] + 1 };
+    }
+    if (!range) {
+      findings.push({ code: "replacement_missed", severity: "error", changeId: change.id, message: `「${change.section}」原句已变化或有多处相同内容。请保留原文后重新生成建议，或核对这条修改。` });
       continue;
     }
-    text = text.replace(change.before, change.after);
+    edits.push({ ...range, after: change.after, change });
   }
+  const overlapping = new Set(edits.filter((edit) => edits.some((other) => other !== edit && edit.start < other.end && other.start < edit.end)));
+  for (const edit of overlapping) findings.push({ code: "replacement_missed", severity: "error", changeId: edit.change.id, message: `「${edit.change.section}」与另一条建议修改了同一段原文。请只选择其中一条，其余保留原文。` });
+  let text = source;
+  for (const edit of edits.filter((item) => !overlapping.has(item)).sort((a, b) => b.start - a.start)) text = text.slice(0, edit.start) + edit.after + text.slice(edit.end);
   return { text, findings };
 }
 

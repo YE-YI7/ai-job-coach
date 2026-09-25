@@ -256,10 +256,11 @@ export async function getContextBundleForUser(input: {
 }): Promise<ContextBundle> {
   const db = requireDb(await getDbClient());
   let opportunity: OpportunityContext | null = null;
+  let resumeAttachment: ContextAttachment | null = null;
 
   if (input.opportunityId) {
     const { data, error } = await db.from("coach_opportunities")
-      .select("id, company, role, stage, jd_text, jd_version, scheduled_interview_at")
+      .select("id, company, role, stage, jd_text, jd_version, scheduled_interview_at, metadata")
       .eq("id", input.opportunityId).eq("user_id", input.userId).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error("岗位不存在");
@@ -268,6 +269,12 @@ export async function getContextBundleForUser(input: {
       jdText: data.jd_text ? String(data.jd_text) : null, jdVersion: Number(data.jd_version),
       scheduledInterviewAt: data.scheduled_interview_at ? String(data.scheduled_interview_at) : null,
     };
+    // 岗位档案里已上传的简历原文必须直达导师：以前导师只能看到 claims 摘要，
+    // 简历刚上传、逐条事实还没沉淀时就会说出「你没上传实习经历」这种反问。
+    const meta = (data.metadata ?? {}) as { resumeText?: unknown };
+    if (input.task !== "resume_workshop" && typeof meta.resumeText === "string" && meta.resumeText.trim()) {
+      resumeAttachment = { id: "resume-text", label: "用户已上传的简历原文（其中已有的信息不得反问）", text: meta.resumeText.trim().slice(0, 6_000), required: false };
+    }
   }
 
   const routeClass: RouteClass = input.routeClass || "bounded_orchestration";
@@ -349,7 +356,7 @@ export async function getContextBundleForUser(input: {
     knowledgeContext: knowledge.contextText,
     currentInput: input.currentInput,
     questionSource: input.questionSource,
-    attachments: input.attachments,
+    attachments: resumeAttachment ? [resumeAttachment, ...(input.attachments || [])] : input.attachments,
     historySummary: input.historySummary,
     intent: input.intent,
     planVersion: input.planVersion,

@@ -10,6 +10,9 @@
 .messages{flex:1;overflow:auto;overscroll-behavior:contain;padding:4px 4px 16px;line-height:1.8;min-height:150px}
 .welcome{padding:24px 0;color:#605c55}.welcome h3{font-size:17px;color:#292b2d;margin:12px 0 8px}.welcome p{margin:0}
 .question{margin:16px 0 16px 20px;padding:10px 13px;border-radius:12px 12px 2px 12px;background:#e9e5de;white-space:pre-wrap;overflow-wrap:anywhere}
+/* 导师主动开口：不伪装成用户气泡，只用一条细线小注标记来源。 */
+.proactiveNote{margin:16px 0 8px;display:flex;align-items:center;gap:7px;color:#8a857c;font-size:11px;letter-spacing:.02em}
+.proactiveNote::before{content:"";width:6px;height:6px;border-radius:50%;background:#c96f4a;flex:0 0 auto}
 .answer{margin:0 0 24px}.answer p,.summary p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.answer button{color:#605c55;font-size:11px}
 .quickStarts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0}.quickStarts button{border:1px solid #d9d5ce;background:#fff;font-size:12px}
 .stageConfirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid #d9d5ce;border-radius:10px;background:#fbf9f4;font-size:12px;line-height:1.6}

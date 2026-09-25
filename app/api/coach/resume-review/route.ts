@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       };
     });
     const activeChanges = changes.filter((change) => change.status !== "rejected");
-    if (!activeChanges.length || activeChanges.some((change) => !change.after)) {
+    if (activeChanges.some((change) => !change.after)) {
       return NextResponse.json({ ok: false, error: "修改后的内容不能为空" }, { status: 400 });
     }
 
@@ -86,8 +86,8 @@ export async function POST(request: Request) {
       .map((claim) => `[${claim.id}] ${claim.displayText}`)
       .join("\n");
 
-    let reviewer = { status: "failed", summary: "事实检查未通过，未调用独立复核。", findings: [] as unknown[] };
-    if (!applied.findings.length && facts.ok) {
+    let reviewer = { status: "not_run", summary: activeChanges.length ? "请先处理原句定位或事实问题，再进行独立复核。" : "已保留全部原文，没有 AI 修改需要复核。", findings: [] as unknown[] };
+    if (activeChanges.length && !applied.findings.length && facts.ok) {
       const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
       const output = await runWithGenerationContext({
         userId: user.id,
@@ -101,11 +101,14 @@ export async function POST(request: Request) {
       reviewer = {
         status: parsed.status === "passed" ? "passed" : "failed",
         summary: String(parsed.summary || "独立复核已完成。").slice(0, 800),
-        findings: Array.isArray(parsed.findings) ? parsed.findings.slice(0, 20) : [],
+        findings: Array.isArray(parsed.findings) ? parsed.findings.slice(0, 20).filter((item) => item && typeof item === "object").map((item) => {
+          const finding = item as Record<string, unknown>;
+          return { message: String(finding.message || "这条表述需要进一步核实").slice(0, 800), severity: finding.severity === "warning" ? "warning" : "error", changeId: activeChanges.some((change) => change.id === finding.changeId) ? String(finding.changeId) : undefined };
+        }) : [],
       };
     }
 
-    const reviewerPassed = reviewer.status === "passed" && !reviewer.findings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
+    const reviewerPassed = !activeChanges.length || (reviewer.status === "passed" && !reviewer.findings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error"));
     const factsPassed = applied.findings.length === 0 && facts.ok;
     const artifact = await createArtifactWithClaims({
       userId: user.id,
@@ -119,13 +122,16 @@ export async function POST(request: Request) {
       claimLinks: activeChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` }))),
     });
 
-    const factFindings = [...applied.findings, ...facts.issues];
+    const factFindings = [...applied.findings, ...facts.issues.map((issue) => {
+      const index = Number(issue.path?.match(/^changes\.(\d+)\./)?.[1]);
+      return { ...issue, changeId: Number.isInteger(index) ? activeChanges[index]?.id : undefined };
+    })];
     const factSummary = factsPassed
-      ? "用户修改后的表述均关联已确认事实。"
+      ? activeChanges.length ? "修改已通过事实规则检查。" : "保留原文，未新增 AI 表述；不代表原文已独立验真。"
       : String(factFindings[0]?.message || "存在无法定位、未确认或数字不一致的内容。");
     const reviews = await Promise.all([
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsPassed ? "passed" : "failed", summary: factSummary, findings: factFindings, contextFingerprint: context.fingerprint }),
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: reviewer.summary, findings: reviewer.findings, contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewer.status === "not_run" ? "not_run" : reviewerPassed ? "passed" : "failed", summary: reviewer.summary, findings: reviewer.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
@@ -138,7 +144,7 @@ export async function POST(request: Request) {
         artifactId: String(artifact.id),
         version: Number(artifact.version),
         status: factsPassed && reviewerPassed && ats.ok ? "ready" : "blocked",
-        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type, status: review.status, summary: review.summary })),
+        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type, status: review.status, summary: review.summary, findings: review.findings })),
       },
     });
   } catch (error) {

@@ -7,7 +7,7 @@ import {
   reviewAtsText,
   validateArtifactDraft,
 } from "@/lib/coach-harness";
-import { createArtifactWithClaims, createOpportunitySnapshot, getContextBundleForUser, listArtifactReviews, recordArtifactReview } from "@/lib/coach-harness/repository";
+import { createArtifactWithClaims, createOpportunitySnapshot, getArtifactForUser, getContextBundleForUser, listArtifactReviews, recordArtifactReview } from "@/lib/coach-harness/repository";
 import type { ResumeChange } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -34,11 +34,18 @@ export async function POST(request: Request) {
     const changes = (Array.isArray(body.changes) ? body.changes : []).slice(0, 20) as ResumeChange[];
     if (!opportunityId || !reviewedArtifactId || !resumeText || !jobDescription) return NextResponse.json({ ok: false, error: "投递版本字段不完整" }, { status: 400 });
     const priorReviews = await listArtifactReviews(user.id, opportunityId, reviewedArtifactId);
-    if (!priorReviews.some((review: { reviewer_type: string; status: string }) => review.reviewer_type === "independent_ai" && review.status === "passed")) {
-      return NextResponse.json({ ok: false, error: "独立复核未通过，不能冻结投递版本" }, { status: 409 });
-    }
+    if (changes.some((change) => change.status !== "accepted" && change.status !== "rejected")) return NextResponse.json({ ok: false, error: "请先选择每条建议的版本" }, { status: 400 });
+    const reviewed = await getArtifactForUser(user.id, opportunityId, reviewedArtifactId);
+    const retainedOriginal = changes.length > 0 && changes.every((change) => change.status === "rejected");
     const accepted = changes.filter((change) => change.status === "accepted");
     const applied = applyResumeChanges(resumeText, accepted);
+    const reviewedContent = reviewed.content as { baseResumeText?: string; jobDescription?: string; previewText?: string; changes?: ResumeChange[] };
+    if (reviewedContent.baseResumeText !== resumeText || reviewedContent.jobDescription !== jobDescription || reviewedContent.previewText !== applied.text || (retainedOriginal && !reviewedContent.changes?.every((change) => change.status === "rejected"))) {
+      return NextResponse.json({ ok: false, error: "当前简历与检查版本不同，请重新检查后保存" }, { status: 409 });
+    }
+    if (!retainedOriginal && !priorReviews.some((review: { reviewer_type: string; status: string }) => review.reviewer_type === "independent_ai" && review.status === "passed")) {
+      return NextResponse.json({ ok: false, error: "独立复核未通过，不能冻结投递版本" }, { status: 409 });
+    }
     if (applied.findings.length) return NextResponse.json({ ok: false, error: applied.findings[0].message }, { status: 422 });
 
     // JD 走 attachment，简历作为已上传材料的优先补充；
@@ -69,8 +76,8 @@ export async function POST(request: Request) {
       claimLinks: accepted.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `acceptedChanges.${index}.after` }))),
     });
     await Promise.all([
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: "passed", summary: "投递文本只使用已确认事实。", findings: [], contextFingerprint: context.fingerprint }),
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: "passed", summary: "起草版本已通过独立复核。", findings: [], contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: "passed", summary: retainedOriginal ? "保留用户原文，未新增 AI 表述。" : "投递文本已通过事实规则检查。", findings: [], contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: retainedOriginal ? "not_run" : "passed", summary: retainedOriginal ? "保留原文，无 AI 修改需复核。" : "起草版本已通过独立复核。", findings: [], contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: "passed", summary: `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。`, findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
@@ -92,6 +99,7 @@ export async function POST(request: Request) {
       version: artifact.version,
       snapshotVersion: snapshot.version,
       resumeText: applied.text,
+      retainedOriginal,
       context: {
         fingerprint: context.fingerprint,
         usedTokens: context.usage.usedTokens,

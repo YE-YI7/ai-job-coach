@@ -28,7 +28,7 @@ async function history(userId: string, opportunityId: string | null, sessionId:s
   q = sessionId ? q.eq("session_id",sessionId) : q.is("session_id",null);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return (data || []).reverse() as Array<{id:string;question:string;answer:string;created_at:string}>;
+  return (data || []).reverse() as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean}|null}>;
 }
 /** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
 async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, userId: string, opportunityId: string | null): Promise<string> {
@@ -110,7 +110,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const rendered = renderContextForPrompt(context).text;
   const interviewLedger = await interviewLedgerFor(db, user.id, id).catch(() => "");
   // Always recompile private facts; never share a cached answer across users or jobs.
-  const recent = turns.slice(-4).map(t => `用户：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
+  const recent = turns.slice(-4).map(t => `${t.learning_trace?.proactive?"辅导请求（系统代发，界面未展示给用户）":"用户"}：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const pageContext = typeof body?.pageContext === "string" ? body.pageContext.slice(0, 1200) : "";
@@ -160,7 +160,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const {answer,suggestions}=guarded;
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){visibleTextAt=Date.now();onDelta(answer);onStatus?.("回答已核对，正在保存…");}
-  const trace={promptVersion:"learning-v5",groundedDraft,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,claimsHedged:guarded.claimsHedged}};
+  const trace={promptVersion:"learning-v5",groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,claimsHedged:guarded.claimsHedged}};
   const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
   // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：

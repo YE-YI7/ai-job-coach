@@ -610,7 +610,14 @@
 .opportunityActive{box-shadow:none;border-color:#e1d9cf;background:#fff}
 .opportunityItem strong{font-weight:600;line-height:1.55;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .opportunityMeta{font-size:11.5px;margin-top:10px}.opportunityCompany{color:#63655e}
-.addOpportunity{border-style:solid;border-color:#dedbd2;background:transparent;border-radius:8px;margin:16px 14px;padding:12px}
+.addOpportunity{width:calc(100% - 28px);border-style:dashed;border-color:#b7a99b;background:transparent;border-radius:8px;margin:16px 14px;padding:12px}
+.matchEvidence{display:block;margin-top:6px;font-size:12px;color:var(--muted);line-height:1.5}
+.reviewRepair{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.reviewRepair p{flex:1 1 220px;margin:0;font-size:13px;line-height:1.6}
+.intakeChoices{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+.intakeChoices button{padding:10px 14px;border:1px solid #c9c5ba;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer;font:inherit;font-size:14px}
+.intakeChoices button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.intakeChoices button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .actionRail{background:#fbfaf7;background-image:var(--grain);padding:24px 24px 16px;border-left-color:#e7e4dd;scrollbar-width:thin;scrollbar-color:#d5d1c8 transparent}
 .document{scrollbar-width:thin;scrollbar-color:#d5d1c8 transparent}
 .documentBody{padding:28px 36px 56px}
@@ -846,7 +853,35 @@
 .rightTool .roundtableQuestion{padding-top:20px}
 .rightTool .questionBubble h3{font-size:20px}
 .rightTool .coachingHint,.rightTool .answerComposer,.rightTool .assessmentCard,.rightTool .assessmentBlocked,.rightTool .roundtableActions{margin-left:0}
+.rightTool .transcriptA,.rightTool .transcriptFeedback{margin-left:0}
+.rightTool .transcriptQ{grid-template-columns:38px minmax(0,1fr);gap:10px}
+.rightTool .transcriptAvatar{margin-left:5px}
 .rightTool .roundtableActions{position:sticky;bottom:-4px;padding:12px 0 4px;background:#fbfaf7}
+
+/* 转写式对话流：已答完的题沉淀为上方的对话记录，当前题永远只有一问一答。
+   层级靠缩进对齐头像轴线和一条细线，不做卡片。放在 .rightTool 规则之后，
+   保证窄栏覆盖能生效（同优先级后者覆盖前者）。 */
+.roundtableTranscript{display:grid;gap:18px;padding:2px 0 20px;border-bottom:1px solid #e6e1da;margin-bottom:2px}
+.transcriptTurn{display:grid;gap:9px}
+.transcriptQ{display:grid;grid-template-columns:48px minmax(0,1fr);gap:14px;align-items:start}
+.transcriptAvatar{width:28px;height:28px;margin:2px 0 0 10px;display:grid;place-items:center;border-radius:50%;background:#e9e4dc;color:#6d6961}
+.transcriptAvatar span{font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:10px;font-weight:800;letter-spacing:.03em}
+.transcriptQ p{margin:0;font-size:13.5px;line-height:1.65;color:#3f3a34}
+.transcriptQ b{display:block;margin-bottom:3px;color:#9b948a;font-size:10.5px;font-weight:700;letter-spacing:.05em}
+.transcriptA{margin:0 0 0 62px;padding:12px 15px;border-left:3px solid #cfc8bd;background:#efece6;font-size:12.5px;line-height:1.75;color:#4a453e;white-space:pre-wrap;overflow-wrap:anywhere}
+.transcriptA b{display:block;margin-bottom:4px;color:#9b948a;font-size:10.5px;font-weight:700;letter-spacing:.05em}
+.roundtableQuestion .transcriptA{margin-top:15px}
+.transcriptFeedback{margin:0 0 0 62px;padding-top:2px}
+.transcriptFeedback summary{display:flex;align-items:center;gap:7px;cursor:pointer;color:#7c766d;font-size:11px;font-weight:700;list-style:none}
+.transcriptFeedback summary::-webkit-details-marker{display:none}
+.transcriptFeedback summary::before{content:"";width:6px;height:6px;border-radius:50%;background:#9fbfad;flex:0 0 auto}
+.transcriptFeedback p{margin:7px 0 0;color:var(--muted);font-size:11.5px;line-height:1.65}
+.transcriptFeedback b{color:var(--ink)}
+.assessmentDetail{margin-top:13px;padding-top:11px;border-top:1px solid #dfe4fb}
+.assessmentDetail summary{display:flex;align-items:center;gap:7px;cursor:pointer;color:#54597a;font-size:11px;font-weight:700;list-style:none}
+.assessmentDetail summary::-webkit-details-marker{display:none}
+.assessmentDetail summary::before{content:"";width:6px;height:6px;border-radius:50%;border:1.5px solid var(--interview-blue);flex:0 0 auto}
+.assessmentDetail .dimensionBars{margin-top:12px}
 
 @media(max-width:700px){
   .interviewStageHero{min-height:146px;padding:22px 18px;grid-template-columns:58px 1fr;gap:15px}
@@ -866,6 +901,9 @@
   .questionBubble{padding:16px}
   .questionBubble h3{font-size:19px}
   .coachingHint,.answerComposer,.assessmentCard,.assessmentBlocked,.roundtableActions{margin-left:0}
+  .transcriptA,.transcriptFeedback{margin-left:0}
+  .transcriptQ{grid-template-columns:38px minmax(0,1fr);gap:10px}
+  .transcriptAvatar{margin-left:5px}
 }
 
 @media(prefers-reduced-motion:reduce){.interviewSignal>span{animation:none}}

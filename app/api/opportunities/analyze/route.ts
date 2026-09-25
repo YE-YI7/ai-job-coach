@@ -270,13 +270,18 @@ export async function POST(request: Request) {
     ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 0 }));
 
     const parsed = asRecord(parseJson(result));
-    const materialKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";
+    const kindHint = intake.materialKindHint;
+    const isSupplement = kindHint === "job" || kindHint === "resume" || kindHint === "experience";
+    const modelKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";
+    // 补充材料时客户端提示与合并后的原文才是事实：模型只负责分析（要求拆解、
+    // 证据强弱、行动项），不得改判档案类型、清空已有 JD、或用自己的转写替换简历原文。
+    const materialKind = isSupplement ? (intake.jdText ? "mixed" : "resume") : modelKind;
     const workspaceType = materialKind === "job" || materialKind === "mixed" ? "job" : "preparation";
     const company = String(parsed.company || intake.company || (workspaceType === "preparation" ? "求职准备" : "")).trim().slice(0, 120);
     const role = String(parsed.role || intake.role || (workspaceType === "preparation" ? "目标待确认" : "")).trim().slice(0, 160);
     const location = String(parsed.location || intake.location || "").trim().slice(0, 160);
-    const jdText = workspaceType === "job" ? String(parsed.jdText || "").trim().slice(0, MAX_SOURCE_LENGTH) : "";
-    const resumeText = String(parsed.resumeText || intake.resumeText || (materialKind === "resume" ? intake.jdText : "")).trim().slice(0, MAX_SOURCE_LENGTH);
+    const jdText = workspaceType === "job" ? String(isSupplement ? intake.jdText : (parsed.jdText || "")).trim().slice(0, MAX_SOURCE_LENGTH) : "";
+    const resumeText = String(isSupplement ? intake.resumeText : (parsed.resumeText || intake.resumeText || (materialKind === "resume" ? intake.jdText : ""))).trim().slice(0, MAX_SOURCE_LENGTH);
     const profileText = workspaceType === "preparation" ? intake.jdText.trim().slice(0, MAX_SOURCE_LENGTH) : "";
     if (!company || !role || (workspaceType === "job" && !jdText)) {
       await finalizeQuota(reservation, false);

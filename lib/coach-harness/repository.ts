@@ -1,6 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
 import { compileContextBundle } from "./context";
+import { readReviewFindings, resumeQualityStatus } from "./resume-quality-state";
 import { assertRunTransition, isTerminalRunStatus, isValidStopReason, normalizeRunStatus } from "./state-machine";
 import type { CoachRunStatus, CoachStopReason } from "./types";
 import type {
@@ -563,14 +564,14 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
     : { data: [], error: null };
   if (snapshotError) throw snapshotError;
   const { data: artifactRows, error: artifactError } = ids.length
-    ? await db.from("coach_artifacts").select("id, opportunity_id, version").in("opportunity_id", ids).eq("artifact_type", "target_resume").order("version", { ascending: false })
+    ? await db.from("coach_artifacts").select("id, opportunity_id, version, content").in("opportunity_id", ids).eq("artifact_type", "target_resume").order("version", { ascending: false })
     : { data: [], error: null };
   if (artifactError) throw artifactError;
   const latestArtifacts = new Map<string, DbRow>();
   for (const artifact of (artifactRows || []) as DbRow[]) if (!latestArtifacts.has(String(artifact.opportunity_id))) latestArtifacts.set(String(artifact.opportunity_id), artifact);
   const artifactIds = [...latestArtifacts.values()].map((artifact) => String(artifact.id));
   const { data: reviewRows, error: reviewError } = artifactIds.length
-    ? await db.from("coach_artifact_reviews").select("artifact_id, reviewer_type, status, summary").in("artifact_id", artifactIds)
+    ? await db.from("coach_artifact_reviews").select("artifact_id, reviewer_type, status, summary, findings").in("artifact_id", artifactIds)
     : { data: [], error: null };
   if (reviewError) throw reviewError;
   return rows.map((row) => {
@@ -578,8 +579,7 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
     const opportunityId = String(row.id);
     const artifact = latestArtifacts.get(opportunityId);
     const reviews = ((reviewRows || []) as DbRow[]).filter((review) => String(review.artifact_id) === String(artifact?.id));
-    const blocking = reviews.some((review) => review.status === "failed");
-    const requiredPassed = ["facts", "ats", "independent_ai"].every((type) => reviews.some((review) => review.reviewer_type === type && review.status === "passed"));
+    const retainedOriginal = Boolean(artifact?.content && typeof artifact.content === "object" && (artifact.content as { retainedOriginal?: boolean }).retainedOriginal === true);
     return {
       ...metadata,
       id: String(row.id),
@@ -608,8 +608,8 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
         version: Number(snapshot.version), title: String(snapshot.title), frozenAt: String(snapshot.frozen_at),
       })),
       applicationQuality: artifact ? {
-        artifactId: String(artifact.id), version: Number(artifact.version), status: blocking ? "blocked" : requiredPassed ? "ready" : "draft",
-        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["reviewerType"], status: review.status as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["status"], summary: String(review.summary) })),
+        artifactId: String(artifact.id), version: Number(artifact.version), status: resumeQualityStatus(retainedOriginal, reviews.map(review => ({ reviewer_type: review.reviewer_type, status: review.status }))),
+        reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["reviewerType"], status: review.status as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["status"], summary: String(review.summary), findings: readReviewFindings(review.findings) })),
       } : undefined,
     };
   });

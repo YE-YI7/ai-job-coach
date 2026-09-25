@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     if (!ats.ok) return NextResponse.json({ ok: false, error: ats.findings[0]?.message || "ATS 校验未通过" }, { status: 422 });
     const artifact = await createArtifactWithClaims({
       userId: user.id, opportunityId, artifactType: "target_resume", title: "已冻结投递简历",
-      content: { resumeText: applied.text, jobDescription, acceptedChanges: accepted }, status: "confirmed",
+      content: { resumeText: applied.text, jobDescription, acceptedChanges: accepted, retainedOriginal }, status: "confirmed",
       contextSnapshot: context, createdBy: "user",
       claimLinks: accepted.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `acceptedChanges.${index}.after` }))),
     });

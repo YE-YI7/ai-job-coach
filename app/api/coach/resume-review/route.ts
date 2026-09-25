@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       opportunityId,
       artifactType: "target_resume",
       title: "用户修改后的岗位简历",
-      content: { baseResumeText: resumeText, jobDescription, changes, previewText: applied.text },
+      content: { baseResumeText: resumeText, jobDescription, changes, previewText: applied.text, retainedOriginal: activeChanges.length === 0 },
       status: factsPassed && reviewerPassed && ats.ok ? "needs_confirmation" : "draft",
       contextSnapshot: context,
       createdBy: "user",

@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronDown, GripVertical, ShieldCheck } from "lucide-react";
+import { Check, ChevronDown, GripVertical, ShieldCheck, Circle } from "lucide-react";
 import type { Opportunity, ResumeChange } from "@/lib/opportunities/types";
 import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "@/lib/opportunities/resume-blocks";
@@ -28,7 +28,7 @@ const TEMPLATE_CLASS: Record<PrintTemplate, string> = { classic: "sheetClassic",
 
 // Replace each change's `before` inside a line with a pen-highlighted `after`.
 // A change binds to the first line containing its `before`. Accepted / pending
-// render the AI text (pen); rejected keep the original (struck through lightly).
+// render the AI text (pen); rejected keep the original without deletion marks.
 function renderLine(line: string, pool: ResumeChange[], used: Set<string>): ReactNode {
   const applicable = pool.find((c) => !used.has(c.id) && c.before && line.includes(c.before));
   if (!applicable) return line;
@@ -41,7 +41,7 @@ function renderLine(line: string, pool: ResumeChange[], used: Set<string>): Reac
   return (
     <>
       {renderLine(head, pool, used)}
-      <span className={showAfter ? styles.blockPen : styles.blockStrike} data-reason={applicable.reason} title={applicable.reason || undefined}>{text}</span>
+      <span className={showAfter ? styles.blockPen : styles.blockStrike}>{text}</span>
       {renderLine(tail, pool, used)}
     </>
   );
@@ -88,7 +88,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
     onReorder(dragId, targetId);
     setDragId(null);
   };
-  const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggle = (id: string) => setExpanded((prev) => prev.has(id) ? new Set() : new Set([id]));
 
   return (
     <>
@@ -103,7 +103,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
         </button>
       )}
       <div className={styles.blockToolbar}>
-        <span><GripVertical size={13} className={styles.inlineGlyph} /> 拖动会按新顺序改写简历正文（保存与导出都会跟随），点击区块查看并修改每处改动。</span>
+        <span><GripVertical size={13} className={styles.inlineGlyph} /> 悬停或点开修改处，勾选采用或保留原文。</span>
         <div className={styles.sheetTemplates} role="group" aria-label="简历模板">
           {TEMPLATE_ORDER.map((id) => (
             <button key={id} type="button" className={`${styles.sheetTemplateBtn} ${template === id ? styles.sheetTemplateBtnActive : ""}`} onClick={() => chooseTemplate(id)}>
@@ -119,44 +119,50 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
           const isExpanded = expanded.has(block.id);
           const pendingHere = changes.filter((c) => c.status === "pending").length;
           return (
-            <section key={block.id} data-kind={block.kind} draggable={!block.synthetic}
-              onDragStart={() => { if (!block.synthetic) setDragId(block.id); }} onDragOver={(e) => { if (!dragId || block.synthetic) return; e.preventDefault(); }} onDrop={() => reorder(block.id)} onDragEnd={() => setDragId(null)}
-              className={`${styles.sheetSection} ${dragId === block.id ? styles.blockDragging : ""}`}>
-              <header className={styles.blockHead} onClick={() => toggle(block.id)}>
+            <section key={block.id} data-kind={block.kind} draggable={!block.synthetic && !editingId}
+              onMouseEnter={() => { if (changes.length && !editingId && !dragId) setExpanded(new Set([block.id])); }}
+              onMouseLeave={(event) => { if (!editingId && !event.currentTarget.contains(document.activeElement)) setExpanded(new Set()); }}
+              onBlur={(event) => { if (!editingId && !event.currentTarget.contains(event.relatedTarget)) setExpanded(new Set()); }}
+              onKeyDown={(event) => { if (event.key === "Escape") { setEditingId(null); event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus(); setExpanded(new Set()); } }}
+              onDragStart={() => { if (!block.synthetic) { setDragId(block.id); setExpanded(new Set()); } }} onDragOver={(e) => { if (!dragId || block.synthetic) return; e.preventDefault(); }} onDrop={() => reorder(block.id)} onDragEnd={() => setDragId(null)}
+              className={`${styles.sheetSection} ${isExpanded ? styles.sectionPopoverOpen : ""} ${dragId === block.id ? styles.blockDragging : ""}`}>
+              <button type="button" className={`${styles.blockHead} ${styles.blockTrigger}`} aria-expanded={isExpanded} aria-controls={`resume-options-${block.id}`} onClick={() => changes.length ? setExpanded(new Set([block.id])) : toggle(block.id)}>
                 <GripVertical size={15} className={styles.blockGrip} aria-hidden="true" />
                 <span className={styles.blockKind}>{meta.label}</span>
                 <strong className={styles.blockTitle}>{block.title}</strong>
                 {changes.length > 0 && <span className={styles.blockBadge}>{pendingHere ? `${pendingHere} 处待确认` : `${changes.length} 处改动`}</span>}
                 <ChevronDown size={16} className={`${styles.blockChevron} ${isExpanded ? styles.blockChevronOpen : ""}`} />
-              </header>
+              </button>
               <div className={styles.blockBody}>
-                {block.lines.map((line, index) => <p key={index}>{renderMarkdownLine(line, changes, usedIds)}</p>)}
+                {block.synthetic
+                  ? changes.map(change => <p key={change.id}>{renderMarkdownLine(change.status === "rejected" ? change.before : change.after, [], usedIds)}</p>)
+                  : block.lines.map((line, index) => <p key={index}>{renderMarkdownLine(line, changes, usedIds)}</p>)}
               </div>
               {isExpanded && (changes.length > 0 ? (
-                <div className={styles.blockChanges}>
+                <div id={`resume-options-${block.id}`} className={styles.resumePopover} draggable={false} onDragStart={event => event.stopPropagation()} role="group" aria-label={`${block.title}的修改选项`}>
                   {changes.map((change) => (
                     <div key={change.id} className={styles.blockChange}>
                       <div className={styles.blockChangeHead}><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span><em>{change.status === "accepted" ? "已选择此版本" : change.status === "rejected" ? "保留原文" : "待选择"}</em></div>
                       {editingId === change.id
                         ? <textarea aria-label={`修改 ${change.section}`} value={editValue} maxLength={2000} rows={4} autoFocus onChange={(e) => setEditValue(e.target.value)} />
-                        : <p className={styles.blockChangeText}>{change.after}</p>}
-                      <p className={styles.blockChangeReason}>{change.reason}</p>
+                        : <p className={styles.popoverPreview}>{change.status === "rejected" ? change.before : change.after}</p>}
+                      <details className={styles.popoverDetail}><summary>原文与修改说明</summary><p>原文：{change.before}</p><p>{change.reason}</p>{opportunity.applicationQuality?.reviews.flatMap(review => (review.findings || []).filter(finding => finding.changeId === change.id).map((finding, index) => <p key={`${review.reviewerType}-${index}`}>{finding.message}</p>))}</details>
                       {editingId === change.id ? (
                         <div className={styles.blockChangeActions}>
                           <button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={14} />保存我的修改</button>
                           <button className={styles.secondaryButton} onClick={() => { setEditingId(null); setEditValue(""); }}>取消</button>
                         </div>
                       ) : (
-                        <div className={styles.blockChangeActions}>
-                          {change.status === "pending" && <button className={styles.primaryButton} onClick={() => onUpdate(change.id, "accepted")}><Check size={14} />采用这版</button>}
-                          <button className={styles.secondaryButton} onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>自己修改</button>
-                          {change.status !== "rejected" && <button className={styles.secondaryButton} onClick={() => onUpdate(change.id, "rejected")}>保留原文</button>}
+                        <div className={styles.popoverChoices}>
+                          <button type="button" aria-pressed={change.status === "accepted"} onClick={() => onUpdate(change.id, "accepted")}>{change.status === "accepted" ? <Check size={16} /> : <Circle size={16} />}采用修改</button>
+                          <button type="button" aria-pressed={change.status === "rejected"} onClick={() => onUpdate(change.id, "rejected")}>{change.status === "rejected" ? <Check size={16} /> : <Circle size={16} />}保留原文</button>
+                          <button type="button" onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>自己改</button>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
-              ) : <p className={styles.blockNoChange}>这一块没有改动，无需逐条确认。</p>)}
+              ) : <p id={`resume-options-${block.id}`} className={styles.blockNoChange}>这一块没有改动，无需逐条确认。</p>)}
             </section>
           );
         })}

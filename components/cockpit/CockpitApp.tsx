@@ -1356,11 +1356,7 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>
       </div>
-      {opportunity.applicationQuality && <div className={styles.qualityGate}>
-        <div className={styles.qualityChecks}>{opportunity.applicationQuality.reviews.map((review) => <span key={review.reviewerType} title={review.summary} data-status={review.status}>{review.reviewerType === "facts" ? "事实" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()} · {review.status === "passed" ? "通过" : review.status === "failed" ? "未通过" : "待检查"}</span>)}</div>
-        {failedReviews.length > 0 && <div className={styles.qualityReviewList}>{failedReviews.map((review) => <p key={review.reviewerType}><CircleAlert size={15}/><span><b>{review.reviewerType === "facts" ? "事实检查" : review.reviewerType === "independent_ai" ? "独立复核" : review.reviewerType.toUpperCase()}</b>{review.summary}</span></p>)}</div>}
-        {failedReviews.flatMap((review) => (review.findings || []).map((finding, index) => <div className={styles.reviewRepair} key={`${review.reviewerType}-${index}`}><p>{finding.message}</p>{finding.changeId && opportunity.resumeChanges.some((change) => change.id === finding.changeId) && <button type="button" className={styles.secondaryButton} onClick={() => onUpdate(finding.changeId!, "rejected")}>这条保留原文</button>}</div>))}
-      </div>}
+      {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
           <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />

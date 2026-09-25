@@ -15,6 +15,7 @@ import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-co
 import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from "@/lib/coach-harness/resume-grounding";
 import {advanceStage,inferStageIntent} from "@/lib/coach-harness/stage-intent";
 import type {OpportunityStage} from "@/lib/opportunities/types";
+import {hasReviewMaterial} from "@/lib/interview/review-evidence";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -45,6 +46,10 @@ async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, u
     if (report.grade === "待引导复盘" && report.sourceNotes?.trim()) {
       // 引导式复盘的原始面试记录：导师带练时必须看得到用户自己写下的内容。
       lines.push(`真实面试原始素材 · ${report.round}（用户自己记录、尚未复盘，引导追问围绕这段展开）：${report.sourceNotes.slice(0, 800)}`);
+      continue;
+    }
+    if (!hasReviewMaterial(report.sourceNotes || "")) {
+      lines.push(`真实面试 · ${report.round}：原始作答不足，旧评分已作废，不能据此判断能力。请围绕用户实际记得的问题和回答追问。`);
       continue;
     }
     const improvements = (report.improvements || []).slice(0, 3).join("；");

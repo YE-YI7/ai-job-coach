@@ -27,6 +27,12 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const [progress,setProgress]=useState("");
  const [stageSuggestion,setStageSuggestion]=useState<OpportunityStage|null>(null);
  const [savingStage,setSavingStage]=useState(false);
+ const [savingNote,setSavingNote]=useState<string|null>(null),[savedNotes,setSavedNotes]=useState<Set<string>>(new Set());
+ async function saveNote(turn:Turn){
+  if(savingNote)return;setSavingNote(turn.id);setError("");
+  try{const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:true,title:turn.question.slice(0,120)||"导师回答",summary:turn.answer,opportunityId})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"笔记保存失败");setSavedNotes(s=>new Set(s).add(turn.id));}
+  catch(e){setError(e instanceof Error?e.message:"笔记保存失败");}finally{setSavingNote(null);}
+ }
  const [modelMode,setModelModeState]=useState<ChatMode>(()=>{try{return (localStorage.getItem("yi-zhi.chat-model") as ChatMode)||"auto";}catch{return "auto";}});
  const setModelMode=useCallback((mode:ChatMode)=>{setModelModeState(mode);try{localStorage.setItem("yi-zhi.chat-model",mode);}catch{}},[]);
  const [modelAccess,setModelAccess]=useState<{connected:boolean;available:string[];catalog:CatalogEntryAvailability[]}|null>(null);
@@ -94,6 +100,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    {loading?<p>正在找回学习记录…</p>:!turns.length&&!pending?<div className={styles.welcome}><BookOpen size={26}/><h3>我们从这里开始</h3><p>{opening?.text||"告诉我你正在准备什么，我会带你完成下一步。"}</p><div className={styles.quickStarts}>{opening?.prompts.map(prompt=><button key={prompt} type="button" disabled={!enabled||busy} onClick={()=>void send(prompt)}>{prompt}</button>)}</div>{!enabled&&<p>当前为预览；登录后可以开始真实辅导。</p>}</div>:turns.map((t,index)=><div key={t.id}>{t.learning_trace?.proactive?<p className={styles.proactiveNote}>导师主动来问你了</p>:<p className={styles.question}>{t.question}</p>}<div className={styles.answer}><TutorMarkdown>{t.answer}</TutorMarkdown><button type="button" aria-label="复制导师回答" onClick={()=>void navigator.clipboard.writeText(t.answer).catch(()=>setError("复制失败，请选中文字复制"))}><Copy size={14}/>复制</button>
    {t.learning_trace?.model&&<details className={styles.usage}><summary>{t.learning_trace.modelUsage?.model||t.learning_trace.model}{t.learning_trace.modelUsage?` · ${t.learning_trace.modelUsage.inputTokens+t.learning_trace.modelUsage.outputTokens} tokens${t.learning_trace.modelUsage.averageTokensPerSecond!==null?` · ${t.learning_trace.modelUsage.averageTokensPerSecond} tokens/s`:""}`:" · 用量未返回"}</summary>{t.learning_trace.modelUsage&&<p>输入 {t.learning_trace.modelUsage.inputTokens} / 输出 {t.learning_trace.modelUsage.outputTokens} tokens。速率是输出 tokens ÷ 请求耗时，包含等待，不是扣费倍率。</p>}<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenPay 实时价格（以账单为准）</a></details>}
    {index===turns.length-1&&!busy&&!loading&&session?.status!=="archived"&&!!t.learning_trace?.suggestions?.length&&<div className={styles.quickStarts} aria-label="继续这个问题">{t.learning_trace.suggestions.filter(q=>!/^(你|您|说说|谈谈|试着|请你|请您)/.test(q.trim())).slice(0,2).map(q=><button key={q} type="button" disabled={!enabled} onClick={()=>void send(q)}>{q}</button>)}</div>}
+   <button type="button" disabled={!enabled||savingNote!==null||savedNotes.has(t.id)} onClick={()=>void saveNote(t)}><BookOpen size={14}/>{savedNotes.has(t.id)?"已加入我的笔记":savingNote===t.id?"正在保存…":"加入我的笔记"}</button>
    </div></div>)}
    {pending&&!pendingProactive&&<p className={styles.question}>{pending}</p>}
    {draft&&<div className={styles.answer}><TutorMarkdown>{draft}</TutorMarkdown>{!busy&&<small>回答未完成，尚未确认保存</small>}</div>}

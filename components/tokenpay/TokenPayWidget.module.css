@@ -12,7 +12,7 @@
   text-align: left;
 }
 .trigger:hover { border-color: #c7b5a9; background: #fbfaf8; }
-.trigger:focus-visible, .sheet button:focus-visible, .sheet a:focus-visible, .sheet input:focus-visible { outline: 3px solid rgba(235,107,43,.22); outline-offset: 2px; }
+.trigger:focus-visible, .sheet button:focus-visible, .sheet a:focus-visible, .sheet input:focus-visible { outline: 2px solid #737c76; outline-offset: 2px; }
 .trigger > span { display: flex; flex-direction: column; line-height: 1.18; }
 .trigger strong { font-size: 10px; }
 .trigger small { margin-top: 2px; color: #69707d; font-size: 9px; }

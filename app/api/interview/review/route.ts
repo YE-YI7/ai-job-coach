@@ -5,6 +5,7 @@ import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
+import { hasReviewMaterial, hasGroundedReview, REVIEW_MATERIAL_HINT } from "@/lib/interview/review-evidence";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,7 @@ ${context}
     }
 
     // 初始分析模式
+    if (!hasReviewMaterial(interviewContent)) return NextResponse.json({ ok: false, needsMoreInput: true, error: REVIEW_MATERIAL_HINT }, { status: 422 });
     const knowledge = await buildAgentKnowledgeContext({
       task: "interview_review",
       company,
@@ -71,6 +73,8 @@ ${context}
 2. 知识库只用于解释常见考察方向，不能当成该公司的固定题库或内部事实。
 3. 无法判断时写明“记录不足”，不要推测录用概率。
 4. 改进建议必须能转成下一轮可执行训练任务，不写空泛鼓励。
+5. 简历和 JD 只能帮助理解背景，绝不能据此给面试表现打分。没有面试官问题及用户实际作答时，返回 {"insufficient_evidence":true}，不输出等级、优点或训练任务。
+6. 每题 evidence_quote 必须逐字引用真实面试记录中的用户作答片段（至少12字），不能引用简历、JD或知识库。仅评价有实际回答依据的题，局部记录明确标注覆盖范围。
 
 分析维度：
 1. 面试官可能的考察意图（每个问题背后想考什么）
@@ -82,14 +86,14 @@ ${context}
 
 输出格式：返回JSON
 {
-  "overall_grade": "B+",
-  "overall_comment": "整体表现中等偏上，...",
-  "improvement_potential": "再练3次可达A",
+  "overall_grade": "根据实际作答判断，不预设等级",
+  "overall_comment": "基于作答证据的评价及记录覆盖范围",
   "questions": [
     {
       "interviewer_question": "面试官的问题",
       "intent": "考察意图",
       "user_answer_summary": "用户回答摘要",
+      "evidence_quote": "从真实面试记录逐字引用的用户作答",
       "strengths": ["亮点1", "亮点2"],
       "weaknesses": ["不足1"],
       "suggested_answer_points": ["建议回答要点1", "建议回答要点2"],
@@ -146,6 +150,7 @@ ${knowledge.contextText}`;
       );
     }
 
+    if (!hasGroundedReview(parsed, interviewContent)) return NextResponse.json({ ok: false, needsMoreInput: true, error: "未能从记录中核验作答依据，本次不评分。请补充问题和实际回答后重试。" }, { status: 422 });
     return NextResponse.json({
       ok: true,
       analysis: parsed,

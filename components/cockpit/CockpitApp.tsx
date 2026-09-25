@@ -51,6 +51,8 @@ import {
   resolveRoundCompletionPhase,
 } from "@/lib/interview/round-completion";
 import { EntryGate } from "./EntryGate";
+import MyNotes from "./MyNotes";
+import {hasReviewMaterial, REVIEW_MATERIAL_HINT} from "@/lib/interview/review-evidence";
 import {
   needsMoreInputHints,
   normalizeInterviewAssessment,
@@ -174,6 +176,7 @@ export function CockpitApp({
   const localStorageHealthy = useRef(true);
   // First-use guidance lives inline; advanced plans stay available without a second blocking wizard.
   const [entryGateOpen, setEntryGateOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   // 「管理 Offer 条款」要直接落到条款表单，不是重新走一遍选目标向导；view 留空 = 走默认（有计划看计划）
   const [entryGateInitial, setEntryGateInitial] = useState<{ view?: "entries" | "offers"; opportunityId?: string }>({});
   const viewTracked = useRef(false);
@@ -673,6 +676,7 @@ export function CockpitApp({
 
   const analyzeReview = async (round: string, notes: string) => {
     if (!active || reviewingInterview) return;
+    if (!hasReviewMaterial(notes)) { announce(REVIEW_MATERIAL_HINT); throw new Error(REVIEW_MATERIAL_HINT); }
     setReviewingInterview(true);
     const requestId = crypto.randomUUID();
     if (dataMode === "live") trackProductEvent("interview_review_started", { opportunity_id: active.id, round });
@@ -704,7 +708,8 @@ export function CockpitApp({
         createdAt: new Date().toISOString(),
       };
       if (dataMode === "live" && !localIds.includes(active.id)) {
-        void fetch("/api/coach/snapshots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunityId: active.id, snapshotType: "interview_feedback", title: `${round}复盘`, content: report, metadata: { round } }) });
+        const saved = await fetch("/api/coach/snapshots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunityId: active.id, snapshotType: "interview_feedback", title: `${round}复盘`, content: report, metadata: { round } }) });
+        if (!saved.ok) throw Error("分析已生成，但报告保存失败。原始输入已保留，请重试。");
       }
       setOpportunities((current) => current.map((item) => item.id === active.id ? {
         ...item,
@@ -867,6 +872,7 @@ export function CockpitApp({
   return (
     <main className={styles.shell}>
       {entryGateModal}
+      {notesOpen && <MyNotes onClose={() => setNotesOpen(false)} />}
       <header className={styles.topbar}>
         <div className={styles.detailBrand}><Brand /></div>
         <div className={styles.topbarContext}>
@@ -877,11 +883,11 @@ export function CockpitApp({
           {dataMode !== "demo" && (
             <button
               type="button"
-              onClick={() => { setEntryGateInitial({}); setEntryGateOpen(true); }}
-              title="查看当前计划 / 切换目标"
+              onClick={() => setNotesOpen(true)}
+              title="查看、新建和编辑笔记"
               style={{ border: "0", background: "transparent", color: "inherit", fontSize: 12, cursor: "pointer", padding: "4px 6px", borderRadius: 8 }}
             >
-              我的计划
+              我的笔记
             </button>
           )}
           <span>{compactAccountLabel(userEmail)}</span>
@@ -1930,6 +1936,7 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
       </div>
       <div className={styles.reviewReportList}>{reports.map((report) => {
         const guided = report.grade === "待引导复盘";
+        if (!guided && !hasReviewMaterial(report.sourceNotes || "")) return <article key={report.id} className={styles.reviewReport}><header><span>{report.round}</span><strong>记录不足 · 不予评分</strong></header><p>这份旧报告缺少有效面试作答，原评分和推断已停止展示。请补充问题及当时的回答后重新复盘。</p><details><summary>查看原始记录</summary><pre>{report.sourceNotes || "未保留原始记录"}</pre></details></article>;
         return (
           <article key={report.id} className={`${styles.reviewReport} ${guided ? styles.reviewReportPending : ""}`}>
             <header><div><span>{report.round}</span><time dateTime={report.createdAt}>{new Date(report.createdAt).toLocaleDateString("zh-CN")}</time></div><strong>{report.grade}</strong></header>

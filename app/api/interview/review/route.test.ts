@@ -1,0 +1,15 @@
+import {POST} from "./route";
+import {callLLM} from "@/lib/llm";
+import {getCurrentUserFromRequest} from "@/lib/auth";
+import {buildAgentKnowledgeContext} from "@/lib/knowledge/context";
+jest.mock("@/lib/auth");
+jest.mock("@/lib/llm");
+jest.mock("@/lib/knowledge/context");
+jest.mock("@/lib/metered-ai-route",()=>({withMeteredAiRoute:(handler:unknown)=>handler}));
+const transcript="面试官问如何验证检索质量。我回答先整理实际用户问题，逐条标注相关文档，再检查检索结果中的有效命中，最后分析失败样本。";
+const request=(text:string)=>new Request("https://example.com/api/interview/review",{method:"POST",body:JSON.stringify({interviewContent:text,resumeText:"优秀简历不能代替面试作答",jobDescription:"产品经理"})});
+beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:"owner"});(buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({items:[],contextText:""});});
+test("two filler characters never call retrieval or model",async()=>{const response=await POST(request("啊啊"));expect(response.status).toBe(422);expect(callLLM).not.toHaveBeenCalled();expect(buildAgentKnowledgeContext).not.toHaveBeenCalled();});
+test("ungrounded B+ report is not success",async()=>{(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({overall_grade:"B+",overall_comment:"简历优秀",questions:[]}));expect((await POST(request(transcript))).status).toBe(422);});
+test("fabricated quote does not pass",async()=>{(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({overall_grade:"A",overall_comment:"很棒",questions:[{evidence_quote:"我独立打造了全球领先的系统并获奖",user_answer_summary:"成果"}]}));expect((await POST(request(transcript))).status).toBe(422);});
+test("grounded model report passes",async()=>{(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({overall_grade:"B",overall_comment:"仅评价提供的这一题",questions:[{evidence_quote:"先整理实际用户问题，逐条标注相关文档",user_answer_summary:"建立样本"}]}));expect((await POST(request(transcript))).status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(1);});

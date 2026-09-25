@@ -7,7 +7,8 @@ export async function GET(req:Request){
  const id=new URL(req.url).searchParams.get("opportunityId");if(id&&!uuid.test(id))return Response.json({error:"岗位无效"},{status:400,headers});
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
  let q=db.from("coach_learning_sessions").select("id,title,status,summary,created_at,archived_at").eq("user_id",user.id);
- q=id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
+ const notesOnly=new URL(req.url).searchParams.get("notes")==="1";
+ q=notesOnly?q.not("summary","is",null).neq("summary",""):id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
  const {data,error}=await q.order("created_at",{ascending:false}).limit(30);
  let legacy=db.from("coach_agent_turns").select("id").eq("user_id",user.id).is("session_id",null);
  legacy=id?legacy.eq("opportunity_id",id):legacy.is("opportunity_id",null);
@@ -21,7 +22,8 @@ export async function POST(req:Request){
  if((id!==null&&(typeof id!=="string"||!uuid.test(id)))||typeof b?.title!=="string"||!b.title.trim()||b.title.length>200)return Response.json({error:"学习目标无效"},{status:400,headers});
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
  if(id){const {data,error}=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();if(error||!data)return Response.json({error:"岗位无法访问"},{status:error?503:404,headers});}
- const {data,error}=await db.from("coach_learning_sessions").insert({user_id:user.id,opportunity_id:id,title:b.title.trim()}).select("id,title,status").single();
+ if(b.note===true&&(typeof b.summary!=="string"||!b.summary.trim()||b.summary.length>6000))return Response.json({error:"笔记需为1到6000字"},{status:400,headers});
+ const {data,error}=await db.from("coach_learning_sessions").insert({user_id:user.id,opportunity_id:id,title:b.title.trim(),...(b.note===true?{summary:b.summary.trim(),status:"archived",archived_at:new Date().toISOString()}: {})}).select("id,title,status,summary").single();
  return Response.json(error?{error:"开课失败，请重试"}:{ok:true,session:data},{status:error?503:201,headers});
 }
 

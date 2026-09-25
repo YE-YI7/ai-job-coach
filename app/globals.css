@@ -395,8 +395,8 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--primary-500);
-  box-shadow: 0 0 0 3px var(--primary-50);
+  border-color: #737c76;
+  box-shadow: 0 0 0 1px #737c76;
 }
 
 .input::placeholder {

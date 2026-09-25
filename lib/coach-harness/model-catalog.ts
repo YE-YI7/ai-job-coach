@@ -55,7 +55,7 @@ export interface ModelEntry {
   monogram: string;
   // Accent colour for the monogram chip fallback — a reference palette we own.
   color: string;
-  // Official vendor brand logo (simple-icons artwork) served from /public/models.
+  // Vendor brand assets served from /public/models; provenance in SOURCES.md.
   logo: string;
   tier: PricingTier;
   // Relative throughput/speed reference anchored on glm-5.3 = 0.8 (see top).
@@ -65,11 +65,11 @@ export interface ModelEntry {
   blurb: string;
 }
 
-// Vendor-family brand logos (official marks via simple-icons), mapped per card.
+// Vendor-family brand assets, mapped per card.
 const MODEL_LOGOS = {
   deepseek: "/models/deepseek.svg",
-  zhipu: "/models/zhipu-glm.svg",
-  kimi: "/models/kimi.svg",
+  zhipu: "/models/zhipu-official.svg",
+  kimi: "/models/kimi-official.png",
   qwen: "/models/qwen.svg",
 } as const;
 

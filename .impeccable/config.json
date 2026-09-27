@@ -19,5 +19,12 @@
         "reason": "Agent review: sole match is the Markdown blockquote citation delimiter, not a decorative card accent; preserve quotation semantics."
       }
     ]
+  },
+  "hook": {
+    "enabled": false,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
   }
 }

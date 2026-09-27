@@ -1138,3 +1138,11 @@
 .practiceResult { padding: 15px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
 .diffGrid { border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }
 .diffGrid > div:first-child { border-right: 1px solid var(--line); }
+.jobDiscovery{margin:20px 0 28px;max-width:72ch}
+.jobDiscovery>p{color:#62635e;font-size:14px;line-height:1.6}
+.discoveredJob{padding:24px 0;border-bottom:1px solid #deded8;overflow-wrap:anywhere}
+.discoveredJob h3{margin:0;font-size:18px;line-height:1.4}
+.discoveredJob p{margin:10px 0;font-size:14px;line-height:1.6}
+.discoveredJob small{color:#62635e;font-size:12px}
+.discoveryActions{display:flex;align-items:center;flex-wrap:wrap;gap:16px;margin-top:16px}
+.discoveryActions a{color:inherit;text-decoration:underline;text-underline-offset:4px}

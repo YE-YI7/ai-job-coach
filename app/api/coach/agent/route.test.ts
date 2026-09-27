@@ -24,6 +24,30 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("a named saved job supplies context without moving the original conversation",async()=>{
+  const q=setupGeneration();
+  const jobId="33333333-3333-4333-8333-333333333333";
+  const jobs={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[{id:jobId,company:"Kimi",role:"Agent 协作产品经理"}]})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==="coach_opportunities"?jobs:q});
+  (callLLM as jest.Mock).mockResolvedValue("我们先拆这份已保存JD。");
+  const response=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"那拆 Kimi 的 Agent 协作产品经理吧",requestId:"11111111-1111-4111-8111-111111111111"})}));
+  expect((await response.json()).ok).toBe(true);
+  expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({userId:"owner",opportunityId:jobId}));
+  expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({opportunity_id:null}));
+  expect(jobs.eq).toHaveBeenCalledWith("user_id","owner");
+  const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
+  expect(prompt).toContain("本轮用户指名的已保存岗位：Kimi");
+  expect(prompt.indexOf("context")).toBeLessThan(prompt.indexOf("个人背景摘要"));
+ });
+ test("referencing an owned job cannot bypass the original workspace ownership",async()=>{
+  const q=setupGeneration();
+  const jobs={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[{id:"33333333-3333-4333-8333-333333333333",company:"Kimi",role:"Agent 协作产品经理"}]}),maybeSingle:jest.fn().mockResolvedValue({data:null})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==="coach_opportunities"?jobs:q});
+  const response=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({opportunityId:"44444444-4444-4444-8444-444444444444",message:"拆Kimi岗位",requestId:"11111111-1111-4111-8111-111111111111"})}));
+  expect(response.status).toBe(404);
+  expect(callLLM).not.toHaveBeenCalled();
+  expect(q.insert).not.toHaveBeenCalled();
+ });
  test("resume drafts are checked before any draft text is streamed",async()=>{
   setupGeneration();(callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({resumeQuotes:[],nextStep:"请补充真实项目动作"}));
   const req=new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({message:"帮我写一条简历项目描述",requestId:"11111111-1111-4111-8111-111111111111"})});

@@ -2,6 +2,12 @@ import {boundedLearningPrompt,compactProfile,makeLearningQuery,LEARNING_SYSTEM} 
 import {estimateTokens} from "./context";
 jest.mock("@/lib/db");
 describe("learning memory",()=>{
+ test("prioritized saved JD survives oversized optional history",()=>{
+  const jd="已保存JD：Kimi Agent协作产品经理，负责多智能体协作产品。";
+  const prompt=boundedLearningPrompt("拆这个岗位",[jd,"旧对话".repeat(20000)],2000);
+  expect(prompt).toContain(jd);
+  expect(estimateTokens(prompt)+estimateTokens(LEARNING_SYSTEM)).toBeLessThanOrEqual(2000);
+ });
  test("extractive compaction retains evidence status and source without inventing experience",()=>{
   const text=compactProfile([{id:"a",display_text:"做过客服访谈",status:"unverified",source_id:"src-a"},{id:"b",display_text:"已撤销经历",status:"withdrawn",source_id:null}]);
   expect(text).toContain("[unverified]");expect(text).toContain("src-a");expect(text).not.toContain("已撤销经历");expect(text).not.toContain("已掌握");

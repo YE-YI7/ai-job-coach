@@ -17,6 +17,7 @@ import {advanceStage,inferStageIntent} from "@/lib/coach-harness/stage-intent";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {hasReviewMaterial} from "@/lib/interview/review-evidence";
 import {chatFailureMessage} from "@/lib/coach-harness/chat-failure";
+import {resolveSavedJobReference} from "@/lib/coach-harness/job-reference";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -93,18 +94,28 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,learning_trace:existing.learning_trace}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
   const groundedDraft=needsResumeGrounding(body.message);
+  const reference = await resolveSavedJobReference(user.id, body.message);
+  const contextId = reference.ambiguous.length ? null : reference.job?.id ?? id;
+  if(id && contextId!==id){
+    const scope=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();
+    if(scope.error)return NextResponse.json({error:"读取当前工作区失败，请重试"},{status:503,headers});
+    if(!scope.data)return NextResponse.json({error:"当前工作区不可访问"},{status:404,headers});
+  }
+  const referenceNote = reference.ambiguous.length
+    ? `用户提及的岗位存在多个候选，请先让用户选择，不得拿当前岗位代替：${reference.ambiguous.map(j=>`${j.company} · ${j.role}`).join("；")}`
+    : reference.job ? `本轮用户指名的已保存岗位：${reference.job.company} · ${reference.job.role}。使用下方已保存 JD，不要重复索要已有内容。会话仍属于原工作区，不更改岗位状态。` : "";
   const [{turns,context,selection},learningMemory,profileMemory] = await Promise.all([
     history(user.id,id,sessionId).then(async turns=>{
       const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
       const [context,selection]=await Promise.all([
-        getContextBundleForUser({ userId:user.id, opportunityId:id, task:"mock_interview", currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:"single_inference", budget:{maxInputTokens:4000}, knowledgeLimit:2 }),
+        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:"mock_interview", currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:"single_inference", budget:{maxInputTokens:4000}, knowledgeLimit:2 }),
         resolveChatModel(user.id,mode,retrievalQuery).catch(error=>({error})),
       ]);
       return {turns,context,selection};
     }),
     // Optional compaction/cache must not prevent a reply. The authoritative
     // context and session ownership checks above still fail closed.
-    sessionId&&!groundedDraft?readLearningMemory(user.id,id).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?readLearningMemory(user.id,contextId).catch(()=>""):Promise.resolve(""),
     sessionId&&!groundedDraft?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
@@ -114,15 +125,14 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   }
   assertContextFits(context);
   const rendered = renderContextForPrompt(context).text;
-  const interviewLedger = await interviewLedgerFor(db, user.id, id).catch(() => "");
+  const interviewLedger = await interviewLedgerFor(db, user.id, contextId).catch(() => "");
   // Always recompile private facts; never share a cached answer across users or jobs.
   const recent = turns.slice(-4).map(t => `${t.learning_trace?.proactive?"辅导请求（系统代发，界面未展示给用户）":"用户"}：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const pageContext = typeof body?.pageContext === "string" ? body.pageContext.slice(0, 1200) : "";
-  // 界面实时上下文排在最前：预算截断按顺序丢段，操作日志若排在长历史之后，
-  // 会被 profile/学习/近期对话挤掉，导师就再也「看不见用户刚做了什么」。
-  const prompt=boundedLearningPrompt(body.message,[pageContext?`用户当前界面与最近操作（操作日志，不是结论依据；可据此主动追问，但不要当作已核实事实）：\n${pageContext}`:"",`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录（真实内容，引用时说明轮次；记录里没有的如实说没有）：\n${interviewLedger}`:"",rendered,`市场证据（抓取时间不是发布日期，目录页不支持统计结论）：\n${market}`]);
+  // Authoritative, budgeted JD/evidence comes before optional history and summaries.
+  const prompt=boundedLearningPrompt(body.message,[referenceNote,rendered,pageContext?`用户当前界面与最近操作（可能属于其他岗位；不是结论依据）：\n${pageContext}`:"",`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话（可能讨论其他岗位，不覆盖本轮指名岗位）：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录：\n${interviewLedger}`:"",`市场证据（抓取时间不是发布日期）：\n${market}`]);
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
@@ -172,7 +182,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：
   // 正则识别无法区分陈述与假设，推进岗位状态必须由用户点头。
   let stageSuggestion:string|null=null;
-  if(id){
+  if(id && contextId===id && !reference.ambiguous.length){
     stageSuggestion=advanceStage(await currentStageOf(db,user.id,id),inferStageIntent(body.message));
   }
   return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,learning_trace:trace},{headers});

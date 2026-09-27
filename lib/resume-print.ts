@@ -11,7 +11,8 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string)
  section{padding:12px 0;border-bottom:1px solid #ddd}h2{font-size:12pt;color:${t.accent};margin:0 0 10px;break-after:avoid}p{white-space:pre-wrap;margin:0 0 6px;orphans:3;widows:3}section[data-kind="header"] p:first-child{font-size:22pt;font-weight:700;color:${t.accent}}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
  .classic section[data-kind="header"]{text-align:center;border-bottom:2px solid #242424}.classic h2{letter-spacing:.08em}
  .modern section{display:grid;grid-template-columns:30mm minmax(0,1fr);gap:6mm}.modern h2{background:#edf2f6;padding:8px}.modern section[data-kind="header"]{display:block;background:#edf2f6;padding:16px}.modern section:not(:has(h2))>div{grid-column:1/-1}
- .warm main{display:grid;grid-template-columns:1fr 1fr;gap:5mm}.warm section{background:#fbf8f2;padding:12px}.warm section[data-kind="header"],.warm section[data-kind="experience"],.warm section[data-kind="project"]{grid-column:1/-1}
+ .warm main{display:block}.warm section{background:#fbf8f2;padding:12px;margin-bottom:5mm;border-bottom:1px solid #d9cbbb}.warm h2{background:#f1e9dc;padding:8px}
+ @media screen and (max-width:600px){body{margin:16px}.modern section{display:block}}
  @media print{.toolbar{display:none}body{margin:0;max-width:none}h2{break-after:avoid}section{break-inside:auto}*{print-color-adjust:exact}}
  </style></head><body class="${template}"><div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div><main>${content}</main></body></html>`;
 }

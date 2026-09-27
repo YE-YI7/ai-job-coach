@@ -8,6 +8,15 @@
         "value": "outfit",
         "createdAt": "2026-09-27T02:23:48.922Z",
         "reason": "User approved the existing Outfit cockpit typography on 2026-09-21; this patch changes input focus, not the font system."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "components/cockpit/AgentConversation.module.css"
+        ],
+        "createdAt": "2026-09-27T02:35:30.791Z",
+        "reason": "Agent review: sole match is the Markdown blockquote citation delimiter, not a decorative card accent; preserve quotation semantics."
       }
     ]
   }

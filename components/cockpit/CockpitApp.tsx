@@ -1373,11 +1373,10 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
   return (
     <section className={styles.resumeStudio}>
       <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><span className={styles.eyebrow}>岗位版本</span><h2>把简历改到可以投</h2><p>先看整体、再逐块决定改动；改完做一次事实与岗位检查，通过后冻结，避免误投旧版本。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "一键生成岗位版"} · ${quotaLabel}`}</button></div>
-      <div className={styles.resumeSteps} aria-label="简历处理进度">{progress.steps.map((step, index) => <span key={step.id} data-state={step.state}><b>{index + 1}</b>{step.label}</span>)}</div>
       <div className={styles.resumeActionRow}>
-        <p>{progress.hint}</p>
+        <p>随时可在下方预览并保存 PDF。事实检查是可选辅助，不会拦住导出。</p>
         <div>
-          {progress.action === "check" && <button className={styles.primaryButton} disabled={validating} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "检查我的修改"}</button>}
+          {progress.action === "check" && <button className={styles.secondaryButton} disabled={validating} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "请 AI 帮我检查（可选）"}</button>}
           {progress.action === "freeze" && <button className={styles.primaryButton} disabled={freezing} onClick={onFreeze}>{freezing ? "正在保存…" : "保存投递版"}</button>}
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>

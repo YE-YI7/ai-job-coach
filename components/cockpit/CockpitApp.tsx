@@ -1372,7 +1372,7 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
   }
   return (
     <section className={styles.resumeStudio}>
-      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><span className={styles.eyebrow}>岗位版本</span><h2>把简历改到可以投</h2><p>先看整体、再逐块决定改动；改完做一次事实与岗位检查，通过后冻结，避免误投旧版本。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "一键生成岗位版"} · ${quotaLabel}`}</button></div>
+      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><h2>把简历改到可以投</h2><p>逐块采用建议、自己修改或保留原文，随时预览并保存 PDF；需要时再请 AI 检查。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "一键生成岗位版"} · ${quotaLabel}`}</button></div>
       <div className={styles.resumeActionRow}>
         <p>随时可在下方预览并保存 PDF。事实检查是可选辅助，不会拦住导出。</p>
         <div>

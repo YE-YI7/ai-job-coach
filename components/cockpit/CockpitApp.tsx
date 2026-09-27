@@ -3,6 +3,7 @@
 import Image from "next/image";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
+import {requestsTeaching,learningHandoff} from "@/lib/interview/learning-handoff";
 import ChatResizeHandle from "./ChatResizeHandle";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -772,6 +773,12 @@ export function CockpitApp({
   const analyzeInterviewAnswer = async (question: string, answer: string) => {
     if (!active) throw new Error("请先选择岗位");
     const opportunityId = active.id;
+    if (requestsTeaching(answer)) {
+      setCoachingStart({id:crypto.randomUUID(),opportunityId,proactive:true,...learningHandoff(question,answer)});
+      setMobileRail("actions");
+      announce(dataMode === "demo" ? "预览：登录后导师会围绕这道题带你学，不生成评分" : "导师收到求教了，正在右侧带你学这道题");
+      return null;
+    }
     if (dataMode === "live") trackProductEvent("interview_practice_started", { opportunity_id: opportunityId });
     let record: InterviewPracticeFeedback;
     if (dataMode === "demo" && !localIds.includes(opportunityId)) {
@@ -1453,7 +1460,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   onSelectJob: (id: string) => void;
   onSupplement: (input: OpportunitySupplement) => Promise<void>;
   supplementing: boolean;
-  onAnalyze: (question: string, answer: string) => Promise<InterviewPracticeFeedback>;
+  onAnalyze: (question: string, answer: string) => Promise<InterviewPracticeFeedback | null>;
   onSyncRoundtable: (session: InterviewRoundtableSession, nextActions?: InterviewRoundNextActionView[]) => void;
   dataMode: "demo" | "live";
   // Built-in demo seed data is fabricated (see buildDemoAssessment / demo
@@ -1836,7 +1843,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         loading={supplementing}
         onSubmit={onSupplement}
       />)}
-      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}><span>单题速练 · 不生成新题，只对你选的这题给反馈（{exampleRecords ? "示例工作区给出的是演示反馈，不消耗额度" : "会消耗一次额度"}）；回答会保存到当前岗位</span>{opportunity.interviewFocus.length > 1 && <div className={styles.practiceQuestionPicker} role="group" aria-label="选择要练的重点题">{opportunity.interviewFocus.slice(0, 6).map((focus, index) => <button key={focus.id} type="button" title={focus.question} aria-pressed={focus.id === currentQuestion.id} onClick={() => { if (focus.id !== currentQuestion.id) { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); } }}>第{index + 1}题</button>)}</div>}<h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && feedbackFor === currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? <ul className={styles.dotListGood}>{practiceFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map((item) => <li key={item}>{item}</li>)}</ul></section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); setFeedbackFor(currentQuestion.question); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师分析中…" : "保存并分析回答"}</button></div></section>}
+      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}><span>单题速练 · 不生成新题，只对你选的这题给反馈（{exampleRecords ? "示例工作区给出的是演示反馈，不消耗额度" : "会消耗一次额度"}）；回答会保存到当前岗位</span>{opportunity.interviewFocus.length > 1 && <div className={styles.practiceQuestionPicker} role="group" aria-label="选择要练的重点题">{opportunity.interviewFocus.slice(0, 6).map((focus, index) => <button key={focus.id} type="button" title={focus.question} aria-pressed={focus.id === currentQuestion.id} onClick={() => { if (focus.id !== currentQuestion.id) { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); } }}>第{index + 1}题</button>)}</div>}<h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && feedbackFor === currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? <ul className={styles.dotListGood}>{practiceFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map((item) => <li key={item}>{item}</li>)}</ul></section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); setFeedbackFor(feedback ? currentQuestion.question : null); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师处理中…" : requestsTeaching(answer) ? "让导师带我学" : "保存并分析回答"}</button></div></section>}
       {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
       {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper}><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>

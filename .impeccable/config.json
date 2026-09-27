@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "outfit",
+        "createdAt": "2026-09-27T02:23:48.922Z",
+        "reason": "User approved the existing Outfit cockpit typography on 2026-09-21; this patch changes input focus, not the font system."
+      }
+    ]
+  }
+}

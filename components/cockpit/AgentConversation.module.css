@@ -1,6 +1,8 @@
 .panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:14px;color:#292b2d}
 .panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel header strong{font-size:20px;letter-spacing:-.3px}
+.mentorIdentity{display:flex;align-items:center;gap:9px}.mentorIdentity img{border-radius:10px;flex-shrink:0}
+.panel.panel textarea:focus-visible{outline:none;box-shadow:none}
 .panel button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;color:inherit;padding:8px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;min-height:36px}
 .panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #a64317;outline-offset:3px}
 .panel button:disabled{opacity:.45;cursor:not-allowed}

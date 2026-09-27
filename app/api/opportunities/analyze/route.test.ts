@@ -38,6 +38,11 @@ describe("supplement keeps the client's ground truth",()=>{
   (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
   (buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({items:[],contextText:""});
  });
+ test("new job inherits exact base resume rather than model paraphrase",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"示例公司",role:"产品经理",jdText:"负责产品规划",resumeText:"模型擅自改写的经历"}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"示例公司招聘产品经理，负责产品规划",resumeText:"基础简历：只做过人工抽检"})}));
+  expect(response.status).toBe(200);expect((await response.json()).input.resumeText).toBe("基础简历：只做过人工抽检");
+ });
  test("resume supplement onto a job keeps the stored JD and raw resume even when the model reclassifies to resume-only",async()=>{
   // 复现用户报的路径：先传 JD 建成岗位，再传简历。模型把整包材料误判成 materialKind=resume
   // 且按要求返回空 jdText、转写版 resumeText——旧逻辑据此清空 JD、翻成准备档案。

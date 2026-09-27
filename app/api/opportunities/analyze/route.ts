@@ -281,7 +281,8 @@ export async function POST(request: Request) {
     const role = String(parsed.role || intake.role || (workspaceType === "preparation" ? "目标待确认" : "")).trim().slice(0, 160);
     const location = String(parsed.location || intake.location || "").trim().slice(0, 160);
     const jdText = workspaceType === "job" ? String(isSupplement ? intake.jdText : (parsed.jdText || "")).trim().slice(0, MAX_SOURCE_LENGTH) : "";
-    const resumeText = String(isSupplement ? intake.resumeText : (parsed.resumeText || intake.resumeText || (materialKind === "resume" ? intake.jdText : ""))).trim().slice(0, MAX_SOURCE_LENGTH);
+    // A supplied base resume is factual source text, never an LLM rewrite.
+    const resumeText = String(isSupplement ? intake.resumeText : (intake.resumeText || parsed.resumeText || (materialKind === "resume" ? intake.jdText : ""))).trim().slice(0, MAX_SOURCE_LENGTH);
     const profileText = workspaceType === "preparation" ? intake.jdText.trim().slice(0, MAX_SOURCE_LENGTH) : "";
     if (!company || !role || (workspaceType === "job" && !jdText)) {
       await finalizeQuota(reservation, false);

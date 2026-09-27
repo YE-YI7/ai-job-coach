@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
+import ProfileWorkspace from "./ProfileWorkspace";
+import {tutorInvitation} from "@/lib/interview/tutor-invitation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
 import {requestsTeaching,learningHandoff} from "@/lib/interview/learning-handoff";
 import ChatResizeHandle from "./ChatResizeHandle";
@@ -160,7 +162,7 @@ export function CockpitApp({
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
   const [creating, setCreating] = useState(false);
-  const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("resume");
+  const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("direction");
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
   const [validatingResume, setValidatingResume] = useState(false);
@@ -365,15 +367,17 @@ export function CockpitApp({
     if (dataMode === "live") trackProductEvent("material_intake_started", { input_type: intake.file ? "file" : "text_or_link" });
     const requestBody = intake.file ? new FormData() : null;
     const requestId = crypto.randomUUID();
+    const baseResume = entry !== "direction" ? opportunities.find(item => item.workspaceType === "preparation" && item.resumeText?.trim())?.resumeText || "" : "";
     if (requestBody) {
       requestBody.set("requestId", requestId);
       requestBody.set("file", intake.file as File);
+      if (baseResume) requestBody.set("resumeText", baseResume);
       if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
     }
     const response = await fetch("/api/opportunities/analyze", {
       method: "POST",
       headers: requestBody ? undefined : { "Content-Type": "application/json" },
-      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId }),
+      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume }),
     });
     const result = await response.json();
     if (!response.ok || !result.ok || !result.input) {
@@ -446,7 +450,7 @@ export function CockpitApp({
       form.set("role", active.role);
       form.set("location", active.location);
       form.set("jdText", active.jdText || "");
-      form.set("resumeText", active.resumeText || "");
+      form.set("resumeText", supplement.kind === "resume" && active.workspaceType === "preparation" ? "" : active.resumeText || "");
       if (supplement.sourceText.trim()) form.set("sourceText", supplement.sourceText.trim());
       if (supplement.file) form.set("file", supplement.file);
       const response = await fetch("/api/opportunities/analyze", { method: "POST", body: form });
@@ -812,6 +816,7 @@ export function CockpitApp({
     }));
     if (dataMode === "live") trackProductEvent("interview_practice_completed", { opportunity_id: opportunityId, verdict: record.verdict });
     announce("回答已保存，导师反馈已生成");
+    if (record.gaps?.length) setMobileRail("actions");
     logAction(`练了一道单题（${record.verdict}）：${question.slice(0, 40)}`);
     return record;
   };
@@ -884,7 +889,7 @@ export function CockpitApp({
         <div className={styles.detailBrand}><Brand /></div>
         <div className={styles.topbarContext}>
           <span className={dataMode === "demo" ? styles.demoState : styles.liveState}>
-            {creating ? "新建岗位" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
+            {creating ? "添加求职材料" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
           </span>
           {/* 四类入口可随时找回（PRD §3.1）：首访自动弹层之外，常驻入口不依赖弹出 */}
           {dataMode !== "demo" && (
@@ -911,27 +916,27 @@ export function CockpitApp({
 
       <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
+          onOpenProfile={() => { const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
           opportunities={filtered}
-          totalCount={opportunities.length}
           query={query}
           mobileOpen={mobileRail === "opportunities"}
           onQueryChange={setQuery}
-          localCount={dataMode === "live" ? opportunities.length : localIds.length}
           pinnedIds={railPins}
           canReorder={!query.trim()}
           onSelect={(id) => { setCreating(false); setActiveId(id); setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!)); setMobileRail(null); }}
           onTogglePin={toggleOpportunityPin}
           onReorder={reorderOpportunities}
           onDelete={deleteOpportunity}
-          onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
+          onCreate={() => { setNewEntry("resume"); setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
           onClose={() => setMobileRail(null)}
         />
 
         <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
           {creating ? <NewOpportunityForm initialEntry={newEntry} onCreate={createOpportunity} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
-          <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>
+          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
+          {active.workspaceType !== "preparation" && <>
           <div className={styles.documentBody}>
             {activeTab==="resume"&&!active.resumeText&&<ContextMaterialAction kind="resume" title="上传简历开始修改" description="拖入文件或粘贴内容，不会覆盖已有岗位。" placeholder="粘贴简历内容" loading={supplementingMaterial} onSubmit={supplementOpportunity}/>}
             {activeTab==="resume"&&active.resumeText&&!resumeUploadOpen&&<p className={styles.ctaHint} style={{margin:"0 0 12px"}}>已有简历。要换一份或补充经历？<button type="button" onClick={()=>setResumeUploadOpen(true)} style={{marginLeft:6,padding:0,border:"none",background:"none",color:"var(--accent,#c2410c)",font:"inherit",cursor:"pointer",textDecoration:"underline"}}>上传 / 替换简历</button></p>}
@@ -946,7 +951,7 @@ export function CockpitApp({
             </div>}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} onGuide={guideReview} analyzing={reviewingInterview} />}
             {activeTab === "salary" && <>{active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}<section><h2>谈薪与 Offer</h2><p>先核对薪酬结构、截止时间与自己的取舍。不要求重新做简历或课程。</p><button className={styles.primaryButton} onClick={()=>{setEntryGateInitial({view:"offers",opportunityId:active.id});setEntryGateOpen(true);}}>管理 Offer 条款</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>请导师帮我准备沟通</button></section></>}
-          </div></>}
+          </div></>}</>}
         </section>
 
         {creating ? <CreationRail /> : active && <ActionRail
@@ -994,9 +999,10 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>
           <span className={styles.emptyIcon}><BriefcaseBusiness size={24} /></span>
-          <h1>你现在想推进哪一步？</h1>
-          <p>不用先弄懂整个工具。选一个起点，下一屏会告诉你需要什么；随时可以换方向。</p>
-          <div className={styles.intakeChoices}><button onClick={() => onCreate("direction")}>还没找到岗位</button><button onClick={() => onCreate("resume")}>有岗位，改简历</button><button onClick={() => onCreate("interview")}>准备面试</button></div>
+          <h1>先给我简历，一起找到下一步</h1>
+          <p>先了解你的经历，再确定方向和目标岗位。不需要先准备 JD。</p>
+          <button className={styles.primaryButton} onClick={()=>onCreate("direction")}><UploadCloud size={18}/>导入我的简历</button>
+          <div className={styles.intakeChoices}><button onClick={() => onCreate("direction")}>还没有简历，带我梳理</button><button onClick={() => onCreate("resume")}>我已经有目标岗位</button><button onClick={() => onCreate("interview")}>直接准备面试</button></div>
         </div>
         <ol className={styles.onboardingSteps}>
           <li><strong>还没找到岗位</strong><span>先传简历或说一个目标，整理方向与经历。</span></li>
@@ -1017,9 +1023,10 @@ function DemoNotice({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function OpportunityRail({ activeId, opportunities, totalCount, localCount, query, onQueryChange, onSelect, onCreate, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
-  activeId: string; opportunities: Opportunity[]; totalCount: number; query: string;
-  localCount: number; onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCreate: () => void;
+function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSelect, onCreate, onOpenProfile, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
+  onOpenProfile: () => void;
+  activeId: string; opportunities: Opportunity[]; query: string;
+  onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCreate: () => void;
   mobileOpen: boolean; onClose: () => void;
   pinnedIds: string[]; canReorder: boolean;
   onTogglePin: (id: string) => void; onReorder: (movingId: string, targetId: string) => void; onDelete: (id: string) => void;
@@ -1032,12 +1039,14 @@ function OpportunityRail({ activeId, opportunities, totalCount, localCount, quer
   return (
     <aside className={`${styles.opportunityRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="岗位机会">
       <div className={styles.railHeading}>
-        <div><h2>机会</h2><p>{localCount === totalCount ? `${totalCount} 个我的岗位` : localCount ? `${localCount} 个我的 · ${totalCount - localCount} 个示例` : `${totalCount} 个示例岗位`}</p></div>
+        <div><h2>机会</h2><p>{opportunities.filter(item=>item.workspaceType!=="preparation").length} 个岗位{query.trim()?" · 搜索结果":""}</p></div>
         <button className={styles.mobileClose} onClick={onClose} aria-label="关闭机会列表"><X size={19} /></button>
       </div>
       <label className={styles.searchBox}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索公司或岗位</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索公司或岗位" /></label>
+      <button className={styles.profileEntry} onClick={onOpenProfile}><FileText size={17}/><span><strong>我的简历与方向</strong><small>基础档案 · 多个岗位共用</small></span></button>
+      {opportunities.filter(item=>item.workspaceType==="preparation").length>1&&<details><summary>其他基础档案</summary>{opportunities.filter(item=>item.workspaceType==="preparation").map(item=><button key={item.id} onClick={()=>onSelect(item.id)}>{item.role}</button>)}</details>}
       <div className={styles.opportunityList} role="list">
-        {opportunities.map((opportunity) => {
+        {opportunities.filter(item=>item.workspaceType!=="preparation").map((opportunity) => {
           const pinned = pinSet.has(opportunity.id);
           const confirming = confirmId === opportunity.id;
           return (
@@ -1103,8 +1112,8 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
   return (
     <div className={styles.createPage}>
       <div className={styles.createIntro}>
-        <h1>{entry === "direction" ? "先找到适合你的方向" : entry === "interview" ? "为这场面试做准备" : "看看这个岗位，简历怎么改"}</h1>
-        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "还没找到岗位"], ["resume", "有岗位，改简历"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={entry === value} onClick={() => setEntry(value)}>{label}</button>)}</div>
+        <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
+        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={entry === value} onClick={() => setEntry(value)}>{label}</button>)}</div>
         <p>{entry === "direction" ? "先上传简历，或写下想做的方向。不要求先有 JD；这里先整理目标，尚不自动搜索招聘网站。" : entry === "interview" ? "粘贴这次面试的 JD 或招聘链接。已有简历也可以一起上传，建立档案后进入模拟面试。" : "先粘贴 JD 或招聘链接，也可以上传简历。缺的材料会在下一步提醒你补，不用一次填完。"}</p>
       </div>
       <form
@@ -1142,7 +1151,7 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
             onChange={(event) => { setSourceText(event.target.value); setError(""); }}
             rows={8}
             aria-label="求职材料内容"
-            placeholder="粘贴岗位链接、JD、简历片段，或直接写：我想找 AI 产品经理……"
+            placeholder={entry === "direction" ? "拖入简历文件，或粘贴简历原文。还没有简历，也可以先写一段你做过的事。" : "粘贴招聘链接或 JD。已有基础简历会自动带入，不用重复上传。"}
             autoFocus
           />
           {file && <div className={styles.fileChip}><UploadCloud size={16} /><span>{file.name}</span><button type="button" onClick={() => { setFile(null); if (inputRef.current) inputRef.current.value = ""; }} aria-label={`移除 ${file.name}`}><X size={14} /></button></div>}
@@ -1981,7 +1990,7 @@ function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startReques
   return (
     <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="导师对话">
       <button className={styles.mobileClose} onClick={onClose} aria-label="关闭导师对话"><X size={19}/></button>
-      <AgentConversation opening={mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} key={opportunity.id} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
+      <AgentConversation invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} key={opportunity.id} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
       <details className={styles.privacyLine}><summary><ShieldCheck size={13} />{storageLabel}</summary><p>{storageDetail}</p></details>
     </aside>
   );

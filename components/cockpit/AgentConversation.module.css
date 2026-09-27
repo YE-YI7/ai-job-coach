@@ -2,6 +2,10 @@
 .panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel header strong{font-size:20px;letter-spacing:-.3px}
 .mentorIdentity{display:flex;align-items:center;gap:9px}.mentorIdentity img{border-radius:10px;flex-shrink:0}
+.teachingInvite{padding:14px 0;border-bottom:1px solid #d9d5ce;flex-shrink:0}
+.teachingInvite p{margin:0 0 10px;line-height:1.65;font-size:14px}
+.teachingInvite div{display:flex;gap:8px}.teachingInvite div button:first-child{background:#8d3a17;color:#fff;padding:8px 12px;border-radius:8px}
+.teachingInvite small{display:block;color:#605c55;margin-top:8px}
 .panel.panel textarea:focus-visible{outline:none;box-shadow:none}
 .panel button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;color:inherit;padding:8px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;min-height:36px}
 .panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #a64317;outline-offset:3px}

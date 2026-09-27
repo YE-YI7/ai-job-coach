@@ -1,5 +1,6 @@
 /** Preserve explicitly identified material on model failure; never guess mixed content. */
 export function deferredIntake(input:{materialKindHint:string;sourceLabel:string;company:string;role:string;location:string;jdText:string;resumeText:string}) {
+ if(input.materialKindHint==="preparation" && (input.jdText.trim()||input.resumeText.trim()))return {workspaceType:"preparation",company:"求职准备",role:input.role||"目标待确认",location:input.location,jdText:"",resumeText:input.resumeText,profileText:input.jdText,sourceLabel:input.sourceLabel};
  const resume=input.materialKindHint==="resume"||(!input.materialKindHint&&/^文件导入.*(?:简历|履历|resume\b)/i.test(input.sourceLabel));
  if(resume){
   const text=input.resumeText||input.jdText;

@@ -1,4 +1,4 @@
-.panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:14px;color:#292b2d}
+.panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:16px;color:#292b2d}
 .panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel header strong{font-size:20px;letter-spacing:-.3px}
 .mentorIdentity{display:flex;align-items:center;gap:9px}.mentorIdentity img{border-radius:10px;flex-shrink:0}
@@ -45,3 +45,4 @@
 .panel form{border-color:#d3cbc0;padding:14px;border-radius:14px;background:linear-gradient(180deg,#fffdfb,#fbf8f3);box-shadow:0 4px 12px #30271805;transition:border-color .16s ease,box-shadow .16s ease}.panel form:focus-within{border-color:#ab8063;box-shadow:0 0 0 3px rgba(166,67,23,.10),0 6px 16px #3027180a}.panel textarea{min-height:82px;font-size:14px;line-height:1.7}.panel footer{border-top:1px solid #f0ece5;padding-top:6px}.panel footer [type="submit"]{border-radius:8px;background:#a7441a}.modelSelect{font-size:11px}.panel button:disabled{opacity:1;color:#8a8277;background:#f1eee7}
 .panel form:focus-within{border-color:#737c76;box-shadow:0 4px 12px #30271805}
 @media(max-width:700px){.panel{height:calc(100dvh - 110px);min-height:440px}.welcome{min-height:180px}.panel textarea{font-size:16px}}
+.panel textarea{font-size:16px}.quickStarts button,.answer button{font-size:14px}.history,.context,.error{font-size:13px}.welcome p{font-size:15px}

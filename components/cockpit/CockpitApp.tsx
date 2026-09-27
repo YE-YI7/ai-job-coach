@@ -371,6 +371,7 @@ export function CockpitApp({
     const baseResume = entry !== "direction" ? baseProfile?.resumeText || "" : "";
     if (requestBody) {
       requestBody.set("requestId", requestId);
+      if (entry === "direction") requestBody.set("materialKindHint", "preparation");
       requestBody.set("file", intake.file as File);
       if (baseResume) requestBody.set("resumeText", baseResume);
       if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
@@ -378,7 +379,7 @@ export function CockpitApp({
     const response = await fetch("/api/opportunities/analyze", {
       method: "POST",
       headers: requestBody ? undefined : { "Content-Type": "application/json" },
-      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume }),
+      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume, materialKindHint: entry === "direction" ? "preparation" : undefined }),
     });
     const result = await response.json();
     if (!response.ok || !result.ok || !result.input) {
@@ -905,8 +906,8 @@ export function CockpitApp({
           )}
           <span>{compactAccountLabel(userEmail)}</span>
           <TokenPayWidget compact />
-          <button className={styles.iconButton} onClick={logout} aria-label="退出登录" title="退出登录">
-            <LogOut size={17} aria-hidden="true" />
+          <button className={creating ? styles.secondaryButton : styles.iconButton} onClick={creating ? () => setCreating(false) : logout} aria-label={creating ? "返回工作区" : "退出登录"} title={creating ? "返回工作区" : "退出登录"}>
+            {creating ? "返回工作区" : <LogOut size={17} aria-hidden="true" />}
           </button>
         </div>
         <div className={styles.mobileControls}>
@@ -915,7 +916,7 @@ export function CockpitApp({
         </div>
       </header>
 
-      <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
+      <div className={`${styles.workspace} ${!creating && activeTab === "salary" ? styles.salaryWorkspace : ""}`} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
           onOpenProfile={() => { const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
@@ -1112,6 +1113,7 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
 
   return (
     <div className={styles.createPage}>
+      <button type="button" className={styles.secondaryButton} onClick={onCancel}>← 返回工作区</button>
       <div className={styles.createIntro}>
         <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
         <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={entry === value} onClick={() => setEntry(value)}>{label}</button>)}</div>
@@ -1944,7 +1946,7 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
       <div className={styles.reviewComposer}>
         <div className={styles.reviewComposerHead}><span>这是第几面？</span><small>轮次用词和「模拟面试」一致，四面、五面直接填就行。</small></div>
         <RoundPicker value={round} onChange={setRound} />
-        <div className={styles.reviewNotesHeader}><label htmlFor="review-notes">面试记录</label><VoiceControls value={notes} onChange={setNotes} readText={notes} disabled={analyzing || guiding} /></div>
+        <div className={styles.reviewNotesHeader}><label htmlFor="review-notes">面试记录</label><VoiceControls showLabel value={notes} onChange={setNotes} readText={notes} disabled={analyzing || guiding} /></div>
         <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={9} placeholder="写下或口述你记得的问题和回答：被追问了什么、哪题最没底、对方给了什么反馈…" />
         <div className={styles.reviewActions}>
           <button className={styles.primaryButton} disabled={!hasNotes || guiding} onClick={async () => { setGuiding(true); try { if (await onGuide(round, notes.trim())) setNotes(""); } finally { setGuiding(false); } }}>{guiding ? "正在保存素材…" : "存下素材，让导师带我复盘"}</button>

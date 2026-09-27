@@ -15,7 +15,7 @@ const subscribe = () => () => {};
 const speechSupported = () => {const w=window as SpeechWindow;return Boolean(w.SpeechRecognition||w.webkitSpeechRecognition);};
 
 /** Browser voice is optional. Review transcript before submitting; never auto-score partial speech. */
-export default function VoiceControls({value,onChange,readText,disabled=false}:{value:string;onChange:(text:string)=>void;readText?:string;disabled?:boolean}){
+export default function VoiceControls({value,onChange,readText,disabled=false,showLabel=false}:{value:string;onChange:(text:string)=>void;readText?:string;disabled?:boolean;showLabel?:boolean}){
  const supported=useSyncExternalStore(subscribe,speechSupported,()=>false);
  const [listening,setListening]=useState(false),[speaking,setSpeaking]=useState(false),[error,setError]=useState("");
  const recognition=useRef<Recognition|null>(null),base=useRef(""),change=useRef(onChange);
@@ -46,6 +46,7 @@ export default function VoiceControls({value,onChange,readText,disabled=false}:{
   {error&&<span className={styles.error} role="alert">{error}</span>}
   <button type="button" className={`${styles.icon} ${listening?styles.on:""}`} disabled={disabled||!supported} aria-pressed={listening} aria-label={listening?"停止听写":"语音输入"} title={supported?(listening?"停止听写":"语音输入"):"当前浏览器不支持语音输入"} onClick={toggle}><Waveform size={16} weight={listening?"bold":"regular"}/></button>
   {readText&&<button type="button" className={`${styles.icon} ${speaking?styles.on:""}`} disabled={disabled} aria-pressed={speaking} aria-label={speaking?"停止朗读":"朗读上一条"} title={speaking?"停止朗读":"朗读上一条"} onClick={read}><SpeakerHigh size={16}/></button>}
-  <span className="sr-only" role="status">{status}</span>
+  {showLabel && <button type="button" className={styles.voiceLabel} onClick={toggle} disabled={disabled||!supported}>{listening?"停止听写":"语音记录面试"}</button>}
+  <span className={showLabel?styles.status:"sr-only"} role="status">{status}</span>
  </span>;
 }

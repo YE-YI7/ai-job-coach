@@ -165,6 +165,7 @@ async function readIntake(request: Request) {
     if (file instanceof File && file.size > 0) {
       const fileText = (await extractFileText(file)).trim();
       if (!fileText) throw new Error("文件里没有读到可用文字");
+      if (materialKindHint === "preparation") structured.resumeText = fileText;
       sourceText = [sourceText, fileText].filter(Boolean).join("\n\n");
       sourceLabel = `文件导入 · ${file.name.slice(0, 80)}`;
     }
@@ -275,7 +276,7 @@ export async function POST(request: Request) {
     const modelKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";
     // 补充材料时客户端提示与合并后的原文才是事实：模型只负责分析（要求拆解、
     // 证据强弱、行动项），不得改判档案类型、清空已有 JD、或用自己的转写替换简历原文。
-    const materialKind = isSupplement ? (intake.jdText ? "mixed" : "resume") : modelKind;
+    const materialKind = kindHint === "preparation" ? "goal" : isSupplement ? (intake.jdText ? "mixed" : "resume") : modelKind;
     const workspaceType = materialKind === "job" || materialKind === "mixed" ? "job" : "preparation";
     const company = String(parsed.company || intake.company || (workspaceType === "preparation" ? "求职准备" : "")).trim().slice(0, 120);
     const role = String(parsed.role || intake.role || (workspaceType === "preparation" ? "目标待确认" : "")).trim().slice(0, 160);

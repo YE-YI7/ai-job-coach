@@ -1,4 +1,7 @@
 .wrap{display:inline-flex;align-items:center;gap:2px;min-width:0}
+.voiceLabel{border:1px solid #d7d1c7;border-radius:8px;background:#fff;padding:8px 12px;color:#403b34;font:inherit;cursor:pointer;min-height:40px}
+.voiceLabel:disabled{opacity:.5;cursor:not-allowed}.status{font-size:12px;color:#625b52;max-width:220px;line-height:1.5;margin-left:8px}
+@media(max-width:700px){.wrap{flex-wrap:wrap}.status{flex-basis:100%;margin:4px 0}}
 .icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex-shrink:0;padding:0;border:0;border-radius:8px;background:transparent;color:#8a8277;cursor:pointer;transition:background .14s ease,color .14s ease}
 .icon:hover:not(:disabled){background:#f1ece4;color:#5f5950}
 .icon:focus-visible{outline:2px solid #a64317;outline-offset:2px}

@@ -24,9 +24,9 @@ export type PricingTier = "free" | "cheap" | "expensive";
 // Concrete ids the user can pick directly (auto/fast presets live in chat-options).
 // Every entry has been verified present on the live gateway at the time of writing.
 export const SELECTABLE_MODEL_IDS = [
-  "deepseek-v4-flash-0731",
+  "hy4-preview",
   "deepseek-v4.1-flash",
-  "deepseek-v3.2",
+  "step-3.7-flash",
   "deepseek-v4-pro",
   "glm-5.3",
   "kimi-k3",
@@ -75,16 +75,16 @@ const MODEL_LOGOS = {
 
 export const MODEL_CATALOG: ModelEntry[] = [
   {
-    id: "deepseek-v4-flash-0731",
-    name: "DeepSeek V4 Flash (0731)",
-    vendor: "DeepSeek",
-    monogram: "D",
+    id: "hy4-preview",
+    name: "HY4 Preview",
+    vendor: "腾讯混元",
+    monogram: "H",
+    logo: "",
     color: "#5b7cfa",
-    logo: MODEL_LOGOS.deepseek,
     tier: "cheap",
     speedIndex: 1.0,
     premium: false,
-    blurb: "轻量快照，响应最快、额度最省，适合日常问答与草稿。",
+    blurb: "混元预览版；可用性以网关为准，费用以 TokenPay 账单为准。",
   },
   {
     id: "deepseek-v4.1-flash",
@@ -99,16 +99,16 @@ export const MODEL_CATALOG: ModelEntry[] = [
     blurb: "较新的 Flash 版本，兼顾速度与理解，长上下文友好。",
   },
   {
-    id: "deepseek-v3.2",
-    name: "DeepSeek V3.2",
-    vendor: "DeepSeek",
-    monogram: "D",
+    id: "step-3.7-flash",
+    name: "Step 3.7 Flash",
+    vendor: "阶跃星辰 StepFun",
+    monogram: "S",
+    logo: "",
     color: "#4c66d6",
-    logo: MODEL_LOGOS.deepseek,
     tier: "cheap",
     speedIndex: 0.9,
     premium: false,
-    blurb: "上一代主力，推理稳妥、成本偏低，适合较长的复盘。",
+    blurb: "阶跃 Flash；可用性以网关为准，费用以 TokenPay 账单为准。",
   },
   {
     id: "deepseek-v4-pro",

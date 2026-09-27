@@ -38,7 +38,7 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
    );})}
   </div>
   <button className={styles.secondaryButton} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>void open()}>{busy?"正在准备…":"预览 / 保存 PDF"}</button>
-  <small>{disabledReason||"导出不会改变质检或冻结状态；保存时选择「另存为 PDF」。"}</small>
+  <small>{disabledReason||"预览当前内容，在打印窗口选择「另存为 PDF」。不需要先通过 AI 检查。"}</small>
   {error&&<p role="alert">{error}</p>}
  </div>;
 }

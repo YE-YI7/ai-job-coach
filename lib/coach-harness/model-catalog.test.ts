@@ -16,6 +16,7 @@ import {CHAT_MODELS,chooseChatModel,isChatMode,type ChatMode} from "./chat-optio
 // A catalog entry that is not in this set means we would offer a model the gateway
 // does not actually host, so the picker could never enable it.
 const REAL_GATEWAY_IDS = new Set([
+  "hy4-preview","step-3.7-flash",
   "qwen3.8-max-0902","kimi-k3","glm-5.3",
   "deepseek-v4-flash","deepseek-v4.1-flash","deepseek-v3.2","deepseek-v4-pro",
   "deepseek-v4-flash-0731","deepseek-v4-pro-0813","deepseek-chat-v3-0324",
@@ -25,6 +26,11 @@ test("speed baseline anchors on glm-5.3 = 0.8", () => {
   expect(SPEED_BASELINE_ID).toBe("glm-5.3");
   expect(SPEED_BASELINE_VALUE).toBe(0.8);
   expect(findModel("glm-5.3")?.speedIndex).toBe(0.8);
+});
+test("picker offers exactly two DeepSeek models and verified StepFun/HY4",()=>{
+ expect(MODEL_CATALOG.filter(m=>m.vendor==="DeepSeek").map(m=>m.id)).toEqual(["deepseek-v4.1-flash","deepseek-v4-pro"]);
+ expect(isSelectableModelId("hy4-preview")).toBe(true);
+ expect(isSelectableModelId("step-3.7-flash")).toBe(true);
 });
 
 test("catalog is bounded and never promises free usage without prices", () => {

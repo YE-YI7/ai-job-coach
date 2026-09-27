@@ -50,11 +50,11 @@ describe("chatModelAccess", () => {
   });
 
   test("目录里的聊天模型进入 hosted，精选目录进入 available", async () => {
-    mockFetchCatalog(true, [...chat("glm-5.3", "deepseek-v4-flash-0731", "some-unlisted-chat"), { id: "tts-model-x", chat: false }]);
+    mockFetchCatalog(true, [...chat("glm-5.3", "deepseek-v4.1-flash", "some-unlisted-chat"), { id: "tts-model-x", chat: false }]);
     const mod = await freshChatModels();
     const access = await mod.chatModelAccess("u-1");
     expect(access.connected).toBe(true);
-    expect(access.available).toEqual(["glm-5.3", "deepseek-v4-flash-0731"]);
+    expect(access.available).toEqual(["glm-5.3", "deepseek-v4.1-flash"]);
     // 非精选但可聊天的模型保留在 hosted（供替换判断），未列出的 id 不进 available。
     expect(access.hosted).toContain("some-unlisted-chat");
     expect(access.hosted).not.toContain("tts-model-x");
@@ -84,23 +84,23 @@ describe("resolveTokenDanceModel（答题/出题请求落到网关前的最后�
   });
 
   test("请求模型在目录里：原样返回", async () => {
-    mockFetchCatalog(true, chat("glm-5.3", "deepseek-v4-flash-0731"));
+    mockFetchCatalog(true, chat("glm-5.3", "deepseek-v4.1-flash"));
     const mod = await freshChatModels();
     await expect(mod.resolveTokenDanceModel("u-1", "glm-5.3")).resolves.toBe("glm-5.3");
   });
 
   test("用户显式选择的模型缺失：报错且不换模型（不会被静默按别的模型计费）", async () => {
-    mockFetchCatalog(true, chat("deepseek-v4-flash-0731"));
+    mockFetchCatalog(true, chat("deepseek-v4.1-flash"));
     const mod = await freshChatModels();
     await expect(mod.resolveTokenDanceModel("u-1", "glm-5.3")).rejects.toThrow("未替换模型");
   });
 
   test("服务端默认模型缺失：只在同族实惠档内降级", async () => {
-    mockFetchCatalog(true, chat("deepseek-v4-flash-0731", "deepseek-v4-pro", "kimi-k3"));
+    mockFetchCatalog(true, chat("deepseek-v4.1-flash", "deepseek-v4-pro", "kimi-k3"));
     const mod = await freshChatModels();
     // deepseek-chat 是 env LLM_MODEL_CHAT 的默认 id，用户从未经手 → 允许降级，
     // 但绝不能降到 deepseek-v4-pro（高阶档）。
-    await expect(mod.resolveTokenDanceModel("u-1", "deepseek-chat")).resolves.toBe("deepseek-v4-flash-0731");
+    await expect(mod.resolveTokenDanceModel("u-1", "deepseek-chat")).resolves.toBe("deepseek-v4.1-flash");
   });
 
   test("服务端默认模型缺失且没有实惠档：显式失败，不偷偷按高阶计费", async () => {

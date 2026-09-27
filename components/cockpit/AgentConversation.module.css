@@ -46,3 +46,4 @@
 .panel form:focus-within{border-color:#737c76;box-shadow:0 4px 12px #30271805}
 @media(max-width:700px){.panel{height:calc(100dvh - 110px);min-height:440px}.welcome{min-height:180px}.panel textarea{font-size:16px}}
 .panel textarea{font-size:16px}.quickStarts button,.answer button{font-size:14px}.history,.context,.error{font-size:13px}.welcome p{font-size:15px}
+.answer .markdown p{margin:0 0 1em;line-height:1.85;white-space:normal}.answer .markdown h2,.answer .markdown h3{margin:1.5em 0 .7em;font-weight:700}.answer .markdown li{margin:.65em 0}.answer .markdown strong{font-weight:700;color:#24272f}

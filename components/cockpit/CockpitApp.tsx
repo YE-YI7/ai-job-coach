@@ -43,6 +43,7 @@ import type {
 } from "@/lib/opportunities/types";
 import JobTimeline from "./JobTimeline";
 import ResumeExport from "./ResumeExport";
+import { applyResumeChanges } from "@/lib/coach-harness/application-quality";
 import ResumeBlockBoard from "./ResumeWorkbench";
 import VoiceControls from "./VoiceControls";
 import {currentJourneyStage, normalizeRoundLabel, phoneScreeningLabel, resumeProgress, stageStatusWord, STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
@@ -1340,7 +1341,7 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
   const quotaLabel = useQuotaLabel("resume");
   const [checkingPdf, setCheckingPdf] = useState(false);
   const progress = resumeProgress(opportunity);
-  const pendingCount = progress.pending;
+  const currentExport = applyResumeChanges(opportunity.resumeText || "", opportunity.resumeChanges.filter(change => change.status === "accepted"));
   const failedReviews = opportunity.applicationQuality?.reviews.filter((review) => review.status === "failed") || [];
   const pdfReview = opportunity.applicationQuality?.reviews.find((review) => review.reviewerType === "pdf");
   const verifyPdf = async (file: File) => {
@@ -1385,7 +1386,7 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
       {opportunity.resumeText ? (
         <>
           <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />
-          <div className={styles.resumeExportRow}><div><strong>{progress.frozenVersion ? `投递版本 V${progress.frozenVersion}${opportunity.frozenStale ? "（旧版本：修改后请重新保存）" : ""}` : "还没有保存投递版"}</strong></div><ResumeExport opportunityId={opportunity.id} artifactId={opportunity.applicationQuality?.artifactId} baseText={opportunity.resumeText} disabledReason={pendingCount>0||opportunity.resumeCheckStale||opportunity.frozenStale||(opportunity.resumeChanges.length>0&&progress.action!=="export")?"先检查并保存当前投递版，再导出 PDF。":undefined}/></div>
+          <div className={styles.resumeExportRow}><div><strong>保存与导出当前简历</strong><p>已采用的修改会进入导出；未决定的部分保留原文。检查建议不影响导出。</p>{currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}</div><ResumeExport opportunityId={opportunity.id} baseText={currentExport.text}/></div>
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}
     </section>

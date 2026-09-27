@@ -103,7 +103,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
         </button>
       )}
       <div className={styles.blockToolbar}>
-        <span><GripVertical size={13} className={styles.inlineGlyph} /> 悬停或点开修改处，勾选采用或保留原文。</span>
+        <span><GripVertical size={16} className={styles.inlineGlyph} /> 按住每块左上角的点阵，上下拖动调整顺序；点开文字可选择修改。</span>
         <div className={styles.sheetTemplates} role="group" aria-label="简历模板">
           {TEMPLATE_ORDER.map((id) => (
             <button key={id} type="button" className={`${styles.sheetTemplateBtn} ${template === id ? styles.sheetTemplateBtnActive : ""}`} onClick={() => chooseTemplate(id)}>

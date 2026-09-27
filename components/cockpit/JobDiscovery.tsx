@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import type { DiscoveredJob } from "@/lib/jobs/discovery";
 import styles from "./CockpitApp.module.css";
 
@@ -12,7 +12,7 @@ export default function JobDiscovery({profileId, ready, onImport}: {
   const [message, setMessage] = useState("");
   const controller = useRef<AbortController | null>(null);
   useEffect(()=>()=>controller.current?.abort(),[]);
-  async function discover() {
+  const discover = useCallback(async () => {
     controller.current?.abort();
     const abort = new AbortController(); controller.current = abort;
     setBusy(true); setMessage(""); setJobs([]);
@@ -26,9 +26,14 @@ export default function JobDiscovery({profileId, ready, onImport}: {
     } catch(error) {
       if (!abort.signal.aborted) setMessage(error instanceof Error ? error.message : "查找失败，请重试");
     } finally { if (!abort.signal.aborted) setBusy(false); }
-  }
+  }, [profileId]);
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setTimeout(() => { void discover(); }, 0);
+    return () => { window.clearTimeout(timer); controller.current?.abort(); };
+  }, [ready, discover]);
   return <div className={styles.jobDiscovery}>
-    <button className={styles.primaryButton} disabled={!ready || busy || !!importing} onClick={discover}>{busy ? "正在查看招聘来源…" : "按我的方向找岗位"}</button>
+    <button className={styles.primaryButton} disabled={!ready || busy || !!importing} onClick={discover}>{busy ? "正在按简历与方向筛选…" : "重新查找岗位"}</button>
     <p>{ready ? "首批仅覆盖 Meshy、Kong，按已保存的方向和城市筛选；不消耗模型额度。" : "先保存简历和方向，再找岗位。"}</p>
     {message && <p role="status">{message}</p>}
     {jobs.map(job=><article key={job.id} className={styles.discoveredJob}>

@@ -39,7 +39,6 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
     const presets:ModelOption[]=[
       // "auto" is synthetic (a pool, not one vendor) so it keeps the monogram chip.
       {mode:"auto",name:"自动 · 优选模型",vendor:connected?"按问题挑选 · 可能调用高阶模型":"未连接 TokenPay · 托管经济模型",monogram:"A",color:"#8a8277",logo:"",tier:"auto",speedIndex:null,available:true},
-      {mode:"fast",name:"经济 · DeepSeek V4 Flash",vendor:"DeepSeek · 最低成本档",monogram:"D",color:"#5b7cfa",logo:"/models/deepseek.svg",tier:"cheap",speedIndex:1.0,available:true},
     ];
     const cards:ModelOption[]=catalog.map(m=>({mode:m.id,name:m.name,vendor:m.vendor,monogram:m.monogram,color:m.color,logo:m.logo,tier:m.tier,speedIndex:m.speedIndex,available:m.available}));
     return [...presets,...cards];

@@ -23,6 +23,9 @@ export async function readChatResponse<T>(response:Response,onText:(text:string)
         const event=JSON.parse(line);
         if(event.type==="status"&&typeof event.message==="string")onStatus?.(event.message);
         if(event.type==="delta"&&typeof event.text==="string"){text+=event.text;onText(visibleTutorText(text));}
+        // Checked snapshots replace earlier text; never append a full answer
+        // to its streamed prefix (which makes the answer appear to loop).
+        if(event.type==="replace"&&typeof event.text==="string"){text=event.text;onText(visibleTutorText(text));}
         if(event.type==="done")return event as T;
       }
       if(done)throw Error("连接中断，回答尚未确认保存，请检查历史后重试");

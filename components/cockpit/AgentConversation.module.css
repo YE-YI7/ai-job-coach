@@ -47,3 +47,17 @@
 @media(max-width:700px){.panel{height:calc(100dvh - 110px);min-height:440px}.welcome{min-height:180px}.panel textarea{font-size:16px}}
 .panel textarea{font-size:16px}.quickStarts button,.answer button{font-size:14px}.history,.context,.error{font-size:13px}.welcome p{font-size:15px}
 .answer .markdown p{margin:0 0 1em;line-height:1.85;white-space:normal}.answer .markdown h2,.answer .markdown h3{margin:1.5em 0 .7em;font-weight:700}.answer .markdown li{margin:.65em 0}.answer .markdown strong{font-weight:700;color:#24272f}
+/* Reading gets the flexible space; controls never grow with the transcript. */
+.panel{height:100%;min-height:0;overflow:hidden;flex:1}
+.panel header{flex-shrink:0;padding-bottom:4px;gap:8px}
+.metadata{display:flex;align-items:center;gap:8px;flex-shrink:0;min-width:0;padding:4px 0 8px}
+.metadata .context{flex:1;min-width:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.metadata .history{flex:1;min-width:0;max-width:65%;margin:0;font-size:0;gap:0}
+.metadata .historyMenu{width:100%;font-size:12px}
+.messages{min-height:0;overflow-anchor:none;padding:0 4px 8px}
+.panel form{flex-shrink:0;padding:8px 10px;margin:0}
+.panel textarea{display:block;resize:none;min-height:48px;max-height:112px;line-height:1.5;padding:2px 0}
+.panel footer{padding-top:4px;gap:4px}
+.disclaimer{margin:4px 0 0;font-size:11px}
+.streamStatus{font-size:12px;color:#605c55;margin:8px 0;line-height:1.5}
+@media(max-width:700px){.panel{height:100%;min-height:0}.panel header button{min-height:36px}.metadata .history{max-width:58%}}

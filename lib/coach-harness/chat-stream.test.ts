@@ -1,4 +1,9 @@
 import {readChatResponse,visibleTutorText} from "./chat-stream";
+test("checked snapshots and completion never duplicate the streamed answer",async()=>{
+ const output=jest.fn();const events=[{type:"replace",text:"第一句。"},{type:"replace",text:"第一句。第二句。"},{type:"replace",text:"第一句。第二句。"},{type:"done",ok:true,answer:"第一句。第二句。"}];
+ await readChatResponse(new Response(events.map(e=>JSON.stringify(e)).join("\n"),{headers:{"Content-Type":"application/x-ndjson"}}),output);
+ expect(output.mock.calls.at(-1)[0]).toBe("第一句。第二句。");
+});
 test("progress updates do not render as answer text",async()=>{
  const onText=jest.fn(),onStatus=jest.fn();
  const r=new Response('{"type":"status","message":"正在核对…"}\n{"type":"done","ok":true}\n',{headers:{"Content-Type":"application/x-ndjson"}});

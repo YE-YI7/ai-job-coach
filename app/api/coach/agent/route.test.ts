@@ -24,6 +24,25 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("checked text arrives while the model is still generating, final replaces not appends",async()=>{
+  const q=setupGeneration();let finishModel!:(text:string)=>void;
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("<answer>第一句。");return new Promise(resolve=>{finishModel=resolve;});});
+  const reader=(await POST(streamRequest())).body!.getReader();let wire="";
+  while(!wire.includes('"type":"replace"')){const next=await reader.read();wire+=new TextDecoder().decode(next.value);}
+  expect(wire).toContain("第一句。");expect(q.insert).not.toHaveBeenCalled();
+  finishModel("<answer>第一句。第二句。</answer>");
+  while(true){const next=await reader.read();if(next.done)break;wire+=new TextDecoder().decode(next.value);}
+  const events=wire.trim().split("\n").map(x=>JSON.parse(x));
+  expect(events.at(-1)).toMatchObject({ok:true,answer:"第一句。第二句。"});
+  expect(events.filter(e=>e.type==="delta")).toHaveLength(0);expect(q.insert).toHaveBeenCalledTimes(1);
+ });
+ test("repeated model paragraphs fail visibly without persistence or automatic retry",async()=>{
+  const q=setupGeneration();
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("<answer>"+"模型重复开头而不推进内容，这段超过四十个字的文字连续出现三遍，应该立即中止而不是继续显示。".repeat(3));return "不应保存";});
+  const events=(await (await POST(streamRequest())).text()).trim().split("\n").map(x=>JSON.parse(x));
+  expect(events.at(-1)).toMatchObject({ok:false,error:expect.stringContaining("输出重复")});
+  expect(q.insert).not.toHaveBeenCalled();expect(callLLM).toHaveBeenCalledTimes(1);
+ });
  test("a named saved job supplies context without moving the original conversation",async()=>{
   const q=setupGeneration();
   const jobId="33333333-3333-4333-8333-333333333333";

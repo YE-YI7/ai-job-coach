@@ -16,7 +16,7 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string)
  @media print{.toolbar{display:none}body{margin:0;max-width:none}h2{break-after:avoid}section{break-inside:auto}*{print-color-adjust:exact}}
  </style></head><body class="${template}"><div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div><main>${content}</main></body></html>`;
 }
-export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string){
+export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void){
  target.document.open();target.document.write(resumePrintHtml(text,template,title));target.document.close();
- target.document.getElementById("print")?.addEventListener("click",()=>target.print());
+ target.document.getElementById("print")?.addEventListener("click",()=>{target.print();onPrintRequested?.();});
 }

@@ -1,4 +1,12 @@
-import {resumePrintHtml,printTemplates} from "./resume-print";
+import {resumePrintHtml,printTemplates,renderResumePrintWindow} from "./resume-print";
+test("preview creation does not imply print or PDF saved",()=>{
+ let click:()=>void=()=>{};
+ const onPrint=jest.fn(),print=jest.fn();
+ const target={document:{open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>({addEventListener:(_event:string,listener:()=>void)=>{click=listener;}})},print} as unknown as Window;
+ renderResumePrintWindow(target,"测试原文","classic","简历",onPrint);
+ expect(onPrint).not.toHaveBeenCalled();
+ click();expect(print).toHaveBeenCalledTimes(1);expect(onPrint).toHaveBeenCalledTimes(1);
+});
 test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])("%s keeps real text and print pagination",template=>{
  const html=resumePrintHtml("姓名\n\n教育经历\n真实内容",template,"简历");
  expect(html).toContain("真实内容");expect(html).toContain("@page");expect(html).not.toContain("canvas");expect(html).not.toContain("<img");

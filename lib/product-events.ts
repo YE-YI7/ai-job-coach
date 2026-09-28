@@ -3,6 +3,13 @@ export const PRODUCT_EVENT_NAMES = [
   "material_intake_started",
   "material_intake_completed",
   "material_intake_failed",
+  "material_intake_deferred",
+  "resume_preview_ready",
+  "resume_preview_failed",
+  "resume_print_requested",
+  "coach_response_received",
+  "coach_response_failed",
+  "workspace_saved",
   "opportunity_material_started",
   "opportunity_material_completed",
   "opportunity_material_failed",
@@ -125,6 +132,8 @@ export function buildProductEventWrite(input: {
 
 export function trackProductEvent(name: ProductEventName, properties: ProductEventProperties = {}) {
   if (typeof window === "undefined") return;
+  // Analytics must never break saving, printing or a completed tutor response.
+  try {
   const payload = {
     name,
     clientEventId: crypto.randomUUID(),
@@ -138,4 +147,5 @@ export function trackProductEvent(name: ProductEventName, properties: ProductEve
     body: JSON.stringify(payload),
     keepalive: true,
   }).catch(() => undefined);
+  } catch { /* Storage restrictions and missing crypto are non-fatal. */ }
 }

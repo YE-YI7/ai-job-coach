@@ -1,3 +1,5 @@
+import {trackProductEvent} from "@/lib/product-events";
+
 /** Hide the structured follow-up trailer, including a marker split across chunks. */
 export function visibleTutorText(text:string) {
   const marker="<followups>";
@@ -8,6 +10,19 @@ export function visibleTutorText(text:string) {
 }
 
 export async function readChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void):Promise<T> {
+ const started=Date.now();
+ try {
+  const result=await consumeChatResponse<T>(response,onText,onStatus);
+  const body=result as {ok?:boolean;learning_trace?:{timing?:{firstTextMs?:number|null;generationDoneMs?:number}}};
+  trackProductEvent(body.ok?"coach_response_received":"coach_response_failed",{http_status:response.status,stream_read_ms:Date.now()-started,server_first_text_ms:body.learning_trace?.timing?.firstTextMs,server_generation_ms:body.learning_trace?.timing?.generationDoneMs});
+  return result;
+ } catch(error) {
+  trackProductEvent("coach_response_failed",{http_status:response.status,stream_read_ms:Date.now()-started,reason_code:"stream_or_decode_failure"});
+  throw error;
+ }
+}
+
+async function consumeChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void):Promise<T> {
   if(!response.headers.get("content-type")?.includes("application/x-ndjson"))return response.json();
   if(!response.body)throw Error("连接中断，请检查历史后重试");
   const reader=response.body.getReader(),decoder=new TextDecoder();

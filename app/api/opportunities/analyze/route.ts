@@ -11,7 +11,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
 import {intakeErrorMessage} from "@/lib/opportunities/intake-error";
-import {deferredIntake} from "@/lib/opportunities/deferred-intake";
+import {deferredIntake,preserveUnclassifiedIntake} from "@/lib/opportunities/deferred-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
 export const runtime = "nodejs";
@@ -184,6 +184,7 @@ async function readIntake(request: Request) {
   }
 
   if (!sourceText && structured.company && structured.role && structured.jdText) return { ...structured, requestId, materialKindHint, sourceLabel: "网页填写" };
+  if (!sourceText && structured.resumeText) return { ...structured, requestId, materialKindHint:materialKindHint || "preparation", sourceLabel:"网页填写" };
   if (!sourceText) throw new Error("请粘贴岗位、简历或求职目标，或选择一份文件");
 
   if (/^https?:\/\/\S+$/i.test(sourceText.trim())) {
@@ -283,12 +284,15 @@ export async function POST(request: Request) {
     const location = String(parsed.location || intake.location || "").trim().slice(0, 160);
     const jdText = workspaceType === "job" ? String(isSupplement ? intake.jdText : (parsed.jdText || "")).trim().slice(0, MAX_SOURCE_LENGTH) : "";
     // A supplied base resume is factual source text, never an LLM rewrite.
-    const resumeText = String(isSupplement ? intake.resumeText : (intake.resumeText || parsed.resumeText || (materialKind === "resume" ? intake.jdText : ""))).trim().slice(0, MAX_SOURCE_LENGTH);
+    const resumeText = String(isSupplement ? intake.resumeText : (intake.resumeText || (materialKind === "resume" ? intake.jdText : parsed.resumeText || ""))).trim().slice(0, MAX_SOURCE_LENGTH);
     const profileText = workspaceType === "preparation" ? intake.jdText.trim().slice(0, MAX_SOURCE_LENGTH) : "";
     if (!company || !role || (workspaceType === "job" && !jdText)) {
       await finalizeQuota(reservation, false);
       reservation = null;
-      return NextResponse.json({ ok: false, error: "这份材料还不足以建立档案。请补充岗位内容、简历经历或目标方向。" }, { status: 422 });
+      const input = preserveUnclassifiedIntake(intake);
+      const missingFields = [!company && "company", !role && "role", workspaceType === "job" && !jdText && "jdText"].filter(Boolean);
+      if (input) return NextResponse.json({ok:true,input,analysis:null,analysisDeferred:true,reasonCode:"classification_incomplete",missingFields,error:"原文已读取，将先建立待确认档案。请确认这是简历、岗位还是求职方向；无需重复上传。"});
+      return NextResponse.json({ ok: false, reasonCode:"no_readable_material", error: "没有读到可保存的文字，请换文字版文件或粘贴内容。" }, { status: 422 });
     }
 
     const requirements = Array.isArray(parsed.requirements) ? parsed.requirements.slice(0, 10).map((value: unknown, index: number) => {

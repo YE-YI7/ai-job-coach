@@ -3,6 +3,7 @@ import {useState} from "react";
 import {Check, FileDown} from "lucide-react";
 import {printTemplates,renderResumePrintWindow,type PrintTemplate} from "@/lib/resume-print";
 import {useResumeTemplate} from "@/lib/resume-template-preference";
+import {trackProductEvent} from "@/lib/product-events";
 import styles from "./CockpitApp.module.css";
 
 // Visual mini-previews instead of a native <select> label list (per design ask).
@@ -17,11 +18,12 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
  const [template,setTemplate]=useResumeTemplate(),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  async function open(){
   if(disabledReason)return;
+  const track=(name:"resume_preview_ready"|"resume_preview_failed"|"resume_print_requested")=>{if(/^[0-9a-f-]{36}$/i.test(opportunityId))trackProductEvent(name,{opportunity_id:opportunityId,template,version_source:artifactId?"artifact":"current_text"});};
   // Open during the click, before fetching, so browsers don't block the result.
-  const preview=window.open("about:blank","_blank");if(!preview){setError("预览被浏览器拦截，请允许本网站打开新窗口后重试");return;}preview.opener=null;
+  const preview=window.open("about:blank","_blank");if(!preview){track("resume_preview_failed");setError("预览被浏览器拦截，请允许本网站打开新窗口后重试");return;}preview.opener=null;
   preview.document.body.textContent="正在读取简历版本…";setBusy(true);setError("");
-  try{let text=baseText||"";if(artifactId){const r=await fetch(`/api/coach/application-pack/pdf?opportunityId=${encodeURIComponent(opportunityId)}&artifactId=${encodeURIComponent(artifactId)}`,{cache:"no-store"});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"读取简历失败");text=b.text;}if(!text.trim())throw Error("尚无可导出的简历正文");renderResumePrintWindow(preview,text,template,artifactId?"岗位简历":"基础简历");}
-  catch(e){preview.close();setError(e instanceof Error?e.message:"导出失败，请重试");}finally{setBusy(false);}
+  try{let text=baseText||"";if(artifactId){const r=await fetch(`/api/coach/application-pack/pdf?opportunityId=${encodeURIComponent(opportunityId)}&artifactId=${encodeURIComponent(artifactId)}`,{cache:"no-store"});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"读取简历失败");text=b.text;}if(!text.trim())throw Error("尚无可导出的简历正文");renderResumePrintWindow(preview,text,template,artifactId?"岗位简历":"基础简历",()=>track("resume_print_requested"));track("resume_preview_ready");}
+  catch(e){track("resume_preview_failed");preview.close();setError(e instanceof Error?e.message:"导出失败，请重试");}finally{setBusy(false);}
  }
  return <div className={styles.exportControls}>
   <div className={styles.exportHeading}><strong>选好版式，带走这份简历</strong><span>只换呈现，不改内容</span></div>

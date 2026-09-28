@@ -1,4 +1,18 @@
 import {readChatResponse,visibleTutorText} from "./chat-stream";
+import {trackProductEvent} from "@/lib/product-events";
+jest.mock("@/lib/product-events",()=>({trackProductEvent:jest.fn()}));
+test("completion telemetry contains timings, never the user's content",async()=>{
+ (trackProductEvent as jest.Mock).mockClear();
+ await readChatResponse(Response.json({ok:true,answer:"private content",learning_trace:{timing:{firstTextMs:123,generationDoneMs:456}}}),()=>{});
+ expect(trackProductEvent).toHaveBeenCalledWith("coach_response_received",expect.objectContaining({server_first_text_ms:123,server_generation_ms:456}));
+ expect(JSON.stringify((trackProductEvent as jest.Mock).mock.calls)).not.toContain("private content");
+});
+test("an incomplete stream is recorded as failed, never received",async()=>{
+ (trackProductEvent as jest.Mock).mockClear();
+ await expect(readChatResponse(new Response('{"type":"delta","text":"partial"}\n',{headers:{"content-type":"application/x-ndjson"}}),()=>{})).rejects.toThrow();
+ expect(trackProductEvent).toHaveBeenCalledWith("coach_response_failed",expect.objectContaining({reason_code:"stream_or_decode_failure"}));
+ expect(trackProductEvent).not.toHaveBeenCalledWith("coach_response_received",expect.anything());
+});
 test("checked snapshots and completion never duplicate the streamed answer",async()=>{
  const output=jest.fn();const events=[{type:"replace",text:"第一句。"},{type:"replace",text:"第一句。第二句。"},{type:"replace",text:"第一句。第二句。"},{type:"done",ok:true,answer:"第一句。第二句。"}];
  await readChatResponse(new Response(events.map(e=>JSON.stringify(e)).join("\n"),{headers:{"Content-Type":"application/x-ndjson"}}),output);

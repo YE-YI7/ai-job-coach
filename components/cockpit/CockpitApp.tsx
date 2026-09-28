@@ -365,9 +365,9 @@ export function CockpitApp({
   };
 
   const createOpportunity = async (intake: OpportunityIntake, entry: "direction" | "resume" | "interview" = "resume") => {
-    if (dataMode === "live") trackProductEvent("material_intake_started", { input_type: intake.file ? "file" : "text_or_link" });
     const requestBody = intake.file ? new FormData() : null;
     const requestId = crypto.randomUUID();
+    if (dataMode === "live") trackProductEvent("material_intake_started", { request_id:requestId, input_type: intake.file ? "file" : "text_or_link" });
     const baseProfile = active?.workspaceType === "preparation" ? active : opportunities.find(item => item.workspaceType === "preparation" && item.resumeText?.trim());
     const baseResume = entry !== "direction" ? baseProfile?.resumeText || "" : "";
     if (requestBody) {
@@ -381,15 +381,16 @@ export function CockpitApp({
       method: "POST",
       headers: requestBody ? undefined : { "Content-Type": "application/json" },
       body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume, materialKindHint: entry === "direction" ? "preparation" : undefined }),
-    });
-    const result = await response.json();
+    }).catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"network_error"});throw error;});
+    const result = await response.json().catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"invalid_response",status:response.status});throw error;});
     if (!response.ok || !result.ok || !result.input) {
-      if (dataMode === "live") trackProductEvent("material_intake_failed", { input_type: intake.file ? "file" : "text_or_link", status: response.status });
+      if (dataMode === "live") trackProductEvent("material_intake_failed", { request_id:requestId, reason_code:result.reasonCode || "analysis_rejected", input_type: intake.file ? "file" : "text_or_link", status: response.status });
       throw apiResponseError(response, result, "材料暂时读不了，请重试");
     }
 
     const input = result.input as NewOpportunityInput;
     const analysis = result.analysis as Partial<Opportunity>;
+    if (dataMode === "live" && result.analysisDeferred) trackProductEvent("material_intake_deferred", {request_id:requestId,reason_code:result.reasonCode || "analysis_unavailable"});
 
     const localId = `web-${Date.now()}`;
     const opportunityDraft: Omit<Opportunity, "id"> = {
@@ -408,11 +409,11 @@ export function CockpitApp({
       nextEventLabel: input.workspaceType === "preparation" ? "今天完成第一步" : "今天完成投递判断",
       recommendation: analysis?.recommendation ?? "prepare_then_apply",
       recommendationLabel: analysis?.recommendationLabel ?? "等待完成分析",
-      recommendationReason: analysis?.recommendationReason ?? "岗位已收录。当前未形成可靠结论，请继续补充真实经历。",
+      recommendationReason: analysis?.recommendationReason ?? (input.workspaceType === "preparation" ? "原始材料已保留，分析待确认；请在基础档案中确认简历和求职方向，无需重复上传。" : "岗位已收录。当前未形成可靠结论，请继续补充真实经历。"),
       evidenceCoverage: analysis?.evidenceCoverage ?? { strong: 0, weak: 0, missing: 1, unverified: 0 },
       requirements: analysis?.requirements ?? [{
         id: `${localId}-req-1`,
-        requirement: "将 JD 关键要求与真实经历建立对应",
+        requirement: input.workspaceType === "preparation" ? "确认材料类型与求职方向" : "将 JD 关键要求与真实经历建立对应",
         importance: "critical",
         strength: "missing",
         evidence: input.resumeText.trim() ? "分析暂未完成，简历原文已保存。" : "尚未提供简历或经历证据。",
@@ -420,7 +421,7 @@ export function CockpitApp({
         verified: Boolean(input.resumeText.trim()),
       }],
       actions: analysis?.actions ?? [{ id: `${localId}-action-1`, title: input.resumeText.trim() ? "核对简历与 JD 的对应证据" : "补充简历或经历概览", reason: "没有真实经历证据，不能判断这个岗位是否值得投。", dueLabel: "今天", priority: "urgent", status: "todo" }],
-      activities: [{ id: `${localId}-activity-1`, actor: "user", title: "在网页创建岗位机会", detail: `已收录 ${input.company.trim()} · ${input.role.trim()} 的 JD。`, timeLabel: "刚刚" }],
+      activities: [{ id: `${localId}-activity-1`, actor: "user", title: input.workspaceType === "preparation" ? "建立准备档案" : "在网页创建岗位机会", detail: input.workspaceType === "preparation" ? "原始材料已保留，未确认的信息不会作为岗位结论。" : `已收录 ${input.company.trim()} · ${input.role.trim()} 的 JD。`, timeLabel: "刚刚" }],
       resumeChanges: [],
       interviewFocus: analysis?.interviewFocus ?? [],
     };
@@ -430,6 +431,7 @@ export function CockpitApp({
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "同步失败");
       opportunity = result.opportunity;
+      if (dataMode === "live") trackProductEvent("workspace_saved", {request_id:requestId,opportunity_id:opportunity.id,workspace_type:opportunity.workspaceType || "job"});
     } catch {
       setLocalIds((current) => [localId, ...current]);
     }
@@ -437,7 +439,7 @@ export function CockpitApp({
     setActiveId(opportunity.id);
     setActiveTab(entry === "interview" ? "interview" : entry === "resume" && opportunity.resumeText && opportunity.jdText ? "resume" : "overview");
     setCreating(false);
-    if (dataMode === "live") trackProductEvent("material_intake_completed", { opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
+    if (dataMode === "live") trackProductEvent("material_intake_completed", { request_id:requestId, analysis_deferred:Boolean(result.analysisDeferred), opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
     announce(opportunity.id === localId ? "岗位已保存到当前浏览器，云同步稍后重试" : analysis ? "岗位已同步并完成初步分析" : "岗位已同步，分析暂未完成");
   };
 

@@ -27,11 +27,11 @@ const data = await readAll(() => db
   .order("id", { ascending: true }));
 
 // Explicit account exclusions: do not infer testers from private prompts or nicknames.
-const excludedUsers = new Set((process.env.REPORT_EXCLUDE_USER_IDS || "").split(",").map(id=>id.trim()).filter(Boolean));
+const excludedUsers = new Set([process.env.REPORT_EXCLUDE_USER_IDS,process.env.ANALYTICS_INTERNAL_USER_IDS].filter(Boolean).join(",").split(",").map(id=>id.trim()).filter(Boolean));
 const registeredUsers=await readAll(() => db.from("users").select("id").order("id"));
 const existingUsers=new Set((registeredUsers||[]).map(user=>user.id));
 const rawEvents=data||[];
-const events = rawEvents.filter(event=>existingUsers.has(event.user_id)&&!excludedUsers.has(event.user_id)&&event.properties?.is_test!==true);
+const events = rawEvents.filter(event=>existingUsers.has(event.user_id)&&!excludedUsers.has(event.user_id)&&event.properties?.is_test!==true&&event.properties?.account_cohort!=="internal");
 const byUser = new Map();
 const byEvent = {};
 for (const event of events) {
@@ -46,6 +46,7 @@ const activationEvents = new Set([
   "today_action_completed",
   "resume_generation_completed",
   "interview_practice_saved",
+  "interview_practice_completed",
   "interview_review_completed",
 ]);
 const executionEvents = new Set([
@@ -53,6 +54,7 @@ const executionEvents = new Set([
   "evidence_confirmed",
   "resume_generation_completed",
   "interview_practice_saved",
+  "interview_practice_completed",
   "interview_review_completed",
 ]);
 let activated24h = 0;
@@ -62,7 +64,7 @@ let retainedD7 = 0;
 const sourceUsers = new Map();
 for (const userEvents of byUser.values()) {
   const first = new Date(userEvents[0].occurred_at).getTime();
-  const source = userEvents.find((event) => event.properties?.source)?.properties?.source || "direct";
+  const source = userEvents.find((event) => event.properties?.source)?.properties?.source || "unknown";
   const sourceEntry = sourceUsers.get(source) || { users: 0, viewed: 0, started: 0, material_ready: 0, executed: 0 };
   sourceEntry.users += 1;
   const names = new Set(userEvents.map((event) => event.event_name));
@@ -112,6 +114,11 @@ const decisions = users < 20
       activated24h >= 8 && completedLoop >= 5 ? "观察到较多材料和操作事件；仍需核验实际成果及用户访谈，不据点击量签收实用性。" : null,
     ].filter(Boolean);
 console.log(JSON.stringify({
+  measurement_version:"2026-09-28",
+  anonymous_events:rawEvents.filter(event=>!event.user_id).length,
+  internal_events:rawEvents.filter(event=>excludedUsers.has(event.user_id)||event.properties?.account_cohort==="internal").length,
+  result_events:Object.fromEntries(["workspace_saved","resume_preview_ready","resume_preview_failed","resume_print_requested","material_intake_deferred","coach_response_received","coach_response_failed"].map(name=>[name,byEvent[name]||0])),
+  measurement_caveat:"preview_ready仅证明预览构建完成；print_requested不能区分打印取消与PDF保存；stream_read_ms不包含收到HTTP响应前的等待；历史版本没有这些事件，零记录不等于零使用。未配置内部账号仍为unclassified，不冒充外部用户。",
   excluded_events: rawEvents.length-events.length,
   explicit_excluded_accounts: excludedUsers.size,
   data_caveat: "未标记的内部测试仍可能混入；计数不是严格顺序漏斗，不能据此宣称教学效果或上线成功。",

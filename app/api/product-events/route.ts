@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
+import { analyticsCohort } from "@/lib/analytics-cohort";
 import { buildProductEventWrite, isProductEventName, normalizeAnonId, sanitizeEventProperties } from "@/lib/product-events";
 
 export async function POST(request: NextRequest) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     name: body.name,
     clientEventId,
     occurredAt,
-    properties: sanitizeEventProperties(body.properties),
+    properties: {...sanitizeEventProperties(body.properties), account_cohort:analyticsCohort(userId,process.env.ANALYTICS_INTERNAL_USER_IDS)},
   });
   const { error } = await db.from("product_events").upsert(row, { onConflict, ignoreDuplicates: true });
 

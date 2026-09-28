@@ -38,6 +38,31 @@ describe("supplement keeps the client's ground truth",()=>{
   (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
   (buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({items:[],contextText:""});
  });
+ test("incomplete model job fields preserve unclassified source without invented analysis",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"",role:"",jdText:""}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"这是我上传的全部原始材料",resumeText:"已保存的基础简历"})}));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,analysis:null,analysisDeferred:true,reasonCode:"classification_incomplete",input:{workspaceType:"preparation",jdText:"",profileText:"这是我上传的全部原始材料",resumeText:"已保存的基础简历"}});
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+ });
+ test("structured resume alone needs no sourceText or JD",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",jdText:""}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resumeText:"真实简历原文"})}));
+  expect(response.status).toBe(200);
+  expect((await response.json()).input.resumeText).toBe("真实简历原文");
+ });
+ test("an unclassified uploaded file survives incomplete model fields as exact source notes",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"",role:"",jdText:""}));
+  const form=new FormData();form.set("file",new File(["上传原文：没有额外经历"],"材料.txt",{type:"text/plain"}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",body:form}));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({analysis:null,analysisDeferred:true,input:{profileText:"上传原文：没有额外经历",resumeText:"",jdText:""}});
+ });
+ test("model recognizing a pasted resume cannot replace its original wording",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"resume",resumeText:"模型添加的经历"}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"只做过真实实习"})}));
+  expect((await response.json()).input.resumeText).toBe("只做过真实实习");
+ });
  test("new job inherits exact base resume rather than model paraphrase",async()=>{
   (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"示例公司",role:"产品经理",jdText:"负责产品规划",resumeText:"模型擅自改写的经历"}));
   const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"示例公司招聘产品经理，负责产品规划",resumeText:"基础简历：只做过人工抽检"})}));

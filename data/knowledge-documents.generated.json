@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18",
+  "updated_at": "2026-09-29",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy": "# Agent 使用规则\n\n## Description\n\n本规则用于指导益职 Agent 在岗位分析、简历定制、模拟面试、回答点评和面试复盘中正确使用公共求职知识。\n\n## Goal\n\n让 Agent 的建议有可追溯依据，同时确保公共案例不会覆盖用户事实、制造虚假经历或被误解为公司官方规则。\n\n## 使用顺序\n\n1. 先读取当前任务、JD、用户简历、项目经历、面试轮次和历史记录。\n2. 检索与岗位、公司、阶段和任务相符的知识文档。\n3. 用知识文档补充追问、检查遗漏和校准建议。\n4. 只有结论依赖外部知识或用户追问时，才自然说明来源。\n\n## 证据优先级\n\n1. 用户刚刚提供的真实材料和明确纠正。\n2. 当前岗位 JD 与真实招聘流程信息。\n3. 用户长期记忆中已确认的事实。\n4. 多来源支持的知识文档。\n5. 单条公开经历或社区讨论。\n\n## 禁止事项\n\n- 不把面经当成固定题库或招聘承诺。\n- 不把外部案例、职责、数字和结果写进用户简历。\n- 不因公共样本与用户不同而否定用户事实。\n- 不向用户倾倒知识列表；知识必须服务于当前行动。\n- 证据不足时不输出伪精确概率、分数或成功率。\n\n## 冲突处理\n\n当知识文档之间或知识与用户材料冲突时，Agent 必须指出冲突来源，优先采用更贴近当前岗位、更新且证据更多的一方；仍无法判断时提出一个能改变结论的最小问题。",
@@ -414,6 +414,106 @@
           "company": "小红书",
           "published_at": "2025-09-01",
           "summary": "小红书社区技术后端一面复盘，覆盖经历盘点、MySQL 数据迁移、开源经历、语言熟悉度以及链表和二叉搜索树编程题。"
+        }
+      ]
+    },
+    {
+      "id": "swe.agent-harness-and-context-engineering.v1",
+      "title": "Agent 应用的能力栈、上下文供给与可靠性",
+      "path": "domains/software-engineering/agent-harness-and-context-engineering.md",
+      "description": "把 AI Agent 开发、大模型应用与 AI 产品技术岗需要的工程知识组织为模型与工程边界、Tool/Skill/MCP 能力栈、上下文供给失效、评测选型和可靠性分工。",
+      "goal": "用公开官方资料生成贴近真实系统设计的追问，保留工程建议与验证结果的边界。",
+      "scope": "适用于 Agent 开发、大模型应用工程与 AI 产品技术理解；公开方法不代表用户项目已经验证。",
+      "roles": [
+        "AI工程师",
+        "Agent开发工程师",
+        "大模型应用开发",
+        "软件工程师",
+        "AI产品经理",
+        "大模型产品经理"
+      ],
+      "companies": [],
+      "stages": [
+        "面试准备",
+        "技术面",
+        "业务面",
+        "模拟面试",
+        "岗位判断"
+      ],
+      "tasks": [
+        "career_coaching",
+        "job_analysis",
+        "mock_interview",
+        "answer_assessment",
+        "interview_review"
+      ],
+      "use_when": [
+        "准备 Agent 或大模型应用工程岗",
+        "项目只会说调过 API 讲不出系统",
+        "需要解释上下文失效或评测设计",
+        "AI 产品技术理解需要落地"
+      ],
+      "do_not_use_when": [
+        "用框架名称冒充可靠性证明",
+        "用论文数字冒充个人项目指标",
+        "承诺某公司一定考这些"
+      ],
+      "confidence": "low",
+      "status": "active",
+      "reviewed_at": "2026-09-29",
+      "evidence_urls": [
+        "https://arxiv.org/abs/2210.03629",
+        "https://arxiv.org/abs/2307.03172",
+        "https://www.anthropic.com/research/building-effective-agents",
+        "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+        "https://modelcontextprotocol.io/introduction"
+      ],
+      "content": "# Agent 应用的能力栈、上下文供给与可靠性\n\n## 核心知识\n\n依据 Anthropic 公开工程指南与论文，Agent 设计需要同时检查模型调用、材料供给、工具反馈和失败恢复。准备面试时先说明任务和证据，再解释为何需要自主循环；不能把框架名称或调用过 API 当作可靠性证明。\n\n## 模型与工程的边界\n\n1. **先选简单方案**：Anthropic 建议先尝试单次调用、检索和上下文示例，再按效果引入复杂流程。\n2. **区分流程与自主性**：固定步骤适合可预测 workflow；开放任务可能需要根据工具结果重新规划。\n3. **说清取舍**：自主循环可能提高完成质量，也增加调用成本、延迟和错误累积风险。比较需要同一任务与验收标准。\n\n## 能力栈三层\n\n- **Tool**：模型可调用的执行契约，含名称、描述、参数和失败语义；高风险动作必须保留人工确认。\n- **Skill**：流程知识的渐进披露——先元数据索引、触发才加载主体、需要才读附属资源，未使用不占上下文窗口（与 Anthropic 公开 Agent Skills 机制一致）。\n- **MCP**：连接 AI 应用与外部系统的开放协议，暴露工具、资源与提示三类原语；「内容稳定就存、实时在变就连」用来判断存快照还是走协议。\n\n## 上下文是有限资源\n\n- **U 形位置偏置**：「Lost in the Middle」论文实证相关信息在长上下文开头或结尾时表现最好、落在中间显著变差。工程对应：关键规则前置、长任务尾部做规约复位、按任务隔离上下文。\n- **工程检查**：核对本轮实际装载的证据、材料版本、裁剪范围及引用出处。窗口变大不代表所有位置的证据都能被稳定使用。\n- **上下文策略**：按任务选择材料，保留关键决策与未解决问题；摘要不是原始证据，必须能回到来源。\n\n## 评测与选型\n\n- 基准分数不能代替具体任务验收。保留输入、实际材料、模型版本、输出和失败记录，比较正确性、成本与延迟。\n- 自动检查适合格式与数据不变量；开放建议的适用性仍需要可解释标准和独立人工复核。\n\n## 可靠性与人机分工\n\n- Anthropic 公开指南建议在沙盒中测试自主 Agent，设置护栏与人工检查点。外发、计费或状态变更等行为应按真实风险配置权限和恢复路径。\n- 产品岗与工程岗共用的高频追问：Agent 出错时系统怎么发现、谁能停、怎么恢复。\n\n## Agent 使用方式\n\n准备 Agent 开发或 AI 产品技术面时，用这条链组织真实项目：任务 → 简单方案对照 → 工具契约 → 实际上下文 → 验收 → 失败与恢复。ReAct 提供推理与动作结合的公开研究例子；不能据此声称自己的系统已达到论文结果。\n\n## 边界\n\n本单元仅使用公开官方文档和论文，不纳入非公开培训材料。建议属于工程方法，不能推断某公司的面试流程、必考题或评分结果。",
+      "evidence": [
+        {
+          "platform": "arxiv",
+          "source_kind": "paper",
+          "url": "https://arxiv.org/abs/2210.03629",
+          "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+          "company": null,
+          "published_at": "2022-10-21",
+          "summary": "ReAct 论文，提出推理轨迹与任务动作交替生成的范式（Thought-Action-Observation 循环），是当前主流 Agent 执行循环的公开学术出处。"
+        },
+        {
+          "platform": "arxiv",
+          "source_kind": "paper",
+          "url": "https://arxiv.org/abs/2307.03172",
+          "title": "Lost in the Middle: How Language Models Use Long Contexts",
+          "company": null,
+          "published_at": "2023-07-05",
+          "summary": "公开实证长上下文中的 U 形位置偏置：相关信息在开头或结尾时表现最好，落在中间时性能显著下降。为「关键信息前置、尾部复位、上下文预算」等工程做法提供一手依据。"
+        },
+        {
+          "platform": "anthropic",
+          "source_kind": "guide",
+          "url": "https://www.anthropic.com/research/building-effective-agents",
+          "title": "Building Effective Agents",
+          "company": "Anthropic",
+          "published_at": "2024-12-19",
+          "summary": "Anthropic 官方 Agent 构建指南：从简单提示开始、按需增加复杂度；区分 workflow 与 agent；强调清晰的工具文档（Agent-Computer Interface）、沙盒运行和护栏下的人工检查点。"
+        },
+        {
+          "platform": "anthropic",
+          "source_kind": "guide",
+          "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+          "title": "Equipping agents for the real world with Agent Skills",
+          "company": "Anthropic",
+          "published_at": "2025-10-16",
+          "summary": "Anthropic 官方 Agent Skills 说明：以文件夹打包流程知识，渐进披露——先加载元数据，触发后加载主体，需要时再读附属资源，未使用不占上下文窗口。"
+        },
+        {
+          "platform": "mcp",
+          "source_kind": "spec",
+          "url": "https://modelcontextprotocol.io/introduction",
+          "title": "Model Context Protocol (MCP) Introduction",
+          "company": null,
+          "published_at": "2024-11-25",
+          "summary": "MCP 官方介绍：连接 AI 应用与外部系统的开放协议，服务端向模型暴露工具、资源与提示三类能力，为「能力栈三层」中标准接入层提供一手出处。"
         }
       ]
     },

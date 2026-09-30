@@ -1,31 +1,157 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { listCockpitOpportunities } from "@/lib/coach-harness/repository";
-import { fetchJobBoard, JOB_SOURCES, matchJobs } from "@/lib/jobs/discovery";
+import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
+import { matchJobs } from "@/lib/jobs/discovery";
+import { LIVE_SOURCES, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
+import { outboundKeywords } from "@/lib/jobs/outbound-keywords";
+import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls } from "@/lib/jobs/retrieval-gate";
+import { applyVerificationGate } from "@/lib/jobs/verification-gate";
+import { TIER_LABEL } from "@/lib/jobs/company-directory";
+import { TIER_ORDER } from "@/lib/jobs/tier-intent";
 import { unstable_cache } from "next/cache";
+import { createHash, randomUUID } from "node:crypto";
+import { getDbClient } from "@/lib/db";
+import { compileContextBundle } from "@/lib/coach-harness/context";
+import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeEvent, startExecution, startTask } from "@/lib/coach-harness/run-ledger";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
-const readBoard = (source: typeof JOB_SOURCES[number]) => unstable_cache(
-  () => fetchJobBoard(source), ["public-jobs-v1", source.board], { revalidate: 3600 },
-)();
+/** 一次查找最多打几次源：满配 = 关键词上限 8 × 按词查的 2 个源 + 2 个流源，再多就截。 */
+const MAX_SOURCE_CALLS = 18;
+const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
+  createHash("sha256").update(JSON.stringify([profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
+
+/** 回到基础档案时读上次任务，不自动重复执行。只恢复当前资料/偏好对应的结果。 */
+export async function GET(request: Request) {
+  const user = await getCurrentUserFromRequest();
+  const headers = { "Cache-Control": "private, no-store" };
+  if (!user) return Response.json({ error: "请先登录" }, { status: 401, headers });
+  const profileId = new URL(request.url).searchParams.get("profileId");
+  if (!profileId || !/^[\da-f-]{36}$/i.test(profileId)) return Response.json({ error: "请选择基础简历" }, { status: 400, headers });
+  try {
+    const profile = (await listCockpitOpportunities(user.id)).find(item => item.id === profileId && item.workspaceType === "preparation");
+    if (!profile) return Response.json({ error: "找不到这份基础简历" }, { status: 404, headers });
+    const db = await getDbClient();
+    if (!db) throw new Error("数据库不可用");
+    const { data, error } = await db.from("coach_runs").select("id")
+      .eq("user_id", user.id).eq("opportunity_id", profileId).eq("action_type", "job_decision").eq("input->>billingUnit", "job_search")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    if (!data) return Response.json({ found: false }, { headers });
+    const ledger = await getTaskLedger({ userId: user.id, runId: String(data.id) });
+    const result = (ledger.result ?? ledger.partialResult) as { profileFingerprint?: string; jobs?: unknown[] } | null;
+    const preference = await readUserTierPreference(user.id);
+    if (result?.jobs && result.profileFingerprint === profileFingerprint(profile, preference.effectiveTiers)) {
+      return Response.json({ found: true, result, status: ledger.status, completedAt: ledger.completedAt }, { headers });
+    }
+    return Response.json({ found: false, status: ledger.status, runId: ledger.runId }, { headers });
+  } catch { return Response.json({ error: "上次搜索读取失败，请重试；不会自动重复搜索。" }, { status: 503, headers }); }
+}
+
+class IncompleteSearch extends Error {
+  constructor(readonly result: Awaited<ReturnType<typeof searchLiveJobs>>) { super("招聘来源未完整返回"); }
+}
+async function readLiveJobs(keywords: string[]) {
+  let fetched = false;
+  try {
+    const result = await unstable_cache(async () => {
+      fetched = true;
+      const result = await searchLiveJobs(keywords, { maxCalls: MAX_SOURCE_CALLS });
+      // 故障/部分结果不能被共享缓存锁住 30 分钟；当前请求仍保留可用结果。
+      if (result.failures.length) throw new IncompleteSearch(result);
+      return result;
+    }, ["live-jobs-v2", ...keywords], { revalidate: 1800 })();
+    return { result, cacheHit: !fetched };
+  } catch (error) {
+    if (error instanceof IncompleteSearch) return { result: error.result, cacheHit: false };
+    throw error;
+  }
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return Response.json({error:"请先登录"}, {status:401});
   let profileId: unknown;
-  try { profileId = (await request.json()).profileId; } catch { return Response.json({error:"请求格式不正确"},{status:400}); }
+  let requestId: unknown;
+  try { ({ profileId, requestId } = await request.json()); } catch { return Response.json({error:"请求格式不正确"},{status:400}); }
   if (typeof profileId !== "string" || !/^[\da-f-]{36}$/i.test(profileId)) return Response.json({error:"请选择基础简历"},{status:400});
+  if (requestId !== undefined && (typeof requestId !== "string" || !/^[\da-f-]{36}$/i.test(requestId))) return Response.json({error:"请求编号不正确"},{status:400});
+  let runId: string | undefined;
   try {
-    const profile = (await listCockpitOpportunities(user.id)).find(item => item.id === profileId && item.workspaceType === "preparation");
+    const saved = await listCockpitOpportunities(user.id);
+    const profile = saved.find(item => item.id === profileId && item.workspaceType === "preparation");
     if (!profile) return Response.json({error:"找不到这份基础简历"},{status:404});
     if (!profile.resumeText?.trim() || !profile.role?.trim()) return Response.json({error:"请先保存简历和求职方向"},{status:400});
-    const results = await Promise.allSettled(JOB_SOURCES.map(readBoard));
-    const available = results.flatMap(result => result.status === "fulfilled" ? result.value : []);
-    const failedSources = JOB_SOURCES.filter((_,i) => results[i].status === "rejected").map(source => source.company);
-    if (failedSources.length === JOB_SOURCES.length) return Response.json({error:"招聘来源暂时无法读取，请稍后重试。你的简历不受影响。"},{status:502});
-    const jobs = matchJobs(available, {role:profile.role,location:profile.location || "",resume:profile.resumeText});
-    return Response.json({jobs, failedSources, sources:JOB_SOURCES.map(source=>source.company),
-      note:"仅覆盖 Meshy、Kong 的公开招聘板；按方向、城市和共同关键词初筛，不代表能力匹配或录用概率。远程岗位仍有地区限制。"},
+    const tracked = trackedJobUrls(saved);
+    // 出网的只有过闸的关键词：简历正文不整段外发，也不从正文抠片段拼查询。
+    const { keywords, blocked } = outboundKeywords({ role: profile.role, resumeText: profile.resumeText });
+    if (!keywords.length) return Response.json({error:"求职方向里没读出可搜索的关键词，把它写清楚一点（例如「AI 产品经理」）再来。"},{status:400});
+    const task = await startTask({ userId: user.id, opportunityId: profileId, task: "job_decision",
+      goal: "按已保存的简历与方向查找岗位", billingUnit: "job_search",
+      estimate: { estimatedModelCalls: 0, maxSourceCalls: MAX_SOURCE_CALLS },
+      idempotencyKey: `job-search:${profileId}:${requestId ?? randomUUID()}`,
+      steps: [{ id: "search", label: "读取公开招聘来源" }, { id: "screen", label: "去重与按条件筛选" }],
+      context: compileContextBundle({ userId: user.id, task: "job_decision", claims: [],
+        currentInput: JSON.stringify({ profileId, keywords, location: profile.location }),
+        budget: { maxModelCalls: 0, maxToolCalls: MAX_SOURCE_CALLS } }),
+    });
+    runId = task.runId;
+    if (task.reused) {
+      const ledger = await getTaskLedger({ userId: user.id, runId });
+      const result = ledger.result ?? ledger.partialResult;
+      return Response.json(result ?? { runId, taskStatus: ledger.status, note: "请查看任务进度，不会重复启动搜索。" },
+        { status: result ? 200 : 202, headers: { "Cache-Control": "private, no-store" } });
+    }
+    await startExecution({ userId: user.id, runId, modelCallCount: 0 });
+    await beginStep({ userId: user.id, runId, stepId: "search" });
+    const { result: searched, cacheHit } = await readLiveJobs(keywords);
+    const checkCancelled = async () => {
+      const task = await getTaskLedger({ userId: user.id, runId: runId! });
+      if (task.runStatus === "cancelled" || task.runStatus === "failed") throw new Error("TASK_CANCELLED");
+    };
+    await checkCancelled();
+    const available = toDiscoveredJobs(searched.postings);
+    const failedSourceLabels = [...new Set(searched.failures.map(failure => LIVE_SOURCES.find(source => source.id === failure.source)?.label ?? failure.source))];
+    if (!available.length && searched.failures.length >= searched.calls) {
+      await failTask({ userId: user.id, runId, reason: "error", failureType: "all_sources_failed", stepId: "search" });
+      return Response.json({runId,error:"招聘来源暂时无法读取，请稍后重试。你的简历不受影响。"},{status:502});
+    }
+    await completeStep({ userId: user.id, runId, stepId: "search", resultDigest: `读取 ${available.length} 条公开岗位；失败来源 ${failedSourceLabels.length} 个` });
+    await beginStep({ userId: user.id, runId, stepId: "screen" });
+    const { fresh, tracked: alreadyTracked } = splitSavedJobs(available, tracked);
+    const jobs = matchJobs(fresh, {role:profile.role,location:profile.location || "",resume:profile.resumeText});
+    const gate = applyRetrievalGate(jobs, { profile: profileHardFields(profile.resumeText) });
+    // 目标档位：面板点过的（含「不限」）直接生效；别处抽到的意向没确认前不拿来剔岗位
+    const preference = await readUserTierPreference(user.id);
+    // 公司层次仍查离线名录（这一步不额外外呼）；名录坏了不会少岗位，全部保留 + 标注未核验
+    const verified = await applyVerificationGate(gate, { goalTargetTiers: preference.effectiveTiers, isoNow: new Date().toISOString() });
+    await checkCancelled();
+    const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:verified.kept, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
+      verification:{status:verified.status, note:verified.note, directoryVerifiedAt:verified.directoryVerifiedAt, coverage:verified.coverage},
+      tierPreference:preference, tierOptions:TIER_ORDER.map(tier=>({value:tier,label:TIER_LABEL[tier]})),
+      search:{keywords, blockedCount:blocked.length, calls:searched.calls, cacheHit, callsThisRequest: cacheHit ? 0 : searched.calls, truncatedCalls:searched.truncatedCalls,
+        alreadyTracked,
+        credit:SOURCE_CREDIT,
+        sources:LIVE_SOURCES.map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote}))},
+      failedSources:failedSourceLabels,
+      note:`按「${keywords.join("、")}」${cacheHit ? "读取 30 分钟内的公开来源缓存" : `搜了 ${searched.calls} 次公开接口`}${blocked.length ? `，另有 ${blocked.length} 个词因含联系方式被挡下` : ""}${alreadyTracked.length ? `，${alreadyTracked.length} 条你已在跟踪、不再占候选位` : ""}；这些源以英文/远程岗位为主，中文本地岗位还需要接聚合招聘 API。按方向、城市和共同关键词初筛，不代表能力匹配或录用概率。远程岗位仍有地区限制。`};
+    await completeStep({ userId: user.id, runId, stepId: "screen", resultDigest: `保留 ${verified.kept.length} 条岗位` });
+    if (searched.failures.length) await failTask({ userId: user.id, runId, reason: "error", failureType: "partial_sources_failed", partialResult: result });
+    else await completeTask({ userId: user.id, runId, result, modelCallCount: 0 });
+    await intakeEvent({ userId: user.id, opportunityId: profileId, runId, clientEventId: `discovery_${runId}`,
+      kind: searched.failures.length ? "task_partial" : "job_search_completed",
+      properties: { candidate_count: verified.kept.length, failed_source_count: failedSourceLabels.length, cache_hit: cacheHit } })
+      .catch(() => console.error("Discovery result saved but agent event was not recorded"));
+    return Response.json(result,
       {headers:{"Cache-Control":"private, no-store"}});
-  } catch { return Response.json({error:"读取简历失败，请重试"},{status:500}); }
+  } catch (error) {
+    if (runId) {
+      const task = await getTaskLedger({ userId: user.id, runId }).catch(() => null);
+      if (task?.runStatus === "cancelled") return Response.json({ runId, error: "搜索已取消，简历未被改动。" }, { status: 409 });
+      if (task && !["completed", "failed", "cancelled"].includes(task.runStatus)) {
+        await failTask({ userId: user.id, runId, reason: "error", failureType: "search_or_save_failed" }).catch(() => undefined);
+      }
+    }
+    console.error("Job discovery failed", error instanceof Error ? error.message : "unknown");
+    return Response.json({runId,error:runId ? "岗位搜索或结果保存失败，请重试；你的简历不受影响。" : "读取简历或建立搜索任务失败，请重试"},{status:500});
+  }
 }

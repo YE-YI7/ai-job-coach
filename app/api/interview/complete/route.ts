@@ -19,6 +19,7 @@ import type { RoundType } from "@/lib/interview/types";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { createOpportunitySnapshot } from "@/lib/coach-harness/repository";
+import { intakeEvent } from "@/lib/coach-harness/run-ledger/events";
 import {
   ContextBudgetExceededError,
   compileContextBundle,
@@ -310,6 +311,7 @@ export async function POST(request: Request) {
       };
 
       await completeInterviewGenerationClaim(claimKey, userId, responseWithPayload);
+      if (effectiveOpportunityId) await intakeEvent({ userId, opportunityId: effectiveOpportunityId, clientEventId: `interview_${session_id}`, kind: "mock_interview_completed", properties: { answered_count: answers.length, snapshot_id: snapshotId } }).catch(() => console.error("Interview saved but intake unavailable"));
 
       return new Response(JSON.stringify(responseWithPayload), {
         status: 200,

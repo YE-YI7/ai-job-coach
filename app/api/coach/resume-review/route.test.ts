@@ -1,11 +1,13 @@
 import { POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
+import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { validateArtifactDraft } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
+jest.mock("@/lib/quota", () => ({ reserveQuota: jest.fn(), finalizeQuota: jest.fn() }));
 jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: (_: unknown, run: () => unknown) => run() }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
 jest.mock("@/lib/coach-harness/repository", () => ({ createArtifactWithClaims: jest.fn(), getContextBundleForUser: jest.fn(), recordArtifactReview: jest.fn() }));
@@ -23,6 +25,28 @@ beforeEach(() => {
   (createArtifactWithClaims as jest.Mock).mockResolvedValue({ id: "artifact", version: 1 });
   (recordArtifactReview as jest.Mock).mockImplementation(async (input) => ({ reviewer_type: input.reviewerType, status: input.status, summary: input.summary, findings: input.findings }));
   (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({ status: "passed", summary: "通过", findings: [] }));
+  (reserveQuota as jest.Mock).mockResolvedValue({ id: "reservation-1", source: "paid_resume_remaining", remaining: 2 });
+  (finalizeQuota as jest.Mock).mockResolvedValue(true);
+});
+test("质检模型真的调用时扣一次额度，成功提交", async () => {
+  const response = await POST(request([change]));
+  expect(response.status).toBe(200);
+  expect(callLLM).toHaveBeenCalledTimes(1);
+  expect(reserveQuota).toHaveBeenCalledWith("user", "resume", expect.stringContaining("resume-review:"));
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({ id: "reservation-1" }), true);
+});
+test("额度不足时不调模型、不落产物", async () => {
+  (reserveQuota as jest.Mock).mockResolvedValue(null);
+  const response = await POST(request([change]));
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({ needUpgrade: true });
+  expect(callLLM).not.toHaveBeenCalled();
+  expect(createArtifactWithClaims).not.toHaveBeenCalled();
+});
+test("保留原文这条路径不花钱，所以不占额度", async () => {
+  await POST(request([{ ...change, status: "rejected" }]));
+  expect(callLLM).not.toHaveBeenCalled();
+  expect(reserveQuota).not.toHaveBeenCalled();
 });
 test("all-original succeeds without spending a model call or claiming independent verification", async () => {
   const response = await POST(request([{ ...change, status: "rejected" }]));

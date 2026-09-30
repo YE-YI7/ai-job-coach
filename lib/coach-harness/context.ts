@@ -276,7 +276,7 @@ export function compileContextBundle(input: {
       refVersion: claim.updatedAt ?? null,
       trustType: trustForClaim(claim),
       reason: claim.status === "confirmed" ? "已确认事实。" : "用户材料，可引用但需确认口径。",
-    }, tokens, false, "priority:confirmed_fact");
+    }, tokens, claim.status === "confirmed", "priority:confirmed_fact");
     if (ok) keptClaims.push(claim);
   }
 
@@ -343,10 +343,14 @@ export function compileContextBundle(input: {
     planVersion: input.planVersion ?? null,
     selectedOpportunityIds: [...(input.selectedOpportunityIds || [])].sort(),
     opportunity: input.opportunity
-      ? { id: input.opportunity.id, jdVersion: input.opportunity.jdVersion, stage: input.opportunity.stage }
+      ? { id: input.opportunity.id, jdVersion: input.opportunity.jdVersion, stage: input.opportunity.stage, jdText: input.opportunity.jdText }
       : null,
-    claims: keptClaims.map((claim) => [claim.id, claim.status, claim.sourceKind, claim.verificationLevel, claim.updatedAt || ""]),
-    attachments: keptAttachments.map((attachment) => [attachment.id, attachment.required]),
+    userId: input.userId,
+    currentInput: input.currentInput ?? null,
+    questionSource: input.questionSource ?? null,
+    historySummary: input.historySummary ?? null,
+    claims: keptClaims.map((claim) => [claim.id, claim.status, claim.sourceKind, claim.verificationLevel, claim.updatedAt || "", claim.displayText, claim.sourceExcerpt]),
+    attachments: keptAttachments.map((attachment) => [attachment.id, attachment.required, attachment.text]),
     artifacts: keptArtifacts.map((artifact) => [artifact.id, artifact.version, artifact.status]),
     knowledge: keptKnowledge.map((item) => item.id),
     budget,
@@ -398,15 +402,8 @@ export function contextIsStale(previous: ContextBundle, current: ContextBundle):
   if (previous.selectedOpportunityIds.join(",") !== current.selectedOpportunityIds.join(",")) return true;
   if ((previous.opportunity?.jdVersion ?? 0) !== (current.opportunity?.jdVersion ?? 0)) return true;
   if (previous.fingerprint === current.fingerprint) return false;
-  const previousClaims = new Map(previous.claims.map((claim) => [claim.id, claim]));
-  for (const claim of current.claims) {
-    const before = previousClaims.get(claim.id);
-    if (!before) continue;
-    if (before.status !== claim.status) return true;
-    if (before.verificationLevel !== claim.verificationLevel) return true;
-    if (before.sourceKind !== claim.sourceKind) return true;
-  }
-  return false;
+  // 新增、删除及同 ID 正文变化都会影响建议；不能只比较仍存在的旧条目状态。
+  return true;
 }
 
 /**

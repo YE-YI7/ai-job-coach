@@ -3,14 +3,40 @@ import {useEffect,useState} from "react";
 import {BookOpen,Check,FileText,PenLine,Plus,Search,X} from "lucide-react";
 import TutorMarkdown from "./TutorMarkdown";
 import styles from "./MyNotes.module.css";
+import {pendingFactsFromResponse,factReviewRequest,factActionFailureText,type PendingFact} from "./pending-facts";
 type Note={id:string;title:string;summary:string};
 export default function MyNotes({onClose}:{onClose:()=>void}){
  const [notes,setNotes]=useState<Note[]>([]),[selected,setSelected]=useState<Note|null>(null);
  const [title,setTitle]=useState(""),[text,setText]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
  const [query,setQuery]=useState(""),[preview,setPreview]=useState(false);
+ // W6-③：对话里抽出的候选事实不在当场盘问，攒到这里一次性核对，每条可一键撤回。
+ const [facts,setFacts]=useState<PendingFact[]>([]),[factsError,setFactsError]=useState(""),[factBusy,setFactBusy]=useState(false);
+ async function reviewFact(id:string,action:"confirm"|"withdraw"){
+  if(factBusy)return;setFactBusy(true);setFactsError("");
+  try{
+   const req=factReviewRequest(id,action);
+   const r=await fetch(req.path,{method:req.method,headers:{"Content-Type":"application/json"},body:JSON.stringify(req.body)});
+   if(!r.ok)throw Error(factActionFailureText(r.status));
+   setFacts(list=>list.filter(f=>f.id!==id));
+  }catch(e){setFactsError(e instanceof Error?e.message:"这一步没有保存到云端，原状态保留。");}
+  finally{setFactBusy(false);}
+ }
+ async function confirmAllFacts(){
+  if(factBusy)return;setFactBusy(true);setFactsError("");
+  for(const fact of [...facts]){
+   try{
+    const req=factReviewRequest(fact.id,"confirm");
+    const r=await fetch(req.path,{method:req.method,headers:{"Content-Type":"application/json"},body:JSON.stringify(req.body)});
+    if(!r.ok){setFactsError(factActionFailureText(r.status));break;}
+    setFacts(current=>current.filter(f=>f.id!==fact.id));
+   }catch(e){setFactsError(e instanceof Error?e.message:"这一步没有保存到云端，原状态保留。");break;}
+  }
+  setFactBusy(false);
+ }
  const dirty=text!==(selected?.summary||"")||(!selected&&!!title);
  const canLeave=()=>!dirty||window.confirm("这条笔记尚未保存，确定放弃修改吗？");
  useEffect(()=>{const c=new AbortController();fetch("/api/coach/agent/sessions?notes=1",{signal:c.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(!b.ok)throw Error(b.error||"笔记读取失败");setNotes(b.sessions.filter((n:Note)=>n.summary));}).catch(e=>{if(!c.signal.aborted)setError(e.message);}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();},[]);
+ useEffect(()=>{const c=new AbortController();fetch("/api/coach/claims",{signal:c.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(b.ok)setFacts(pendingFactsFromResponse(b));}).catch(()=>{});return()=>c.abort();},[]);
  async function save(){
   setBusy(true);setError("");
   try{const r=await fetch("/api/coach/agent/sessions",{method:selected?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(selected?{sessionId:selected.id,summary:text,expectedSummary:selected.summary}:{note:true,title:title.trim()||"我的笔记",summary:text})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"保存失败");
@@ -23,6 +49,13 @@ export default function MyNotes({onClose}:{onClose:()=>void}){
    <section className={styles.library} aria-label="笔记目录">
     <button className={styles.newButton} type="button" disabled={busy} onClick={()=>{if(!canLeave())return;setSelected(null);setTitle("");setText("");setError("");setPreview(false);}}><Plus size={17}/>写一条笔记</button>
     <label className={styles.search}><Search size={15}/><input aria-label="搜索笔记" placeholder="搜索笔记" value={query} onChange={e=>setQuery(e.target.value)}/></label>
+    {!!facts.length&&<section className={styles.factQueue} aria-label="待确认事实">
+     <p className={styles.factCaption}>待确认事实 <span>{facts.length}</span></p>
+     {facts.map(fact=><div key={fact.id} className={styles.factItem}><p>{fact.displayText}{fact.inherited&&<small>（沿袭自旧记录，不算本次确认）</small>}</p><span className={styles.factActions}><button type="button" disabled={factBusy} onClick={()=>void reviewFact(fact.id,"confirm")}>对</button><button type="button" disabled={factBusy} onClick={()=>void reviewFact(fact.id,"withdraw")}>撤回</button></span></div>)}
+     <span className={styles.factActions}><button type="button" disabled={factBusy} onClick={()=>void confirmAllFacts()}>全部确认</button></span>
+     {factsError&&<p role="alert" className={styles.factNote}>{factsError}</p>}
+     <p className={styles.factNote}>确认前不进简历和档案；撤回一键生效。</p>
+    </section>}
     <p className={styles.listCaption}>最近笔记 <span>{notes.length}</span></p>
     {loading?<p role="status">正在找回笔记…</p>:<nav className={styles.list} aria-label="笔记列表">{notes.filter(n=>`${n.title} ${n.summary}`.toLowerCase().includes(query.toLowerCase())).map(n=><button key={n.id} type="button" disabled={busy} aria-pressed={n.id===selected?.id} onClick={()=>{if(!canLeave())return;setSelected(n);setTitle(n.title);setText(n.summary);setError("");setPreview(true);}}><FileText size={16}/><span><strong>{n.title}</strong><small>{n.summary.replace(/[#*`>]/g,"").slice(0,85)}</small></span></button>)}{!notes.length&&<div className={styles.empty}><BookOpen size={24}/><p>你的第一条笔记<br/>可以是一句突然想通的话。</p></div>}{!!notes.length&&!notes.some(n=>`${n.title} ${n.summary}`.toLowerCase().includes(query.toLowerCase()))&&<p>没有找到，换个词试试。</p>}</nav>}
     <p className={styles.libraryHint}>也可以在导师回答下<br/>点击「加入我的笔记」。</p>

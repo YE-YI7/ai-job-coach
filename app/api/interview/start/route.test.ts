@@ -66,6 +66,8 @@ describe("interview start POST", () => {
         jd: "数据库中的真实 JD",
         roundType: "业务面",
         count: 1,
+        requireSourcing: true,
+        sourceMaterials: expect.objectContaining({ jd: [{ id: "interview-jd", text: "数据库中的真实 JD" }] }),
         sessionId: expect.any(String),
         // contextText 已由 ContextBundle 渲染产出，包含带标注的 JD
         contextText: expect.stringContaining("岗位 JD"),

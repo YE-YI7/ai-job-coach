@@ -1,0 +1,24 @@
+name: Harness regression checks
+on:
+  pull_request:
+  push:
+    branches: [backend, main, "codex/**"]
+permissions:
+  contents: read
+jobs:
+  deterministic-and-archived-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test -- --runInBand
+        env:
+          EVALS_REPLAY: "0"
+      # Live model runs are opt-in, with explicit credentials and immutable output.
+      # A green job here is not human calibration or authenticated production acceptance.

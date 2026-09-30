@@ -8,8 +8,10 @@ import {
   validateArtifactDraft,
 } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
+import { wrapExternalMaterial } from "@/lib/coach-harness/prompt";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { callLLM } from "@/lib/llm";
+import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
@@ -24,6 +26,7 @@ function parseJson(text: string) {
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+  let reservation: QuotaReservation | null = null;
 
   try {
     const body = await request.json();
@@ -89,13 +92,19 @@ export async function POST(request: Request) {
     let reviewer = { status: "not_run", summary: activeChanges.length ? "请先处理原句定位或事实问题，再进行独立复核。" : "已保留全部原文，没有 AI 修改需要复核。", findings: [] as unknown[] };
     if (activeChanges.length && !applied.findings.length && facts.ok) {
       const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
+      // 只在真的会调用质检模型时扣额度：没有 AI 修改要复核、或事实检查已挡下的
+      // 那两条路径不花钱，扣费等于让用户为空响应买单。
+      reservation = await reserveQuota(user.id, "resume", `resume-review:${requestId}`);
+      if (!reservation) {
+        return NextResponse.json({ ok: false, error: "简历审阅额度不足", needUpgrade: true }, { status: 403 });
+      }
       const output = await runWithGenerationContext({
         userId: user.id,
         operation: "resume_user_edit_review",
         requestId,
       }, () => callLLM([
         { role: "system", content: "你是独立简历质检员。检查用户修改后的每条表述是否被引用事实完整支持，是否扩大职责、结果、技能、数字或时间，以及是否仍对目标 JD 有明确价值。只返回 JSON：{\"status\":\"passed|failed\",\"summary\":\"一句话\",\"findings\":[{\"changeId\":\"...\",\"severity\":\"warning|error\",\"message\":\"...\"}]}" },
-        { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n引用事实：\n${source}\n\n用户修改后的内容：\n${JSON.stringify(activeChanges)}` },
+        { role: "user", content: `目标 JD：\n${wrapExternalMaterial(jobDescription)}\n\n原简历：\n${wrapExternalMaterial(resumeText)}\n\n引用事实：\n${source}\n\n用户修改后的内容：\n${JSON.stringify(activeChanges)}` },
       ], { provider: "deepseek", temperature: 0, maxTokens: 1_800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
       const parsed = parseJson(output);
       reviewer = {
@@ -136,6 +145,7 @@ export async function POST(request: Request) {
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
 
+    await finalizeQuota(reservation, true);
     return NextResponse.json({
       ok: true,
       changes,
@@ -148,6 +158,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Resume review quota refund failed", refundError));
     console.error("Resume user edit review failed", error);
     if (error instanceof ContextBudgetExceededError) {
       return NextResponse.json({ ok: false, error: error.message, blocked: error.blocked }, { status: 422 });

@@ -4,26 +4,58 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
-import { getContextBundleForUser } from "@/lib/coach-harness/repository";
-import { assertContextFits, renderContextForPrompt } from "@/lib/coach-harness";
-import {LEARNING_SYSTEM,learningKnowledgeTask,makeLearningQuery,readLearningMemory,readLearningSession,refreshProfileMemory,boundedLearningPrompt} from "@/lib/coach-harness/learning-memory";
+import { getContextBundleForUser, recordTierIntentFromText } from "@/lib/coach-harness/repository";
+import { renderContextForPrompt } from "@/lib/coach-harness";
+import {LEARNING_SYSTEM,LEARNING_PROMPT_VERSION,learningKnowledgeTask,makeLearningQuery,readLearningMemory,readLearningSession,refreshProfileMemory} from "@/lib/coach-harness/learning-memory";
 import {estimateTokens} from "@/lib/coach-harness/context";
+import {TUTOR_MATERIAL_VERSION,compileTutorPrompt,tutorMaterialFingerprintPayload,type TutorMaterialInput} from "@/lib/coach-harness/materials";
 import {isChatMode,parseTutorReply} from "@/lib/coach-harness/chat-options";
-import {guardInsufficientReply} from "@/lib/coach-harness/insufficiency-guard";
+import { readInboundEvents, renderInboundEventsForAgent } from "@/lib/coach-harness/run-ledger/events";
+import {type GuardResult,type ProvidedMaterial} from "@/lib/coach-harness/insufficiency-guard";
+import {harnessFingerprint,TUTOR_RETRIEVAL_CONFIG} from "@/lib/coach-harness/version-fingerprint";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
 import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
-import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,renderGroundedResume} from "@/lib/coach-harness/resume-grounding";
-import {advanceStage,inferStageIntent} from "@/lib/coach-harness/stage-intent";
+import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,RESUME_GROUNDING_PROMPT_VERSION,type ResumeSource} from "@/lib/coach-harness/resume-grounding";
+import {
+  GUARD_SLOTS,
+  GROUNDING_VERIFICATION_GUARD_ID,
+  INSUFFICIENCY_GUARD_ID,
+  registerDefaultGuards,
+  runSlot,
+  type GuardDecision,
+  type Slot1Input,
+  type Slot3Input,
+  type Slot4Input,
+} from "@/lib/coach-harness/guard-slots";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {hasReviewMaterial} from "@/lib/interview/review-evidence";
-import {chatFailureMessage} from "@/lib/coach-harness/chat-failure";
+import {chatFailureMessage,resolveCooldownRetry} from "@/lib/coach-harness/chat-failure";
 import {resolveSavedJobReference} from "@/lib/coach-harness/job-reference";
 import {createTutorStream,unwrapTutorAnswer} from "@/lib/coach-harness/tutor-stream";
+import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
+import { coachingStrategy, responseTime } from "@/lib/coach-harness/coaching-strategy";
+import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const headers = { "Cache-Control": "private, no-store" };
+// 护栏四槽在本模块装配一次（幂等）；主链路只调 runSlot，不逐个点名守卫。
+registerDefaultGuards();
+/** 裁决 → 台账行：只留可断言的坐标（哪一槽、哪条守卫、什么裁决、什么理由码）。 */
+function guardLedgerRows(decisions: GuardDecision[]) {
+  return decisions.map((d) => ({ slot: d.slot, guardId: d.guardId, outcome: d.outcome, code: d.reason.code }));
+}
+function firstBlock(decisions: GuardDecision[]) {
+  return decisions.find((d) => d.outcome === "block");
+}
+/** 精确输入仅供后台审计；不把大段重复的上下文回传给浏览器。 */
+function publicTrace(trace: Record<string, unknown> | null | undefined) {
+  if (!trace) return trace;
+  const { compiledPrompt: privateSnapshot, ...rest } = trace;
+  void privateSnapshot;
+  return rest;
+}
 async function history(userId: string, opportunityId: string | null, sessionId:string|null=null, limit=12) {
   const db = await getDbClient();
   if (!db) throw new Error("数据库不可用");
@@ -32,7 +64,8 @@ async function history(userId: string, opportunityId: string | null, sessionId:s
   q = sessionId ? q.eq("session_id",sessionId) : q.is("session_id",null);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return (data || []).reverse() as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean}|null}>;
+  return ((data || []) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:Record<string,unknown>|null}>)
+    .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean;responseLatencyMs?:number|null}|null}>;
 }
 /** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
 async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, userId: string, opportunityId: string | null): Promise<string> {
@@ -62,7 +95,7 @@ async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, u
     const weaknesses = (mock.summary?.weaknesses || []).slice(0, 2).join("；");
     lines.push(`模拟面试 · ${mock.round || "未标轮次"}${mock.summary ? `（${[mock.summary.grade, mock.summary.overallScore!==undefined?`${mock.summary.overallScore} 分`:null].filter(Boolean).join(" · ")}）${weaknesses?`；短板：${weaknesses}`:""}` : "（已完成，无整轮总结）"}`);
   }
-  return lines.join("\n").slice(0, 1800);
+  return lines.join("\n");
 }
 export async function GET(req: Request) {
   const user = await getCurrentUserFromRequest();
@@ -92,7 +125,14 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   if (!db) return NextResponse.json({ error: "数据库不可用，未开始生成" }, { status: 503, headers });
   const { data: existing, error: readError } = await db.from("coach_agent_turns").select("id,answer,opportunity_id,session_id,learning_trace").eq("user_id", user.id).eq("request_id", body.requestId).maybeSingle();
   if (readError) return NextResponse.json({ error: "读取状态失败" }, { status: 503, headers });
-  if (existing) {const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,learning_trace:existing.learning_trace}:{error:"请求已用于其他会话"},{status:same?200:409,headers});}
+  if (existing) {
+    const same=existing.opportunity_id===id&&(existing.session_id??null)===sessionId;
+    return NextResponse.json(same?{ok:true,answer:existing.answer,id:existing.id,
+      needsMoreInput:existing.learning_trace?.insufficiency?.needsMoreInput??false,
+      blocked:existing.learning_trace?.insufficiency?.blocked??false,
+      stageSuggestion:existing.learning_trace?.stageSuggestion??null,
+      learning_trace:publicTrace(existing.learning_trace)}:{error:"请求已用于其他会话"},{status:same?200:409,headers});
+  }
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
   const groundedDraft=needsResumeGrounding(body.message);
   const reference = await resolveSavedJobReference(user.id, body.message);
@@ -105,11 +145,15 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const referenceNote = reference.ambiguous.length
     ? `用户提及的岗位存在多个候选，请先让用户选择，不得拿当前岗位代替：${reference.ambiguous.map(j=>`${j.company} · ${j.role}`).join("；")}`
     : reference.job ? `本轮用户指名的已保存岗位：${reference.job.company} · ${reference.job.role}。使用下方已保存 JD，不要重复索要已有内容。会话仍属于原工作区，不更改岗位状态。` : "";
+  // 用户在对话里说出的公司层次意向必须被接住：落成待确认偏好并留住原话出处，
+  // 确认前不拿它剔岗位。这一步坏了不能影响本轮回答，所以只记日志。
+  try { await recordTierIntentFromText({ userId: user.id, text: body.message, opportunityId: contextId }); }
+  catch (error) { console.error("Tier intent capture failed", error); }
   const [{turns,context,selection},learningMemory,profileMemory] = await Promise.all([
     history(user.id,id,sessionId).then(async turns=>{
       const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
       const [context,selection]=await Promise.all([
-        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:"mock_interview", currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:"single_inference", budget:{maxInputTokens:4000}, knowledgeLimit:2 }),
+        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:TUTOR_RETRIEVAL_CONFIG.task, currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:TUTOR_RETRIEVAL_CONFIG.routeClass, budget:{maxInputTokens:TUTOR_RETRIEVAL_CONFIG.maxInputTokens}, knowledgeLimit:TUTOR_RETRIEVAL_CONFIG.knowledgeLimit }),
         resolveChatModel(user.id,mode,retrievalQuery).catch(error=>({error})),
       ]);
       return {turns,context,selection};
@@ -124,17 +168,56 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     const {data:updates,error} = await db.from("coach_market_updates").select("source_url,region,excerpt,checked_at").gte("checked_at",new Date(Date.now()-48*60*60*1000).toISOString()).limit(2);
     market=error||!updates?.length ? "没有 48 小时内验证的公开来源，明确告知尚无最新证据。" : updates.map((u:{source_url:string;region:string;excerpt:string;checked_at:string})=>`${u.region}\n来源 ${u.source_url}，抓取时间 ${u.checked_at}（不是发布日期）：\n${u.excerpt.slice(0,1800)}`).join("\n");
   }
-  assertContextFits(context);
   const rendered = renderContextForPrompt(context).text;
+  const state = coachingStrategy(body.message, [...turns.slice(-7).map(t => t.learning_trace?.responseLatencyMs), responseTime(body.responseLatencyMs)], contextId || "general");
+  // Only restore owner/job-bound successful research. A chat never starts a network fan-out.
+  const researchJob = context.opportunity || reference.job;
+  const research = researchJob ? renderCompanyResearch(await readCompanyResearch(user.id, researchJob).catch(() => null)) : "";
   const interviewLedger = await interviewLedgerFor(db, user.id, contextId).catch(() => "");
   // Always recompile private facts; never share a cached answer across users or jobs.
-  const recent = turns.slice(-4).map(t => `${t.learning_trace?.proactive?"辅导请求（系统代发，界面未展示给用户）":"用户"}：${t.question.slice(0,700)}\n导师（历史推断，非事实）：${t.answer.slice(0,1000)}`).join("\n");
+  const formatTurn = (t: (typeof turns)[number]) => `${t.learning_trace?.proactive?"辅导请求（系统事件，不是用户说过的话）":"用户"}：${t.question}\n导师（历史推断，非事实）：${t.answer}`;
+  const pendingExchange = turns.length ? formatTurn(turns[turns.length - 1]) : "";
+  const recent = turns.slice(-4, -1).map(formatTurn).join("\n");
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
-  const pageContext = typeof body?.pageContext === "string" ? body.pageContext.slice(0, 1200) : "";
-  // Authoritative, budgeted JD/evidence comes before optional history and summaries.
-  const prompt=boundedLearningPrompt(body.message,[referenceNote,rendered,pageContext?`用户当前界面与最近操作（可能属于其他岗位；不是结论依据）：\n${pageContext}`:"",`个人背景摘要：\n${profileMemory.slice(0,1800)}`,`以往学习进展：\n${learningMemory.slice(0,1800)}`,`本次近期对话（可能讨论其他岗位，不覆盖本轮指名岗位）：\n${recent}`,interviewLedger?`该岗位已保存的面试与复盘记录：\n${interviewLedger}`:"",`市场证据（抓取时间不是发布日期）：\n${market}`]);
+  const savedEvents = await readInboundEvents({ userId: user.id, opportunityId: contextId, limit: 6 }).catch(() => []);
+  const pageContext = [renderInboundEventsForAgent(savedEvents), typeof body?.pageContext === "string" ? body.pageContext : ""].filter(Boolean).join("\n\n");
+  // 简历底稿的全部事实边界：一条都不许多，也不许悄悄丢——超预算时由保护区判断报错。
+  const sources: ResumeSource[] = [{ id: "current", text: body.message }, ...turns.slice(-4).reverse().map(t => ({ id: t.id, text: t.question })), ...(context.claims || []).filter(c => c.status === "confirmed").map(c => ({ id: c.id, text: c.displayText }))];
+  const resumeSource = context.attachments.find(a => a.id === "resume-text");
+  if (resumeSource?.text.trim()) sources.push({ id: "resume-text", text: resumeSource.text });
+  // 每条料的预算与可信标注只在 TUTOR_MATERIALS 里声明一次，这里只负责供料。
+  const materials: TutorMaterialInput[] = groundedDraft
+    ? [
+        { kind: "resume_sources", refId: "grounding-sources", text: JSON.stringify(sources) },
+        ...context.knowledge.map(k => ({ kind: "knowledge_reference" as const, refId: k.id, text: k.content || "" })),
+      ]
+    : [
+        referenceNote ? { kind: "job_reference_note", refId: contextId ?? undefined, text: referenceNote } : null,
+        // 编译器已经决定过装什么，这里不许砍第二刀。
+        { kind: "compiled_context", text: rendered },
+        pendingExchange ? { kind: "pending_exchange", refId: turns[turns.length - 1].id, text: pendingExchange } : null,
+        research ? { kind: "company_research", refId: contextId ?? undefined, text: research } : null,
+        { kind: "coaching_strategy", text: state.text },
+        pageContext ? { kind: "page_activity", text: pageContext } : null,
+        profileMemory ? { kind: "profile_summary", text: profileMemory } : null,
+        learningMemory ? { kind: "learning_progress", text: learningMemory } : null,
+        recent ? { kind: "recent_turns", refId: turns.slice(-4).map(t => t.id).join(","), text: recent } : null,
+        interviewLedger ? { kind: "interview_ledger", refId: contextId ?? undefined, text: interviewLedger } : null,
+        market ? { kind: "market_evidence", text: market } : null,
+      ].filter((m): m is TutorMaterialInput => Boolean(m));
+  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:LEARNING_SYSTEM;
+  const compiled=compileTutorPrompt({system:actualSystem,question:body.message,materials});
+  // 槽1 装配后准入：一次跑完「该不该问 / 该不该拒」，主链路不再内联任何容量判断。
+  // 顺序就是注册顺序（装配容量 → 材料缺口 → grounding 分型 → 提示词保护区），
+  // 先挡下来的是最靠近「材料本身」的原因，模型档位问题留到材料合格之后再说。
+  const guardVerdicts: GuardDecision[] = [];
+  const admission = runSlot<Slot1Input>(GUARD_SLOTS.postAssemblyAdmission, { bundle: context, message: body.message, prompt: compiled });
+  guardVerdicts.push(...admission);
+  const refused = firstBlock(admission);
+  if (refused) return NextResponse.json({ error: refused.reason.message }, { status: (refused.data?.status as number) ?? 422, headers });
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
+  const actualPrompt=compiled.text;
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;
   let received = false;
   let firstTextAt:number|null=null;
@@ -142,13 +225,6 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   let generatedChars=0;
   let lastProgressAt=0;
   let modelCalls = 0;
-  let sourceBudget=4500;
-  const sources=[{id:"current",text:body.message},...turns.slice(-4).reverse().map(t=>({id:t.id,text:t.question})),...(context.claims||[]).filter(c=>c.status==="confirmed").map(c=>({id:c.id,text:c.displayText}))].flatMap(s=>{
-    if(s.text.length>sourceBudget)return [];sourceBudget-=s.text.length;return [s];
-  });
-  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:LEARNING_SYSTEM;
-  const actualPrompt=groundedDraft?`当前请求：${body.message}\n仅以下来源可用于简历事实（提问不代表经历）：\n${JSON.stringify(sources)}\n知识参考仅用于下一步练习，不可作用户经历：\n${context.knowledge.map(k=>k.content).join("\n").slice(0,2000)}`:prompt;
-  if(estimateTokens(actualSystem)+estimateTokens(actualPrompt)>8000)return NextResponse.json({error:"材料较长，请分段提交简历经历"},{status:400,headers});
   const fingerprint=createHash("sha256").update(user.id+":"+id+":"+actualSystem+actualPrompt).digest("hex");
   const contextReadyMs=Date.now()-startedAt;
   const userEvidence=`${body.message}\n${turns.slice(-4).map(t=>t.question).join("\n")}`;
@@ -162,31 +238,73 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:mode==="auto"?45000:60000,timeoutMs:mode==="auto"?45000:60000,firstTokenTimeoutMs:mode==="auto"?8000:35000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;streamText(text);if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在回答，已生成 ${generatedChars} 字符…`);}}:undefined}));
   };
   let rawAnswer:string;
+  // 换档事实只有这里知道：`selection.model` 会被改写成应答模型，台账里的
+  // `model` 字段事后看不出这一轮换过。auto 档下前端也没有可对比的「用户选的档」，
+  // 所以 from→to 必须显式随 done 事件下发——静默换档是产品红线。
+  let modelSwap:{from:string;to:string}|null=null;
   try { rawAnswer=await generate(selection.model); }
   catch(error) {
     // Never retry after showing text, or on authorization/balance failures.
-    const message=error instanceof Error?error.message:"";
-    if(mode!=="auto"||received||selection.model==="deepseek-v4-flash"||!/timed? ?out|timeout|abort|connection|502|503|504/i.test(message))throw error;
+    // 换哪一档由失败语义表决定，档位取 model-catalog 的经济档常量，不写死模型字面量。
+    const retryTo=resolveCooldownRetry({mode,receivedText:received,currentModel:selection.model,error});
+    if(!retryTo)throw error;
     coolDownChatModel(selection.model);
-    selection.model="deepseek-v4-flash";
-    rawAnswer=await generate(selection.model);
+    modelSwap={from:selection.model,to:retryTo};
+    selection.model=retryTo;
+    rawAnswer=await generate(retryTo);
   }
-  if(groundedDraft)rawAnswer=renderGroundedResume(rawAnswer,sources);
+  // 槽3 落库前核验·第一道：简历复核链路的事实回指。回指不上就不落库、不出稿。
+  // 只有真走了 grounding 链路才供这一份输入——取不到输入的守卫会 pass(input_absent)。
+  const groundingChecks = runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { grounding: groundedDraft ? { raw: rawAnswer, sources } : undefined });
+  guardVerdicts.push(...groundingChecks);
+  const groundingFailed = firstBlock(groundingChecks);
+  if (groundingFailed) return NextResponse.json({ error: chatFailureMessage(new Error(groundingFailed.reason.message)) }, { status: (groundingFailed.data?.status as number) ?? 422, headers });
+  if (groundedDraft) rawAnswer = String((groundingChecks.find((d) => d.guardId === GROUNDING_VERIFICATION_GUARD_ID)!.data as { draft: string }).draft);
   const parsed=parseTutorReply(unwrapTutorAnswer(rawAnswer));
-  // 信息不足分级守卫：blocking 轮的超长“伪完整”回答收敛为一句澄清问句；
-  // 无依据的“已确认/已掌握”类断言就地降级为待确认。纯字符串级，不触网。
-  const guarded=guardInsufficientReply({answer:parsed.answer,suggestions:parsed.suggestions,userText:`${body.message}\n${turns.slice(-4).map(t=>t.question).join("\n")}`});
+  // 槽3 落库前核验·第二道：信息不足分级——blocking 轮的超长“伪完整”回答收敛为一句
+  // 澄清问句；无依据的“已确认/已掌握”类断言就地降级为待确认。纯字符串级，不触网。
+  // 只认「这次真的进了提示词的原文」——被预算舍弃的材料不算已提供（FR-21）。
+  const inPrompt = (kind: "opportunity" | "attachment", refId?: string) =>
+    context.selection.included.some((e) => e.kind === kind && (refId === undefined || e.refId === refId));
+  const jdTextInPrompt = !groundedDraft && inPrompt("opportunity") ? context.opportunity?.jdText?.trim() || "" : "";
+  const resumeTextInPrompt = inPrompt("attachment", "resume-text")
+    ? context.attachments.find((a) => a.id === "resume-text")?.text?.trim() || ""
+    : "";
+  const providedMaterials: ProvidedMaterial[] = [
+    jdTextInPrompt ? { kind: "jd", text: jdTextInPrompt } : null,
+    resumeTextInPrompt ? { kind: "resume", text: resumeTextInPrompt } : null,
+  ].filter((x): x is ProvidedMaterial => Boolean(x));
+  const replyChecks = runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, {
+    reply: { answer: parsed.answer, suggestions: parsed.suggestions, userText: `${body.message}\n${turns.slice(-4).map((t) => t.question).join("\n")}`, providedMaterials },
+  });
+  guardVerdicts.push(...replyChecks);
+  const guarded = (replyChecks.find((d) => d.guardId === INSUFFICIENCY_GUARD_ID)!.data as unknown as { legacy: GuardResult }).legacy;
   const {answer,suggestions}=guarded;
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){if(visibleTextAt!==null&&onReplace)onReplace(answer);else{visibleTextAt=Date.now();onDelta(answer);}onStatus?.("回答已核对，正在保存…");}
-  const trace={promptVersion:"learning-v5",groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,claimsHedged:guarded.claimsHedged}};
-  const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:trace}).select("id").single();
+  // 版本联合指纹：这一轮的「哪个版本」必须可拆成五个组件（FR-34）。
+  // 台账里只存哈希，不存提示词正文与知识正文。
+  const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:LEARNING_PROMPT_VERSION;
+  const harness=harnessFingerprint({promptVersion,systemPrompt:actualSystem,retrieval:{...TUTOR_RETRIEVAL_CONFIG,materials:tutorMaterialFingerprintPayload()}});
+  // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
+  const trace={promptVersion,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},guards:guardLedgerRows(guardVerdicts)};
+  const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
+  const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
   // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：
   // 正则识别无法区分陈述与假设，推进岗位状态必须由用户点头。
-  let stageSuggestion:string|null=null;
-  if(id && contextId===id && !reference.ambiguous.length){
-    stageSuggestion=advanceStage(await currentStageOf(db,user.id,id),inferStageIntent(body.message));
+  // 槽4 落库后事件：守卫结构上没有推进能力（只读原话 + 阶段快照，裁决只有 no_advance）。
+  // 它发生在写库之后，所以不进本轮台账，而是随响应回到界面等用户点头。
+  let stageSnapshot: OpportunityStage | undefined;
+  if (id && contextId === id && !reference.ambiguous.length) stageSnapshot = await currentStageOf(db, user.id, id);
+  const postChecks = runSlot<Slot4Input>(GUARD_SLOTS.postPersistenceEvent, { message: body.message, currentStage: stageSnapshot });
+  let stageSuggestion = (postChecks.find((d) => d.outcome === "no_advance")?.data as { suggestion?: string } | undefined)?.suggestion ?? null;
+  if (stageSuggestion) {
+    // 重放必须恢复同一确认条；建议落库失败时不发一条无法恢复的确认请求。
+    const { error: suggestionError } = await db.from("coach_agent_turns").update({ learning_trace: {
+      ...trace, ...observation, compiledPrompt: actualPrompt, stageSuggestion, guards: [...trace.guards, ...guardLedgerRows(postChecks)],
+    } }).eq("id", data.id).eq("user_id", user.id);
+    if (suggestionError) { stageSuggestion = null; console.error("Stage suggestion was not persisted"); }
   }
   return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,learning_trace:trace},{headers});
 }
@@ -197,7 +315,22 @@ async function currentStageOf(db: NonNullable<Awaited<ReturnType<typeof getDbCli
 }
 
 export async function POST(req:Request) {
-  const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void,onReplace?: (text:string)=>void)=>withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat"});
+  const requestStart=Date.now();
+  const user=await getCurrentUserFromRequest();
+  const requestBody=await req.clone().json().catch(()=>null);
+  const requestId=typeof requestBody?.requestId==="string"?requestBody.requestId:"";
+  const record=(event:"started"|"completed"|"failed"|"interrupted", trace?:{harness?:{combined?:string};timing?:{firstTextMs?:number|null}})=>user
+    ? recordChatRequest(user.id,requestId,event,{opportunity_id:requestBody?.opportunityId||null,harness_version:trace?.harness?.combined,
+        first_text_ms:trace?.timing?.firstTextMs,duration_ms:Date.now()-requestStart}) : Promise.resolve();
+  if(user)await record("started");
+  const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void,onReplace?: (text:string)=>void)=>{
+    const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat"});
+    return async(request:Request)=>{
+      try { const response=await run(request);const body=await response.clone().json().catch(()=>null);
+        await record(body?.ok?"completed":"failed",body?.learning_trace);return response;
+      }catch(error){await record("failed");throw error;}
+    };
+  };
   if(!req.headers.get("accept")?.includes("application/x-ndjson"))return metered()(req);
   const encoder=new TextEncoder();
   let cancelled=false;
@@ -217,7 +350,7 @@ export async function POST(req:Request) {
         emit({type:"done",ok:false,error:chatFailureMessage(error)});
       } finally {if(!cancelled)controller.close();}
     },
-    cancel(){cancelled=true;},
+    cancel(){cancelled=true;void record("interrupted");},
   });
   return new Response(stream,{headers:{...headers,"Content-Type":"application/x-ndjson; charset=utf-8","X-Accel-Buffering":"no"}});
 }

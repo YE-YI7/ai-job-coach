@@ -23,6 +23,16 @@ import type {
 import type { Opportunity } from "@/lib/opportunities/types";
 import { STAGE_STATUS_WORDS } from "@/lib/opportunities/timeline";
 import { buildAgentKnowledgeContext, type AgentKnowledgeTask } from "@/lib/knowledge/context";
+import type { CompanyTier } from "./subagents/verification";
+import {
+  parseTierIntent,
+  readTierPreference,
+  sameTierSet,
+  tierLabels,
+  TIER_PREFERENCE_CLAIM_TYPE,
+  TIER_PREFERENCE_KEY,
+  type TierPreferenceState,
+} from "@/lib/jobs/tier-intent";
 
 export function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
   if (!db) throw new Error("数据库不可用");
@@ -443,6 +453,62 @@ export async function markClaimConflicted(userId: string, claimIds: string[]) {
   return (data || []).map(mapClaim);
 }
 
+/**
+ * 目标公司档位偏好（FR-9 剔除分支的开关）的唯一存储位置。
+ * 面板点选与别处抽到的意向都写这张表，读取只看这一处——避免「对话里说过的」
+ * 和「面板选的」变成两套口径。生效值与待确认意向的读法在 `lib/jobs/tier-intent.ts`。
+ */
+export async function listTierPreferenceClaims(userId: string): Promise<CareerClaim[]> {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_claims").select(CLAIM_COLUMNS)
+    .eq("user_id", userId).eq("entity_type", "preference").eq("entity_key", TIER_PREFERENCE_KEY)
+    .neq("status", "withdrawn").order("updated_at", { ascending: false }).limit(20);
+  if (error) throw error;
+  return (data || []).map(mapClaim);
+}
+
+export async function readUserTierPreference(userId: string): Promise<TierPreferenceState> {
+  return readTierPreference(await listTierPreferenceClaims(userId));
+}
+
+/**
+ * 用户自己的点选 = 已确认偏好：写一条 confirmed，并把同键的旧意向撤回。
+ * 撤回不删行（历史留着），但旧意向不再参与判定，也不会再被提示一遍。
+ */
+export async function saveTierPreference(userId: string, tiers: CompanyTier[], sourceExcerpt: string | null) {
+  const db = requireDb(await getDbClient());
+  const { error: supersedeError } = await db.from("coach_claims").update({
+    status: "withdrawn", migrated_from: "withdrawn:superseded", updated_at: new Date().toISOString(),
+  }).eq("user_id", userId).eq("entity_type", "preference").eq("entity_key", TIER_PREFERENCE_KEY).neq("status", "withdrawn");
+  if (supersedeError) throw supersedeError;
+  return createClaim({
+    userId, entityType: "preference", entityKey: TIER_PREFERENCE_KEY, claimType: TIER_PREFERENCE_CLAIM_TYPE,
+    value: { tiers }, displayText: `目标公司档位：${tierLabels(tiers)}`,
+    sourceExcerpt, status: "confirmed", sourceKind: "user_statement",
+  });
+}
+
+/**
+ * 接住别处说过的档位意向（对话消息、求职方向这类**用户自己写的短句**）。
+ * 抽不出立场就返回 null，什么都不写；抽到了也只落成待确认——确认前不拿它剔岗位。
+ */
+export async function recordTierIntentFromText(input: {
+  userId: string; text: string; opportunityId?: string | null; sourceId?: string | null;
+}): Promise<CareerClaim | null> {
+  const intent = parseTierIntent(input.text);
+  if (!intent) return null;
+  const current = readTierPreference(await listTierPreferenceClaims(input.userId));
+  // 同一个意向不重复记第二行：已生效的、或已经在待核对里的，都不再写
+  if (current.origin === "explicit" && sameTierSet(current.effectiveTiers, intent.tiers)) return null;
+  if (current.pending && sameTierSet(current.pending.tiers, intent.tiers)) return null;
+  return createClaim({
+    userId: input.userId, opportunityId: input.opportunityId ?? null, sourceId: input.sourceId ?? null,
+    entityType: "preference", entityKey: TIER_PREFERENCE_KEY, claimType: TIER_PREFERENCE_CLAIM_TYPE,
+    value: { tiers: intent.tiers }, displayText: `目标公司档位：${tierLabels(intent.tiers)}（原话：${intent.excerpt}）`,
+    sourceExcerpt: intent.excerpt, status: "unverified", sourceKind: "user_statement",
+  });
+}
+
 /** PRD §5.8：把 Context 的取舍落库，回答「我上传过怎么没看到」。 */
 export async function persistContextSelections(input: {
   runId: string; userId: string; context: ContextBundle;
@@ -453,11 +519,13 @@ export async function persistContextSelections(input: {
       run_id: input.runId, user_id: input.userId, context_version: input.context.version,
       decision: "included", kind: entry.kind, ref_id: entry.refId, ref_version: entry.refVersion || null,
       trust_type: entry.trustType, reason: entry.reason, estimated_tokens: entry.estimatedTokens,
+      rule: entry.rule, required: entry.required, cost: entry.estimatedTokens,
     })),
     ...input.context.selection.excluded.map((entry) => ({
       run_id: input.runId, user_id: input.userId, context_version: input.context.version,
       decision: "excluded", kind: entry.kind, ref_id: entry.refId, ref_version: null,
       trust_type: null, reason: entry.reason, detail: entry.detail, estimated_tokens: 0,
+      rule: entry.rule, required: entry.required ?? false, cost: entry.cost ?? 0,
     })),
   ];
   if (!rows.length) return;
@@ -469,12 +537,14 @@ export async function createCoachRun(input: {
   userId: string; opportunityId?: string | null; task: CoachActionType; executor: CoachExecutor;
   goal: string; payload?: Record<string, unknown>; context: ContextBundle; requiresConfirmation?: boolean;
   promptVersion?: string | null;
+  idempotencyKey?: string | null;
 }) {
   const db = requireDb(await getDbClient());
   const { data, error } = await db.from("coach_runs").insert({
     user_id: input.userId, opportunity_id: input.opportunityId || null, action_type: input.task,
     executor: input.executor, goal: input.goal, input: input.payload || {}, context_snapshot: input.context,
     requires_confirmation: Boolean(input.requiresConfirmation),
+    idempotency_key: input.idempotencyKey ?? null,
     // PRD §5.3 / §5.8：每次运行记录 Context、Prompt 版本、意图、计划和预算。
     context_version: input.context.version,
     prompt_version: input.promptVersion || null,
@@ -502,8 +572,10 @@ export async function createCoachRun(input: {
       },
     });
   } catch (selectionError) {
-    // 取舍记录不能让任务本身失败，但要留下痕迹。
-    console.error("Persist context selections failed", selectionError);
+    // A multi-step run without its audit cannot claim a completed reconstruction.
+    await db.from("coach_runs").update({ status: "failed", stopped_reason: "error", updated_at: new Date().toISOString() })
+      .eq("id", data.id).eq("user_id", input.userId).eq("status", "reading");
+    throw selectionError;
   }
   return data;
 }
@@ -541,8 +613,9 @@ export async function updateRunStatus(input: {
     tool_call_count: input.toolCallCount ?? undefined,
     completed_at: isTerminalRunStatus(input.to) ? new Date().toISOString() : null,
     updated_at: new Date().toISOString(),
-  }).eq("id", input.runId).eq("user_id", input.userId).select("*").single();
+  }).eq("id", input.runId).eq("user_id", input.userId).eq("status", current.status).select("*").single();
   if (error) throw error;
+  if (!data) throw new Error("运行状态已变化，请重新读取任务");
 
   await db.from("coach_run_events").insert({
     user_id: input.userId, run_id: input.runId,
@@ -625,7 +698,7 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
     stage,
     jd_text: jdText || null,
     scheduled_interview_at: scheduledInterviewAt || null,
-    metadata,
+    metadata: { ...metadata, stageEnteredAt: new Date().toISOString() },
   }).select("*").single();
   if (error) throw error;
   const opportunityId = String(data.id);
@@ -651,6 +724,7 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
       content: source.content,
       global: opportunity.workspaceType === "preparation",
     });
+    if (source.type === "resume") await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId, clientEventId: `resume_${sourceRow.id}`, kind: "resume_saved", properties: { source_id: sourceRow.id } })).catch(() => console.error("Resume saved but intake unavailable"));
   }
 
   return { ...opportunity, id: opportunityId } satisfies Opportunity;
@@ -658,16 +732,25 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
 
 export async function updateCockpitOpportunityStage(userId: string, id: string, stage: Opportunity["stage"]) {
   const db = requireDb(await getDbClient());
-  const { data, error } = await db.from("coach_opportunities").update({ stage, updated_at: new Date().toISOString() })
-    .eq("id", id).eq("user_id", userId).select("id").maybeSingle();
+  const { data: current, error: readError } = await db.from("coach_opportunities").select("stage,metadata,updated_at")
+    .eq("id", id).eq("user_id", userId).maybeSingle();
+  if (readError) throw readError;
+  if (!current) throw new Error("岗位不存在或已删除");
+  if (current.stage === stage) return;
+  const now = new Date().toISOString();
+  let write = db.from("coach_opportunities").update({ stage, metadata: { ...current.metadata, stageEnteredAt: now }, updated_at: now })
+    .eq("id", id).eq("user_id", userId).eq("stage", current.stage);
+  if (current.updated_at) write = write.eq("updated_at", current.updated_at);
+  const { data, error } = await write.select("id").maybeSingle();
   if (error) throw error;
-  if (!data) throw new Error("岗位不存在或已删除");
+  if (!data) throw new Error("岗位已变化或已删除，请刷新后重试");
+  await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId: id, clientEventId: `stage_${id}_${Date.now()}`, kind: "stage_changed", properties: { stage }, occurredAt: now })).catch(() => console.error("Stage saved but intake unavailable"));
 }
 
 export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity, preserveStage = false) {
   const db = requireDb(await getDbClient());
   const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
-  const { data: current, error: currentError } = await db.from("coach_opportunities").select("jd_text, jd_version, metadata")
+  const { data: current, error: currentError } = await db.from("coach_opportunities").select("stage, jd_text, jd_version, metadata")
     .eq("id", id).eq("user_id", userId).maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw new Error("岗位不存在");
@@ -684,6 +767,9 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const incomingResume = typeof opportunity.resumeText === "string" ? opportunity.resumeText.trim() : "";
   const nextResume = incomingResume || prevResume;
   const mergedMetadata: Record<string, unknown> = { ...metadata };
+  // Client auto-save cannot erase or forge the server-owned stage clock.
+  mergedMetadata.stageEnteredAt = !preserveStage && current.stage !== stage
+    ? new Date().toISOString() : currentMetadata.stageEnteredAt || null;
   if (nextResume) mergedMetadata.resumeText = nextResume;
 
   const jdChanged = Boolean(nextJd && nextJd !== current.jd_text);
@@ -701,7 +787,9 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
     const source = await recordSource({ userId, opportunityId: id, sourceType: "resume", title: `${role} 使用的简历`, content: nextResume });
     await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "base_resume", title: `${role} 使用的简历`, content: { text: nextResume }, sourceId: source.id, createdBy: "user" });
     await recordResumeClaims({ userId, opportunityId: id, sourceId: source.id, content: nextResume, global: opportunity.workspaceType === "preparation" });
+    await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId: id, clientEventId: `resume_${source.id}`, kind: "resume_saved", properties: { source_id: source.id } })).catch(() => console.error("Resume saved but intake unavailable"));
   }
+  if (!preserveStage && current.stage !== stage) await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId: id, clientEventId: `stage_${id}_${Date.now()}`, kind: "stage_changed", properties: { stage } })).catch(() => console.error("Stage saved but intake unavailable"));
 }
 
 /** 删除岗位机会。仅按 id + user_id 定位，RLS 兜底跨用户；关联快照/证据由级联清理。 */

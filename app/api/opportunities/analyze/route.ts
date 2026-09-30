@@ -5,6 +5,7 @@ import mammoth from "mammoth";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { wrapExternalMaterial } from "@/lib/coach-harness/prompt";
 import { extractPdfText } from "@/lib/pdf-text";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
@@ -267,7 +268,7 @@ export async function POST(request: Request) {
       },
       {
         role: "user",
-        content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n本次补充：${intake.materialKindHint || "首次导入"}\n\n原始材料：\n${intake.jdText}\n\n另附用户简历或经历：\n${intake.resumeText || "（未提供）"}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
+        content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n本次补充：${intake.materialKindHint || "首次导入"}\n\n原始材料：\n${wrapExternalMaterial(intake.jdText)}\n\n另附用户简历或经历：\n${wrapExternalMaterial(intake.resumeText || "（未提供）")}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
       },
     ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 0 }));
 

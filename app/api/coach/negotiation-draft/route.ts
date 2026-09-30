@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { callLLM } from "@/lib/llm";
 import { assertContextFits, renderContextForPrompt } from "@/lib/coach-harness";
 import { ContextBudgetExceededError } from "@/lib/coach-harness/prompt";
@@ -40,7 +41,7 @@ function formatTerms(offer: Awaited<ReturnType<typeof getOffer>>): string {
   return lines.join("\n");
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
   let body: { offerId?: string; opportunityId?: string; extraContext?: string };
@@ -138,3 +139,5 @@ ${rendered.text ? `【相关背景（可引用，注明来源）】\n${rendered.
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "coach_negotiation_draft", quotaType: "chat" });

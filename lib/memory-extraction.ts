@@ -293,7 +293,7 @@ async function saveExtractedMemories(
       );
       if (oldMemory) {
         try {
-          await updateMemory(oldMemory.id, {
+          await updateMemory(oldMemory.id, userId, {
             content: mem.content,
             importance: mem.importance || oldMemory.importance,
           });

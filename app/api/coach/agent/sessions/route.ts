@@ -1,5 +1,6 @@
 import {getCurrentUserFromRequest} from "@/lib/auth";
 import {getDbClient} from "@/lib/db";
+import {recordChatRequest} from "@/lib/coach-harness/request-telemetry";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const headers={"Cache-Control":"private, no-store"};
 export async function GET(req:Request){
@@ -23,7 +24,15 @@ export async function POST(req:Request){
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
  if(id){const {data,error}=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();if(error||!data)return Response.json({error:"岗位无法访问"},{status:error?503:404,headers});}
  if(b.note===true&&(typeof b.summary!=="string"||!b.summary.trim()||b.summary.length>6000))return Response.json({error:"笔记需为1到6000字"},{status:400,headers});
+ let sourceTurn: {id:string;request_id:string;learning_trace?:{harness?:{combined?:string}}}|null=null;
+ if(b.sourceTurnId!==undefined){
+  if(!b.note||!uuid.test(b.sourceTurnId))return Response.json({error:"笔记来源无效"},{status:400,headers});
+  let q=db.from("coach_agent_turns").select("id,request_id,learning_trace").eq("id",b.sourceTurnId).eq("user_id",user.id);
+  q=id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
+  const r=await q.maybeSingle();if(r.error||!r.data)return Response.json({error:"笔记来源不可访问"},{status:r.error?503:404,headers});sourceTurn=r.data;
+ }
  const {data,error}=await db.from("coach_learning_sessions").insert({user_id:user.id,opportunity_id:id,title:b.title.trim(),...(b.note===true?{summary:b.summary.trim(),status:"archived",archived_at:new Date().toISOString()}: {})}).select("id,title,status,summary").single();
+ if(!error&&sourceTurn)await recordChatRequest(user.id,sourceTurn.request_id,"adopted",{opportunity_id:id,turn_id:sourceTurn.id,harness_version:sourceTurn.learning_trace?.harness?.combined});
  return Response.json(error?{error:"开课失败，请重试"}:{ok:true,session:data},{status:error?503:201,headers});
 }
 

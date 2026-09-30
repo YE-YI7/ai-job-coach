@@ -192,9 +192,13 @@ export async function getMemoriesByType(
 
 /**
  * 更新记忆
+ *
+ * `userId` 是必传的：DB 客户端走 service-role（绕过 RLS），只按 id 过滤等于
+ * 任何登录用户猜到 id 就能改别人的记忆。
  */
 export async function updateMemory(
   memoryId: string,
+  userId: string,
   updates: {
     content?: any;
     importance?: number;
@@ -207,7 +211,8 @@ export async function updateMemory(
   const { error } = await client
     .from('user_memories')
     .update(updates)
-    .eq('id', memoryId);
+    .eq('id', memoryId)
+    .eq('user_id', userId);
 
   if (error) throw error;
 }
@@ -215,8 +220,8 @@ export async function updateMemory(
 /**
  * 停用记忆（软删除）
  */
-export async function deactivateMemory(memoryId: string): Promise<void> {
-  await updateMemory(memoryId, { is_active: false });
+export async function deactivateMemory(memoryId: string, userId: string): Promise<void> {
+  await updateMemory(memoryId, userId, { is_active: false });
 }
 
 /**

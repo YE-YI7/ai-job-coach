@@ -1,6 +1,9 @@
-import {guardInsufficientReply,DEFAULT_CLARIFY_QUESTION,BLOCKING_BODY_LIMIT} from "./insufficiency-guard";
+import {guardInsufficientReply,reaskReason,DEFAULT_CLARIFY_QUESTION,BLOCKING_BODY_LIMIT,type ProvidedMaterial} from "./insufficiency-guard";
 
 const LONG_BODY="首先我们来梳理方法论。"+ "第一步要看岗位JD里的硬性门槛，第二步再对照你的经历逐条找证据，缺一不可。".repeat(12);
+// 与 golden set GS-004 的构造材料同形：技能栏里确实写了 SQL。
+const JD:ProvidedMaterial={kind:"jd",text:"岗位：AI 产品经理（Agent 方向）。要求：1) 3 年以上经验；2) 熟练使用 SQL 做数据查询。"};
+const RESUME:ProvidedMaterial={kind:"resume",text:"教育：本科。实习：某 SaaS 公司产品经理实习生。技能：SQL 查询、Axure、Python 基础。"};
 
 describe("insufficiency guard",()=>{
  test("blocking: 模型硬编超长伪完整回答 → 收敛为简短澄清问句",()=>{
@@ -88,5 +91,57 @@ describe("insufficiency guard",()=>{
   const answer=`<clarify level="blocking">投的哪个岗位？</clarify>\n${LONG_BODY}`;
   const r=guardInsufficientReply({answer,suggestions:["请继续"],userText:"问题"});
   expect(r.before).toEqual({answer,suggestions:["请继续"]});
+ });
+ test("放行时不吞掉表格/段落前的空行（否则 GFM 表格塌成一行）",()=>{
+  const answer="所以更稳的规则是：\n\n| 调研结果 | 走哪条 |\n|---|---|\n| P0 或 P1 | 正常流程 |";
+  const r=guardInsufficientReply({answer,userText:"问题"});
+  expect(r.answer).toBe(answer);
+  expect(r.answer).toContain("：\n\n| 调研结果");
+ });
+ // GS-004 的两个真形状：① 要用户重交已在上下文里的文档；② 问原文里已经写明的技能。
+ test("索要上下文里已有的 JD 原文 → 判为 document_handover，放行正文并丢掉那句",()=>{
+  const answer=`<clarify level="blocking">方便把 JD 原文发我一下吗？</clarify>\n${LONG_BODY}`;
+  const r=guardInsufficientReply({answer,suggestions:["请带我过一遍"],userText:"这个岗位我该怎么准备",providedMaterials:[JD,RESUME]});
+  expect(r.blocked).toBe(false);expect(r.needsMoreInput).toBe(false);
+  expect(r.downgradedRedundantAsk).toBe("document_handover");expect(r.collapsed).toBe(false);
+  expect(r.level).toBe("blocking");
+  expect(r.answer).not.toContain("方便把 JD 原文发我");
+  expect(r.answer.length).toBeGreaterThan(BLOCKING_BODY_LIMIT);
+  expect(r.suggestions).toEqual(["请带我过一遍"]);
+ });
+ test("简历技能栏已写 SQL，模型仍标 blocking 问「有没有用过 SQL」→ 放行正文，那句留作收尾追问（GS-004）",()=>{
+  const q="你实习期间有没有实际用 SQL 查过数据、或参与过任何“效果好坏怎么判断”的工作？";
+  const answer=`<clarify level="blocking">${q}</clarify>\n${LONG_BODY}`;
+  const r=guardInsufficientReply({answer,suggestions:[],userText:"对照这个岗位，我还差什么",providedMaterials:[JD,RESUME]});
+  expect(r.blocked).toBe(false);expect(r.downgradedRedundantAsk).toBe("stated_in_material");
+  expect(r.collapsed).toBe(false);
+  expect(r.answer.startsWith(LONG_BODY)).toBe(true);
+  expect(r.answer.endsWith(q)).toBe(true);
+ });
+ test("材料没给全时仍然拦：索要没在上下文里的简历",()=>{
+  const askResume=`<clarify level="blocking">你还没有提供简历原文，能把简历发我一次吗？</clarify>\n${LONG_BODY}`;
+  const jdOnly=guardInsufficientReply({answer:askResume,userText:"帮我改简历",providedMaterials:[JD]});
+  expect(jdOnly.blocked).toBe(true);expect(jdOnly.downgradedRedundantAsk).toBe(null);
+  const none=guardInsufficientReply({answer:askResume,userText:"帮我改简历"});
+  expect(none.blocked).toBe(true);
+ });
+ test("降级只在正文非空时发生：空正文不许守卫凭空放行",()=>{
+  const r=guardInsufficientReply({answer:`<clarify level="blocking">能发我一下 JD 吗？</clarify>`,suggestions:[],userText:"怎么准备",providedMaterials:[JD]});
+  expect(r.blocked).toBe(true);expect(r.downgradedRedundantAsk).toBe(null);
+  expect(r.answer).toBe("能发我一下 JD 吗？");
+ });
+ test("问的是原文里没写的事 → 该拦的仍然拦（不误把 blocking 全放行）",()=>{
+  const answer=`<clarify level="blocking">简历里的这段实习你给我讲讲具体做了什么？</clarify>\n${LONG_BODY}`;
+  const r=guardInsufficientReply({answer,userText:"帮我看看",providedMaterials:[RESUME]});
+  expect(r.blocked).toBe(true);expect(r.downgradedRedundantAsk).toBe(null);
+ });
+ test("reaskReason：只认挨着的索要句式与拉丁词钩子",()=>{
+  expect(reaskReason("方便提供一下 JD 吗？",[JD])).toBe("document_handover");
+  expect(reaskReason("把你的简历发我看看？",[RESUME])).toBe("document_handover");
+  expect(reaskReason("你用过 Python 吗？",[RESUME])).toBe("stated_in_material");
+  expect(reaskReason("简历我看过了，这段实习你给我讲讲？",[RESUME])).toBe(null);
+  expect(reaskReason("你现在想投哪个方向？",[RESUME])).toBe(null);
+  expect(reaskReason("你用过 SQL 吗？",[JD])).toBe("stated_in_material");
+  expect(reaskReason("你用过 SQL 吗？",[])).toBe(null);
  });
 });

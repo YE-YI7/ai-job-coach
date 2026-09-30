@@ -17,8 +17,19 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
+import {
+  CITATION_GROUNDING_GUARD_ID,
+  GUARD_SLOTS,
+  registerDefaultGuards,
+  runSlot,
+  type GuardDecision,
+  type Slot3Input,
+} from "@/lib/coach-harness/guard-slots";
+import type { GroundingSource } from "@/lib/coach-harness/citation-verifier";
 
 export const runtime = "nodejs";
+// 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
+registerDefaultGuards();
 
 function parseJson(text: string) {
   const match = text.replace(/```json\s*/g, "").replace(/```/g, "").match(/\{[\s\S]*\}/);
@@ -27,18 +38,10 @@ function parseJson(text: string) {
 }
 
 // 模型偶发把 after 生成成半截话（用户实测：「…周活约10，已上线腾」——词都断在
-// 中间，还把「周活」写成了「腾活」）。事实校验管不到文字完整性，这里补两道：
-// 能确定性判定的（悬挂标点、括号不配对）在解析层直接拒；断词/错字这类只有
-// 语义层能看出来的，交给独立质检员，error 级发现的建议不再下发。
-const DANGLING_TAIL = /[，、；：,;:（(\[【「『“—–-]$/;
-function detectBrokenTail(text: string): string | null {
-  if (DANGLING_TAIL.test(text)) return "结尾是悬挂标点，疑似半句截断";
-  const opens = (text.match(/[（(\[【「『]/g) || []).length;
-  const closes = (text.match(/[）)\]】」』]/g) || []).length;
-  if (opens > closes) return "括号未闭合";
-  if ((text.match(/[「『“]/g) || []).length > (text.match(/[」』”]/g) || []).length) return "引号未闭合";
-  return null;
-}
+// 中间，还把「周活」写成了「腾活」）。悬挂标点、括号不配对这类能确定性判定的，
+// 由槽3 的引用回指守卫判 broken_tail 并 block（判定表只在 citation-verifier.ts
+// 一处维护，本模块不再自带第二把正则）；断词/错字这类只有语义层能看出来的，
+// 交给下面的独立质检员，error 级发现的建议不再下发。
 
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
@@ -106,6 +109,14 @@ export async function POST(request: Request) {
     const source = rendered.text;
     if (!source) throw new Error("事实库里没有可用于简历的真实材料，请先补充简历或经历");
 
+    // 回指来源只有两份：基础简历原文 + 本轮真进了上下文的可引用事实。
+    // 被预算舍弃的 claim 不在 citableIds 里，所以也进不了这儿（FR-21）。
+    const citationSources: GroundingSource[] = [
+      { id: "base-resume", text: resumeText },
+      ...(context.claims || []).filter((claim) => citableIds.has(claim.id)).map((claim) => ({ id: claim.id, text: claim.displayText })),
+    ];
+    const citationVerdicts: Array<{ index: number; outcome: GuardDecision["outcome"]; code: string; message: string }> = [];
+
     const output = await runWithGenerationContext({
       userId: user.id,
       operation: "resume_draft",
@@ -125,8 +136,13 @@ export async function POST(request: Request) {
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const mappingIssues = before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : [];
       if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
-      const brokenTail = after ? detectBrokenTail(after) : null;
-      if (brokenTail) mappingIssues.push(`改写文本不完整：${brokenTail}`);
+      // 槽3 引用回指核验（FR-23）：先于付费的独立质检员跑——逐字回指是确定性判定，
+      // 不该花一次模型调用去发现一句没有出处的话。拦哪些类别由守卫裁定
+      // （残缺/扩大动作/丢限定 = block，换措辞 = annotate 记账），本模块只认 outcome，
+      // 不复算任何一条正则或词表。
+      const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { citation: { candidateText: after, sources: citationSources } }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
+      if (citationVerdict) citationVerdicts.push({ index, outcome: citationVerdict.outcome, code: citationVerdict.reason.code, message: citationVerdict.reason.message });
+      if (citationVerdict?.outcome === "block") mappingIssues.push(citationVerdict.reason.message);
       if (!after || !before || !report.ok || mappingIssues.length) {
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];
@@ -197,6 +213,8 @@ export async function POST(request: Request) {
       changes: finalChanges,
       rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
+      // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
+      guards: citationVerdicts,
       applicationQuality,
       contextFingerprint: context.fingerprint,
       context: {

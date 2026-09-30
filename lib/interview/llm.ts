@@ -7,6 +7,23 @@
 import { callLLM } from "@/lib/llm";
 import { estimateTokens } from "@/lib/coach-harness";
 import { v4 as uuidv4 } from "uuid";
+import {
+  checkQuestionSourcing,
+  checkSourcePointers,
+  isPairLinked,
+  QuestionLineageError,
+  type LineagedQuestion,
+  type QuestionLinkage,
+  type SourceAnnotation,
+  type QuestionMaterials,
+} from "./question-lineage";
+import {
+  assertDistinctModelFamily,
+  attachBandedScore,
+  buildBandedScore,
+  type BandedScore,
+  type ScoredInterviewAssessment,
+} from "./scoring-band";
 import type {
   InterviewQuestion,
   InterviewAssessment,
@@ -107,6 +124,31 @@ export function formatResumeForPrompt(parsed: ParsedResumeLike | null | undefine
 }
 
 // ========== 生成面试题 ==========
+
+/** 把 LLM 返回的 sources 松散形状收拢；形状不对返回 undefined。 */
+function parseSourceAnnotations(raw: unknown): SourceAnnotation[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((item) => {
+    if (item && typeof item === "object" && typeof (item as { pointer?: unknown }).pointer === "string") {
+      return { source: (item as { source?: unknown }).source, pointer: (item as { pointer: string }).pointer } as unknown as SourceAnnotation;
+    }
+    // 非对象/缺 pointer 的项保留原样，让 checkQuestionSourcing 如实判负。
+    return item as unknown as SourceAnnotation;
+  });
+}
+
+/** 批量题的 FR-27 闸门：任一题单源/仅 JD/无指针即抛错，带逐题违规原因。 */
+function assertBatchSourcing(questions: InterviewQuestion[]): void {
+  const violations = questions
+    .map((question, index) => ({ index, questionId: question.id, reasons: checkQuestionSourcing(question.sources) }))
+    .filter((entry) => entry.reasons.length > 0);
+  if (violations.length > 0) {
+    throw new QuestionLineageError(
+      `${violations.length}/${questions.length} 道题未通过来源标注检查（FR-27：每题至少两个不同来源，禁止仅由 JD 成立）`,
+      violations,
+    );
+  }
+}
 
 /**
  * Stub 模式：生成多个面试题目（基于现有模板）
@@ -346,25 +388,45 @@ export async function generateInterviewQuestions(input: {
   contextText?: string;
   /** 预算裁剪提示，拼在 prompt 末尾让模型留意。 */
   warnings?: string[];
+  /**
+   * W4/FR-27：为 true 时 prompt 要求每题携带来源标注，解析后逐题跑
+   * checkQuestionSourcing，违规即抛 QuestionLineageError——批量出题也不允许
+   * 仅由 JD 成立。默认 false 保持旧行为（历史前端不回归）。
+   */
+  requireSourcing?: boolean;
+  sourceMaterials?: QuestionMaterials;
 }): Promise<InterviewQuestion[]> {
-  const { jd, roundType, count, sessionId, resumeText, knowledgeContext, contextText, warnings } = input;
+  const { jd, roundType, count, sessionId, resumeText, knowledgeContext, contextText, warnings, requireSourcing } = input;
 
   // 检查是否使用 stub 模式（显式启用 stub）
   const useStub = process.env.LLM_STUB === "1";
 
   if (useStub) {
     console.warn("使用 stub 模式生成面试题（LLM_STUB=1）");
-    return generateStubQuestions(roundType, count, sessionId);
+    const stubQuestions = generateStubQuestions(roundType, count, sessionId);
+    if (requireSourcing) {
+      // 模板题没有来源可标注——如实失败，不允许 stub 假装完成了 FR-27 的四源组合。
+      assertBatchSourcing(stubQuestions);
+    }
+    return stubQuestions;
   }
 
   // 构建 prompt
+  const sourcingBlock = requireSourcing
+    ? `
+来源标注（必须，缺一题判废）：
+5. 每个问题必须附带 "sources" 数组：至少 2 个不同来源的组合，取值只能是
+   "resume"（简历事实）、"research"（调研产出）、"knowledge"（知识库）、"jd"（岗位 JD）；
+   每条格式 {"source":"resume","pointer":"材料里的原文片段或 refId"}。
+6. 禁止仅由 JD 成立的问题——pointer 必须真的出自对应材料，不许编造。`
+    : "";
   const systemPrompt = `你是一名专业的互联网大厂面试官，你了解所有岗位的用人标准。请基于以下信息生成个性化面试题。
 
 任务：
 1. 生成 ${count} 个面试问题
 2. 每个问题都需要包含 TIPS（面试官评估逻辑）
 3. 避免废话，保持问题具体、深入、有针对性
-4. 使用严格 JSON 格式输出
+4. 使用严格 JSON 格式输出${sourcingBlock}
 
 输出格式要求：
 - 必须是一个 JSON 数组
@@ -437,6 +499,10 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
 注意：只输出 JSON，不要有任何其他文字。`;
   }
 
+  if (requireSourcing && input.sourceMaterials) {
+    const available = Object.entries(input.sourceMaterials).flatMap(([source, items]) => (items || []).map(item => ({ source, pointer: item.id })));
+    userPrompt += `\n\n【可用来源索引】\n${JSON.stringify(available)}\n每题必须另加 sources 数组，从上面按实际题意选至少两个不同 source。pointer 必须逐字复制上述 id；不能用标题、自己生成的编号或概括。不要引用未列出的材料。`;
+  }
   // 调用 LLM（使用与 chat 相同的模型配置）
   // 使用较长的超时时间，因为生成多个面试题需要较长时间
   const response = await callLLM(
@@ -508,9 +574,9 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
 
   // 转换为 InterviewQuestion 格式
   type RawTips = Partial<Tips> & { industryNotes?: string };
-  type RawQuestion = { q?: string; tips?: RawTips };
+  type RawQuestion = { q?: string; tips?: RawTips; sources?: unknown };
   const questions: InterviewQuestion[] = questionsData.slice(0, count).map((rawItem: RawQuestion) => {
-    const item = rawItem as { q: string; tips: RawTips };
+    const item = rawItem as { q: string; tips: RawTips } & { sources?: unknown };
     // 验证必需字段
     if (!item.q || !item.tips) {
       throw new Error("LLM 返回的问题格式不正确：缺少 q 或 tips");
@@ -530,14 +596,35 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
       tips.industryNotes = item.tips.industryNotes;
     }
 
-    return {
+    const question: InterviewQuestion = {
       id: uuidv4(),
       session_id: sessionId || "", // 如果提供了 sessionId 则使用，否则留空
       question_text: item.q,
       tips: tips,
       created_at: new Date().toISOString(),
     };
+
+    // W4/FR-27：解析来源标注。宽松模式只在形状合法时附带；
+    // 严格模式原样附带，交给检查器逐条判负（不替模型圆场）。
+    const sources = parseSourceAnnotations(item.sources);
+    if (requireSourcing) {
+      question.sources = sources ?? [];
+    } else if (sources && sources.length > 0) {
+      question.sources = sources;
+    }
+    return question;
   });
+
+  if (requireSourcing) {
+    assertBatchSourcing(questions);
+    if (input.sourceMaterials) {
+      const violations = questions.flatMap((q, index) => {
+        const reasons = checkSourcePointers(q.sources || [], input.sourceMaterials!);
+        return reasons.length ? [{ index, questionId: q.id, reasons }] : [];
+      });
+      if (violations.length) throw new QuestionLineageError("题目引用了未装载的材料", violations);
+    }
+  }
 
   if (questions.length !== count) {
     throw new Error(`生成的问题数量不正确：需要 ${count} 个，实际 ${questions.length} 个`);
@@ -588,6 +675,7 @@ export async function evaluateAnswer({
   knowledgeContext,
   contextText,
   warnings,
+  model,
 }: {
   question: string;
   jd: string;
@@ -599,6 +687,11 @@ export async function evaluateAnswer({
   contextText?: string;
   /** 预算裁剪提示。 */
   warnings?: string[];
+  /**
+   * W4/D3：评审模型。缺省沿用 LLM_MODEL_CHAT（旧行为）；
+   * evaluateAnswerWithBand 会显式传入与答题模型异族的评审模型。
+   */
+  model?: string;
 }): Promise<InterviewAssessment> {
   // 检查是否使用 stub 模式（显式启用 stub，仅测试用）
   const useStub = process.env.LLM_STUB === "1";
@@ -700,7 +793,7 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
       { role: "user", content: userPrompt },
     ],
     {
-      model: process.env.LLM_MODEL_CHAT,
+      model: model || process.env.LLM_MODEL_CHAT,
       temperature: 0.7,
       maxTokens: 1500,
       timeoutMs: 30000,
@@ -1255,4 +1348,229 @@ ${selfReviewBlock}${warningBlock}
   };
 
   return result;
+}
+
+// ========== W4：单题派发 + 显式承接（FR-26 / FR-27） ==========
+
+/**
+ * 逐题派发的下一题生成器：面试留在主 Agent 内，但每题必须携带
+ * 承接结构（从上一答逐字拿走的片段 + 承接方式 + 说明）和四源来源标注。
+ *
+ * 与批量出题的区别：这里拿到候选人上一题的真实回答，承接结构是
+ * 确定性核验的——tookFrom 片段在上一答原文里找不到即判编造，整题拒发。
+ * 主链路接线（app/api/interview/**）归后续步骤，本函数即接线点。
+ */
+export async function generateLinkedFollowUpQuestion(input: {
+  sessionId: string;
+  roundType: RoundType;
+  previousQuestionId: string;
+  previousQuestion: string;
+  /** 候选人上一题的真实回答原文——没有真实回答就没有承接，函数拒发。 */
+  previousAnswer: string;
+  /** 已渲染的四源材料（ContextBundle 产物）。 */
+  contextText: string;
+  warnings?: string[];
+  model?: string;
+  sourceMaterials?: QuestionMaterials;
+}): Promise<LineagedQuestion & { tips: Tips }> {
+  const previousAnswer = input.previousAnswer.trim();
+  if (!previousAnswer) {
+    throw new QuestionLineageError(
+      "上一题没有真实回答——不能凭空宣称「基于你刚才的回答」出题（不声称用户完成了他没完成的事）",
+      [{ index: 0, questionId: undefined, reasons: ["previousAnswer 为空"] }],
+    );
+  }
+
+  const warningBlock = input.warnings && input.warnings.length
+    ? `\n⚠ 上下文提示：\n- ${input.warnings.join("\n- ")}`
+    : "";
+
+  const systemPrompt = `你是主 Agent 内的一名资深面试官，正在逐题进行模拟面试。下一题必须承接候选人上一题的真实回答。
+
+硬性要求：
+1. 只输出严格 JSON 对象，字段：q、tips、sources、linkage
+2. linkage.kind 固定为 "linked"，previousQuestionId 为「${input.previousQuestionId}」
+3. linkage.tookFrom：从候选人上一答原文里【逐字复制】的 1-3 个片段，不许改写、不许拼接
+4. linkage.linkage 取值：drill_missing_evidence | follow_confirmed_claim | contrast_with_material | extend_to_next_layer
+5. linkage.carriesForward：一句话说明这一题怎样用上了这些片段
+6. sources：至少 2 个不同来源，取值 resume | research | knowledge | jd，每条带 pointer（材料原文片段或 refId）；禁止仅由 JD 成立
+7. 系统会逐字校验 tookFrom 是否真的出现在上一答原文里，编造即本题作废`;
+
+  const sourceIndex = input.sourceMaterials ? Object.entries(input.sourceMaterials).flatMap(([source, items]) => (items || []).map(item => ({ source, pointer: item.id }))) : null;
+  const userPrompt = `${input.contextText.trim()}
+${sourceIndex ? `\n【可用来源索引】\n${JSON.stringify(sourceIndex)}\n sources 的 pointer 逐字复制这些 id，不可改写成标题或新编号。` : ""}
+
+【面试轮次】
+${input.roundType}${warningBlock}
+
+【上一题】
+${input.previousQuestion}
+
+【候选人上一答（原文，承接片段只能从这里逐字取）】
+${previousAnswer}
+
+请生成下一题，输出严格 JSON：
+{
+  "q": "问题内容",
+  "tips": { "intent": "…", "keyPoints": ["…"], "framework": "…", "pitfalls": ["…"], "proTips": ["…"] },
+  "sources": [ { "source": "resume", "pointer": "…" }, { "source": "knowledge", "pointer": "…" } ],
+  "linkage": { "kind": "linked", "previousQuestionId": "${input.previousQuestionId}", "tookFrom": ["…"], "linkage": "drill_missing_evidence", "carriesForward": "…" }
+}`;
+
+  const response = await callLLM(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    {
+      model: input.model || process.env.LLM_MODEL_CHAT,
+      temperature: 0.5,
+      maxTokens: 1500,
+      timeoutMs: 45000,
+      maxRetries: 2,
+    }
+  );
+
+  let cleaned = response.trim();
+  if (cleaned.startsWith("```json")) {
+    cleaned = cleaned.replace(/^```json\n?/i, "").replace(/```\n?$/i, "");
+  } else if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```\n?/i, "").replace(/```\n?$/i, "");
+  }
+  const extracted = cleaned.trim().match(/\{[\s\S]*\}/);
+  if (!extracted) {
+    throw new Error("无法从 LLM 响应中提取 JSON");
+  }
+  let rawData: Record<string, unknown>;
+  try {
+    rawData = JSON.parse(extracted[0]);
+  } catch {
+    throw new Error("LLM 返回内容不是有效 JSON");
+  }
+
+  const tipsRaw = (rawData.tips ?? {}) as Partial<Tips>;
+  const tips: Tips = {
+    intent: tipsRaw.intent || "考察综合能力",
+    keyPoints: Array.isArray(tipsRaw.keyPoints) ? tipsRaw.keyPoints : [],
+    framework: tipsRaw.framework || "结构化回答",
+    pitfalls: Array.isArray(tipsRaw.pitfalls) ? tipsRaw.pitfalls : [],
+    proTips: Array.isArray(tipsRaw.proTips) ? tipsRaw.proTips : [],
+  };
+
+  const linkage = rawData.linkage as QuestionLinkage | undefined;
+  const sources = parseSourceAnnotations(rawData.sources) ?? [];
+
+  const violations: Array<{ index: number; questionId?: string; reasons: string[] }> = [];
+  const sourcingReasons = checkQuestionSourcing(sources);
+  if (sourcingReasons.length > 0) {
+    violations.push({ index: 0, reasons: sourcingReasons });
+  }
+  if (input.sourceMaterials) {
+    const reasons = checkSourcePointers(sources, input.sourceMaterials);
+    if (reasons.length) violations.push({ index: 0, reasons });
+  }
+  if (linkage?.kind === "linked" && linkage.previousQuestionId !== input.previousQuestionId) {
+    violations.push({ index: 0, reasons: ["承接的题目 ID 不匹配"] });
+  }
+  const pairResult = isPairLinked(linkage, previousAnswer);
+  if (pairResult.state === "unlinked") {
+    violations.push({ index: 0, reasons: pairResult.reasons });
+  }
+  if (violations.length > 0) {
+    throw new QuestionLineageError(
+      "下一题未通过承接/来源合同（FR-26/FR-27）——拒发该题而不是静默派发无承接问题",
+      violations,
+    );
+  }
+
+  const questionText = typeof rawData.q === "string" ? rawData.q.trim() : "";
+  if (!questionText) {
+    throw new Error("LLM 返回的下一题缺少 q 字段");
+  }
+
+  return {
+    id: uuidv4(),
+    session_id: input.sessionId,
+    question_text: questionText,
+    tips,
+    sources,
+    linkage: linkage as QuestionLinkage,
+  };
+}
+
+// ========== W4：方差带评分（FR-28 / D3） ==========
+
+/**
+ * 同一答案重跑 + 异族评审 + 分数必带 ±区间与依据。
+ *
+ * 模型调用是注入式（runAssessment），离线测试传固定夹具即可验 determinism，
+ * 不花钱；缺省适配器把 evaluateAnswer 作为单次评审（用 reviewerModel，
+ * 与答题模型异族，同族在 buildBandedScore 前就抛 ReviewerFamilyError）。
+ *
+ * 失败语义（如实，不静默）：
+ *   - 首轮 needs_more_input → 不重跑不评分，返回 score:null 的评估；
+ *   - 某次重跑给不出分 → 抛错，不用 fewer-reruns 凑一个假 band；
+ *   - 极差超阈值 → RescoreVarianceError，本轮不出这个分数。
+ */
+export async function evaluateAnswerWithBand(input: {
+  question: string;
+  jd: string;
+  answer: string;
+  roundType: RoundType;
+  resumeText?: string;
+  knowledgeContext?: string;
+  contextText?: string;
+  warnings?: string[];
+  /** D3：两个模型必须异族。 */
+  answeringModel: string;
+  reviewerModel: string;
+  /** FR-28 锚点：规则条款 + 对照样例指针。 */
+  rubricAnchor: string;
+  workedExampleRefs: string[];
+  /** 注入单次评审（测试夹具）；缺省调 evaluateAnswer(reviewerModel)。 */
+  runAssessment?: () => Promise<InterviewAssessment>;
+}): Promise<ScoredInterviewAssessment> {
+  assertDistinctModelFamily({ answeringModel: input.answeringModel, reviewerModel: input.reviewerModel });
+
+  const runOnce = input.runAssessment
+    ?? (() => evaluateAnswer({
+      question: input.question,
+      jd: input.jd,
+      answer: input.answer,
+      roundType: input.roundType,
+      resumeText: input.resumeText,
+      knowledgeContext: input.knowledgeContext,
+      contextText: input.contextText,
+      warnings: input.warnings,
+      model: input.reviewerModel,
+    }));
+
+  const assessments: InterviewAssessment[] = [];
+  const rescores: number[] = [];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const assessment = await runOnce();
+    if (attempt === 0 && assessment.status === "needs_more_input") {
+      // 没有可评的回答就不评分——也不重跑烧钱，score 保持 null。
+      return attachBandedScore(assessment, null);
+    }
+    if (assessment.status !== "assessed" || typeof assessment.score !== "number") {
+      throw new Error(`第 ${attempt + 1} 次重跑返回 needs_more_input——同一答案的判定必须一致，否则如实失败而不是拼一个假方差带`);
+    }
+    assessments.push(assessment);
+    rescores.push(assessment.score);
+  }
+
+  const evidenceUsed = [...new Set(assessments.flatMap((a) => a.evidence.filter((e) => typeof e === "string" && e.trim())))];
+  const score: BandedScore = buildBandedScore({
+    rescores,
+    rubricAnchor: input.rubricAnchor,
+    workedExampleRefs: input.workedExampleRefs,
+    evidenceUsed,
+    answeringModel: input.answeringModel,
+    reviewerModel: input.reviewerModel,
+  });
+
+  // 交付形状：以首轮评估为主体，裸 number score 替换为 BandedScore。
+  const base = assessments[0];
+  return attachBandedScore({ ...base, score: null }, score);
 }

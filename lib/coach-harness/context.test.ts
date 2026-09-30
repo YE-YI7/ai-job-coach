@@ -1,4 +1,20 @@
 import { compileContextBundle, contextIsStale, estimateTokens, replayContextSelection } from "./context";
+
+test("同 ID 材料正文变化、新增/删除事实也使旧建议过期", () => {
+  const base = { task: "mock_interview" as const, userId: "user-1", claims: [claim({ id: "one", displayText: "原始事实" })] };
+  const before = compileContextBundle(base);
+  for (const claims of [[], [...base.claims, claim({ id: "two" })], [claim({ id: "one", displayText: "更正事实" })]]) {
+    expect(contextIsStale(before, compileContextBundle({ ...base, claims }))).toBe(true);
+  }
+  const withFile = (text: string) => compileContextBundle({ ...base, attachments: [{ id: "resume", label: "简历", text }] });
+  expect(contextIsStale(withFile("旧简历"), withFile("新简历"))).toBe(true);
+});
+
+test("已确认事实装不下必须显式阻断，不能默默去掉再作答", () => {
+  const bundle = compileContextBundle({ task: "mock_interview", userId: "user-1", claims: [claim({ displayText: "事实".repeat(1000) })], budget: { maxInputTokens: 500 } });
+  expect(bundle.usage.truncated).toBe(true);
+  expect(bundle.selection.excluded).toContainEqual(expect.objectContaining({ kind: "confirmed_fact", required: true }));
+});
 import type { CareerClaim } from "./types";
 
 const claim = (overrides: Partial<CareerClaim> = {}): CareerClaim => ({

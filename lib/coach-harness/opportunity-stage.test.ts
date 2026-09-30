@@ -12,10 +12,12 @@ function database(data: unknown) {
   return chain;
 }
 beforeEach(() => jest.resetAllMocks());
-test("阶段更新只写stage和时间，限制owner并确认实际命中", async () => {
-  const db = database({ id: "job" });
+test("阶段更新保存服务端进入时间，限制owner并确认实际命中", async () => {
+  const db = database({ id: "job", stage: "applied", updated_at: "2026-10-01T00:00:00Z", metadata: { resumeText: "保留正文" } });
   await updateCockpitOpportunityStage("owner", "job", "won");
-  expect(db.update).toHaveBeenCalledWith({ stage: "won", updated_at: expect.any(String) });
+  expect(db.update).toHaveBeenCalledWith({ stage: "won", metadata: { resumeText: "保留正文", stageEnteredAt: expect.any(String) }, updated_at: expect.any(String) });
+  expect(db.eq).toHaveBeenCalledWith("stage", "applied");
+  expect(db.eq).toHaveBeenCalledWith("updated_at", "2026-10-01T00:00:00Z");
   expect(db.eq).toHaveBeenCalledWith("user_id", "owner");
   expect(db.eq).toHaveBeenCalledWith("id", "job");
 });

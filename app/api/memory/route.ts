@@ -93,7 +93,7 @@ export async function DELETE(req: Request) {
     const body = await req.json();
     
     if (body.memoryId) {
-      await deactivateMemory(body.memoryId);
+      await deactivateMemory(String(body.memoryId), auth.id);
       return NextResponse.json({ ok: true, message: "记忆已停用" });
     }
 

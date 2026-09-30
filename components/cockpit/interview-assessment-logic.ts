@@ -12,6 +12,13 @@ import type { OpportunityAction } from "@/lib/opportunities/types";
 
 export type InterviewAssessmentStatus = "assessed" | "needs_more_input";
 
+export type InterviewScoreVariance = {
+  /** 同一答案重跑的浮动带 ±N（分）；后端未实测时为 null，禁止编造。 */
+  band: number | null;
+  /** 浮动依据：方差是怎么测出来的（重跑次数、评审模型），随分数一起出。 */
+  note: string;
+};
+
 export type InterviewAssessmentView = {
   status: InterviewAssessmentStatus;
   /** needs_more_input 时恒为 null，前端不得显示任何分数 */
@@ -24,6 +31,8 @@ export type InterviewAssessmentView = {
   followUp: string;
   /** demo 表示示例反馈，不是真实模型输出 */
   source: "llm" | "demo";
+  /** D3：分数永远不裸出，旁边必须带浮动区间与依据；后端没给 band 时如实说明。 */
+  variance: InterviewScoreVariance;
 };
 
 export type InterviewDimensionView = { name: string; score: number; comment: string };
@@ -44,6 +53,7 @@ export type InterviewRoundSummaryView = {
   dimensions: InterviewDimensionView[];
   questionBreakdown: Array<{ questionId: string; score: number | null; decisiveFinding: string }>;
   nextActions: InterviewRoundNextActionView[];
+  variance: InterviewScoreVariance;
 };
 
 const MAX_ACTIONS = 3;
@@ -66,6 +76,41 @@ function readScore(value: unknown): number | null {
 
 function readPriority(value: unknown): "urgent" | "high" | "normal" {
   return value === "urgent" || value === "high" || value === "normal" ? value : "normal";
+}
+
+/**
+ * 读浮动带（D3）。后端字段约定（由面试工作包产出，前端只消费不发明）：
+ * - assessment: scoreBand: number（±N 分）、scoreBandNote: string（测量依据）
+ * - round summary: overallScoreBand: number、scoreBandNote: string
+ * 缺失即 null：宁可写「未实测」，不补一个假的 ±0。
+ */
+function readVariance(payload: Record<string, unknown>, bandKey: string): InterviewScoreVariance {
+  const raw = payload[bandKey];
+  const band = typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
+  const note = typeof payload.scoreBandNote === "string" ? payload.scoreBandNote.trim().slice(0, MAX_STRING_LENGTH) : "";
+  return { band, note };
+}
+
+/** 分数旁边的浮动区间文案：band 未实测时用平实中文说明，不用警告符号。 */
+export function scoreBandLine(variance: InterviewScoreVariance): string {
+  if (variance.band === null) return "波动未实测：这是单次评审的分数，同一答案再评可能上下差几分。";
+  const band = variance.band === 0 ? "同一答案重跑分数一致" : `同一答案重跑大约浮动 ±${variance.band} 分`;
+  return variance.note ? `${band}（${variance.note}）` : `${band}。`;
+}
+
+/** 摘要行用的极短带尾注：保证「N 分」在界面上永远不是裸数字。 */
+export function scoreBandShort(variance: InterviewScoreVariance): string {
+  return variance.band === null ? "单次评审" : `±${variance.band} 分`;
+}
+
+/** 分数旁边的依据一句话：只统计真实引用的证据条数，不产生新评价。 */
+export function scoreDerivationLine(assessment: InterviewAssessmentView): string {
+  const parts = [
+    assessment.evidence.length ? `引用了你回答里的 ${assessment.evidence.length} 条原话证据` : "",
+    assessment.missingEvidence.length ? `${assessment.missingEvidence.length} 处缺口` : "",
+    assessment.dimensions.length ? `按 ${assessment.dimensions.length} 个维度分别评` : "",
+  ].filter(Boolean);
+  return parts.length ? `依据：${parts.join("、")}。` : "依据：本轮点评的引用记录未随分数返回。";
 }
 
 /**
@@ -100,6 +145,7 @@ export function normalizeInterviewAssessment(raw: unknown, source: "llm" | "demo
   // 没有 status 也没有 summary：这是不可用的响应，不是"评过了"。
   if (!declaredStatus && !summary) return null;
 
+  const variance = readVariance(payload, "scoreBand");
   const score = readScore(payload.score);
   const wantsAssessment = declaredStatus === "assessed" || (declaredStatus === null && score !== null);
 
@@ -117,6 +163,7 @@ export function normalizeInterviewAssessment(raw: unknown, source: "llm" | "demo
       rewritePlan,
       followUp: followUp || "请补充一个具体事例：你当时做了什么、怎么判断的、结果是什么？",
       source,
+      variance,
     };
   }
 
@@ -131,6 +178,7 @@ export function normalizeInterviewAssessment(raw: unknown, source: "llm" | "demo
       rewritePlan,
       followUp: followUp || "请补充一个具体事例：你当时做了什么、怎么判断的、结果是什么？",
       source,
+      variance,
     };
   }
 
@@ -144,6 +192,7 @@ export function normalizeInterviewAssessment(raw: unknown, source: "llm" | "demo
     rewritePlan,
     followUp,
     source,
+    variance,
   };
 }
 
@@ -213,6 +262,7 @@ export function normalizeRoundSummary(raw: unknown): InterviewRoundSummaryView |
     dimensions,
     questionBreakdown,
     nextActions,
+    variance: readVariance(payload, "overallScoreBand"),
   };
 }
 

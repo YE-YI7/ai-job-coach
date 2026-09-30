@@ -3,6 +3,7 @@ import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { wrapExternalMaterial } from "@/lib/coach-harness/prompt";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { hasReviewMaterial, hasGroundedReview, REVIEW_MATERIAL_HINT } from "@/lib/interview/review-evidence";
@@ -112,13 +113,13 @@ ${context}
 轮次：${round || "未提供"}
 
 岗位 JD：
-${jobDescription || "未提供"}
+${wrapExternalMaterial(jobDescription || "未提供")}
 
 用户简历或经历底稿：
-${resumeText || "未提供"}
+${wrapExternalMaterial(resumeText || "未提供")}
 
 真实面试记录：
-${interviewContent}
+${wrapExternalMaterial(interviewContent)}
 
 ${knowledge.contextText}`;
 

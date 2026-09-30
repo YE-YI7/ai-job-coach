@@ -1,0 +1,74 @@
+{
+  "schema": "company-tier-directory/v1",
+  "verifiedAt": "2026-09-30",
+  "tierRule": {
+    "big_tech": "上市公司或集团级大厂：万人级员工、成熟校招/社招体系、独立业务线多",
+    "mid_small": "独立融资的互联网/软件公司：从早期创业公司到中型规模，主业在软件或互联网",
+    "non_internet": "主业不在互联网/软件行业的用人方"
+  },
+  "identityRule": "identityConfirmed=true 只表示「这块招聘板确实属于这家法人」，依据是板页标题里的法人名；不表示层次结论适用于同名其他公司。",
+  "entries": [
+    {
+      "name": "Meshy",
+      "aliases": [
+        "meshy",
+        "meshy llc"
+      ],
+      "domain": "meshy.ai",
+      "researchSources": ["https://www.meshy.ai/", "https://m.sohu.com/a/1056505769_701814"],
+      "tier": "mid_small",
+      "identityConfirmed": true,
+      "identityBasis": "招聘板 https://jobs.ashbyhq.com/meshy 页面标题为「Meshy LLC Jobs」，布告正文出现 meshy.ai（2026-09-30 抓取）；Ashby 布告接口本身不返回公司名字段，所以身份以板页法人名 + 正文官网域名为双校验依据。",
+      "tierBasis": "2026-07 完成近 4 亿美元 B 轮、报道口径估值超 100 亿元人民币；两轮融资均为主业在 AI 3D 生成的单一产品线，招聘结构仍是创业公司，没有集团级大厂的多业务线与万人规模",
+      "reviewAt": "2026-12-31",
+      "sources": [
+        {
+          "url": "https://m.sohu.com/a/1056505769_701814",
+          "title": "27亿！90后清华姚班博士拿下AI 3D生成赛道最大单笔融资",
+          "publishedAt": "2026-07-30"
+        },
+        {
+          "url": "https://m.toutiao.com/article/7667364205212828169/",
+          "title": "Meshy完成近4亿美元融资估值超100亿，对AI 3D赛道意味着什么？",
+          "publishedAt": "2026-07-28"
+        },
+        {
+          "url": "https://zgeo.net/news/tongxin-joins-meshy-ai-3d",
+          "title": "童欣加入Meshy，AI 3D赛道迎来首席科学家",
+          "publishedAt": "2026-09-07"
+        }
+      ]
+    },
+    {
+      "name": "Kong",
+      "aliases": [
+        "kong",
+        "kong inc",
+        "konghq"
+      ],
+      "domain": "konghq.com",
+      "tier": "mid_small",
+      "identityConfirmed": true,
+      "identityBasis": "招聘板 https://jobs.ashbyhq.com/kong 页面标题为「Kong Jobs」，布告正文出现 konghq.com（2026-09-30 抓取）。本条只覆盖这家做 API 网关的 Kong Inc.；任何同名或近名法人不在覆盖范围，身份拿不准时一律按「未双校验」处理。",
+      "tierBasis": "2021-02 完成 1 亿美元 D 轮，2024-11 又完成 1.75 亿美元 E 轮（Tiger Global 领投），报道口径估值约 20 亿美元；主业是 API 网关/开源基础设施的单一产品线，未上市，属独立融资的软件公司而不是集团级大厂",
+      "reviewAt": "2026-12-31",
+      "sources": [
+        {
+          "url": "https://www.thehowai.com/news/4502/",
+          "title": "Tiger Global 领投！Kong 凭 API 管理平台获 1.75 亿美元融资",
+          "publishedAt": "2024-11-20"
+        },
+        {
+          "url": "https://www.thehowai.com/article/4585/",
+          "title": "Kong 估值 20 亿美元；Cresta 发展生成式 AI 平台｜一周投融资",
+          "publishedAt": "2024-11-25"
+        },
+        {
+          "url": "https://salestools.io/blog/kong-raises-100m-series-d",
+          "title": "Kong Raises $100M in Series D",
+          "publishedAt": null
+        }
+      ]
+    }
+  ]
+}

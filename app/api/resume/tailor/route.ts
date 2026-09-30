@@ -3,6 +3,7 @@ import { callLLM } from "@/lib/llm";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
+import { wrapExternalMaterial } from "@/lib/coach-harness/prompt";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 
 export const runtime = "nodejs";
@@ -90,7 +91,7 @@ ${resumeData.selfEvaluation || "(空)"}
 
 ## 目标岗位JD
 
-${jobDescription}
+${wrapExternalMaterial(jobDescription)}
 
 ${knowledge.contextText ? `---\n\n${knowledge.contextText}` : ""}
 

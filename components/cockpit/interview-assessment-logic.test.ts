@@ -10,6 +10,9 @@ import {
   normalizeInterviewAssessment,
   normalizeRoundSummary,
   resolveNextStep,
+  scoreBandLine,
+  scoreBandShort,
+  scoreDerivationLine,
   toOpportunityActions,
 } from "./interview-assessment-logic";
 
@@ -187,5 +190,49 @@ describe("toOpportunityActions", () => {
     const first = toOpportunityActions("session-9", actions);
     const second = toOpportunityActions("session-9", actions);
     expect(second.map((action) => action.id)).toEqual(first.map((action) => action.id));
+  });
+});
+
+describe("D3：分数必须带 ±N 浮动带与依据，永不裸出", () => {
+  const assessed = (over: Record<string, unknown> = {}) => normalizeInterviewAssessment({
+    status: "assessed", score: 72, summary: "结论先行，证据齐。", evidence: ["做了召回AB", "转化率+3%"], missingEvidence: ["基线未说"], dimensions: [{name: "逻辑表达", score: 75, comment: "结论先行"}], ...over,
+  })!;
+
+  it("后端给了 scoreBand/scoreBandNote：读进 variance，随分数一起渲染", () => {
+    const view = assessed({scoreBand: 4, scoreBandNote: "同一答案重跑 3 次，异族模型评审"});
+    expect(view.variance).toEqual({band: 4, note: "同一答案重跑 3 次，异族模型评审"});
+    expect(scoreBandLine(view.variance)).toContain("±4 分");
+    expect(scoreBandLine(view.variance)).toContain("重跑 3 次");
+    expect(scoreBandShort(view.variance)).toBe("±4 分");
+  });
+
+  it("后端没给 band：如实说单次评审，不编一个 ±0", () => {
+    const view = assessed();
+    expect(view.variance.band).toBeNull();
+    expect(scoreBandLine(view.variance)).toContain("波动未实测");
+    expect(scoreBandShort(view.variance)).toBe("单次评审");
+  });
+
+  it("band 为 0 说成一致而不是 ±0 分", () => {
+    expect(scoreBandLine({band: 0, note: ""})).toBe("同一答案重跑分数一致。");
+  });
+
+  it("依据句只统计真实引用的条数，不产生新评价", () => {
+    const line = scoreDerivationLine(assessed());
+    expect(line).toContain("2 条原话证据");
+    expect(line).toContain("1 处缺口");
+    expect(line).toContain("1 个维度");
+  });
+
+  it("整轮总结读 overallScoreBand，缺省同样落到未实测文案", () => {
+    const base = {overallScore: 68, grade: "B", dimensions: [], questionBreakdown: [], nextActions: []};
+    expect(normalizeRoundSummary({...base, overallScoreBand: 5, scoreBandNote: "三次重跑"})!.variance).toEqual({band: 5, note: "三次重跑"});
+    expect(normalizeRoundSummary(base)!.variance.band).toBeNull();
+  });
+
+  it("band 乱给（负数/超界/字符串）时按不可信处理，不带病渲染", () => {
+    expect(assessed({scoreBand: -3}).variance.band).toBe(0);
+    expect(assessed({scoreBand: 900}).variance.band).toBe(100);
+    expect(assessed({scoreBand: "4"}).variance.band).toBeNull();
   });
 });

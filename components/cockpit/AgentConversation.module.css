@@ -60,4 +60,23 @@
 .panel footer{padding-top:4px;gap:4px}
 .disclaimer{margin:4px 0 0;font-size:11px}
 .streamStatus{font-size:12px;color:#605c55;margin:8px 0;line-height:1.5}
+/* W6-① 介入小注：正文之后一条点注，讲清这轮回答为什么换了形状，不抢内容。 */
+.interventionNote{display:flex;align-items:flex-start;gap:7px;margin:2px 0 10px;color:#8a857c;font-size:12px;line-height:1.7;letter-spacing:.01em}
+.interventionNote::before{content:"";width:6px;height:6px;border-radius:50%;background:#c9a58c;flex:0 0 auto;margin-top:8px}
+/* W6-② 换档确认：一条发丝线托住一行平实说明 + 文字按钮，不是告警面板。 */
+.modelConfirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 8px;padding:10px 2px 0;border-top:1px solid #e9e5dc;font-size:12px;line-height:1.7;color:#605c55}
+.modelConfirm span{flex:1;min-width:200px}
+.modelConfirm button{font-size:12px;color:#8d3a17;text-decoration:underline;text-underline-offset:4px;min-height:32px;padding:6px 4px}
+/* W6-④ 后台任务托盘：每行一个点 + 目标 + 状态词，颜色只给点。 */
+.runTray{flex-shrink:0;padding:2px 4px 6px;border-bottom:1px solid #f0ece5;margin-bottom:4px}
+.runRow{display:flex;align-items:baseline;gap:8px;margin:0;padding:5px 0;font-size:12px;color:#605c55;line-height:1.6}
+.runRow+.runRow{border-top:1px solid #f6f3ec}
+.runDot{width:6px;height:6px;border-radius:50%;background:#c9c3b8;flex:0 0 auto;align-self:center}
+.runDot[data-status="running"]{background:#c96f4a}
+.runDot[data-status="partial"]{background:#b8862f}
+.runDot[data-status="failed"]{background:#9b3013}
+.runDot[data-status="done"]{background:#4a7c59}
+.runGoal{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#292b2d}
+.runStatus{flex-shrink:0;font-size:11px;color:#8a857c}
+.runTray .runRow button{font-size:11px;color:#605c55;text-decoration:underline;text-underline-offset:3px;min-height:28px;padding:4px 6px}
 @media(max-width:700px){.panel{height:100%;min-height:0}.panel header button{min-height:36px}.metadata .history{max-width:58%}}

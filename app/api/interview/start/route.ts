@@ -23,6 +23,8 @@ export const preferredRegion = "iad1";
 import { getDbClient, getLatestResumeByUserId } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { generateInterviewQuestions, formatResumeForPrompt } from "@/lib/interview/llm";
+import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
+import { interviewMaterials } from "@/lib/interview/question-lineage";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import {
   ContextBudgetExceededError,
@@ -122,9 +124,10 @@ export async function POST(request: Request) {
     }
 
     let effectiveJd = typeof jd === "string" ? jd.trim() : "";
+    let companyResearch = "";
     if (opportunityId) {
       const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
-        .select("id, jd_text").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+        .select("id, jd_text, company, role").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
       if (opportunityError) throw opportunityError;
       if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
         status: 404, headers: { "Content-Type": "application/json" },
@@ -133,6 +136,7 @@ export async function POST(request: Request) {
       // 如实使用请求里的 JD，而不是报「缺 JD」却让用户对着页面上的 JD 快照发呆。
       const dbJd = String(opportunity.jd_text || "").trim();
       effectiveJd = dbJd || effectiveJd;
+      companyResearch = renderCompanyResearch(await readCompanyResearch(userId, opportunity).catch(() => null));
     }
     if (!effectiveJd) {
       return new Response(
@@ -183,6 +187,7 @@ export async function POST(request: Request) {
       attachments: [
         { id: "interview-jd", label: "岗位 JD", text: effectiveJd, required: true },
         { id: "resume-text", label: "候选人简历", text: resumeText, required: false },
+        ...(companyResearch ? [{ id: "company-research", label: "公司公开调研（未交叉验证）", text: companyResearch, required: false }] : []),
       ],
       budget: { maxInputTokens: INTERVIEW_START_BUDGET },
     });
@@ -233,6 +238,8 @@ export async function POST(request: Request) {
         knowledgeContext: knowledge.contextText,
         contextText: rendered.text,
         warnings: rendered.warnings,
+        requireSourcing: true,
+        sourceMaterials: interviewMaterials(context),
       }));
     } catch (generationError) {
       await db.from("interview_sessions").delete().eq("id", sessionId).eq("user_id", userId);
@@ -241,11 +248,11 @@ export async function POST(request: Request) {
 
     // 8. 保存题目到数据库
     if (questions.length > 0) {
-      const questionsToInsert = questions.map((q) => ({
+      const questionsToInsert = questions.map((q, ordinal) => ({
         id: q.id,
         session_id: sessionId,
         question_text: q.question_text,
-        tips: q.tips,
+        tips: { ...q.tips, _harness: { ordinal, sources: q.sources, linkage: q.linkage || { kind: "session_opener" } } },
         created_at: q.created_at,
       }));
 

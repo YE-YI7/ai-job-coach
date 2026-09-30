@@ -2,7 +2,7 @@ import {retrieveKnowledgeDocuments} from "./document-repository";
 import {makeLearningQuery,learningKnowledgeTask} from "@/lib/coach-harness/learning-memory";
 import {learningGuide} from "@/lib/coach-harness/learning-guide";
 import type {MentorNextAction} from "@/lib/coach-harness/next-action";
-import {compileContextBundle} from "@/lib/coach-harness/context";
+import {compileContextBundle,estimateTokens} from "@/lib/coach-harness/context";
 import {renderContextForPrompt} from "@/lib/coach-harness/prompt";
 
 // 固定场景先于运行结果定义；测试检索，不把命中率冒充教学效果。
@@ -15,8 +15,13 @@ const cases=[
 describe("learning retrieval: topic, follow-up and topic switch",()=>{
  test("tight context budget preserves the top retrieved document, not alphabetical ID order",()=>{
   const docs=retrieveKnowledgeDocuments({task:"mock_interview",query:cases[0].topic,role:"产品经理",limit:2});
+  expect(docs.length).toBeGreaterThan(1);
   const knowledge=docs.map((doc,index)=>({...doc,id:index===0?"z-top":"a-secondary",content:"评测正文".repeat(100),evidenceUrls:[]}));
-  const budget=400+Math.ceil("评测正文".repeat(100).length/1.5)+100;
+  const cost=(item:{title:string;description:string;goal:string;scope:string;content:string})=>
+   estimateTokens(item.title+item.description+item.goal+item.scope+item.content);
+  // 预算刚好够一份「最贵」的文档：先装填的那一份必须活下来。写成固定数字会在
+  // 知识库新增条目（标题/描述长度变化）后被静默翻转，测的就不是顺序了。
+  const budget=400+Math.max(cost(knowledge[0]),cost(knowledge[1]));
   const bundle=compileContextBundle({userId:"test",task:"mock_interview",claims:[],knowledge,budget:{maxInputTokens:budget}});
   expect(bundle.knowledge.map(k=>k.id)).toEqual(["z-top"]);
  });

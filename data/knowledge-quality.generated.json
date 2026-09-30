@@ -1,21 +1,24 @@
 {
-  "generated_at": "2026-08-18T00:00:00.000Z",
+  "generated_at": "2026-09-29T00:00:00.000Z",
   "current": {
-    "sources": 89,
-    "documents": 26,
+    "sources": 94,
+    "documents": 27,
     "companies": 20,
     "retrieval_evaluations": 115,
-    "documents_with_three_sources": 21,
-    "three_source_ratio": 0.808,
+    "documents_with_three_sources": 22,
+    "three_source_ratio": 0.815,
     "by_platform": {
+      "anthropic": 2,
+      "arxiv": 2,
       "github": 2,
       "linkedin": 14,
+      "mcp": 1,
       "nowcoder": 60,
       "reddit": 11,
       "xiaohongshu": 2
     },
     "by_confidence": {
-      "low": 5,
+      "low": 6,
       "medium": 21,
       "high": 0
     }

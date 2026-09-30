@@ -1,16 +1,19 @@
 import { POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { getContextBundleForUser, requireDb } from "@/lib/coach-harness/repository";
 import { renderContextForPrompt } from "@/lib/coach-harness/prompt";
 import { callLLM } from "@/lib/llm";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
+jest.mock("@/lib/quota", () => ({ reserveQuota: jest.fn(), finalizeQuota: jest.fn() }));
 jest.mock("@/lib/coach-harness/repository", () => ({
   getContextBundleForUser: jest.fn(),
   requireDb: jest.fn(),
 }));
 jest.mock("@/lib/coach-harness/prompt", () => ({
+  ...jest.requireActual("@/lib/coach-harness/prompt"),
   assertContextFits: jest.fn(),
   renderContextForPrompt: jest.fn(),
 }));
@@ -44,6 +47,8 @@ describe("compare POST", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: USER });
+    (reserveQuota as jest.Mock).mockResolvedValue({ id: "reservation-1", source: "free_chat_daily", remaining: 2 });
+    (finalizeQuota as jest.Mock).mockResolvedValue(true);
     const single = (row: unknown) => async () => ({ data: row, error: null });
     (requireDb as jest.Mock).mockReturnValue({
       from: jest.fn()
@@ -89,5 +94,13 @@ describe("compare POST", () => {
     expect(response.status).toBe(200);
     const [messages] = (callLLM as jest.Mock).mock.calls[0];
     expect(messages[0].content).toContain("不产出任何数字形式的「匹配分」");
+  });
+
+  test("比较要真的调模型，所以额度用完时 403 且不进模型", async () => {
+    (reserveQuota as jest.Mock).mockResolvedValue(null);
+    const response = await POST(request({ opportunityIds: [OPP_A, OPP_B] }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ needUpgrade: true });
+    expect(callLLM).not.toHaveBeenCalled();
   });
 });

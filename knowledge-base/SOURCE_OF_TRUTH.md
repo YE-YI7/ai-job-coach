@@ -31,7 +31,9 @@
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |
 | 软件工程师首份工作 | `domains/software-engineering/first-job-evidence.md` | 首版，基于 GitHub 指南 |
 | 软件工程师技术面准备 | `domains/software-engineering/technical-interview-preparation.md` | 首版，基于 3 个公开样本 |
+| Agent 应用能力栈与上下文工程 | `domains/software-engineering/agent-harness-and-context-engineering.md` | 仅公开论文与官方文档，非公开培训材料不进入发布知识库 |
 | 原始来源摘要 | `../data/job-knowledge.seed.json` | 证据层，不直接作为 Agent 结论 |
+| 公司层次名录 | `../data/company-tier-directory.json` | 「找岗位」链路的判定数据，不是知识：单公司公开事实按这里的口径登记，每条必须带公开出处与复核日期，`domains/*` 不收这类内容 |
 | 网页端编译产物 | `../data/knowledge-documents.generated.json` | 自动生成，不手工编辑 |
 | Plugin 编译产物 | `../.agents/plugins/plugins/yi-zhi/knowledge/knowledge-documents.json` | 自动生成，不手工编辑 |
 

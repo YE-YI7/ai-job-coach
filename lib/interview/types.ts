@@ -2,6 +2,8 @@
  * 模拟面试模块 - 类型定义
  */
 
+import type { QuestionLinkage, SourceAnnotation } from "./question-lineage";
+
 // ========== 面试轮次类型 ==========
 export type RoundType = "业务面" | "技术面" | "HR面" | "项目深挖" | "总监面";
 
@@ -32,6 +34,13 @@ export interface InterviewQuestion {
   question_text: string; // 题目内容
   tips: Tips; // 提示信息（JSONB）
   created_at: string; // ISO timestamp
+  /**
+   * W4/FR-27：来源标注（简历/调研/知识库/JD）。生成链路接线后必填；
+   * 类型上保持可选以兼容历史已落库题目，新题由 checkQuestionSourcing 判负。
+   */
+  sources?: SourceAnnotation[];
+  /** W4/FR-26：本题承接上一答的显式结构（首题为 session_opener）。 */
+  linkage?: QuestionLinkage;
 }
 
 // ========== 评估结果（旧格式，保留兼容） ==========

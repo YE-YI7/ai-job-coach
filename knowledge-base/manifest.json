@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-18",
+  "updated_at": "2026-09-29",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
@@ -131,6 +131,30 @@
         "https://github.com/Yacxcy/ai-internship-journey/blob/main/day40-project3/data/docs/08_%E5%B0%8F%E7%BA%A2%E4%B9%A6%E5%90%8E%E7%AB%AF%E5%AE%9E%E4%B9%A0%E9%9D%A2%E7%BB%8F_2025.md",
         "https://www.nowcoder.com/discuss/788065133502144512",
         "https://www.nowcoder.com/feed/main/detail/b4447773280f442d8f04d5b4df4f5d4c"
+      ]
+    },
+    {
+      "id": "swe.agent-harness-and-context-engineering.v1",
+      "title": "Agent 应用的能力栈、上下文供给与可靠性",
+      "path": "domains/software-engineering/agent-harness-and-context-engineering.md",
+      "description": "把 AI Agent 开发、大模型应用与 AI 产品技术岗需要的工程知识组织为模型与工程边界、Tool/Skill/MCP 能力栈、上下文供给失效、评测选型和可靠性分工。",
+      "goal": "用公开官方资料生成贴近真实系统设计的追问，保留工程建议与验证结果的边界。",
+      "scope": "适用于 Agent 开发、大模型应用工程与 AI 产品技术理解；公开方法不代表用户项目已经验证。",
+      "roles": ["AI工程师", "Agent开发工程师", "大模型应用开发", "软件工程师", "AI产品经理", "大模型产品经理"],
+      "companies": [],
+      "stages": ["面试准备", "技术面", "业务面", "模拟面试", "岗位判断"],
+      "tasks": ["career_coaching", "job_analysis", "mock_interview", "answer_assessment", "interview_review"],
+      "use_when": ["准备 Agent 或大模型应用工程岗", "项目只会说调过 API 讲不出系统", "需要解释上下文失效或评测设计", "AI 产品技术理解需要落地"],
+      "do_not_use_when": ["用框架名称冒充可靠性证明", "用论文数字冒充个人项目指标", "承诺某公司一定考这些"],
+      "confidence": "low",
+      "status": "active",
+      "reviewed_at": "2026-09-29",
+      "evidence_urls": [
+        "https://arxiv.org/abs/2210.03629",
+        "https://arxiv.org/abs/2307.03172",
+        "https://www.anthropic.com/research/building-effective-agents",
+        "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+        "https://modelcontextprotocol.io/introduction"
       ]
     },
     {

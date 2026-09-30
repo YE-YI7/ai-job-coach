@@ -1,6 +1,6 @@
 import { POST, PATCH } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { createCockpitOpportunity, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
+import { createCockpitOpportunity, recordTierIntentFromText, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
 import type { Opportunity } from "@/lib/opportunities/types";
 
 jest.mock("@/lib/auth");
@@ -73,6 +73,32 @@ describe("coach opportunities POST", () => {
     expect(response.status).toBe(400);
     expect(createCockpitOpportunity).not.toHaveBeenCalled();
   });
+
+  test("存岗位时接住方向里那句档位意向，且只读方向不读 JD 正文", async () => {
+    (recordTierIntentFromText as jest.Mock).mockResolvedValue(null);
+    const response = await POST(new Request("http://localhost/api/coach/opportunities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunity: opportunity({ role: "目标：大厂产品经理", jdText: "我们是快速成长的创业公司，负责……" }) }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(recordTierIntentFromText).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1", text: "目标：大厂产品经理", opportunityId: "opportunity-1",
+    }));
+    // 用人方自述的「创业公司」不能当成用户的档位意向
+    expect(JSON.stringify((recordTierIntentFromText as jest.Mock).mock.calls)).not.toMatch(/创业公司/);
+  });
+
+  test("档位意向没接住也照样算保存成功，不能反过来报存失败", async () => {
+    (recordTierIntentFromText as jest.Mock).mockRejectedValue(Error("db down"));
+    const response = await POST(new Request("http://localhost/api/coach/opportunities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ opportunity: opportunity({ role: "目标：大厂产品经理" }) }),
+    }));
+    expect(response.status).toBe(201);
+  });
 });
 
 describe("stage PATCH", () => {
@@ -91,6 +117,13 @@ test("后台自动同步保留数据库阶段", async () => {
   const opportunity = { id, company: "公司", role: "PM", stage: "applied" };
   expect((await PATCH(request({ opportunity, preserveStage: true }))).status).toBe(200);
   expect(updateCockpitOpportunity).toHaveBeenCalledWith("owner", opportunity, true);
+});
+test("改方向时同样接住档位意向，失败不报存失败", async () => {
+  (recordTierIntentFromText as jest.Mock).mockResolvedValue(null);
+  expect((await PATCH(request({ opportunity: { id, company: "公司", role: "只想进创业公司" } }))).status).toBe(200);
+  expect(recordTierIntentFromText).toHaveBeenCalledWith(expect.objectContaining({ userId: "owner", text: "只想进创业公司", opportunityId: id }));
+  (recordTierIntentFromText as jest.Mock).mockRejectedValue(Error("db down"));
+  expect((await PATCH(request({ opportunity: { id, company: "公司", role: "只想进创业公司" } }))).status).toBe(200);
 });
 test("数据库失败不报告保存成功", async () => {
   (updateCockpitOpportunityStage as jest.Mock).mockRejectedValue(new Error("unavailable"));

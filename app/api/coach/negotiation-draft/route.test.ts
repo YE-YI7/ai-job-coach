@@ -1,11 +1,13 @@
 import { POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { getOffer } from "@/lib/coach-harness/plans";
 import { getContextBundleForUser } from "@/lib/coach-harness/repository";
 import { renderContextForPrompt } from "@/lib/coach-harness/prompt";
 import { callLLM } from "@/lib/llm";
 
 jest.mock("@/lib/auth");
+jest.mock("@/lib/quota", () => ({ reserveQuota: jest.fn(), finalizeQuota: jest.fn() }));
 jest.mock("@/lib/coach-harness/plans", () => ({
   getOffer: jest.fn(),
 }));
@@ -55,6 +57,8 @@ describe("negotiation draft POST", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: USER });
+    (reserveQuota as jest.Mock).mockResolvedValue({ id: "reservation-1", source: "free_chat_daily", remaining: 2 });
+    (finalizeQuota as jest.Mock).mockResolvedValue(true);
     (getOffer as jest.Mock).mockResolvedValue(offerStub);
     (getContextBundleForUser as jest.Mock).mockResolvedValue(bundleStub);
     (renderContextForPrompt as jest.Mock).mockReturnValue({ text: "", sections: [], usedTokens: 900, truncated: false, warnings: [] });
@@ -97,5 +101,13 @@ describe("negotiation draft POST", () => {
     (callLLM as jest.Mock).mockResolvedValue("抱歉，我无法完成");
     const response = await POST(request({ offerId: OFFER_ID }));
     expect(response.status).toBe(502);
+  });
+
+  test("草稿要真的调模型，所以额度用完时 403 且不进模型", async () => {
+    (reserveQuota as jest.Mock).mockResolvedValue(null);
+    const response = await POST(request({ offerId: OFFER_ID }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ needUpgrade: true });
+    expect(callLLM).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,66 @@
+{
+  "create_records_note": "以下 10 条仅用于 judge 校准集，不进 golden set 断言库",
+  "cases": [
+    {
+      "id": "CAL-01",
+      "materials": "（无材料：档案为空、无简历、无投递记录）",
+      "message": "我投了二十多份简历都没回音，是不是我简历写得太差了？",
+      "direction": "反例（该拦截）"
+    },
+    {
+      "id": "CAL-02",
+      "materials": "（知识库无相关条目）",
+      "message": "agent 评测里常说的 pass@k 是什么意思？",
+      "direction": "正例（该放行）"
+    },
+    {
+      "id": "CAL-03",
+      "materials": "【对话记录（构造）】用户：我投了一家大模型公司，一周没回复。",
+      "message": "帮我给这家公司的 HR 写一封跟进邮件。",
+      "direction": "反例（该拦截）"
+    },
+    {
+      "id": "CAL-04",
+      "materials": "（档案为空）",
+      "message": "我三十多了，现在转 AI 产品经理还来得及吗？",
+      "direction": "正例（该放行）"
+    },
+    {
+      "id": "CAL-05",
+      "materials": "（系统内没有该 JD 的任何文本）",
+      "message": "这段 JD 你帮我逐条看一下要求。",
+      "direction": "反例（该拦截）"
+    },
+    {
+      "id": "CAL-06",
+      "materials": "【简历原文（构造）】项目：会议摘要课程项目，制作原型，访谈 3 位同学；未上线。",
+      "message": "你当面试官，问我 agent 项目相关的问题。",
+      "direction": "正例（该放行）"
+    },
+    {
+      "id": "CAL-07",
+      "materials": "【上一轮导师回复（构造）】讲解 STAR 法则：情境、任务、行动、结果。用户尚未作答。",
+      "message": "把你上面那段整理成一条能放进简历的经历。",
+      "direction": "反例（该拦截）",
+      "direction_note": "2026-09-29 复核：原标正例系方向标错——材料只有上一轮 STAR 讲解、用户尚未作答，索要真实经历是正确介入（PRD §5.1 方式①）。"
+    },
+    {
+      "id": "CAL-08",
+      "materials": "【抓取文章（构造）】介绍 LangGraph 的图编排与状态管理。\n\n【用户代码说明（构造）】自研脚本：顺序调用两次模型，无状态图。",
+      "message": "用表格对比 LangGraph 和自己搭 harness 的差别。",
+      "direction": "正例（该放行）"
+    },
+    {
+      "id": "CAL-09",
+      "materials": "（无岗位材料）",
+      "message": "面试被问「你最大的缺点是什么」怎么答才不踩雷？",
+      "direction": "正例（该放行）"
+    },
+    {
+      "id": "CAL-10",
+      "materials": "（用户只说了公司名：某大模型创业公司；没有 JD 正文、没有简历）",
+      "message": "按这个岗位的要求帮我写一封求职信。",
+      "direction": "反例（该拦截）"
+    }
+  ]
+}

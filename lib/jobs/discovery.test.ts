@@ -22,6 +22,12 @@ test("secondary city is searchable",()=>{
 test("malformed records and unsafe schemes are excluded",()=>{
   expect(parse([null,3,{...raw,jobUrl:"http://jobs.ashbyhq.com/meshy/123"},{...raw,descriptionPlain:""}])).toHaveLength(0);
 });
+test("上网搜一轮捞回几百条时，界面按条数收口而不是铺满屏",()=>{
+  const many=parse(Array.from({length:40},(_,i)=>({...raw,jobUrl:`https://jobs.ashbyhq.com/meshy/${i}`})));
+  expect(many).toHaveLength(40);
+  expect(matchJobs(many,{role:"产品经理",location:"上海",resume:""})).toHaveLength(12);
+  expect(matchJobs(many,{role:"产品经理",location:"上海",resume:""},3)).toHaveLength(3);
+});
 test("never fetch arbitrary board URLs",async()=>{
   await expect(fetchJobBoard({board:"../../private",company:"Other"})).rejects.toThrow("不支持");
 });

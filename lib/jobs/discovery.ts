@@ -32,32 +32,42 @@ export function parseJobBoard(payload: unknown, source: JobSource, checkedAt: st
   });
 }
 
-const roles = [
+/** 岗位方向的中英对照词表：出网关键词与本地命中判定共用同一份，不造第二套口径。 */
+export const ROLE_SYNONYMS: string[][] = [
   ["产品经理", "product manager", "product management"],
   ["工程师", "engineer", "developer", "开发"],
   ["设计", "designer", "design"],
   ["运营", "operations", "运营经理"],
   ["销售", "sales", "account executive"],
+  ["数据分析", "data analyst", "analytics"],
+  ["项目管理", "project manager", "program manager"],
+];
+/** 简历里认得出的技能词：出网时只用这些固定英文词，简历自由文本一律不出网。 */
+export const SKILL_TERMS: string[] = [
+  "python", "sql", "typescript", "react", "llm", "agent", "rag",
+  "机器学习", "用户研究", "需求分析", "数据分析", "a/b test",
 ];
 const cities = [["上海", "shanghai"], ["北京", "beijing"], ["深圳", "shenzhen"], ["杭州", "hangzhou"], ["广州", "guangzhou"], ["香港", "hong kong"]];
-export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; location: string; resume: string }) {
+/** 上网搜一轮能捞回两三百条，界面上给到 12 条候选；再多就变成列表噪音，看不见理由了。 */
+export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; location: string; resume: string }, limit = 12) {
   const role = profile.role.toLowerCase();
-  const roleTerms = roles.filter(group => group.some(term => role.includes(term))).flat();
+  const roleTerms = ROLE_SYNONYMS.filter(group => group.some(term => role.includes(term))).flat();
   if (!roleTerms.length) roleTerms.push(...role.split(/[\s/、,，]+/).filter(term => term.length >= 2));
   const location = profile.location.toLowerCase().trim();
   const unrestricted = !location || /^(不限|地点待确认|待确认|全国)$/.test(location);
   const locationTerms = cities.filter(group => group.some(term => location.includes(term))).flat();
   if (!locationTerms.length && !unrestricted) locationTerms.push(...location.split(/[/、,，]+/).map(s=>s.trim()).filter(Boolean));
-  // Remote is not assumed to mean permission to work from any country.
-  const skills = ["python", "sql", "typescript", "react", "llm", "agent", "rag", "机器学习", "用户研究"]
-    .filter(skill => profile.resume.toLowerCase().includes(skill));
+  const skills = SKILL_TERMS.filter(skill => profile.resume.toLowerCase().includes(skill));
   return jobs.flatMap(job => {
     if (!roleTerms.some(term => job.title.toLowerCase().includes(term))) return [];
-    if (!unrestricted && !locationTerms.some(term => job.location.toLowerCase().includes(term))) return [];
+    // Remote is not assumed to mean permission to work from any country.
+    const remoteOnly = /^(remote|worldwide|anywhere|全球|远程|不限地点)$/i.test(job.location.trim());
+    if (!unrestricted && !remoteOnly && !locationTerms.some(term => job.location.toLowerCase().includes(term))) return [];
     const overlaps = skills.filter(skill => job.description.toLowerCase().includes(skill));
-    return [{ ...job, reasons: ["职位名称与求职方向相关", ...(unrestricted ? [] : ["招聘地点与所选城市一致"]),
+    return [{ ...job, reasons: ["职位名称与求职方向相关",
+      ...(unrestricted ? [] : remoteOnly ? ["岗位标注远程，能否在你所在城市工作需向招聘方核实"] : ["招聘地点与所选城市一致"]),
       ...(overlaps.length ? [`简历与 JD 同时提到：${overlaps.join("、")}`] : [])], overlaps: overlaps.length }];
-  }).sort((a,b) => b.overlaps-a.overlaps || a.id.localeCompare(b.id)).slice(0, 5)
+  }).sort((a,b) => b.overlaps-a.overlaps || a.id.localeCompare(b.id)).slice(0, limit)
     .map(({id, company, title, location, url, description, checkedAt, publishedAt, reasons}) => ({id, company, title, location, url, description, checkedAt, publishedAt, reasons}));
 }
 

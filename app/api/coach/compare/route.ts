@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { callLLM } from "@/lib/llm";
-import { assertContextFits, renderContextForPrompt } from "@/lib/coach-harness/prompt";
+import { assertContextFits, renderContextForPrompt, wrapExternalMaterial } from "@/lib/coach-harness/prompt";
 import { getContextBundleForUser } from "@/lib/coach-harness/repository";
 import { getDbClient } from "@/lib/db";
 import { requireDb } from "@/lib/coach-harness/repository";
@@ -29,7 +30,7 @@ interface CompareRow {
   evidenceCoverage: { strong: number; weak: number; missing: number; unverified: number } | null;
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
   let body: { opportunityIds?: unknown; question?: unknown };
@@ -106,9 +107,9 @@ export async function POST(request: Request) {
       excludeKinds: ["attachment"], // JD 有自己的抬头段落
     });
 
-    const jdBlock = table
+    const jdBlock = wrapExternalMaterial(table
       .map((row, index) => `【岗位 ${index + 1}：${row.company} · ${row.role}】（阶段：${row.stage}${row.hasJd ? "" : "，暂无 JD"}）\n${rows[index].jd_text ? String(rows[index].jd_text) : "（未提供 JD，只按已知信息比较）"}`)
-      .join("\n\n---\n\n");
+      .join("\n\n---\n\n"));
 
     const systemPrompt = `你是求职决策助手。用户明确选中了 ${table.length} 个岗位来比较。任务：输出每个岗位的要求要点、与用户已有证据的匹配点、主要风险，以及一句「下一步最该补什么」。
 
@@ -165,3 +166,5 @@ ${rendered.text ? `【相关背景（可引用，注明来源）】\n${rendered.
     );
   }
 }
+
+export const POST = withMeteredAiRoute(handlePost, { operation: "coach_job_compare", quotaType: "chat" });

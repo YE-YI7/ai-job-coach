@@ -47,6 +47,9 @@ try{
    browser('cookies','set','sb-access-token',cookie(p.id).slice('sb-access-token='.length),'--url',base,'--httpOnly');
    browser('set','viewport','1440','900');browser('open',base+'/cockpit');browser('wait','--load','networkidle');
    browser('find','text','我的简历与方向','click');browser('wait','--load','networkidle');
+   // React's delayed restore starts after navigation can already be network-idle.
+   // Require actual recommendation cards, not a screenshot of loading skeletons.
+   if(b.jobs.length)browser('wait','article details summary');
    browser('eval',`const s=Array.from(document.querySelectorAll('summary')).find(x=>x.textContent.includes('为什么推荐'));s?.click();s?.closest('article')?.scrollIntoView({block:'start'});`);
    browser('screenshot','/tmp/yizhi-shortlist-fixed-desktop.png');
    browser('set','viewport','390','844');browser('wait','700');browser('screenshot','/tmp/yizhi-shortlist-fixed-mobile.png');

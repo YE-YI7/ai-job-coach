@@ -13,6 +13,7 @@
 .card{background:#fff;border:1px solid #e7e5e1;border-radius:14px;padding:22px;min-width:0}
 .cardHead{display:flex;gap:14px;align-items:flex-start}
 .companyMark{display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;background:#f7f5f1;border-radius:12px;color:#62635e}
+.companyMark img{display:block;width:46px;height:46px;object-fit:contain;border-radius:12px}
 .identity{min-width:0;flex:1}.identity h4{font-size:18px;line-height:1.4;font-weight:700;margin:0 0 6px;overflow-wrap:anywhere}
 .card .company{font-size:14px;color:var(--muted,#626873);margin:0}
 .attributes{display:flex;flex-wrap:wrap;gap:10px 18px;margin:18px 0;color:#424641;font-size:13px}

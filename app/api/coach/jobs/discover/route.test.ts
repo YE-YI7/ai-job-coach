@@ -88,11 +88,11 @@ test("出网的只有过闸的关键词：真跑一次源，逐个地址检查�
     resumeText: "郭小明 13800138000 guoxm@example.com 字节跳动 抖音电商 用 SQL 取数",
   }]);
   const urls: string[] = [];
-  const globalFetch = jest.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+  const globalFetch = jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = String(input);
     urls.push(url);
-    // RemoteOK 回数组、其它源回 {jobs:[]}：形状要合法，否则测的是「源挂了」而不是「出了什么词」
-    return new Response(JSON.stringify({ Code:200, Data:{Posts:[]} }));
+    expect(String(init?.body || "")).not.toMatch(/13800138000|guoxm|郭小明|字节|抖音|example\.com/i);
+    return new Response(JSON.stringify(url.includes("hr.163.com") ? {code:200,data:{list:[]}} : { Code:200, Data:{Posts:[]} }));
   });
   const response = await POST(request());
   expect(response.status).toBe(200);
@@ -101,8 +101,9 @@ test("出网的只有过闸的关键词：真跑一次源，逐个地址检查�
     expect(url.startsWith("https://")).toBe(true);
     expect(url).not.toMatch(/13800138000|guoxm|郭小明|字节|抖音|example\.com/i);
   }
-  // 方向翻成的英文词才是查询词
-  expect(urls.every(url=>new URL(url).hostname==="careers.tencent.com")).toBe(true);
+  // 国内两源均真实调用，出网没有简历信息。
+  expect(urls.every(url=>["careers.tencent.com","hr.163.com"].includes(new URL(url).hostname))).toBe(true);
+  expect(urls.some(url=>new URL(url).hostname==="hr.163.com")).toBe(true);
   expect(urls.some(url=>new URL(url).searchParams.get("keyword")==="产品经理")).toBe(true);
   const body = await response.json();
   expect(body.search.keywords.join(" ")).not.toMatch(/13800138000|guoxm|郭小明/);

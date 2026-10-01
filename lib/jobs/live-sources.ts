@@ -13,7 +13,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -28,13 +28,14 @@ export interface LiveSourceDescriptor {
 
 export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "tencent", label: "腾讯招聘官网", homepage: "https://careers.tencent.com", mode: "keyword", coverageNote: "国内社会招聘，单公司覆盖；不是全市场" },
+  { id: "netease", label: "网易招聘官网", homepage: "https://hr.163.com", mode: "keyword", coverageNote: "国内社会招聘，含职责与任职要求；不是全市场" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
-export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v1";
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v2";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
@@ -45,12 +46,13 @@ const TIMEOUT_MS = 12_000;
 class SourceError extends Error {}
 
 /** 出网纪律：只允许 https + 白名单主机 + 不跟随跳转 + 体积上限 + 超时。 */
-async function fetchJson(url: URL, allowedHosts: string[]): Promise<unknown> {
+async function fetchJson(url: URL, allowedHosts: string[], body?: Record<string, unknown>): Promise<unknown> {
   if (url.protocol !== "https:" || !allowedHosts.includes(url.hostname)) throw new SourceError("不支持的地址");
   let response: Response;
   try {
     response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store",
-      headers: { accept: "application/json", "user-agent": "YiZhiJobCoach/1.0 (job search for the signed-in user)" } });
+      ...(body ? { method: "POST", body: JSON.stringify(body) } : {}),
+      headers: { accept: "application/json", ...(body ? { "content-type": "application/json" } : {}), "user-agent": "YiZhiJobCoach/1.0 (job search for the signed-in user)" } });
   } catch { throw new SourceError("招聘源暂时不可用"); }
   if (!response.ok || !response.body) throw new SourceError("招聘源暂时不可用");
   const reader = response.body.getReader();
@@ -231,7 +233,28 @@ const tencentAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Record<LiveSourceId, Adapter> = { tencent: tencentAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+// 官网自身使用的公开查询，不需登录；只发送过闸关键词，不发送用户简历。
+const neteaseAdapter: Adapter = {
+  id: "netease", hosts: ["hr.163.com"],
+  async search({ keyword }) {
+    const payload = await fetchJson(new URL("https://hr.163.com/api/hr163/position/queryPage"), this.hosts,
+      { currentPage: 1, pageSize: ROWS_PER_CALL, keyword }) as { code?: number; data?: { list?: unknown[] } };
+    if (payload.code !== 200 || !Array.isArray(payload.data?.list)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return payload.data.list.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = raw as Record<string, unknown>, id = String(row.id ?? ""), title = str(row.name);
+      const places = Array.isArray(row.workPlaceNameList) ? row.workPlaceNameList.map(str) : [];
+      // 不把海外／地点不明岗位映射为国内或远程。多个地点逐一保留国内地点。
+      const domestic = places.filter(place => /^(?:北京|上海|天津|重庆|广州|深圳|杭州|南京|苏州|成都|武汉|西安|长沙|合肥|济南|青岛|郑州|厦门|福州|珠海|东莞|佛山|宁波|无锡|大连|沈阳|哈尔滨|长春|石家庄|太原|南昌|南宁|昆明|贵阳|海口|兰州|乌鲁木齐|呼和浩特|银川|西宁|拉萨|香港|澳门)/.test(place));
+      if (!/^\d+$/.test(id) || !title || !domestic.length) return [];
+      return [{ sourceId: `netease:${id}`, url: `https://hr.163.com/job-detail.html?id=${id}&lang=zh`, company: "网易", companyDomain: "netease.com",
+        title: title.slice(0, 200), location: domestic.join("、"), fetchedAt, postedAt: null,
+        rawPageText: toPlainText(["岗位职责", str(row.description), "任职要求", str(row.requirement), str(row.reqEducationName), str(row.reqWorkYearsName)].join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Record<LiveSourceId, Adapter> = { tencent: tencentAdapter, netease: neteaseAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

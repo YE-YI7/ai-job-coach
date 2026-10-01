@@ -2,6 +2,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {createHmac,randomUUID} from 'node:crypto';
 import {writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 const base=process.env.AUDIT_BASE||'https://www.ai-job-coach.xin';
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const personas=[
@@ -23,6 +24,22 @@ try{
   report.checks.push({name:p.role+' open runtime source wired and restored',pass:r.search.openSearch?.enabled===true&&g.result?.runId===r.runId});
   if(p.role==='机械工程师')report.checks.push({name:'manufacturing: at least two employers outside Tencent/NetEase',pass:new Set(r.jobs.filter(j=>!['腾讯','网易'].includes(j.company)).map(j=>j.company)).size>=2&&r.jobs.every(j=>/机械/.test(j.title))});
   if(p.role==='AI 产品经理')report.checks.push({name:'AI: at least one newly discovered employer',pass:r.jobs.some(j=>!['腾讯','网易'].includes(j.company))});
+ }
+ if(process.env.AUDIT_BROWSER==='1'){
+  const browser=(...args)=>{try{return execFileSync('agent-browser',['--session','yizhi-open-jobs-synthetic',...args],{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']});}catch{throw Error('Browser acceptance failed at '+args[0]);}};
+  try{
+   browser('cookies','set','sb-access-token',cookie(personas[0].id).slice('sb-access-token='.length),'--url',base,'--httpOnly');
+   browser('set','viewport','1440','900');browser('open',base+'/cockpit');browser('wait','--load','networkidle');
+   browser('find','text','我的简历与方向','click');browser('wait','article details summary');
+   browser('eval',`const s=Array.from(document.querySelectorAll('summary')).find(x=>x.textContent.includes('为什么推荐'));s?.click();s?.closest('article')?.scrollIntoView({block:'start'});`);
+   browser('screenshot','/tmp/yizhi-open-jobs-desktop.png');
+   const text=browser('get','text','body');
+   report.checks.push({name:'actual manufacturing cards restored in browser',pass:report.personas[0].jobs.some(j=>text.includes(j.company))&&text.includes('为什么推荐')});
+   browser('set','viewport','390','844');browser('wait','700');browser('screenshot','/tmp/yizhi-open-jobs-mobile.png');
+   const size=JSON.parse(browser('eval','({width:innerWidth,scroll:document.documentElement.scrollWidth})').trim());
+   report.checks.push({name:'390px no page overflow',pass:size.scroll<=size.width});
+   report.browser={desktop:'/tmp/yizhi-open-jobs-desktop.png',mobile:'/tmp/yizhi-open-jobs-mobile.png'};
+  }finally{browser('cookies','clear');browser('close');}
  }
 }catch(e){report.error=e.message;process.exitCode=1;}
 finally{

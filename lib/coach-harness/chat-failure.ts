@@ -54,7 +54,7 @@ export const CHAT_FAILURE_TABLE: readonly ChatFailureRow[] = [
   { failure: "model_unavailable", userCopy: "所选模型暂不可用，请选择其他模型后重试。", retryable: "auto_per_routing", persists: false, detection: /模型.*不可用|模型不存在|未替换模型/, wired: true },
   { failure: "stream_interrupted", userCopy: "模型未完成回答，请重试或选择其他模型。", retryable: "none", persists: false, detection: /empty response|输出中断/i, wired: true },
   // 以下为 §5.7 表补的类：detection 只命中自家构造的话术，不透传上游负载。
-  { failure: "context_budget_exceeded", userCopy: (message) => message, retryable: "none", persists: false, detection: /装不进 .* token 预算/, wired: true },
+  { failure: "context_budget_exceeded", userCopy: "这次材料较多，暂时没能完成回答。你的档案仍然保留，请先选一个具体问题继续。", retryable: "none", persists: false, detection: /装不进 .* token 预算/, wired: true },
   { failure: "quote_verification_failed", userCopy: "这轮没有抽取到可安全使用的经历；没有出处的内容不会写成你的事实。", retryable: "none", persists: false, detection: /简历事实复核未通过/, wired: true },
   { failure: "persistence_failed", userCopy: "回答生成了，但未确认保存，请检查历史后重试。", retryable: "manual", persists: false, detection: /未确认保存/, wired: true },
   { failure: "subagent_failed", userCopy: "这块调研没跑成，先基于已有材料辅导，结果我稍后补。", retryable: "none", persists: false, wired: false },

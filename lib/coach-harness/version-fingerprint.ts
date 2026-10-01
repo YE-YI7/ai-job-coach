@@ -32,6 +32,7 @@ export const TUTOR_RETRIEVAL_CONFIG = {
   routeClass: "single_inference",
   maxInputTokens: 4000,
   knowledgeLimit: 2,
+  claimSelectionVersion: "tutor-bounded-relevant-facts-v1",
 } as const;
 
 /**

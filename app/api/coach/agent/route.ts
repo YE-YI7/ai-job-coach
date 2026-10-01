@@ -153,7 +153,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     history(user.id,id,sessionId).then(async turns=>{
       const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
       const [context,selection]=await Promise.all([
-        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:TUTOR_RETRIEVAL_CONFIG.task, currentInput:body.message, retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:TUTOR_RETRIEVAL_CONFIG.routeClass, budget:{maxInputTokens:TUTOR_RETRIEVAL_CONFIG.maxInputTokens}, knowledgeLimit:TUTOR_RETRIEVAL_CONFIG.knowledgeLimit }),
+        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:TUTOR_RETRIEVAL_CONFIG.task, currentInput:body.message, claimSelection:groundedDraft?"all_required":"relevant", retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:TUTOR_RETRIEVAL_CONFIG.routeClass, budget:{maxInputTokens:TUTOR_RETRIEVAL_CONFIG.maxInputTokens}, knowledgeLimit:TUTOR_RETRIEVAL_CONFIG.knowledgeLimit }),
         resolveChatModel(user.id,mode,retrievalQuery).catch(error=>({error})),
       ]);
       return {turns,context,selection};
@@ -215,7 +215,8 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const admission = runSlot<Slot1Input>(GUARD_SLOTS.postAssemblyAdmission, { bundle: context, message: body.message, prompt: compiled });
   guardVerdicts.push(...admission);
   const refused = firstBlock(admission);
-  if (refused) return NextResponse.json({ error: refused.reason.message }, { status: (refused.data?.status as number) ?? 422, headers });
+  if (refused) return NextResponse.json({ error: refused.reason.code === "context_budget_exceeded"
+    ? chatFailureMessage(new Error(refused.reason.message)) : refused.reason.message }, { status: (refused.data?.status as number) ?? 422, headers });
   if("error" in selection)return NextResponse.json({error:selection.error instanceof Error?selection.error.message:"模型不可用"},{status:503,headers});
   const actualPrompt=compiled.text;
   let modelUsage: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}|undefined;

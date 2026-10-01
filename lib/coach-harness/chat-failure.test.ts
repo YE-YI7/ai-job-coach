@@ -46,10 +46,11 @@ describe("失败语义表（§5.7 逐行可测）",()=>{
   // TokenPay 最先命中且原文透传：授权/余额问题绝不被告成「超时」。
   expect(classifyChatFailure(new Error("TokenPay timeout"))).toBe("provider_quota");
  });
- test("关键料装不下：透传自家话术，说清是哪类材料超长（§5.7 第 3 行落地）",()=>{
+ test("关键料装不下：保留分类但不向用户泄露内部 ID 和预算清单",()=>{
   const message="关键内容装不进 12000 token 预算：opportunity [job-1] 需要 15000 token。请拆任务或选择要保留的材料。";
   expect(classifyChatFailure(new Error(message))).toBe("context_budget_exceeded");
-  expect(chatFailureMessage(new Error(message))).toBe(message);
+  expect(chatFailureMessage(new Error(message))).toContain("你的档案仍然保留");
+  expect(chatFailureMessage(new Error(message))).not.toMatch(/job-1|token|opportunity/);
  });
  test("简历复核未通过：不给没有出处的用户事实（§5.7 第 4 行落地）",()=>{
   expect(classifyChatFailure(new Error("简历事实复核未通过"))).toBe("quote_verification_failed");

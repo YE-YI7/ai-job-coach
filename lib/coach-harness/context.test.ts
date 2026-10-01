@@ -16,6 +16,7 @@ test("已确认事实装不下必须显式阻断，不能默默去掉再作答",
   expect(bundle.selection.excluded).toContainEqual(expect.objectContaining({ kind: "confirmed_fact", required: true }));
 });
 import type { CareerClaim } from "./types";
+import { assertContextFits } from "./prompt";
 
 const claim = (overrides: Partial<CareerClaim> = {}): CareerClaim => ({
   id: "skill-1",
@@ -30,6 +31,25 @@ const claim = (overrides: Partial<CareerClaim> = {}): CareerClaim => ({
   verificationLevel: "user_confirmed",
   updatedAt: "2026-08-14T00:00:00.000Z",
   ...overrides,
+});
+
+test("普通辅导从大档案召回相关事实，不把全库事实当作必需材料", () => {
+  const claims = Array.from({ length: 100 }, (_, i) => claim({ id: `past-${i}`, displayText: "财务历史记录".repeat(40), updatedAt: "2026-10-01" }));
+  const target = claim({ id: "target", displayText: "设计 multi-agent workflow，拆任务、分配角色和处理冲突", updatedAt: "2020-01-01" });
+  claims.push(target);
+  const original = JSON.stringify(claims);
+  const bundle = compileContextBundle({ task: "mock_interview", userId: "user-1", claims, claimSelection: "relevant", currentInput: "教我 multi-agent workflow", budget: { maxInputTokens: 1000 } });
+  expect(() => assertContextFits(bundle)).not.toThrow();
+  expect(bundle.claims[0].id).toBe("target");
+  expect(bundle.usage.usedTokens).toBeLessThanOrEqual(1000);
+  expect(bundle.selection.excluded).toContainEqual(expect.objectContaining({ kind: "confirmed_fact", required: false }));
+  expect(JSON.stringify(claims)).toBe(original);
+});
+
+test("辅导仍保护当前输入；简历审查不放松已确认事实完整性", () => {
+  const common = { task: "mock_interview" as const, userId: "user-1", claims: [claim({ displayText: "事实".repeat(1000) })], budget: { maxInputTokens: 500 } };
+  expect(() => assertContextFits(compileContextBundle({ ...common, claimSelection: "relevant", currentInput: "问题".repeat(1000) }))).toThrow();
+  expect(() => assertContextFits(compileContextBundle({ ...common, claimSelection: "all_required" }))).toThrow();
 });
 
 test("context fingerprint is stable across compile time", () => {

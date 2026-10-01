@@ -25,6 +25,26 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("准入失败不泄露内部事实 ID 清单，也不调用模型",async()=>{
+  setupGeneration();
+  const unregister=registerGuard(1,{id:"test.capacity-leak",run:()=>decide(1,"test.capacity-leak","block","context_budget_exceeded","关键内容装不进 4000 token 预算：confirmed_fact [private-id] 需要 83 token。",{status:422})});
+  try {
+   const response=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})}));
+   expect(response.status).toBe(422);
+   const body=await response.json();
+   expect(body.error).toContain("你的档案仍然保留");
+   expect(JSON.stringify(body)).not.toMatch(/private-id|confirmed_fact|token/);
+   expect(callLLM).not.toHaveBeenCalled();
+  } finally {unregister();}
+ });
+ test("普通教学选相关事实，代写简历仍要求完整事实审核",async()=>{
+  setupGeneration();(callLLM as jest.Mock).mockResolvedValue("先从任务拆分开始。");
+  await (await POST(streamRequest())).text();
+  expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({claimSelection:"relevant"}));
+  (getContextBundleForUser as jest.Mock).mockClear();
+  await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"帮我写一条简历项目描述",requestId:"22222222-2222-4222-8222-222222222222"})}));
+  expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({claimSelection:"all_required"}));
+ });
  test("checked text arrives while the model is still generating, final replaces not appends",async()=>{
   const q=setupGeneration();let finishModel!:(text:string)=>void;
   (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("<answer>第一句。");return new Promise(resolve=>{finishModel=resolve;});});

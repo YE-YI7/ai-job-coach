@@ -264,6 +264,7 @@ export async function getContextBundleForUser(input: {
   routeClass?: RouteClass;
   budget?: Partial<ContextBudget>;
   knowledgeLimit?: number;
+  claimSelection?: "all_required" | "relevant";
 }): Promise<ContextBundle> {
   const db = requireDb(await getDbClient());
   let opportunity: OpportunityContext | null = null;
@@ -353,6 +354,7 @@ export async function getContextBundleForUser(input: {
     userId: input.userId,
     opportunity,
     claims: ((claimRows || []) as DbRow[]).map(mapClaim),
+    claimSelection: input.claimSelection,
     artifacts,
     knowledge: knowledge.items.map((item) => ({
       id: item.id,

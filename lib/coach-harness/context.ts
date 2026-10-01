@@ -93,6 +93,23 @@ function claimRank(claim: CareerClaim): number {
   return 9;
 }
 
+// Coaching retrieves a bounded evidence working set; it is not a complete
+// résumé audit. Never truncate a selected fact or mutate the stored archive.
+function claimRelevance(claim: CareerClaim, query: string): number {
+  const terms = new Set(query.toLowerCase().match(/[a-z][a-z0-9_-]{1,}|[\p{Script=Han}]{2,}/gu) || []);
+  const text = `${claim.displayText} ${claim.sourceExcerpt || ""}`.toLowerCase();
+  let score = 0;
+  for (const term of terms) {
+    if (text.includes(term)) score += term.length;
+    else if (/\p{Script=Han}/u.test(term)) {
+      for (let i = 0; i < Math.min(term.length - 1, 128); i++) {
+        if (text.includes(term.slice(i, i + 2))) score++;
+      }
+    }
+  }
+  return score;
+}
+
 function isPracticeArtifact(artifact: ArtifactReference): boolean {
   return ["mock_interview", "interview_review", "interview_plan"].includes(artifact.artifactType);
 }
@@ -116,6 +133,8 @@ export function compileContextBundle(input: {
   userId: string;
   opportunity?: OpportunityContext | null;
   claims: CareerClaim[];
+  /** Only ordinary tutoring may retrieve a subset; document audits stay strict. */
+  claimSelection?: "all_required" | "relevant";
   artifacts?: ArtifactReference[];
   knowledge?: ContextBundle["knowledge"];
   knowledgeContext?: string;
@@ -145,7 +164,9 @@ export function compileContextBundle(input: {
   const scopedClaims = input.claims
     .filter((claim) => relevantTypes.has(claim.entityType))
     .filter((claim) => claim.status !== "withdrawn")
-    .sort((a, b) => claimRank(a) - claimRank(b)
+    .sort((a, b) => (input.claimSelection === "relevant"
+      ? claimRelevance(b, input.currentInput || "") - claimRelevance(a, input.currentInput || "") : 0)
+      || claimRank(a) - claimRank(b)
       || (b.updatedAt || "").localeCompare(a.updatedAt || "")
       || a.id.localeCompare(b.id));
 
@@ -266,18 +287,26 @@ export function compileContextBundle(input: {
   }
 
   const keptClaims: CareerClaim[] = [];
+  let claimTokens = 0;
+  const tutoringClaimBudget = Math.min(1400, Math.floor(budget.maxInputTokens * 0.35));
   for (const claim of scopedClaims) {
     const blocked = BLOCKED_SOURCE_REASON[claim.sourceKind];
     if (blocked && claim.status !== "confirmed") continue;
     const tokens = estimateClaimTokens(claim);
+    if (input.claimSelection === "relevant" && (keptClaims.length >= 12 || claimTokens + tokens > tutoringClaimBudget)) {
+      excluded.push({ kind: "confirmed_fact", refId: claim.id, rule: "excluded:lower_priority",
+        priority: PRIORITY_ORDER.confirmed_fact, reason: "lower_priority", required: false, cost: tokens,
+        detail: "本轮辅导事实工作集已满，原文保留在档案；为知识与练习预留预算。" });
+      continue;
+    }
     const ok = tryInclude({
       kind: "confirmed_fact",
       refId: claim.id,
       refVersion: claim.updatedAt ?? null,
       trustType: trustForClaim(claim),
       reason: claim.status === "confirmed" ? "已确认事实。" : "用户材料，可引用但需确认口径。",
-    }, tokens, claim.status === "confirmed", "priority:confirmed_fact");
-    if (ok) keptClaims.push(claim);
+    }, tokens, claim.status === "confirmed" && input.claimSelection !== "relevant", "priority:confirmed_fact");
+    if (ok) { keptClaims.push(claim); claimTokens += tokens; }
   }
 
   const keptArtifacts: ArtifactReference[] = [];

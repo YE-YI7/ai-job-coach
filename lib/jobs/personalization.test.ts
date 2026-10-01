@@ -1,4 +1,4 @@
-import { eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty, resumeEvidence } from "./personalization";
+import { assessmentPool, eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty, resumeEvidence } from "./personalization";
 import { callLLM } from "@/lib/llm";
 import type { VerifiedJob } from "./verification-gate";
 jest.mock("@/lib/llm",()=>({callLLM:jest.fn()}));
@@ -8,6 +8,12 @@ const resume="负责电商会员、复购与需求分析。没有做过Agent产�
 const item=(id="1")=>({id,resumeEvidenceId:0,jdEvidenceId:0,gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
 beforeEach(()=>jest.resetAllMocks());
 test("否定与学习愿望不算技能经历",()=>expect(positiveSkillTerms(resume,["agent","需求分析"])).toEqual(["需求分析"]));
+test("assessment budget shared across employers, not consumed by first company's many postings",()=>{
+ const jobs=Array.from({length:30},(_,i)=>({...job(String(i)),company:"第一家公司"}));
+ jobs.push({...job("other"),company:"制造企业"});
+ const pool=assessmentPool(jobs,resume);
+ expect(pool).toHaveLength(16);expect(pool.some(j=>j.id==="other")).toBe(true);
+});
 test("AI方向不接受纯广告或普通增长岗位，AI要求必须来自JD",()=>{
  expect(matchesRequestedSpecialty({title:"广告产品经理",description:"ADX竞价、促销转化分析"},"AI 产品经理")).toBe(false);
  expect(matchesRequestedSpecialty({title:"产品经理",description:"负责大模型Agent平台"},"AI 产品经理")).toBe(true);

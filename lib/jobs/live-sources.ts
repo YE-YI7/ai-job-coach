@@ -13,7 +13,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "web-search";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -254,7 +254,7 @@ const neteaseAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Record<LiveSourceId, Adapter> = { tencent: tencentAdapter, netease: neteaseAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];
@@ -293,7 +293,11 @@ export async function searchLiveJobs(keywords: string[], options: { sourceIds?: 
   async function worker(): Promise<void> {
     while (cursor < capped.length) {
       const task = capped[cursor++];
-      try { postings.push(...await ADAPTERS[task.source].search({ keyword: task.keyword })); }
+      try {
+        const adapter = ADAPTERS[task.source];
+        if (!adapter) throw new SourceError("未接入的来源");
+        postings.push(...await adapter.search({ keyword: task.keyword }));
+      }
       catch { failures.push({ source: task.source, keyword: task.keyword }); }
     }
   }

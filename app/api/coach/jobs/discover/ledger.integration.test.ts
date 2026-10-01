@@ -3,6 +3,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { searchLiveJobs } from "@/lib/jobs/live-sources";
+import { searchOpenJobs } from "@/lib/jobs/open-search";
 import { cancelTask, getTaskLedger } from "@/lib/coach-harness/run-ledger";
 import { FakeDb } from "@/lib/coach-harness/run-ledger/testing/fake-db";
 
@@ -11,6 +12,7 @@ jest.mock("@/lib/db");
 jest.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 jest.mock("@/lib/coach-harness/repository", () => ({ ...jest.requireActual("@/lib/coach-harness/repository"), listCockpitOpportunities: jest.fn(), readUserTierPreference: jest.fn() }));
 jest.mock("@/lib/jobs/live-sources", () => ({ ...jest.requireActual("@/lib/jobs/live-sources"), searchLiveJobs: jest.fn() }));
+jest.mock("@/lib/jobs/open-search", () => ({ ...jest.requireActual("@/lib/jobs/open-search"), searchOpenJobs: jest.fn() }));
 const owner = "00000000-0000-4000-8000-000000000001";
 const profileId = "00000000-0000-4000-8000-000000000002";
 const requestId = "00000000-0000-4000-8000-000000000003";
@@ -24,6 +26,7 @@ beforeEach(() => {
   (listCockpitOpportunities as jest.Mock).mockResolvedValue([{ id: profileId, workspaceType: "preparation", role: "产品经理", location: "上海", resumeText: "2年经验，SQL" }]);
   (readUserTierPreference as jest.Mock).mockResolvedValue({ effectiveTiers: [], origin: "unset", pending: null });
   (searchLiveJobs as jest.Mock).mockResolvedValue(online);
+  (searchOpenJobs as jest.Mock).mockResolvedValue({...online,calls:0});
 });
 test("真实 route→repository→ledger：保存后返回，回来可读，重试不重复搜索", async () => {
   const first = await POST(request()); expect(first.status).toBe(200);

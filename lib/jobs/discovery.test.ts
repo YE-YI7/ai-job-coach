@@ -31,3 +31,7 @@ test("上网搜一轮捞回几百条时，界面按条数收口而不是铺满�
 test("never fetch arbitrary board URLs",async()=>{
   await expect(fetchJobBoard({board:"../../private",company:"Other"})).rejects.toThrow("不支持");
 });
+test("manufacturing engineering direction cannot become software engineering",()=>{
+ const jobs=parse([{...raw,title:"机械设计工程师"},{...raw,title:"软件工程师",jobUrl:"https://jobs.ashbyhq.com/meshy/456"}]);
+ expect(matchJobs(jobs,{role:"机械工程师",location:"上海",resume:"负责机械设计"}).map(j=>j.title)).toEqual(["机械设计工程师"]);
+});

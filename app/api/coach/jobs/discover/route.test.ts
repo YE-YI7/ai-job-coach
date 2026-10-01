@@ -4,6 +4,7 @@ import { reserveQuota, finalizeQuota } from "@/lib/quota";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { searchLiveJobs } from "@/lib/jobs/live-sources";
+import { searchOpenJobs } from "@/lib/jobs/open-search";
 import { fetchJobBoard } from "@/lib/jobs/discovery";
 import { completeTask, failTask, getTaskLedger, intakeEvent, startTask } from "@/lib/coach-harness/run-ledger";
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
@@ -16,6 +17,7 @@ jest.mock("@/lib/coach-harness/repository");
 jest.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
 jest.mock("@/lib/jobs/discovery", () => ({ ...jest.requireActual("@/lib/jobs/discovery"), fetchJobBoard: jest.fn() }));
 jest.mock("@/lib/jobs/live-sources", () => ({ ...jest.requireActual("@/lib/jobs/live-sources"), searchLiveJobs: jest.fn() }));
+jest.mock("@/lib/jobs/open-search", () => ({ ...jest.requireActual("@/lib/jobs/open-search"), searchOpenJobs: jest.fn() }));
 
 const id = "00000000-0000-4000-8000-000000000001";
 const request = () => new Request("http://localhost/api/coach/jobs/discover", { method: "POST", body: JSON.stringify({ profileId: id }) });
@@ -42,6 +44,7 @@ beforeEach(() => {
   (listCockpitOpportunities as jest.Mock).mockResolvedValue([{ id, workspaceType: "preparation", role: "产品经理", location: "上海", resumeText: "2 年产品经验，会 SQL" }]);
   (readUserTierPreference as jest.Mock).mockResolvedValue(noPreference);
   (searchLiveJobs as jest.Mock).mockResolvedValue(online([posting("Own the roadmap.")]));
+  (searchOpenJobs as jest.Mock).mockResolvedValue(online([], {calls:0}));
   (fetchJobBoard as jest.Mock).mockResolvedValue([]);
 });
 
@@ -105,8 +108,19 @@ test("未登录不读档案、不上网", async () => {
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
   expect((await POST(request())).status).toBe(401);
   expect(searchLiveJobs).not.toHaveBeenCalled();
+  expect(searchOpenJobs).not.toHaveBeenCalled();
   expect(listCockpitOpportunities).not.toHaveBeenCalled();
   expect(readUserTierPreference).not.toHaveBeenCalled();
+});
+
+test("open search runs alongside official APIs; non-internet employer reaches assessment",async()=>{
+ (listCockpitOpportunities as jest.Mock).mockResolvedValue([{id,workspaceType:"preparation",role:"机械工程师",location:"上海",resumeText:"本科，5年机械工程师经验。负责设备机械结构设计。"}]);
+ (searchLiveJobs as jest.Mock).mockResolvedValue(online([],{calls:4}));
+ (searchOpenJobs as jest.Mock).mockResolvedValue(online([posting("岗位职责：机械结构设计。任职要求：本科，3年机械设计经验。",{sourceId:"web:1",company:"制造企业",title:"机械工程师",location:"上海",url:"https://career.manufacturer.cn/job/1"})],{calls:3}));
+ const body=await (await POST(request())).json();
+ expect(searchOpenJobs).toHaveBeenCalledWith(expect.arrayContaining(["机械工程师"]),"上海");
+ expect(body.jobs[0].company).toBe("制造企业");expect(body.search.calls).toBe(7);
+ expect(body.search.sources[0].label).toBe("跨公司公开招聘搜索");
 });
 
 test("档案不属于当前用户：不读也不搜", async () => {

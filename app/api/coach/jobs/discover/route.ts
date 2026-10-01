@@ -5,6 +5,7 @@ import { matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } f
 import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota";
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
+import { OPEN_SEARCH_SOURCE, OPEN_SEARCH_VERSION, openSearchQueries, searchOpenJobs } from "@/lib/jobs/open-search";
 import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls } from "@/lib/jobs/retrieval-gate";
 import { applyVerificationGate } from "@/lib/jobs/verification-gate";
 import { TIER_LABEL } from "@/lib/jobs/company-directory";
@@ -17,10 +18,10 @@ import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeE
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-/** 一次查找最多打几次源：满配 = 关键词上限 8 × 按词查的 2 个源 + 2 个流源，再多就截。 */
-const MAX_SOURCE_CALLS = 18;
+/** Two open searches + one batch read, supplemented by two keywords × two official APIs. */
+const MAX_SOURCE_CALLS = 7;
 const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
-  createHash("sha256").update(JSON.stringify([DOMESTIC_SEARCH_VERSION, PERSONALIZATION_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
+  createHash("sha256").update(JSON.stringify([OPEN_SEARCH_VERSION, DOMESTIC_SEARCH_VERSION, PERSONALIZATION_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
 
 /** 回到基础档案时读上次任务，不自动重复执行。只恢复当前资料/偏好对应的结果。 */
 export async function GET(request: Request) {
@@ -52,16 +53,21 @@ export async function GET(request: Request) {
 class IncompleteSearch extends Error {
   constructor(readonly result: Awaited<ReturnType<typeof searchLiveJobs>>) { super("招聘来源未完整返回"); }
 }
-async function readLiveJobs(keywords: string[]) {
+async function readLiveJobs(keywords: string[], location: string) {
   let fetched = false;
   try {
     const result = await unstable_cache(async () => {
       fetched = true;
-      const result = await searchLiveJobs(keywords, { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: MAX_SOURCE_CALLS });
+      const [open, official] = await Promise.all([
+        searchOpenJobs(keywords, location),
+        searchLiveJobs(keywords.slice(0,2), { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: 4 }),
+      ]);
+      const result = { postings: [...open.postings,...official.postings], failures: [...open.failures,...official.failures],
+        calls: open.calls+official.calls, truncatedCalls: open.truncatedCalls+official.truncatedCalls };
       // 故障/部分结果不能被共享缓存锁住 30 分钟；当前请求仍保留可用结果。
       if (result.failures.length) throw new IncompleteSearch(result);
       return result;
-    }, [DOMESTIC_SEARCH_VERSION, ...keywords], { revalidate: 1800 })();
+    }, [OPEN_SEARCH_VERSION, DOMESTIC_SEARCH_VERSION, ...openSearchQueries(keywords,location), ...keywords], { revalidate: 1800 })();
     return { result, cacheHit: !fetched };
   } catch (error) {
     if (error instanceof IncompleteSearch) return { result: error.result, cacheHit: false };
@@ -107,14 +113,15 @@ export async function POST(request: Request) {
     }
     await startExecution({ userId: user.id, runId, modelCallCount: 0 });
     await beginStep({ userId: user.id, runId, stepId: "search" });
-    const { result: searched, cacheHit } = await readLiveJobs(keywords);
+    const { result: searched, cacheHit } = await readLiveJobs(keywords, profile.location || "");
     const checkCancelled = async () => {
       const task = await getTaskLedger({ userId: user.id, runId: runId! });
       if (task.runStatus === "cancelled" || task.runStatus === "failed") throw new Error("TASK_CANCELLED");
     };
     await checkCancelled();
     const available = toDiscoveredJobs(searched.postings);
-    const failedSourceLabels = [...new Set(searched.failures.map(failure => LIVE_SOURCES.find(source => source.id === failure.source)?.label ?? failure.source))];
+    const sourceDescriptors = [OPEN_SEARCH_SOURCE,...LIVE_SOURCES.filter(source=>DOMESTIC_SOURCE_IDS.includes(source.id))];
+    const failedSourceLabels = [...new Set(searched.failures.map(failure => [OPEN_SEARCH_SOURCE,...LIVE_SOURCES].find(source => source.id === failure.source)?.label ?? failure.source))];
     if (!available.length && searched.failures.length >= searched.calls) {
       await failTask({ userId: user.id, runId, reason: "error", failureType: "all_sources_failed", stepId: "search" });
       return Response.json({runId,error:"招聘来源暂时无法读取，请稍后重试。你的简历不受影响。"},{status:502});
@@ -144,9 +151,10 @@ export async function POST(request: Request) {
       search:{keywords, blockedCount:blocked.length, calls:searched.calls, cacheHit, callsThisRequest: cacheHit ? 0 : searched.calls, truncatedCalls:searched.truncatedCalls,
         alreadyTracked,
         credit:SOURCE_CREDIT,
-        sources:LIVE_SOURCES.filter(source=>DOMESTIC_SOURCE_IDS.includes(source.id)).map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote}))},
+        sources:sourceDescriptors.map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote})),
+        candidateCompanies:[...new Set(available.map(job=>job.company))], openSearch: {enabled:true,version:OPEN_SEARCH_VERSION}},
       failedSources:failedSourceLabels,
-      note:`当前只读取已接入的国内招聘官网，不代表全国岗位覆盖。${alreadyTracked.length ? `${alreadyTracked.length} 条你已在跟踪，不再占候选位。` : ""}已按简历经历与JD评审，引用及待补能力可展开核对；不代表录用概率。`};
+      note:`跨公司搜索公开招聘页，索引可能滞后，在招状态请到原页核实。${alreadyTracked.length ? `${alreadyTracked.length} 条你已在跟踪，不再占候选位。` : ""}已按简历经历与JD评审，不代表录用概率。`};
     await completeStep({ userId: user.id, runId, stepId: "screen", resultDigest: `评审 ${personalized.evaluatedCount} 条，推荐 ${personalized.jobs.length} 条岗位` });
     if (searched.failures.length) await failTask({ userId: user.id, runId, reason: "error", failureType: "partial_sources_failed", partialResult: result });
     else await completeTask({ userId: user.id, runId, result, modelCallCount: personalized.modelCalls });

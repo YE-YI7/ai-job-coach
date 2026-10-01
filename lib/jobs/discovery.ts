@@ -41,17 +41,22 @@ export const ROLE_SYNONYMS: string[][] = [
   ["销售", "sales", "account executive"],
   ["数据分析", "data analyst", "analytics"],
   ["项目管理", "project manager", "program manager"],
+  ["会计", "财务", "accountant", "accounting"],
+  ["护士", "护理", "nurse", "nursing"],
 ];
 /** 简历里认得出的技能词：出网时只用这些固定英文词，简历自由文本一律不出网。 */
 export const SKILL_TERMS: string[] = [
   "python", "sql", "typescript", "react", "llm", "agent", "rag",
   "机器学习", "用户研究", "需求分析", "数据分析", "a/b test",
+  "solidworks", "autocad", "plc", "ansys", "creo", "sap", "erp", "excel", "cpa", "金蝶", "用友", "成本核算", "税务申报", "机械设计", "电气设计", "护理",
 ];
 const cities = [["上海", "shanghai"], ["北京", "beijing"], ["深圳", "shenzhen"], ["杭州", "hangzhou"], ["广州", "guangzhou"], ["香港", "hong kong"]];
 /** 上网搜一轮能捞回两三百条，界面上给到 12 条候选；再多就变成列表噪音，看不见理由了。 */
 export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; location: string; resume: string }, limit = 12) {
   const role = profile.role.toLowerCase();
   const roleTerms = ROLE_SYNONYMS.filter(group => group.some(term => role.includes(term))).flat();
+  // Specific engineering direction is not interchangeable with all engineers.
+  const discipline = /^(?:高级|资深|初级)?\s*(机械|电气|土木|化工|质量|结构|工艺|嵌入式|硬件)\s*(?:设计)?工程师/.exec(role)?.[1];
   if (!roleTerms.length) roleTerms.push(...role.split(/[\s/、,，]+/).filter(term => term.length >= 2));
   const location = profile.location.toLowerCase().trim();
   const unrestricted = !location || /^(不限|地点待确认|待确认|全国)$/.test(location);
@@ -60,6 +65,7 @@ export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; locati
   const skills = SKILL_TERMS.filter(skill => profile.resume.toLowerCase().split(/[。；;\n]/).some(clause => clause.includes(skill) && !/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
   return jobs.flatMap(job => {
     if (!roleTerms.some(term => job.title.toLowerCase().includes(term))) return [];
+    if (discipline && !job.title.toLowerCase().includes(discipline)) return [];
     // Remote is not assumed to mean permission to work from any country.
     const remoteOnly = /^(remote|worldwide|anywhere|全球|远程|不限地点)$/i.test(job.location.trim());
     if (!unrestricted && !remoteOnly && !locationTerms.some(term => job.location.toLowerCase().includes(term))) return [];

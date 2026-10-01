@@ -34,7 +34,7 @@ function candidateTerms(input: OutboundKeywordInput): string[] {
   // 词表没覆盖的方向：把用户自己打的那句按空格/分隔拆开原样带上（仍要过闸）。
   const rawRoleParts = translated.length ? [] : role.split(/[\s/、,，+＋]+/).filter((part) => part.length >= 2);
   const resume = input.resumeText.toLowerCase();
-  const skills = SKILL_TERMS.filter((term) => resume.includes(term));
+  const skills = SKILL_TERMS.filter((term) => resume.split(/[。；;\n]/).some(clause=>clause.includes(term)&&!/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
   return [...new Set([input.role.trim(), ...translated, ...rawRoleParts, ...skills].map((term) => stripPii(term, input.pii ?? EMPTY_PII)).filter(Boolean))];
 }
 
@@ -56,5 +56,6 @@ export function outboundKeywords(input: OutboundKeywordInput): OutboundKeywords 
 /** 国内官网优先用中文岗位别名。仅重排/选择已经过隐私闸的词，不引入简历片段。 */
 export function domesticKeywords(keywords: string[]): string[] {
   const chinese=keywords.filter(term=>/\p{Script=Han}/u.test(term));
-  return (chinese.length?chinese:keywords).slice(0,4);
+  // Keep grounded technical terms too: Chinese role aliases must not erase Agent/RAG queries.
+  return [...new Set([...chinese,...keywords.filter(term=>SKILL_TERMS.includes(term.toLowerCase()))])].slice(0,4);
 }

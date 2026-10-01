@@ -57,7 +57,7 @@ export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; locati
   const unrestricted = !location || /^(不限|地点待确认|待确认|全国)$/.test(location);
   const locationTerms = cities.filter(group => group.some(term => location.includes(term))).flat();
   if (!locationTerms.length && !unrestricted) locationTerms.push(...location.split(/[/、,，]+/).map(s=>s.trim()).filter(Boolean));
-  const skills = SKILL_TERMS.filter(skill => profile.resume.toLowerCase().includes(skill));
+  const skills = SKILL_TERMS.filter(skill => profile.resume.toLowerCase().split(/[。；;\n]/).some(clause => clause.includes(skill) && !/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
   return jobs.flatMap(job => {
     if (!roleTerms.some(term => job.title.toLowerCase().includes(term))) return [];
     // Remote is not assumed to mean permission to work from any country.

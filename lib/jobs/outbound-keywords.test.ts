@@ -1,7 +1,11 @@
-import { outboundKeywords } from "./outbound-keywords";
+import { outboundKeywords, domesticKeywords } from "./outbound-keywords";
 import { MAX_KEYWORDS } from "@/lib/coach-harness/subagents/retrieval";
 
 const resume = (text: string) => ({ role: "产品经理", resumeText: text });
+test("真实Agent经历进入国内查询，否定经历不进入",()=>{
+ expect(domesticKeywords(outboundKeywords({role:"AI 产品经理",resumeText:"负责Agent产品开发"}).keywords)).toContain("agent");
+ expect(domesticKeywords(outboundKeywords({role:"AI 产品经理",resumeText:"没有做过Agent产品，希望学习"}).keywords)).not.toContain("agent");
+});
 
 test("中文方向出网前先翻成词表里的英文岗位名", () => {
   const { keywords } = outboundKeywords({ role: "AI 产品经理", resumeText: "会写 SQL" });

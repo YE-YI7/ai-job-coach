@@ -1,4 +1,6 @@
 import { POST } from "./route";
+import { personalizeJobs } from "@/lib/jobs/personalization";
+import { reserveQuota, finalizeQuota } from "@/lib/quota";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { searchLiveJobs } from "@/lib/jobs/live-sources";
@@ -7,6 +9,8 @@ import { completeTask, failTask, getTaskLedger, intakeEvent, startTask } from "@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 
 jest.mock("@/lib/auth");
+jest.mock("@/lib/quota");
+jest.mock("@/lib/jobs/personalization",()=>({PERSONALIZATION_VERSION:"test-v1",personalizeJobs:jest.fn()}));
 jest.mock("@/lib/coach-harness/run-ledger");
 jest.mock("@/lib/coach-harness/repository");
 jest.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
@@ -27,7 +31,11 @@ const online = (postings: RawJobPosting[], over: Record<string, unknown> = {}) =
 
 beforeEach(() => {
   jest.resetAllMocks();
+  (reserveQuota as jest.Mock).mockResolvedValue({source:"free",remaining:2});
+  (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
+  (personalizeJobs as jest.Mock).mockImplementation(async jobs=>({jobs:jobs.slice(0,5),modelCalls:jobs.length?1:0,evaluatedCount:jobs.length}));
   (startTask as jest.Mock).mockResolvedValue({ runId: "run-test", reused: false });
+  (failTask as jest.Mock).mockResolvedValue(undefined);
   (getTaskLedger as jest.Mock).mockResolvedValue({ runStatus: "running", status: "running" });
   (intakeEvent as jest.Mock).mockResolvedValue({ accepted: true, stored: true });
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "owner" });
@@ -42,6 +50,34 @@ test("同一请求重放已保存结果，不再次搜索", async () => {
   (getTaskLedger as jest.Mock).mockResolvedValue({ runStatus: "completed", status: "done", result: { runId: "run-test", jobs: [] } });
   expect(await (await POST(request())).json()).toEqual({ runId: "run-test", jobs: [] });
   expect(searchLiveJobs).not.toHaveBeenCalled();
+});
+
+test("个性化失败不伪报搜索成功或保存通用推荐",async()=>{
+ (personalizeJobs as jest.Mock).mockRejectedValue(new Error("invalid evidence"));
+ expect((await POST(request())).status).toBe(500);
+ expect(completeTask).not.toHaveBeenCalled();
+ expect(finalizeQuota).toHaveBeenCalledWith(expect.any(Object),false);
+ expect(failTask).toHaveBeenCalledWith(expect.objectContaining({failureType:"search_or_save_failed"}));
+});
+
+test("额度不足不调用评审；重放保存结果不扣第二次额度",async()=>{
+ (reserveQuota as jest.Mock).mockResolvedValue(null);
+ expect((await POST(request())).status).toBe(403);
+ expect(personalizeJobs).not.toHaveBeenCalled();
+ (startTask as jest.Mock).mockResolvedValue({runId:"run-test",reused:true});
+ (getTaskLedger as jest.Mock).mockResolvedValue({runStatus:"completed",result:{jobs:[]}});
+ (reserveQuota as jest.Mock).mockClear();
+ expect((await POST(request())).status).toBe(200);
+ expect(reserveQuota).not.toHaveBeenCalled();
+});
+
+test("先筛全部候选再评审，超过原12条的位置仍能进入评审",async()=>{
+ (searchLiveJobs as jest.Mock).mockResolvedValue(online(Array.from({length:15},(_,i)=>posting(i<14?"Requirements: 5+ years of experience.":"Own the roadmap.",{sourceId:`source:${i}`,title:`Product Manager ${i}`,url:`https://jobs.ashbyhq.com/meshy/${i}`}))));
+ const body=await (await POST(request())).json();
+ expect(body.jobs).toHaveLength(1);
+ expect(body.jobs[0].title).toBe("Product Manager 14");
+ expect(body.personalization.modelCalls).toBe(1);
+ expect(personalizeJobs).toHaveBeenCalledWith(expect.any(Array),"2 年产品经验，会 SQL","owner","run-test");
 });
 
 test("取消后即使来源返回也不继续筛选或报完成", async () => {

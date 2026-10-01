@@ -1,6 +1,8 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { matchJobs } from "@/lib/jobs/discovery";
+import { personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
+import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota";
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
 import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls } from "@/lib/jobs/retrieval-gate";
@@ -14,11 +16,11 @@ import { compileContextBundle } from "@/lib/coach-harness/context";
 import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeEvent, startExecution, startTask } from "@/lib/coach-harness/run-ledger";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 /** 一次查找最多打几次源：满配 = 关键词上限 8 × 按词查的 2 个源 + 2 个流源，再多就截。 */
 const MAX_SOURCE_CALLS = 18;
 const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
-  createHash("sha256").update(JSON.stringify([DOMESTIC_SEARCH_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
+  createHash("sha256").update(JSON.stringify([DOMESTIC_SEARCH_VERSION, PERSONALIZATION_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
 
 /** 回到基础档案时读上次任务，不自动重复执行。只恢复当前资料/偏好对应的结果。 */
 export async function GET(request: Request) {
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
   if (typeof profileId !== "string" || !/^[\da-f-]{36}$/i.test(profileId)) return Response.json({error:"请选择基础简历"},{status:400});
   if (requestId !== undefined && (typeof requestId !== "string" || !/^[\da-f-]{36}$/i.test(requestId))) return Response.json({error:"请求编号不正确"},{status:400});
   let runId: string | undefined;
+  let reservation: QuotaReservation | null = null;
   try {
     const saved = await listCockpitOpportunities(user.id);
     const profile = saved.find(item => item.id === profileId && item.workspaceType === "preparation");
@@ -88,12 +91,12 @@ export async function POST(request: Request) {
     if (!keywords.length) return Response.json({error:"求职方向里没读出可搜索的关键词，把它写清楚一点（例如「AI 产品经理」）再来。"},{status:400});
     const task = await startTask({ userId: user.id, opportunityId: profileId, task: "job_decision",
       goal: "按已保存的简历与方向查找岗位", billingUnit: "job_search",
-      estimate: { estimatedModelCalls: 0, maxSourceCalls: MAX_SOURCE_CALLS },
+      estimate: { estimatedModelCalls: 1, maxSourceCalls: MAX_SOURCE_CALLS },
       idempotencyKey: `job-search:${profileId}:${requestId ?? randomUUID()}`,
       steps: [{ id: "search", label: "读取公开招聘来源" }, { id: "screen", label: "去重与按条件筛选" }],
       context: compileContextBundle({ userId: user.id, task: "job_decision", claims: [],
         currentInput: JSON.stringify({ profileId, keywords, location: profile.location }),
-        budget: { maxModelCalls: 0, maxToolCalls: MAX_SOURCE_CALLS } }),
+        budget: { maxModelCalls: 1, maxToolCalls: MAX_SOURCE_CALLS } }),
     });
     runId = task.runId;
     if (task.reused) {
@@ -119,14 +122,23 @@ export async function POST(request: Request) {
     await completeStep({ userId: user.id, runId, stepId: "search", resultDigest: `读取 ${available.length} 条公开岗位；失败来源 ${failedSourceLabels.length} 个` });
     await beginStep({ userId: user.id, runId, stepId: "screen" });
     const { fresh, tracked: alreadyTracked } = splitSavedJobs(available, tracked);
-    const jobs = matchJobs(fresh, {role:profile.role,location:profile.location || "",resume:profile.resumeText});
+    // Do not truncate before hard screening: eligible jobs must not be crowded out.
+    const jobs = matchJobs(fresh, {role:profile.role,location:profile.location || "",resume:profile.resumeText},fresh.length);
     const gate = applyRetrievalGate(jobs, { profile: profileHardFields(profile.resumeText) });
     // 目标档位：面板点过的（含「不限」）直接生效；别处抽到的意向没确认前不拿来剔岗位
     const preference = await readUserTierPreference(user.id);
     // 公司层次仍查离线名录（这一步不额外外呼）；名录坏了不会少岗位，全部保留 + 标注未核验
     const verified = await applyVerificationGate(gate, { goalTargetTiers: preference.effectiveTiers, isoNow: new Date().toISOString() });
+    if (verified.kept.length) {
+      reservation = await reserveQuota(user.id,"chat",`job-personalization:${runId}`);
+      if (!reservation) {
+        await failTask({userId:user.id,runId,reason:"error",failureType:"personalization_quota_exhausted"});
+        return Response.json({runId,error:"岗位已找到，但 AI 评审额度不足；请补充额度后重试。",needUpgrade:true},{status:403});
+      }
+    }
+    const personalized = await personalizeJobs(verified.kept, profile.resumeText, user.id, runId);
     await checkCancelled();
-    const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:verified.kept, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
+    const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:personalized.jobs, personalization:{version:PERSONALIZATION_VERSION,modelCalls:personalized.modelCalls,evaluatedCount:personalized.evaluatedCount}, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
       verification:{status:verified.status, note:verified.note, directoryVerifiedAt:verified.directoryVerifiedAt, coverage:verified.coverage},
       tierPreference:preference, tierOptions:TIER_ORDER.map(tier=>({value:tier,label:TIER_LABEL[tier]})),
       search:{keywords, blockedCount:blocked.length, calls:searched.calls, cacheHit, callsThisRequest: cacheHit ? 0 : searched.calls, truncatedCalls:searched.truncatedCalls,
@@ -134,17 +146,20 @@ export async function POST(request: Request) {
         credit:SOURCE_CREDIT,
         sources:LIVE_SOURCES.filter(source=>DOMESTIC_SOURCE_IDS.includes(source.id)).map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote}))},
       failedSources:failedSourceLabels,
-      note:`当前只读取已接入的国内招聘官网，不代表全国岗位覆盖。${alreadyTracked.length ? `${alreadyTracked.length} 条你已在跟踪，不再占候选位。` : ""}按方向、城市和共同关键词初筛，不代表能力匹配或录用概率；没有结果不代表市场没有机会。`};
-    await completeStep({ userId: user.id, runId, stepId: "screen", resultDigest: `保留 ${verified.kept.length} 条岗位` });
+      note:`当前只读取已接入的国内招聘官网，不代表全国岗位覆盖。${alreadyTracked.length ? `${alreadyTracked.length} 条你已在跟踪，不再占候选位。` : ""}已按简历经历与JD评审，引用及待补能力可展开核对；不代表录用概率。`};
+    await completeStep({ userId: user.id, runId, stepId: "screen", resultDigest: `评审 ${personalized.evaluatedCount} 条，推荐 ${personalized.jobs.length} 条岗位` });
     if (searched.failures.length) await failTask({ userId: user.id, runId, reason: "error", failureType: "partial_sources_failed", partialResult: result });
-    else await completeTask({ userId: user.id, runId, result, modelCallCount: 0 });
+    else await completeTask({ userId: user.id, runId, result, modelCallCount: personalized.modelCalls });
+    await finalizeQuota(reservation,true);
+    reservation=null;
     await intakeEvent({ userId: user.id, opportunityId: profileId, runId, clientEventId: `discovery_${runId}`,
       kind: searched.failures.length ? "task_partial" : "job_search_completed",
-      properties: { candidate_count: verified.kept.length, failed_source_count: failedSourceLabels.length, cache_hit: cacheHit } })
+      properties: { candidate_count: personalized.jobs.length, failed_source_count: failedSourceLabels.length, cache_hit: cacheHit } })
       .catch(() => console.error("Discovery result saved but agent event was not recorded"));
     return Response.json(result,
       {headers:{"Cache-Control":"private, no-store"}});
   } catch (error) {
+    await finalizeQuota(reservation,false).catch(()=>console.error("Job personalization quota refund failed"));
     if (runId) {
       const task = await getTaskLedger({ userId: user.id, runId }).catch(() => null);
       if (task?.runStatus === "cancelled") return Response.json({ runId, error: "搜索已取消，简历未被改动。" }, { status: 409 });

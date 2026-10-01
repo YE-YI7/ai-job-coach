@@ -157,7 +157,7 @@ export default function JobDiscovery({profileId, ready, onImport}: {
     </div></details>}
     {message && <p className={discoveryStyles.status} role="status">{message}</p>}
     <details className={discoveryStyles.audit}><summary>搜索范围与隐私说明</summary>
-    <p>只发送岗位方向与技能关键词，不发送你的简历原文；查找不消耗模型额度，也不会自动投递。目前国内来源覆盖有限，不代表全市场。</p>
+    <p>招聘来源只收到方向与技能关键词；AI 会结合简历评审，一次查找最多消耗 1 次 AI 额度。恢复已保存结果不重复扣费，不会自动投递。</p>
     {!!search?.sources.length && <p>
       本轮搜过：{search.keywords.join("、")}
       {search.blockedCount ? `（另有 ${search.blockedCount} 个含联系方式的词没外发）` : ""}；来源：

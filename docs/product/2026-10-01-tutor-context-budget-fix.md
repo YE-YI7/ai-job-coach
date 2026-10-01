@@ -25,4 +25,6 @@
 
 ## 发布
 
-待本轮产品提交、正式Ready/promote后，用同一合成档案在正式域名复测并补记录。
+产品提交 `27c8481` 已推backend。干净发布包部署 `dpl_6i7E76oJzBNBmHVZxdRq2FpCgR6P` Ready并promote成功。
+
+正式域名 `https://www.ai-job-coach.xin` 同场景复测通过：100条原始事实ID/正文/状态不变；真实 `deepseek-v4-flash` 教学及练习完成；单次回复15.648秒（不是P90），回答保存回读一致，无内部预算清单；测试账号删除。证据 `/tmp/yizhi-chat-budget-production.json`。未访问真人聊天记录，不将合成测试表述为用户原窗口已经人工验收。

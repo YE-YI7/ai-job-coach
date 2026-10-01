@@ -21,7 +21,7 @@ export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,
    <button className={styles.profileCoachLink} onClick={onCoach}>还没想好，让导师带我梳理 <ArrowUpRight size={16}/></button>
    {!opportunity.resumeText&&children}
   </section>
-  <section><h2>接下来，选一个岗位推进</h2><p>基础简历会带入新岗位，不必重复上传。</p>
+  <section aria-label="岗位">
    <JobDiscovery key={`${opportunity.id}:${opportunity.role}:${opportunity.location}`} profileId={opportunity.id} ready={!!opportunity.resumeText?.trim() && role.trim()===opportunity.role && location.trim()===(opportunity.location||"")} onImport={onImportJob}/>
    <button className={styles.secondaryButton} onClick={onAddJob}>我有岗位，看看是否合适</button>
    {!!jobs.length&&<div className={styles.existingJobList}>{jobs.map(job=><button key={job.id} onClick={()=>onSelectJob(job.id)}><span><small>{job.company}</small><strong>{job.role}</strong></span><span>继续</span></button>)}</div>}

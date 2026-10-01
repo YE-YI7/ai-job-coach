@@ -42,7 +42,6 @@ export default function JobDiscovery({profileId, ready, onImport}: {
     setBusy(true); setMessage(""); setJobs([]); setFiltered([]); setPending([]); setVerification(null); setSearch(null);
     try {
       let result;
-      let restored = false;
       {
         const readSaved = async () => {
         const previous = await fetch(`/api/coach/jobs/discover?profileId=${encodeURIComponent(profileId)}`, { cache: "no-store", signal: abort.signal });
@@ -58,8 +57,8 @@ export default function JobDiscovery({profileId, ready, onImport}: {
             setMessage(["failed", "cancelled"].includes(saved.status) ? "上次搜索未完成，可重新查找；简历仍保留。" : "上次搜索仍在进行，可稍后查看；没有重复启动。");
             return;
           }
-          result = saved.result; restored = true;
-        } else if (restore && saved.found) { result = saved.result; restored = true; }
+          result = saved.result;
+        } else if (restore && saved.found) { result = saved.result; }
         else if (restore && ["failed", "cancelled", "partial"].includes(saved.status)) {
           setMessage("上次搜索未完成，可重新查找；不会自动重复执行。"); return;
         }
@@ -86,7 +85,7 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       setTierOptions(result.tierOptions ?? []);
       setPreference(result.tierPreference ?? null);
       setSearch(result.search ?? null);
-      setMessage([restored ? "已恢复上次结果。" : "", result.jobs.length ? `找到 ${result.jobs.length} 个国内候选，点「看看我适不适合」继续。` : "当前接入来源没有符合方向和城市的候选。可以调整方向，或导入你找到的 JD；不代表其他公司没有机会。",
+      setMessage([result.jobs.length ? "" : "暂无符合条件的岗位，可调整方向或导入 JD。",
         result.failedSources?.length ? `${result.failedSources.join("、")} 暂时没读到，结果不完整。` : "",
         result.search?.truncatedCalls ? `关键词较多，本轮只搜了前 ${result.search.calls} 次，还有 ${result.search.truncatedCalls} 次没打出去。` : ""]
         .filter(Boolean).join(" "));
@@ -139,7 +138,8 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       ? `当前：只找「${tiers.map(labelOf).join("、")}」。名录认得的公司里层次不符的会移到下面，名录没收录的一律保留。`
       : "当前：你选了「不限」。所有公司都保留，只标注层次。";
   return <div className={discoveryStyles.discovery} aria-busy={busy}>
-    <div className={discoveryStyles.header}><div><h3>为你找国内机会</h3><p>{ready ? "按已保存的方向和城市筛选，选一个值得继续了解的岗位。" : "先保存简历和方向，再为你找岗位。"}</p></div><button className={discoveryStyles.refresh} disabled={!ready || busy || !!importing} onClick={()=>void discover()}><RefreshCw size={16}/>{busy ? "正在查找…" : "重新查找"}</button></div>
+    <div className={discoveryStyles.header}><button className={discoveryStyles.refresh} disabled={!ready || busy || !!importing} onClick={()=>void discover()}><RefreshCw size={16}/>{busy ? "正在查找…" : "重新查找"}</button></div>
+    {!ready && <p className={discoveryStyles.status}>请先保存简历和方向。</p>}
     {!!tierOptions.length && <details className={discoveryStyles.audit}>
       <summary>公司偏好 · {tiers.length?tiers.map(labelOf).join("、"):"不限"}</summary><div className={styles.tierPreference}>
       <p className={styles.tierHint}>想进哪一类公司？不选也行。</p>
@@ -156,7 +156,6 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       {tierMessage && <p role="status">{tierMessage}</p>}
     </div></details>}
     {message && <p className={discoveryStyles.status} role="status">{message}</p>}
-    {!!search?.sources.length && <p className={discoveryStyles.status}>当前来源：{search.sources.map(s=>s.label).join("、")} · 不代表全市场</p>}
     <details className={discoveryStyles.audit}><summary>搜索范围与隐私说明</summary>
     <p>只发送岗位方向与技能关键词，不发送你的简历原文；查找不消耗模型额度，也不会自动投递。目前国内来源覆盖有限，不代表全市场。</p>
     {!!search?.sources.length && <p>

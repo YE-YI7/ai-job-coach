@@ -92,7 +92,7 @@ test("出网的只有过闸的关键词：真跑一次源，逐个地址检查�
     const url = String(input);
     urls.push(url);
     // RemoteOK 回数组、其它源回 {jobs:[]}：形状要合法，否则测的是「源挂了」而不是「出了什么词」
-    return new Response(JSON.stringify(url.includes("remoteok.com") ? [] : { jobs: [] }));
+    return new Response(JSON.stringify({ Code:200, Data:{Posts:[]} }));
   });
   const response = await POST(request());
   expect(response.status).toBe(200);
@@ -102,7 +102,8 @@ test("出网的只有过闸的关键词：真跑一次源，逐个地址检查�
     expect(url).not.toMatch(/13800138000|guoxm|郭小明|字节|抖音|example\.com/i);
   }
   // 方向翻成的英文词才是查询词
-  expect(urls.join(" ")).toMatch(/product.manager|product-manager/i);
+  expect(urls.every(url=>new URL(url).hostname==="careers.tencent.com")).toBe(true);
+  expect(urls.some(url=>new URL(url).searchParams.get("keyword")==="产品经理")).toBe(true);
   const body = await response.json();
   expect(body.search.keywords.join(" ")).not.toMatch(/13800138000|guoxm|郭小明/);
   expect(response.headers.get("Cache-Control")).toBe("private, no-store");

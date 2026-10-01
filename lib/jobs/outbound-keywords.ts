@@ -52,3 +52,9 @@ export function outboundKeywords(input: OutboundKeywordInput): OutboundKeywords 
   }
   return { keywords, blocked };
 }
+
+/** 国内官网优先用中文岗位别名。仅重排/选择已经过隐私闸的词，不引入简历片段。 */
+export function domesticKeywords(keywords: string[]): string[] {
+  const chinese=keywords.filter(term=>/\p{Script=Han}/u.test(term));
+  return (chinese.length?chinese:keywords).slice(0,4);
+}

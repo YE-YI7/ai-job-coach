@@ -1,8 +1,8 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { matchJobs } from "@/lib/jobs/discovery";
-import { LIVE_SOURCES, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
-import { outboundKeywords } from "@/lib/jobs/outbound-keywords";
+import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
+import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
 import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls } from "@/lib/jobs/retrieval-gate";
 import { applyVerificationGate } from "@/lib/jobs/verification-gate";
 import { TIER_LABEL } from "@/lib/jobs/company-directory";
@@ -18,7 +18,7 @@ export const maxDuration = 30;
 /** 一次查找最多打几次源：满配 = 关键词上限 8 × 按词查的 2 个源 + 2 个流源，再多就截。 */
 const MAX_SOURCE_CALLS = 18;
 const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
-  createHash("sha256").update(JSON.stringify([profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
+  createHash("sha256").update(JSON.stringify([DOMESTIC_SEARCH_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
 
 /** 回到基础档案时读上次任务，不自动重复执行。只恢复当前资料/偏好对应的结果。 */
 export async function GET(request: Request) {
@@ -55,11 +55,11 @@ async function readLiveJobs(keywords: string[]) {
   try {
     const result = await unstable_cache(async () => {
       fetched = true;
-      const result = await searchLiveJobs(keywords, { maxCalls: MAX_SOURCE_CALLS });
+      const result = await searchLiveJobs(keywords, { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: MAX_SOURCE_CALLS });
       // 故障/部分结果不能被共享缓存锁住 30 分钟；当前请求仍保留可用结果。
       if (result.failures.length) throw new IncompleteSearch(result);
       return result;
-    }, ["live-jobs-v2", ...keywords], { revalidate: 1800 })();
+    }, [DOMESTIC_SEARCH_VERSION, ...keywords], { revalidate: 1800 })();
     return { result, cacheHit: !fetched };
   } catch (error) {
     if (error instanceof IncompleteSearch) return { result: error.result, cacheHit: false };
@@ -83,7 +83,8 @@ export async function POST(request: Request) {
     if (!profile.resumeText?.trim() || !profile.role?.trim()) return Response.json({error:"请先保存简历和求职方向"},{status:400});
     const tracked = trackedJobUrls(saved);
     // 出网的只有过闸的关键词：简历正文不整段外发，也不从正文抠片段拼查询。
-    const { keywords, blocked } = outboundKeywords({ role: profile.role, resumeText: profile.resumeText });
+    const outgoing = outboundKeywords({ role: profile.role, resumeText: profile.resumeText });
+    const keywords = domesticKeywords(outgoing.keywords), blocked = outgoing.blocked;
     if (!keywords.length) return Response.json({error:"求职方向里没读出可搜索的关键词，把它写清楚一点（例如「AI 产品经理」）再来。"},{status:400});
     const task = await startTask({ userId: user.id, opportunityId: profileId, task: "job_decision",
       goal: "按已保存的简历与方向查找岗位", billingUnit: "job_search",
@@ -131,9 +132,9 @@ export async function POST(request: Request) {
       search:{keywords, blockedCount:blocked.length, calls:searched.calls, cacheHit, callsThisRequest: cacheHit ? 0 : searched.calls, truncatedCalls:searched.truncatedCalls,
         alreadyTracked,
         credit:SOURCE_CREDIT,
-        sources:LIVE_SOURCES.map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote}))},
+        sources:LIVE_SOURCES.filter(source=>DOMESTIC_SOURCE_IDS.includes(source.id)).map(source=>({label:source.label, homepage:source.homepage, coverageNote:source.coverageNote}))},
       failedSources:failedSourceLabels,
-      note:`按「${keywords.join("、")}」${cacheHit ? "读取 30 分钟内的公开来源缓存" : `搜了 ${searched.calls} 次公开接口`}${blocked.length ? `，另有 ${blocked.length} 个词因含联系方式被挡下` : ""}${alreadyTracked.length ? `，${alreadyTracked.length} 条你已在跟踪、不再占候选位` : ""}；这些源以英文/远程岗位为主，中文本地岗位还需要接聚合招聘 API。按方向、城市和共同关键词初筛，不代表能力匹配或录用概率。远程岗位仍有地区限制。`};
+      note:`当前只读取已接入的国内招聘官网，不代表全国岗位覆盖。${alreadyTracked.length ? `${alreadyTracked.length} 条你已在跟踪，不再占候选位。` : ""}按方向、城市和共同关键词初筛，不代表能力匹配或录用概率；没有结果不代表市场没有机会。`};
     await completeStep({ userId: user.id, runId, stepId: "screen", resultDigest: `保留 ${verified.kept.length} 条岗位` });
     if (searched.failures.length) await failTask({ userId: user.id, runId, reason: "error", failureType: "partial_sources_failed", partialResult: result });
     else await completeTask({ userId: user.id, runId, result, modelCallCount: 0 });

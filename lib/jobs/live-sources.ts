@@ -5,8 +5,7 @@
  * - 免 key、能按关键词查的只有英文/远程板子：RemoteOK（`?tag=`，实测按词返回不同结果）、
  *   Jobicy（`?tag=`，认空格不认连字符）。Remotive 的公开接口**任何参数都不生效**
  *   （`?search=nurse` 与不带参数返回同一批 16 条），所以按「最新一批」的流源用，不假装搜过。
- * - 中文市场（BOSS/猎聘/拉勾）在登录墙与反爬后面，**这里刻意不做**：绕反爬既是对方的
- *   风控边界也是脆管子。中文覆盖要靠聚合招聘 API 的 key（待郭屹定）。
+ * - 10-01接腾讯官网公开查询；产品默认只查国内源。BOSS/猎聘/拉勾不绕登录墙/验证码。
  * - 每个源都可能坏。一个源坏了不能把整批结果变成「没有岗位」，也不能悄悄少几个源不说
  *   （`failures` 一路带到界面）。
  * - 出网的只有关键词（过 PII 闸），回来的正文一律按不可信数据处理。
@@ -14,7 +13,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -28,14 +27,17 @@ export interface LiveSourceDescriptor {
 }
 
 export const LIVE_SOURCES: LiveSourceDescriptor[] = [
+  { id: "tencent", label: "腾讯招聘官网", homepage: "https://careers.tencent.com", mode: "keyword", coverageNote: "国内社会招聘，单公司覆盖；不是全市场" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v1";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
-export const SOURCE_CREDIT = "岗位来自 RemoteOK、Jobicy、Remotive 与公司公开招聘板的公开接口，点击原页投递；不把这里的岗位转投第三方。";
+export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
 
 const MAX_BYTES = 4_000_000;
 const TIMEOUT_MS = 12_000;
@@ -208,7 +210,28 @@ const ashbyAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Record<LiveSourceId, Adapter> = { remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+/** 官网公开查询：只发送过闸关键词，拒绝海外、失效和地区不明的条目。 */
+const tencentAdapter: Adapter = {
+  id: "tencent", hosts: ["careers.tencent.com"],
+  async search({ keyword }) {
+    const url = new URL("https://careers.tencent.com/tencentcareer/api/post/Query");
+    url.searchParams.set("keyword", keyword);
+    url.searchParams.set("pageIndex", "1"); url.searchParams.set("pageSize", "40"); url.searchParams.set("language", "zh-cn");
+    const payload = await fetchJson(url, this.hosts) as { Code?: number; Data?: { Posts?: unknown[] } };
+    if (payload.Code !== 200 || !Array.isArray(payload.Data?.Posts)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return payload.Data.Posts.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = raw as Record<string, unknown>, id = str(row.PostId), title = str(row.RecruitPostName), location = str(row.LocationName);
+      if (!/^\d+$/.test(id) || !title || !location || row.IsValid !== true || str(row.CountryName) !== "中国") return [];
+      // LastUpdateTime 是更新时间，不伪装成首次发布时间。
+      return [{ sourceId: `tencent:${id}`, url: `https://careers.tencent.com/jobdesc.html?postId=${id}`,
+        company: "腾讯", companyDomain: "tencent.com", title: title.slice(0, 200), location,
+        fetchedAt, postedAt: null, rawPageText: toPlainText(["招聘官网列表摘要（未包含完整任职要求）", str(row.Responsibility), str(row.RequireWorkYearsName).replace(/([一二三四五六七八九十])年/g,(_,n:string)=>`${"一二三四五六七八九十".indexOf(n)+1}年`)].filter(Boolean).join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Record<LiveSourceId, Adapter> = { tencent: tencentAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

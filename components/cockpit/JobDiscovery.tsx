@@ -6,6 +6,9 @@ import type { CompanyTier } from "@/lib/coach-harness/subagents/verification";
 import type { VerifiedJob } from "@/lib/jobs/verification-gate";
 import styles from "./CockpitApp.module.css";
 import { waitForSavedSearch } from "@/lib/jobs/search-recovery";
+import { RefreshCw } from "lucide-react";
+import JobResultCard from "./JobResultCard";
+import discoveryStyles from "./JobDiscovery.module.css";
 
 type Candidate = VerifiedJob & { reasons: string[] };
 type VerificationSummary = { status: "ok" | "degraded"; note: string | null; coverage: { total: number; inDirectory: number } };
@@ -17,22 +20,6 @@ type TierPreference = {
   effectiveTiers: CompanyTier[]; origin: "explicit" | "unset";
   sourceExcerpt: string | null; claimId: string | null;
   pending: { claimId: string; tiers: CompanyTier[]; excerpt: string } | null;
-};
-/** 出处只标站点名 + 日期，长标题留给点开看。 */
-const siteOf = (url: string) => url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
-/** 层次结论必须可回查：已核 / 没设档位 / 身份没双校验 / 名录里没有 / 这次没核上，五种说法不一样。 */
-const tierText = (job: Candidate, degraded: boolean) => {
-  if (degraded) return "公司层次：这次没核验成，先全部保留。";
-  switch (job.tierMatchedField) {
-    case "company_tier_directory":
-      return `公司层次：${job.tierLabel}（名录已核，符合你设的目标档位）。`;
-    case "target_tiers_empty":
-      return `公司层次：${job.tierLabel}（名录已核；当前档位是「不限」，所以只标注、不筛掉）。`;
-    case "identity_unconfirmed":
-      return `公司层次：${job.tierLabel ?? "名录里有同名记录"}（同名公司的身份没做双校验，先保留）。`;
-    default:
-      return "公司层次：名录里没有这家公司，先保留待核实。";
-  }
 };
 export default function JobDiscovery({profileId, ready, onImport}: {
   profileId: string; ready: boolean; onImport: (sourceText: string) => Promise<void>;
@@ -99,7 +86,7 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       setTierOptions(result.tierOptions ?? []);
       setPreference(result.tierPreference ?? null);
       setSearch(result.search ?? null);
-      setMessage([restored ? "已恢复上次保存的结果；要查最新岗位可点「重新查找岗位」。" : "", result.jobs.length ? "找到这些候选，先看来源，再决定是否分析。" : `这次按「${(result.search?.keywords ?? []).join("、")}」搜到的公开岗位里，没有符合方向和城市的。不代表其他公司没有机会，可以调整方向或导入你找到的 JD。`,
+      setMessage([restored ? "已恢复上次结果。" : "", result.jobs.length ? `找到 ${result.jobs.length} 个国内候选，点「看看我适不适合」继续。` : "当前接入来源没有符合方向和城市的候选。可以调整方向，或导入你找到的 JD；不代表其他公司没有机会。",
         result.failedSources?.length ? `${result.failedSources.join("、")} 暂时没读到，结果不完整。` : "",
         result.search?.truncatedCalls ? `关键词较多，本轮只搜了前 ${result.search.calls} 次，还有 ${result.search.truncatedCalls} 次没打出去。` : ""]
         .filter(Boolean).join(" "));
@@ -151,10 +138,10 @@ export default function JobDiscovery({profileId, ready, onImport}: {
     : tiers.length
       ? `当前：只找「${tiers.map(labelOf).join("、")}」。名录认得的公司里层次不符的会移到下面，名录没收录的一律保留。`
       : "当前：你选了「不限」。所有公司都保留，只标注层次。";
-  return <div className={styles.jobDiscovery}>
-    <button className={styles.primaryButton} disabled={!ready || busy || !!importing} onClick={()=>void discover()}>{busy ? "正在读取岗位…" : "重新查找岗位"}</button>
-    <p>{ready ? "按你保存的求职方向上网搜公开岗位接口，再按城市、JD 写明的年限/学历门槛硬筛，并对照离线名录标注公司层次。出网的只有过闸的关键词，简历不外发；这一步不消耗模型额度。" : "先保存简历和方向，再找岗位。"}</p>
-    {!!tierOptions.length && <div className={styles.tierPreference}>
+  return <div className={discoveryStyles.discovery} aria-busy={busy}>
+    <div className={discoveryStyles.header}><div><h3>为你找国内机会</h3><p>{ready ? "按已保存的方向和城市筛选，选一个值得继续了解的岗位。" : "先保存简历和方向，再为你找岗位。"}</p></div><button className={discoveryStyles.refresh} disabled={!ready || busy || !!importing} onClick={()=>void discover()}><RefreshCw size={16}/>{busy ? "正在查找…" : "重新查找"}</button></div>
+    {!!tierOptions.length && <details className={discoveryStyles.audit}>
+      <summary>公司偏好 · {tiers.length?tiers.map(labelOf).join("、"):"不限"}</summary><div className={styles.tierPreference}>
       <p className={styles.tierHint}>想进哪一类公司？不选也行。</p>
       <div className={styles.tierChoices} role="group" aria-label="目标公司层次">
         <button type="button" className={styles.tierChoice} aria-pressed={!tiers.length} disabled={tierBusy || busy} onClick={()=>void saveTiers([])}>
@@ -167,9 +154,12 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       <p className={styles.tierSummary}>{tierBusy ? "正在保存偏好…" : tierSummary}</p>
       {preference?.pending && <p className={styles.tierSummary}>你在别处说过「{preference.pending.excerpt}」，按「{preference.pending.tiers.map(labelOf).join("、")}」筛要你先点一下：<button type="button" className={styles.tierAction} disabled={tierBusy} onClick={()=>void reviewPendingIntent("confirm")}>就按这个筛</button>{' '}或{' '}<button type="button" className={styles.tierAction} disabled={tierBusy} onClick={()=>void reviewPendingIntent("withdraw")}>这不是我的意思</button>。</p>}
       {tierMessage && <p role="status">{tierMessage}</p>}
-    </div>}
-    {message && <p role="status">{message}</p>}
-    {!!search?.sources.length && <p className={styles.tierHint}>
+    </div></details>}
+    {message && <p className={discoveryStyles.status} role="status">{message}</p>}
+    {!!search?.sources.length && <p className={discoveryStyles.status}>当前来源：{search.sources.map(s=>s.label).join("、")} · 不代表全市场</p>}
+    <details className={discoveryStyles.audit}><summary>搜索范围与隐私说明</summary>
+    <p>只发送岗位方向与技能关键词，不发送你的简历原文；查找不消耗模型额度，也不会自动投递。目前国内来源覆盖有限，不代表全市场。</p>
+    {!!search?.sources.length && <p>
       本轮搜过：{search.keywords.join("、")}
       {search.blockedCount ? `（另有 ${search.blockedCount} 个含联系方式的词没外发）` : ""}；来源：
       {search.sources.map((source, i) => <span key={source.homepage}>{i ? "、" : ""}<a href={source.homepage} target="_blank" rel="noopener noreferrer">{source.label}</a>（{source.coverageNote}）</span>)}。
@@ -179,29 +169,19 @@ export default function JobDiscovery({profileId, ready, onImport}: {
       已在跟踪、本轮不再占候选位：{search.alreadyTracked.slice(0, 3).map(job => `${job.company} · ${job.title}`).join("、")}
       {search.alreadyTracked.length > 3 ? ` 等 ${search.alreadyTracked.length} 条` : ""}。
     </p>}
+    </details>
     {verification?.note && <p role="status">{verification.note}</p>}
     {pending.length > 0 && <p role="status">简历里没读出{pending.map(field=>`「${PENDING_LABEL[field]}」`).join("、")}，这几项要求暂时筛不了；补全后同一批岗位会筛得更准。</p>}
-    {jobs.map(job=><article key={job.id} className={styles.discoveredJob}>
-      <div><h3>{job.title}</h3><p>{job.company} · {job.location || "地点未注明"}</p></div>
-      <p>{job.reasons.join("；")}。这是关键词初筛，不是能力匹配结论。</p>
-      <p>{tierText(job, verification?.status === "degraded")}</p>
-      {!!job.tierSources.length && <p>{job.tierBasis}（出处：{job.tierSources.map((source,i)=><span key={source.url}>{i ? "、" : ""}<a href={source.url} target="_blank" rel="noopener noreferrer">{siteOf(source.url)}{source.publishedAt ? ` ${source.publishedAt}` : ""}</a></span>)}）</p>}
-      {!!job.jdRequirements.length && <p>JD 硬门槛：{job.jdRequirements.map(r=>r.label).join("、")}。</p>}
-      <small>{job.freshness === "in_sale" ? "近 30 天内发布的布告" : "发布超过 30 天或没有发布日期，是否仍在招聘待核实"} · 来源读取于 {new Date(job.checkedAt).toLocaleString("zh-CN")}</small>
-      <div className={styles.discoveryActions}>
-        <a href={job.url} target="_blank" rel="noopener noreferrer">查看招聘原页</a>
-        <button className={styles.secondaryButton} disabled={!!importing || busy} onClick={async()=>{
+    {busy && <div className={discoveryStyles.results} aria-label="正在读取国内岗位"><div className={discoveryStyles.skeleton}><span/><span/><span/></div><div className={discoveryStyles.skeleton}><span/><span/><span/></div></div>}
+    <div className={discoveryStyles.results}>{jobs.map(job=><JobResultCard key={job.id} job={job} degraded={verification?.status === "degraded"} disabled={!!importing || busy} importing={importing===job.id} onImport={()=>{void (async()=>{
           setImporting(job.id); setMessage("");
           try { await onImport(`公司：${job.company}\n岗位：${job.title}\n地点：${job.location}\n来源：${job.url}\n\n${job.description}`); }
           catch(error){setMessage(error instanceof Error?error.message:"岗位分析失败，可以重试");}
           finally{setImporting("");}
-        }}>{importing===job.id?"正在分析…":"带上简历分析此岗"}</button>
-      </div>
-    </article>)}
-    {!!filtered.length && <div>
-      <p>{filtered.length} 个岗位因 JD 硬门槛或公司层次对不上未列入上面，仍可查看：</p>
+        })();}}/> )}</div>
+    {!!filtered.length && <details className={discoveryStyles.audit}>
+      <summary>另有 {filtered.length} 个岗位暂不符合已知条件</summary>
       {filtered.map(job=><p key={job.id}>{job.company} · {job.title} —— {job.reasons.join("；")}。<a href={job.url} target="_blank" rel="noopener noreferrer">原页</a></p>)}
-    </div>}
-    {!!jobs.length && <p>上网搜岗位时出网的只有过闸的关键词，你的简历不发出去；不会自动投递，也不会向招聘网站提交任何东西。</p>}
+    </details>}
   </div>;
 }

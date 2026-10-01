@@ -35,7 +35,8 @@ function candidateTerms(input: OutboundKeywordInput): string[] {
   const rawRoleParts = translated.length ? [] : role.split(/[\s/、,，+＋]+/).filter((part) => part.length >= 2);
   const resume = input.resumeText.toLowerCase();
   const skills = SKILL_TERMS.filter((term) => resume.split(/[。；;\n]/).some(clause=>clause.includes(term)&&!/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
-  return [...new Set([input.role.trim(), ...translated, ...rawRoleParts, ...skills].map((term) => stripPii(term, input.pii ?? EMPTY_PII)).filter(Boolean))];
+  const specialty = /\b(?:ai|agent|llm|aigc)\b|人工智能|大模型|智能体/i.test(role) ? ["大模型","人工智能","智能体"] : [];
+  return [...new Set([input.role.trim(), ...translated, ...rawRoleParts, ...skills, ...specialty].map((term) => stripPii(term, input.pii ?? EMPTY_PII)).filter(Boolean))];
 }
 
 export function outboundKeywords(input: OutboundKeywordInput): OutboundKeywords {
@@ -57,5 +58,5 @@ export function outboundKeywords(input: OutboundKeywordInput): OutboundKeywords 
 export function domesticKeywords(keywords: string[]): string[] {
   const chinese=keywords.filter(term=>/\p{Script=Han}/u.test(term));
   // Keep grounded technical terms too: Chinese role aliases must not erase Agent/RAG queries.
-  return [...new Set([...chinese,...keywords.filter(term=>SKILL_TERMS.includes(term.toLowerCase()))])].slice(0,4);
+  return [...new Set([...chinese,...keywords.filter(term=>SKILL_TERMS.includes(term.toLowerCase()))])].slice(0,6);
 }

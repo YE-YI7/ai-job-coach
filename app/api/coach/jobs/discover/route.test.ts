@@ -10,7 +10,7 @@ import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/quota");
-jest.mock("@/lib/jobs/personalization",()=>({PERSONALIZATION_VERSION:"test-v1",personalizeJobs:jest.fn()}));
+jest.mock("@/lib/jobs/personalization",()=>({...jest.requireActual("@/lib/jobs/personalization"),personalizeJobs:jest.fn()}));
 jest.mock("@/lib/coach-harness/run-ledger");
 jest.mock("@/lib/coach-harness/repository");
 jest.mock("next/cache", () => ({ unstable_cache: (fn: unknown) => fn }));
@@ -77,7 +77,7 @@ test("先筛全部候选再评审，超过原12条的位置仍能进入评审",a
  expect(body.jobs).toHaveLength(1);
  expect(body.jobs[0].title).toBe("Product Manager 14");
  expect(body.personalization.modelCalls).toBe(1);
- expect(personalizeJobs).toHaveBeenCalledWith(expect.any(Array),"2 年产品经验，会 SQL","owner","run-test");
+ expect(personalizeJobs).toHaveBeenCalledWith(expect.any(Array),"2 年产品经验，会 SQL","owner","run-test","产品经理");
 });
 
 test("取消后即使来源返回也不继续筛选或报完成", async () => {

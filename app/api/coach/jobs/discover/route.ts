@@ -1,7 +1,7 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { matchJobs } from "@/lib/jobs/discovery";
-import { personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
+import { matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
 import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota";
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     await beginStep({ userId: user.id, runId, stepId: "screen" });
     const { fresh, tracked: alreadyTracked } = splitSavedJobs(available, tracked);
     // Do not truncate before hard screening: eligible jobs must not be crowded out.
-    const jobs = matchJobs(fresh, {role:profile.role,location:profile.location || "",resume:profile.resumeText},fresh.length);
+    const jobs = matchJobs(fresh.filter(job=>matchesRequestedSpecialty(job,profile.role)), {role:profile.role,location:profile.location || "",resume:profile.resumeText},fresh.length);
     const gate = applyRetrievalGate(jobs, { profile: profileHardFields(profile.resumeText) });
     // 目标档位：面板点过的（含「不限」）直接生效；别处抽到的意向没确认前不拿来剔岗位
     const preference = await readUserTierPreference(user.id);
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
         return Response.json({runId,error:"岗位已找到，但 AI 评审额度不足；请补充额度后重试。",needUpgrade:true},{status:403});
       }
     }
-    const personalized = await personalizeJobs(verified.kept, profile.resumeText, user.id, runId);
+    const personalized = await personalizeJobs(verified.kept, profile.resumeText, user.id, runId, profile.role);
     await checkCancelled();
     const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:personalized.jobs, personalization:{version:PERSONALIZATION_VERSION,modelCalls:personalized.modelCalls,evaluatedCount:personalized.evaluatedCount}, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
       verification:{status:verified.status, note:verified.note, directoryVerifiedAt:verified.directoryVerifiedAt, coverage:verified.coverage},

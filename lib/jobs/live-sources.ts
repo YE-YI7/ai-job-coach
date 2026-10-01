@@ -35,7 +35,7 @@ export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
 export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v2";
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v3-specialty";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";

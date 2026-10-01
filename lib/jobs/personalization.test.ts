@@ -1,4 +1,4 @@
-import { eligibility, personalizeJobs, positiveSkillTerms } from "./personalization";
+import { eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty } from "./personalization";
 import { callLLM } from "@/lib/llm";
 import type { VerifiedJob } from "./verification-gate";
 jest.mock("@/lib/llm",()=>({callLLM:jest.fn()}));
@@ -8,6 +8,10 @@ const resume="负责电商会员、复购与需求分析。没有做过Agent产�
 const item=(id="1")=>({id,resumeEvidence:"负责电商会员、复购与需求分析",jdEvidence:"负责Agent产品设计",gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
 beforeEach(()=>jest.resetAllMocks());
 test("否定与学习愿望不算技能经历",()=>expect(positiveSkillTerms(resume,["agent","需求分析"])).toEqual(["需求分析"]));
+test("AI方向不接受纯广告或普通增长岗位，AI要求必须来自JD",()=>{
+ expect(matchesRequestedSpecialty({title:"广告产品经理",description:"ADX竞价、促销转化分析"},"AI 产品经理")).toBe(false);
+ expect(matchesRequestedSpecialty({title:"产品经理",description:"负责大模型Agent平台"},"AI 产品经理")).toBe(true);
+});
 test("8年经验不等于非在读，未知资格明确提示",()=>{
  const marked=eligibility(job("1","岗位要求：大三在校学生，负责产品设计"),"本科，8年产品经验");
  expect(marked.jdRequirements.some(r=>r.label==="在读身份待核实")).toBe(true);
@@ -16,7 +20,7 @@ test("8年经验不等于非在读，未知资格明确提示",()=>{
 });
 test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[item()]}));
- const result=await personalizeJobs([job()],resume,"owner","run");
+ const result=await personalizeJobs([job()],resume,"owner","run","AI 产品经理");
  expect(result.jobs[0].reasons.join()).toContain("电商会员");
  expect(result.jobs[0].reasons.join()).toContain("可以先练");
  expect(result.modelCalls).toBe(1);expect(callLLM).toHaveBeenCalledTimes(1);
@@ -28,16 +32,20 @@ test.each([
  {items:[{...item(),resumeEvidence:"没有做过Agent产品"}]},
  {items:[{...item(),jdEvidence:"不存在的要求"}]},
  {items:[item(),item()]},
- {items:[]},
+ {other:[]},
 ])("引用伪造、否定经历或非法列表如实失败：%j",async payload=>{
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify(payload));
- await expect(personalizeJobs([job()],resume,"owner","run")).rejects.toThrow();
+ await expect(personalizeJobs([job()],resume,"owner","run","AI 产品经理")).rejects.toThrow();
 });
 test("空候选不消耗模型额度",async()=>{
- expect(await personalizeJobs([],resume,"owner","run")).toEqual({jobs:[],modelCalls:0,evaluatedCount:0});
+ expect(await personalizeJobs([],resume,"owner","run","AI 产品经理")).toEqual({jobs:[],modelCalls:0,evaluatedCount:0});
  expect(callLLM).not.toHaveBeenCalled();
 });
 test("模型失败不返回伪个性化结果",async()=>{
  (callLLM as jest.Mock).mockRejectedValue(new Error("model unavailable"));
- await expect(personalizeJobs([job()],resume,"owner","run")).rejects.toThrow("unavailable");
+ await expect(personalizeJobs([job()],resume,"owner","run","AI 产品经理")).rejects.toThrow("unavailable");
+});
+test("没有适合岗位可以返回空列表，不凑数不假装模型故障",async()=>{
+ (callLLM as jest.Mock).mockResolvedValue('{"items":[]}');
+ expect((await personalizeJobs([job()],resume,"owner","run","AI 产品经理")).jobs).toEqual([]);
 });

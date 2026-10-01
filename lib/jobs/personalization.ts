@@ -51,7 +51,9 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
     const job=pool.find(j=>j.id===item.id),input=inputs.find(j=>j.id===item.id);
     if(!job||!input||seen.has(job.id))throw new Error("岗位评审包含未知或重复岗位");
     if(typeof item.jdEvidence!=="string"||item.jdEvidence.length<3||!input.jd.includes(item.jdEvidence))throw new Error("岗位评审缺少可核验JD引用");
-    if(item.resumeEvidence!==null&&(typeof item.resumeEvidence!=="string"||item.resumeEvidence.length<3||!resumeInput.includes(item.resumeEvidence)||!positiveSkillTerms(resumeInput,[item.resumeEvidence.toLowerCase()]).length))throw new Error("岗位评审简历引用不可核验");
+    // Clause splitting removes terminators; preserve exact source validation above
+    // but ignore a quoted final period for the separate negation-context check.
+    if(item.resumeEvidence!==null&&(typeof item.resumeEvidence!=="string"||item.resumeEvidence.length<3||!resumeInput.includes(item.resumeEvidence)||!positiveSkillTerms(resumeInput,[item.resumeEvidence.toLowerCase().replace(/[。；;\n]+$/g,"")]).length))throw new Error("岗位评审简历引用不可核验");
     if(typeof item.gap!=="string"||typeof item.learn!=="string"||item.gap.length>250||item.learn.length>250)throw new Error("岗位评审缺口或学习建议格式不正确");
     seen.add(job.id);
     selected.push({...job,reasons:[

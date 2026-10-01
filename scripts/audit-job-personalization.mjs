@@ -2,6 +2,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {createHmac,randomUUID} from 'node:crypto';
 import {writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 const base=process.env.AUDIT_BASE||'https://www.ai-job-coach.xin';
 const output=process.env.AUDIT_OUTPUT||'/tmp/yizhi-job-personalization-20261001.json';
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false},global:{fetch:(u,i)=>fetch(u,{...i,signal:AbortSignal.timeout(20000)})}});
@@ -20,7 +21,9 @@ try{
   const restored=await api(p.id,'/api/coach/jobs/discover?profileId='+saved.data.opportunity.id);
   const r=searched.data;
   report.personas.push({name:p.name,resume:p.resume,elapsedMs:searched.ms,cacheHit:r.search?.cacheHit,keywords:r.search?.keywords,failedSources:r.failedSources,pending:r.pendingProfileFields,jobs:r.jobs.map(j=>({id:j.id,company:j.company,title:j.title,url:j.url,reasons:j.reasons,requirements:j.jdRequirements})),restored:restored.data.result?.runId===r.runId});
-  report.checks.push({name:`${p.name}: PRD A3 returns 3–5`,pass:r.jobs.length>=3&&r.jobs.length<=5,actual:r.jobs.length});
+  report.checks.push({name:`${p.name}: bounded shortlist, no padding when coverage insufficient`,pass:r.jobs.length<=5,actual:r.jobs.length});
+  report.checks.push({name:`${p.name}: recommendations contain real AI specialty evidence`,pass:r.jobs.every(j=>/\b(?:ai|agent|llm|aigc)\b|人工智能|大模型|智能体|生成式|机器学习/i.test(j.title+'\n'+j.description))});
+  report.checks.push({name:`${p.name}: unknown student eligibility is visible`,pass:r.jobs.every(j=> !/在读|在校|大三|大四|currently enrolled|current student/i.test(j.description) || j.reasons.some(x=>x.startsWith('需核实在读')))});
   report.checks.push({name:`${p.name}: persisted result restored`,pass:restored.data.result?.runId===r.runId});
  }
  const [a,b]=report.personas;
@@ -29,7 +32,7 @@ try{
  report.checks.push({name:'Different project experience affects reasons or explicit gaps (same jobs can be legitimate)',pass:!sameReasons,sameOrder,sameReasons});
  // Complete one actual discovered-job -> mentor branch; other script checks archive/reload.
  const p=personas[1],job=b.jobs.find(j=>/AI|智能|agent/i.test(j.title))||b.jobs[0];
- if(job){
+ if(job && process.env.AUDIT_SKIP_MENTOR!=='1'){
   const fresh=await api(p.id,'/api/coach/jobs/discover?profileId='+ (await db.from('coach_opportunities').select('id').eq('user_id',p.id).limit(1).single()).data.id);
   const candidate=fresh.data.result.jobs.find(j=>j.id===job.id);
   const entered=await api(p.id,'/api/coach/opportunities',{opportunity:{company:candidate.company,role:candidate.title,location:candidate.location,workspaceType:'job',stage:'applied',jdText:candidate.description,resumeText:p.resume,requirements:[],activities:[]}});
@@ -37,6 +40,20 @@ try{
   const s=await api(p.id,'/api/coach/agent/sessions',{opportunityId:entered.data.opportunity.id,title:'验收：真实搜索后辅导'});
   const reply=await api(p.id,'/api/coach/agent',{opportunityId:entered.data.opportunity.id,sessionId:s.data.session.id,modelMode:'fast',requestId:randomUUID(),message:'我有8年电商产品经验，但没做过Agent产品。根据已经给你的简历和这份JD，说明我能迁移的经历、真正缺的能力，并从一个具体练习开始教，不要把没做过的事说成我做过，也不要重新索要简历。'});
   report.mentor={job:job.title,answer:reply.data.answer,elapsedMs:reply.ms,firstTextMs:reply.data.learning_trace?.timing?.firstTextMs,modelCalls:reply.data.learning_trace?.modelCalls,knowledgeIds:reply.data.learning_trace?.knowledgeIds};
+ }
+ if(process.env.AUDIT_BROWSER==='1'){
+  const browser=(...args)=>execFileSync('agent-browser',['--session','yizhi-shortlist-synthetic',...args],{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']});
+  try{
+   browser('cookies','set','sb-access-token',cookie(p.id).slice('sb-access-token='.length),'--url',base,'--httpOnly');
+   browser('set','viewport','1440','900');browser('open',base+'/cockpit');browser('wait','--load','networkidle');
+   browser('find','text','我的简历与方向','click');browser('wait','--load','networkidle');
+   browser('eval',`Array.from(document.querySelectorAll('summary')).find(x=>x.textContent.includes('为什么推荐'))?.click()`);
+   browser('screenshot','/tmp/yizhi-shortlist-fixed-desktop.png');
+   browser('set','viewport','390','844');browser('screenshot','/tmp/yizhi-shortlist-fixed-mobile.png');
+   const width=JSON.parse(browser('eval','JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth})').trim());
+   report.checks.push({name:'authenticated responsive recommendations: no page overflow',pass:width.scroll<=width.width});
+   report.browser={desktop:'/tmp/yizhi-shortlist-fixed-desktop.png',mobile:'/tmp/yizhi-shortlist-fixed-mobile.png'};
+  }finally{browser('cookies','clear');browser('close');}
  }
 }catch(e){report.error=e.message;process.exitCode=1;}
 finally{

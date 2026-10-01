@@ -26,6 +26,11 @@ test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  expect(result.modelCalls).toBe(1);expect(callLLM).toHaveBeenCalledTimes(1);
  expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({maxRetries:0,maxTokens:1400});
 });
+test("逐字引用包含句末标点仍有效，不能把有效引用误报失败",async()=>{
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidence:"负责电商会员、复购与需求分析。"}]}));
+ const result=await personalizeJobs([job()],resume,"owner","run","AI 产品经理");
+ expect(result.jobs[0].reasons[0]).toContain("需求分析。");
+});
 test.each([
  {items:[{...item(),id:"unknown"}]},
  {items:[{...item(),resumeEvidence:"做过Agent产品"}]},

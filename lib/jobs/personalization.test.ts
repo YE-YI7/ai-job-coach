@@ -1,11 +1,11 @@
-import { eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty } from "./personalization";
+import { eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty, resumeEvidence } from "./personalization";
 import { callLLM } from "@/lib/llm";
 import type { VerifiedJob } from "./verification-gate";
 jest.mock("@/lib/llm",()=>({callLLM:jest.fn()}));
 jest.mock("@/lib/generation-context",()=>({runWithGenerationContext:(_context:unknown,fn:()=>unknown)=>fn()}));
 const job=(id="1",description="负责Agent产品设计，开展需求分析"):VerifiedJob=>({id,description,title:"AI产品经理",company:"测试",location:"北京",url:"https://example.com/"+id,checkedAt:"2026-10-01",publishedAt:null,reasons:[],dedupeKey:id,freshness:"待核实",hardVerdict:"keep",pendingProfileFields:[],jdRequirements:[],companyTier:null,tierLabel:null,tierVerdict:"unsure",tierMatchedField:"target_tiers_empty",tierReason:"",verified:false,tierBasis:null,tierSources:[]});
 const resume="负责电商会员、复购与需求分析。没有做过Agent产品，希望转AI方向。";
-const item=(id="1")=>({id,resumeEvidence:"负责电商会员、复购与需求分析",jdEvidence:"负责Agent产品设计",gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
+const item=(id="1")=>({id,resumeEvidenceId:0,jdEvidenceId:0,gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
 beforeEach(()=>jest.resetAllMocks());
 test("否定与学习愿望不算技能经历",()=>expect(positiveSkillTerms(resume,["agent","需求分析"])).toEqual(["需求分析"]));
 test("AI方向不接受纯广告或普通增长岗位，AI要求必须来自JD",()=>{
@@ -27,15 +27,15 @@ test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({maxRetries:0,maxTokens:1400});
 });
 test("逐字引用包含句末标点仍有效，不能把有效引用误报失败",async()=>{
- (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidence:"负责电商会员、复购与需求分析。"}]}));
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[item()]}));
  const result=await personalizeJobs([job()],resume,"owner","run","AI 产品经理");
  expect(result.jobs[0].reasons[0]).toContain("需求分析。");
 });
 test.each([
  {items:[{...item(),id:"unknown"}]},
- {items:[{...item(),resumeEvidence:"做过Agent产品"}]},
- {items:[{...item(),resumeEvidence:"没有做过Agent产品"}]},
- {items:[{...item(),jdEvidence:"不存在的要求"}]},
+ {items:[{...item(),resumeEvidenceId:99}]},
+ {items:[{...item(),resumeEvidenceId:1}]},
+ {items:[{...item(),jdEvidenceId:99}]},
  {items:[item(),item()]},
  {other:[]},
 ])("引用伪造、否定经历或非法列表如实失败：%j",async payload=>{
@@ -53,4 +53,7 @@ test("模型失败不返回伪个性化结果",async()=>{
 test("没有适合岗位可以返回空列表，不凑数不假装模型故障",async()=>{
  (callLLM as jest.Mock).mockResolvedValue('{"items":[]}');
  expect((await personalizeJobs([job()],resume,"owner","run","AI 产品经理")).jobs).toEqual([]);
+});
+test("证据编号只包含肯定经历，模型无法截去‘没有’制造经历",()=>{
+ expect(resumeEvidence(resume)).toEqual([{id:0,text:"负责电商会员、复购与需求分析。"}]);
 });

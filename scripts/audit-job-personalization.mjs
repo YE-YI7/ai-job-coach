@@ -20,7 +20,7 @@ try{
   const searched=await api(p.id,'/api/coach/jobs/discover',{profileId:saved.data.opportunity.id,requestId:randomUUID()});
   const restored=await api(p.id,'/api/coach/jobs/discover?profileId='+saved.data.opportunity.id);
   const r=searched.data;
-  report.personas.push({name:p.name,resume:p.resume,elapsedMs:searched.ms,cacheHit:r.search?.cacheHit,keywords:r.search?.keywords,failedSources:r.failedSources,pending:r.pendingProfileFields,jobs:r.jobs.map(j=>({id:j.id,company:j.company,title:j.title,url:j.url,reasons:j.reasons,requirements:j.jdRequirements})),restored:restored.data.result?.runId===r.runId});
+  report.personas.push({name:p.name,resume:p.resume,elapsedMs:searched.ms,cacheHit:r.search?.cacheHit,keywords:r.search?.keywords,failedSources:r.failedSources,pending:r.pendingProfileFields,jobs:r.jobs.map(j=>({id:j.id,company:j.company,title:j.title,location:j.location,url:j.url,reasons:j.reasons,requirements:j.jdRequirements})),restored:restored.data.result?.runId===r.runId});
   report.checks.push({name:`${p.name}: bounded shortlist, no padding when coverage insufficient`,pass:r.jobs.length<=5,actual:r.jobs.length});
   report.checks.push({name:`${p.name}: recommendations contain real AI specialty evidence`,pass:r.jobs.every(j=>/\b(?:ai|agent|llm|aigc)\b|人工智能|大模型|智能体|生成式|机器学习/i.test(j.title+'\n'+j.description))});
   report.checks.push({name:`${p.name}: unknown student eligibility is visible`,pass:r.jobs.every(j=> !/在读|在校|大三|大四|currently enrolled|current student/i.test(j.description) || j.reasons.some(x=>x.startsWith('需核实在读')))});
@@ -42,15 +42,15 @@ try{
   report.mentor={job:job.title,answer:reply.data.answer,elapsedMs:reply.ms,firstTextMs:reply.data.learning_trace?.timing?.firstTextMs,modelCalls:reply.data.learning_trace?.modelCalls,knowledgeIds:reply.data.learning_trace?.knowledgeIds};
  }
  if(process.env.AUDIT_BROWSER==='1'){
-  const browser=(...args)=>execFileSync('agent-browser',['--session','yizhi-shortlist-synthetic',...args],{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']});
+  const browser=(...args)=>{try{return execFileSync('agent-browser',['--session','yizhi-shortlist-synthetic',...args],{encoding:'utf8',timeout:30000,stdio:['ignore','pipe','pipe']});}catch{throw Error('Browser check failed at '+args[0]);}};
   try{
    browser('cookies','set','sb-access-token',cookie(p.id).slice('sb-access-token='.length),'--url',base,'--httpOnly');
    browser('set','viewport','1440','900');browser('open',base+'/cockpit');browser('wait','--load','networkidle');
    browser('find','text','我的简历与方向','click');browser('wait','--load','networkidle');
-   browser('eval',`Array.from(document.querySelectorAll('summary')).find(x=>x.textContent.includes('为什么推荐'))?.click()`);
+   browser('eval',`const s=Array.from(document.querySelectorAll('summary')).find(x=>x.textContent.includes('为什么推荐'));s?.click();s?.closest('article')?.scrollIntoView({block:'start'});`);
    browser('screenshot','/tmp/yizhi-shortlist-fixed-desktop.png');
-   browser('set','viewport','390','844');browser('screenshot','/tmp/yizhi-shortlist-fixed-mobile.png');
-   const width=JSON.parse(browser('eval','JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth})').trim());
+   browser('set','viewport','390','844');browser('wait','700');browser('screenshot','/tmp/yizhi-shortlist-fixed-mobile.png');
+   const width=JSON.parse(browser('eval','({width:innerWidth,scroll:document.documentElement.scrollWidth})').trim());
    report.checks.push({name:'authenticated responsive recommendations: no page overflow',pass:width.scroll<=width.width});
    report.browser={desktop:'/tmp/yizhi-shortlist-fixed-desktop.png',mobile:'/tmp/yizhi-shortlist-fixed-mobile.png'};
   }finally{browser('cookies','clear');browser('close');}

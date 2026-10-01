@@ -18,6 +18,11 @@ test("8年经验不等于非在读，未知资格明确提示",()=>{
  expect(marked.reasons.join()).toContain("不作为优先推荐");
  expect(eligibility(job("1","在读学生"),"目前在读硕士").reasons).toEqual([]);
 });
+test("官网地点和标题冲突不能静默宣称匹配城市",()=>{
+ const marked=eligibility({...job(),title:"AI产品经理（深圳）",location:"北京"},resume);
+ expect(marked.location).toContain("待核实");
+ expect(marked.reasons.join()).toContain("官网地点字段为北京");
+});
 test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[item()]}));
  const result=await personalizeJobs([job()],resume,"owner","run","AI 产品经理");

@@ -20,3 +20,7 @@
 真实官网查询已返回深圳产品岗位，合成账号API确认12条候选的官网来源、城市及存储恢复。1440px桌面与390px手机实测截图已检查，按钮可见、无横向溢出；截图 `/tmp/yizhi-cn-desktop.png`、`/tmp/yizhi-cn-mobile.png`。验收脚本前两次浏览器等待断言失败，修正为进入基础档案并等待已恢复候选，未改真实API数据断言；最终 `/tmp/yizhi-cn-local-acceptance3.log` 通过，临时账号清理。正式站验证结果在发布后补充。另有历史auth/admin修改，不随本轮发布。
 
 来源依据：[腾讯招聘官网](https://careers.tencent.com/)与公开查询接口运行结果（2026-10-01）；不能据此推断腾讯覆盖了其他公司或岗位已获录用机会。
+
+## 发布回读
+
+`15d77a6`已push到backend；正式部署`dpl_CZfvVAgRuyLfqBYRemoPcAS9FiGS` Ready并绑定www.ai-job-coach.xin，云端构建成功。正式域名合成账号再次通过12条腾讯深圳候选、来源校验及结果恢复，0模型调用，账号已清理；日志`/tmp/yizhi-cn-production-acceptance.log`。发布快照业务代码与提交一致，验收脚本与本段文档在验证后加入GitHub。

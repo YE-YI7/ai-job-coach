@@ -6,6 +6,11 @@ import {
 } from "./product-events";
 
 describe("product events", () => {
+  it("separates entry views from intentional use", () => {
+    for (const name of ["landing_viewed", "landing_task_clicked", "resume_gap_viewed", "resume_gap_used"]) {
+      expect(isProductEventName(name)).toBe(true);
+    }
+  });
   it("only accepts the controlled event vocabulary", () => {
     expect(isProductEventName("cockpit_viewed")).toBe(true);
     expect(isProductEventName("arbitrary_event")).toBe(false);

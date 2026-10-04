@@ -59,7 +59,7 @@ export default function ResumeJdGapClient() {
       .catch(() => { if (alive) setAuthenticated(false); });
     if (!usedTracked.current) {
       usedTracked.current = true;
-      trackProductEvent('resume_gap_used', {
+      trackProductEvent('resume_gap_viewed', {
         missingCount: INITIAL_REPORT.summary.missingCount,
         hardUnmet: INITIAL_REPORT.summary.hardUnmet,
       });
@@ -282,12 +282,12 @@ export default function ResumeJdGapClient() {
               className="inline-block rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-700"
             >
               {authenticated === false
-                ? '登录后把这份缺口存进作战盘、让教练逐条深挖并出一岗一版 →'
-                : '把这份缺口存进作战盘、让教练逐条深挖并出一岗一版 →'}
+                ? '登录后进入 AI 辅导 →'
+                : '进入 AI 辅导 →'}
             </button>
           </div>
           <p className="mt-3 text-xs text-stone-400">
-            （存作战盘与深挖需登录；本页对照本身免费、免登录，简历和 JD 不上传、不调模型。）
+            本页内容不会自动带入辅导。进入后请自行提供材料；AI 辅导需登录并使用模型额度。
           </p>
         </section>
 

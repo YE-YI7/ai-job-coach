@@ -1,4 +1,7 @@
 export const PRODUCT_EVENT_NAMES = [
+  "landing_viewed",
+  "landing_task_clicked",
+  "resume_gap_viewed",
   "cockpit_viewed",
   "material_intake_started",
   "material_intake_completed",
@@ -80,14 +83,16 @@ export function sanitizeEventProperties(value: unknown): Record<string, string |
 
 export function captureAcquisitionSource() {
   if (typeof window === "undefined") return "direct";
-  const current = window.localStorage.getItem(SOURCE_KEY);
-  if (current) return current;
   const params = new URLSearchParams(window.location.search);
   const source = (params.get("utm_source") || params.get("ref") || "direct")
     .replace(/[^a-zA-Z0-9_-]/g, "-")
     .slice(0, 64);
-  window.localStorage.setItem(SOURCE_KEY, source);
-  return source;
+  try {
+    const current = window.localStorage.getItem(SOURCE_KEY);
+    if (current) return current;
+    window.localStorage.setItem(SOURCE_KEY, source);
+  } catch { /* Private browsing must not break the task or analytics. */ }
+  return source || "direct";
 }
 
 export function getOrCreateAnonId(): string {

@@ -7,7 +7,7 @@ import {
 
 describe("product events", () => {
   it("separates entry views from intentional use", () => {
-    for (const name of ["landing_viewed", "landing_task_clicked", "resume_gap_viewed", "resume_gap_used"]) {
+    for (const name of ["landing_viewed", "landing_task_clicked", "resume_gap_viewed", "resume_gap_used", "resume_gap_sample_used", "resume_gap_checklist_downloaded", "resume_gap_checklist_copied"]) {
       expect(isProductEventName(name)).toBe(true);
     }
   });

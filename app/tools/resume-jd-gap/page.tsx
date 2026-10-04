@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ResumeJdGapClient from './ResumeJdGapClient';
+import { GAP_FAQS } from '@/lib/resume-gap/workflow';
 
 const PAGE_URL = 'https://www.ai-job-coach.xin/tools/resume-jd-gap';
 
@@ -44,40 +45,10 @@ export const metadata: Metadata = {
 const FAQ_JSON_LD = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: '这个对照器的 ATS 打分准吗？',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: '本页只做词面命中对照，用来快速暴露简历和 JD 之间明显的用词差距，不等于任何一家公司 ATS 的真实判定，也不产出分数。各家 ATS 的分词、权重和硬性过滤规则都不公开。',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'JD 里有、我没做过的关键词，能写进简历吗？',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: '不能。没做过的写上去等于给自己挖面试坑，一追问就穿帮。正确做法是：把真实做过、且与那个关键词最接近的经历，用对方的说法重写；完全没有的，老实标成待学习项，靠可迁移证据补。',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: '改简历是堆关键词，还是命中真实经历？',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: '两者都要，但顺序不能反：先盘出真实经历，再对照 JD 的用词习惯，把同一段经历换成招聘方语言。堆关键词而经历撑不住，能过初筛也过不了面试。',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: '一份简历投多个岗位，要各改一版吗？',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: '方向相同、关键词高度重叠的岗位可以共用一版主简历；跨方向或跨业务线的岗位值得各出一版：主体经历不变，只重排顺序、替换措辞、补该岗位最看重的证据。',
-      },
-    },
-  ],
+  mainEntity: GAP_FAQS.map(({ question, answer }) => ({
+    '@type': 'Question', name: question,
+    acceptedAnswer: { '@type': 'Answer', text: answer },
+  })),
 };
 
 export default function ResumeJdGapPage() {

@@ -38,13 +38,13 @@ https://www.ai-job-coach.xin/tools/resume-jd-gap?utm_source=xhs-resume-20261004
 
 https://www.ai-job-coach.xin/tools/offer-compare?utm_source=offer-group-20261004
 
-## 未完成与下一批
-
 ## 本轮验证
 
 隔离发布目录全量测试 156 套通过、1573 项通过，既有 1 套/2 项跳过；生产构建成功。桌面 1440×1000、手机 390×844 首屏与工具区截图完成，手机无横向溢出；独立 UI 复核 verdict 为 ship，沿用既有设计文件。手动 Impeccable detect 仅提示字阶/既有设计漂移，没有扩大历史修复。
 
 浏览器走通首页到免登录对照、主动点击。Supabase 回读本轮 QA 渠道的工具点击 1、工具浏览 1、主动使用 1；事件不包含简历/JD 正文，测试记录显式标记为 is_test。robots/sitemap 本地真实响应正确。测试数据不是新增外部用户。
+
+正式发布：代码 a438da1 已推送 backend，Vercel dpl_GAJdCUaPZ9PNTVAfPS4v1CkAezbu READY 并 promote。正式 www 首页已回读新入口、canonical；robots.txt 与 sitemap.xml 均真实返回新配置。仅本批代码进入干净发布目录，未带其他 auth/admin 改动。收录配置不保证收录或排名，参见 [Google 官方说明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview)。
 
 ## 后续边界
 

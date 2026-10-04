@@ -69,4 +69,15 @@
 - axe 4.12.1：结果页与无效材料页均 0 violation；不等于所有辅助技术人工验收完成。
 - 按仓库节奏只手动运行一次 Impeccable detect，字号/色板为局部路线的已说明差异，不改全站视觉系统。独立评审发现阶段链接及页尾点击区不足 44px，修复后桌面和手机 DOM 均为 44px，原评审复核 `disposition: ship`。
 
-正式域名核验和部署信息在完成后追加；真实增长、登录后的自动材料承接不在上述通过项内。
+Fresh documenter 核对：路由 brief 与实现一致，`ship`；未修改全局 DESIGN.md。
+
+### 正式发布结果
+
+- 产品提交 `f4f4887` 已推 `origin/backend`（9 个本轮文件）；其他会话的 auth/admin 改动未提交或部署。
+- 隔离发布 `dpl_3jTsS6x9vbiT1VV4vaKQCh3xp55S` 为 Ready，并已 promote；`vercel inspect https://www.ai-job-coach.xin` 解析到此部署。
+- [正式入口](https://www.ai-job-coach.xin/tools/resume-jd-gap) 无查询参数实测返回新版。桌面 1440×1000、手机 390×844 正式截图已打开确认；手机阶段/页尾链接实测 44px、页面宽 390px；axe 0 violation。
+- 正式使用示例后，换为虚构 3 年开发材料：硬门槛待核实 1→0、关键词缺口 6→5、示例标识取消；真实下载两份 `.txt` 并读取，用户版不再标示例，5 个缺口与页面一致。复制成功事件亦真实落库。
+- Supabase 回读：示例使用 1、用户编辑材料主动对照 1、下载 2、复制 1；这些仅为合成 QA，不是新增用户。该隔离浏览器全部事件已按确切 anon_id 标记 `is_test:true` 与本轮 test_run，不修改真实用户记录，也不含材料正文。
+- 首页、Offer 工具、简历/JD 工具、robots、sitemap HTTP 200，未登录 cockpit 307 保持鉴权。可见 FAQ 与 JSON-LD 内容逐项一致。
+
+真实增长、登录后的自动材料承接不在上述通过项内。两家竞品首页验证与付费界面访问边界如前，不以官方历史截图冒充最新登录实测。此轮没有社媒发帖或付费推广。

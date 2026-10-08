@@ -17,6 +17,15 @@ function evidenceIndex(value: unknown): number | null {
   }
   return null;
 }
+/** Some JSON models return several supporting IDs despite the singular prompt.
+ * Validate every ID against this exact input, then retain the first as the card's
+ * primary quote. Never salvage a forged array by ignoring its invalid members. */
+function primaryEvidence<T extends { id: number }>(value: unknown, evidence: T[]): T | undefined {
+  const values = Array.isArray(value) ? value : [value];
+  if (!values.length || values.length > 8) return undefined;
+  const refs = values.map(id => evidence.find(ref => ref.id === evidenceIndex(id)));
+  return refs.every(Boolean) ? refs[0] : undefined;
+}
 /** Only explicit desired seniority is a constraint; an old junior title is not a preference. */
 export function matchesRequestedSeniority(job: { title: string }, role: string, resume: string) {
   const intent = [role, ...resume.split(/[。；;\n]/).filter(line => /求职|方向|目标|希望|寻找|想找|找.{0,6}岗位|seeking|looking for/i.test(line))].join("\n");
@@ -94,8 +103,8 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
     const item=value as Record<string,unknown>;
     const job=pool.find(j=>j.id===item.id),input=inputs.find(j=>j.id===item.id);
     if(!job||!input||seen.has(job.id))throw new Error("岗位评审包含未知或重复岗位");
-    const jdQuote=input.jdEvidence.find(e=>e.id===evidenceIndex(item.jdEvidenceId));
-    const resumeQuote=facts.find(e=>e.id===evidenceIndex(item.resumeEvidenceId));
+    const jdQuote=primaryEvidence(item.jdEvidenceId,input.jdEvidence);
+    const resumeQuote=primaryEvidence(item.resumeEvidenceId,facts);
     if(!jdQuote || (item.resumeEvidenceId!==null&&!resumeQuote) || typeof item.gap!=="string" || typeof item.learn!=="string" || item.gap.length>250 || item.learn.length>250) {
       rejectedCount += 1;
       continue;

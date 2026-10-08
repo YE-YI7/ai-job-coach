@@ -52,6 +52,17 @@ test("数字字符串引用仅在现有证据编号内归一化，不因此丢�
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidenceId:"0",jdEvidenceId:"0"}]}));
  expect((await personalizeJobs([job()],resume,"owner","run","AI产品经理")).jobs).toHaveLength(1);
 });
+test("模型返回多条真实引用时逐条核验，再取首条作为卡片主要依据",async()=>{
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidenceId:[0,"1"],jdEvidenceId:[0,"1"]}]}));
+ const result=await personalizeJobs([job("1","负责Agent产品设计。开展需求分析。")],"负责需求分析。参与Agent产品设计。","owner","run","AI产品经理");
+ expect(result.jobs).toHaveLength(1);
+ expect(result.jobs[0].review.resumeRefs[0].text).toBe("负责需求分析。");
+ expect(result.jobs[0].review.requirementRefs[0].text).toBe("负责Agent产品设计。");
+});
+test.each([[0,99],[0,null],[],[false,0]].map(ids=>[ids]))("多条引用中存在非法值%j时整条拒绝，不只取有效的第一条",async ids=>{
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),jdEvidenceId:ids}]}));
+ await expect(personalizeJobs([job()],resume,"owner","run","AI产品经理")).rejects.toThrow("引用核验");
+});
 test("一条坏引用不拖垮另一条已经核验的推荐，坏项不进入结果", async () => {
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item("2"),jdEvidenceId:99},item()]}));
  const result=await personalizeJobs([job(),job("2")],resume,"owner","run","AI产品经理");

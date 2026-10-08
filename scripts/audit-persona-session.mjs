@@ -15,12 +15,14 @@ const browser = (...args) => {
 };
 if (process.argv[2] === 'cleanup') {
   const { userId } = JSON.parse(readFileSync(statePath, 'utf8'));
+  const anonId = JSON.parse(browser('eval', 'localStorage.getItem("yi-zhi-anon-id-v1")'));
   browser('cookies', 'clear');
   // Mark synthetic telemetry before cascading account cleanup.
-  const events = await db.from('product_events').select('id,properties').eq('user_id', userId);
+  if (anonId && !/^[\da-f-]{36}$/i.test(anonId)) throw Error('Synthetic anonymous identity not confirmed');
+  const events = await db.from('product_events').select('id,properties').or(`user_id.eq.${userId}${anonId ? `,anon_id.eq.${anonId}` : ''}`);
   if (events.error) throw events.error;
   for (const row of events.data || []) {
-    const updated = await db.from('product_events').update({ properties: { ...row.properties, is_test: true, test_run: 'persona-20261008' } }).eq('id', row.id).eq('user_id', userId);
+    const updated = await db.from('product_events').update({ properties: { ...row.properties, is_test: true, test_run: 'persona-20261008' } }).eq('id', row.id);
     if (updated.error) throw updated.error;
   }
   const deleted = await db.from('users').delete().eq('id', userId).like('email', 'persona-%@example.invalid');

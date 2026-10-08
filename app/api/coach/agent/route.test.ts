@@ -331,4 +331,53 @@ describe("agent boundary",()=>{
   const res=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"重试",requestId:"11111111-1111-4111-8111-111111111111"})}));
   expect(res.status).toBe(409);expect((await res.json()).answer).toBeUndefined();expect(callLLM).not.toHaveBeenCalled();
  });
+ // §8.4 / B1：终止标准是装配出来的一条料，不是第二次模型调用，也不是界面模式按钮。
+ test("本轮目标与收口标准进提示词，一轮仍只有一次模型调用",async()=>{
+  setupGeneration();
+  (callLLM as jest.Mock).mockResolvedValue("<answer>先讲这一句，然后你自己答一次。</answer>");
+  const response=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"带我练一道 RAG 评估口径的题",requestId:"11111111-1111-4111-8111-111111111111"})}));
+  const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
+  expect(prompt).toContain("【本轮辅导目标与收口标准");
+  expect(prompt).toContain("完成标准（v1）");
+  expect(callLLM).toHaveBeenCalledTimes(1);
+  expect((await response.json()).learning_trace.teaching).toMatchObject({intent:"practice",stage:"explain",priorAttempts:0,currentIsAttempt:false,scenarioAudited:false});
+ });
+ // §8.2：成果草稿是正文之外的独立事件——标签不外露、校验通过才成为可保存草稿。
+ test("<outcome> 从不上线，成果随本轮一次落库并回到界面",async()=>{
+  const q=setupGeneration();
+  const attempt="我的理解是召回率看该找到的有没有找全，准确率看找出来对不对。";
+  const raw='<answer>这一条成立。</answer><outcome>{"observedStatus":"独立完成过","openIssue":"独立迁移还没观察过","nextStep":"换个没给提示的场景再答一次"}</outcome>';
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta(raw);return raw;});
+  const events=(await (await POST(new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({message:attempt,requestId:"11111111-1111-4111-8111-111111111111"})}))).text()).trim().split("\n").map(x=>JSON.parse(x));
+  // 只有可见文本事件上过线：模型的成果标签与内部 JSON 一个字都不能出现在那里。
+  expect(events.filter((e: {type?: string})=>e.type==="delta"||e.type==="replace").map((e:unknown)=>JSON.stringify(e)).join("")).not.toContain("outcome");
+  const done=events.at(-1);
+  // 台账里这一轮真的跑过收口判定：intent/阶段/标准版本/尝试次数都要留痕。
+  expect(done.learning_trace.teaching).toMatchObject({intent:"learn",stage:"feedback",criterionVersion:1,priorAttempts:0,currentIsAttempt:true,scenarioAudited:false});
+  expect(done).toMatchObject({ok:true,answer:"这一条成立。",outcome:{answerDraft:attempt,observedStatus:"未独立检验",status:"draft",criterionVersion:1},outcomeNote:expect.stringContaining("没有全部回查")});
+  expect(done.outcome.evidenceRefs).toEqual([`turn:${done.outcome.attemptTurnIds[0]}`,"criterion:v1"]);
+  // 本轮 turn id 先生成：回查锚点指的就是这一行自己，刷新后还能找回同一张卡。
+  const saved=q.insert.mock.calls[0][0];
+  expect(saved.id).toMatch(/^[\da-f-]{36}$/);
+  expect(saved.learning_trace.outcome.attemptTurnIds).toEqual([saved.id]);
+ });
+ // §6 B2「用户仅说懂了」：可以存笔记，但链路上不给出成果卡。
+ test("没有本人作答就不出成果卡，正文照旧并说清那只算读过",async()=>{
+  setupGeneration();
+  (callLLM as jest.Mock).mockResolvedValue('<answer>这一步的关键是把目标写清楚。</answer><outcome>{"observedStatus":"提示下完成","openIssue":"还没迁移","nextStep":"再练一题"}</outcome>');
+  const body=await (await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})}))).json();
+  expect(body.ok).toBe(true);
+  expect(body.answer).toContain("把目标写清楚");
+  expect(body.outcome).toBeNull();
+  expect(body.outcomeNote).toContain("读过");
+ });
+ test("成果标签里的 JSON 坏了：正文保留，本轮不形成成果",async()=>{
+  setupGeneration();
+  const attempt="我的理解是召回率看该找到的有没有找全，准确率看找出来对不对。";
+  (callLLM as jest.Mock).mockResolvedValue(`<answer>这一条成立。</answer><outcome>${attempt}`);
+  const body=await (await POST(new Request("https://example.com/api/coach/agent",{method:"POST",body:JSON.stringify({message:attempt,requestId:"11111111-1111-4111-8111-111111111111"})}))).json();
+  expect(body.answer).toBe("这一条成立。");
+  expect(body.outcome).toBeNull();
+  expect(body.outcomeNote).toContain("没有通过校验");
+});
 });

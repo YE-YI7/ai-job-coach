@@ -34,6 +34,9 @@ import {
   TIER_PREFERENCE_KEY,
   type TierPreferenceState,
 } from "@/lib/jobs/tier-intent";
+import {
+  decisionClaimRow, decisionEntityKey, decisionFromValue, JOB_DECISION_CLAIM_TYPE, type JobDecision,
+} from "@/lib/jobs/job-decision";
 
 export function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
   if (!db) throw new Error("数据库不可用");
@@ -514,6 +517,55 @@ export async function recordTierIntentFromText(input: {
     value: { tiers: intent.tiers }, displayText: `目标公司档位：${tierLabels(intent.tiers)}（原话：${intent.excerpt}）`,
     sourceExcerpt: intent.excerpt, status: "unverified", sourceKind: "user_statement",
   });
+}
+
+/* ------------------------- 岗位决定（A4） ------------------------- */
+
+/**
+ * 用户对自己推荐的岗位表过的态。与档位偏好同一张表、同一 `entity_type=preference`，
+ * 靠 `entity_key` 前缀分开（口径见 `lib/jobs/job-decision.ts`）——不加新表也不改生产库结构。
+ * 同一条岗只回最新那条：改过的主意留着历史行，但界面不该再显示旧决定。
+ */
+export async function listJobDecisions(userId: string): Promise<JobDecision[]> {
+  const db = requireDb(await getDbClient());
+  const { data, error } = await db.from("coach_claims").select(CLAIM_COLUMNS)
+    .eq("user_id", userId).eq("entity_type", "preference").eq("claim_type", JOB_DECISION_CLAIM_TYPE)
+    .neq("status", "withdrawn").order("updated_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  const seen = new Set<string>();
+  const decisions: JobDecision[] = [];
+  for (const row of (data || []) as DbRow[]) {
+    const decision = decisionFromValue(row.value, String(row.id), row.updated_at ? String(row.updated_at) : null);
+    // 读不出的行直接跳过：半截决定会在界面上显示成一个没做过的表态，比不显示更糟
+    if (!decision) continue;
+    const key = decisionEntityKey(decision.url, decision.batchRunId);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    decisions.push(decision);
+  }
+  return decisions;
+}
+
+/**
+ * 保存 = 撤回同一条岗的旧决定 + 写一条 confirmed，两步都成才算保存成功。
+ * 返回值里的 `claimId` 来自服务端真实插入结果；拿不到就抛错，界面不许说「已保存」。
+ */
+export async function saveJobDecision(
+  userId: string,
+  input: Omit<JobDecision, "claimId" | "savedAt">,
+  concurrency: {requestId: string; expectedClaimId: string | null},
+): Promise<JobDecision> {
+  const db = requireDb(await getDbClient());
+  const row = decisionClaimRow(input);
+  const {data, error} = await db.rpc("save_coach_job_decision", {
+    p_user_id:userId, p_entity_key:row.entityKey, p_value:row.value,
+    p_display_text:row.displayText, p_request_id:concurrency.requestId,
+    p_expected_claim_id:concurrency.expectedClaimId,
+  });
+  if(error) throw error;
+  const decision = data && decisionFromValue(data.value, String(data.id), data.updated_at);
+  if(!decision) throw new Error("决定保存结果不完整");
+  return decision;
 }
 
 /** PRD §5.8：把 Context 的取舍落库，回答「我上传过怎么没看到」。 */

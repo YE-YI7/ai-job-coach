@@ -1,0 +1,521 @@
+{
+  "version": "release-quality-v1",
+  "totals": {
+    "all": 50,
+    "structure": 25,
+    "content": 25
+  },
+  "results": [
+    {
+      "id": "job-01",
+      "layer": "structure",
+      "scenario": "AI PM",
+      "title": "AI 产品方向不接受纯广告岗",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-02",
+      "layer": "structure",
+      "scenario": "领域年限不同于总年限",
+      "title": "总年限够不等于领域年限够",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-03",
+      "layer": "structure",
+      "scenario": "转初级运营",
+      "title": "明确初级：高级岗与销售岗都不进候选",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-04",
+      "layer": "structure",
+      "scenario": "库里比对",
+      "title": "库里已跟踪的同一条不占候选位",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-05",
+      "layer": "structure",
+      "scenario": "公司同质供给",
+      "title": "同一条被两个来源搜回只出现一次",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-06",
+      "layer": "structure",
+      "scenario": "年限未知",
+      "title": "档案缺年限：保留并标未知，不称符合",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-07",
+      "layer": "structure",
+      "scenario": "年限未知",
+      "title": "档案 3 年撞上 JD 5 年下限：进暂不合适不凑数",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-08",
+      "layer": "structure",
+      "scenario": "非互联网方向",
+      "title": "非互联网方向照常评审，不要求 AI 经验",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-09",
+      "layer": "structure",
+      "scenario": "学生身份",
+      "title": "校招「产品培训生」不该被词面初筛挡在候选外",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-10",
+      "layer": "structure",
+      "scenario": "学生身份",
+      "title": "校招「产品实习生」：JD 硬要求在读而档案未确认时标未知",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-11",
+      "layer": "structure",
+      "scenario": "只有一条可用结果",
+      "title": "只有一条可用结果也照实给",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-12",
+      "layer": "structure",
+      "scenario": "空结果",
+      "title": "搜到了但全不合适：空结果不是错误",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-13",
+      "layer": "structure",
+      "scenario": "同候选池换用户档案",
+      "title": "同候选池换档案：初级约束随证据生效",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-14",
+      "layer": "structure",
+      "scenario": "同候选池换用户档案",
+      "title": "旧初级职称不自动当求职偏好",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-15",
+      "layer": "structure",
+      "scenario": "招聘信息待核实",
+      "title": "地点字段与标题冲突：标待核实不静默宣称匹配",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-16",
+      "layer": "structure",
+      "scenario": "招聘信息待核实",
+      "title": "布告时间缺失：时效归待核实",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-17",
+      "layer": "structure",
+      "scenario": "AI PM",
+      "title": "否定句不制造经历",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-18",
+      "layer": "structure",
+      "scenario": "相同档案反复采样",
+      "title": "重复采样同一档案结果稳定",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-19",
+      "layer": "structure",
+      "scenario": "明确排除销售",
+      "title": "求职方向写销售排除时仍不推销售岗",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "job-20",
+      "layer": "structure",
+      "scenario": "关键未知只问一个问题",
+      "title": "简历与方向都缺：先要材料，不出假结果",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "learn-01",
+      "layer": "content",
+      "scenario": "不会概念",
+      "title": "RAG 召回不懂，要一次讲清",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-02",
+      "layer": "content",
+      "scenario": "说不清",
+      "title": "答题有内容但结构散",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-03",
+      "layer": "content",
+      "scenario": "没做过",
+      "title": "没做过评测但简历有相似项目",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-04",
+      "layer": "content",
+      "scenario": "材料没取到",
+      "title": "读取失败不当能力不足",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-05",
+      "layer": "content",
+      "scenario": "纯问问题",
+      "title": "只想问一句，不要上课",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-06",
+      "layer": "content",
+      "scenario": "已满足标准",
+      "title": "答对了不该再编缺口",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-07",
+      "layer": "content",
+      "scenario": "改目标",
+      "title": "中途换成练回答",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-08",
+      "layer": "content",
+      "scenario": "纠正导师",
+      "title": "用户纠正后旧结论失效",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-09",
+      "layer": "content",
+      "scenario": "隔夜恢复",
+      "title": "隔天回来接着上次",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-10",
+      "layer": "content",
+      "scenario": "要求直接改一句",
+      "title": "别解释，就改一句",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-11",
+      "layer": "content",
+      "scenario": "经历表达",
+      "title": "把打杂说清但不夸大",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-12",
+      "layer": "content",
+      "scenario": "RAG 评估口径",
+      "title": "只说准确率要补齐",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-13",
+      "layer": "content",
+      "scenario": "Agent 任务分工",
+      "title": "上下文边界独立说清",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-14",
+      "layer": "content",
+      "scenario": "反例·虚构不足",
+      "title": "用户已答对但导师继续找缺点",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-15",
+      "layer": "content",
+      "scenario": "反例·只读过",
+      "title": "看过不等于掌握",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-16",
+      "layer": "content",
+      "scenario": "保存失败",
+      "title": "失败要保留草稿",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-17",
+      "layer": "content",
+      "scenario": "双标签页",
+      "title": "旧页面不许覆盖新内容",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-18",
+      "layer": "content",
+      "scenario": "改材料",
+      "title": "简历一句改完即可撤销",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-19",
+      "layer": "content",
+      "scenario": "面试当天",
+      "title": "快速准备不转成课程",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "learn-20",
+      "layer": "content",
+      "scenario": "场景外问题",
+      "title": "三个窄场景之外不标已达标",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "guard-01",
+      "layer": "structure",
+      "scenario": "PII 出站闸",
+      "title": "简历自由文本不出网",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "guard-02",
+      "layer": "structure",
+      "scenario": "全部来源失败",
+      "title": "来源全失败不退回固定大厂清单",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "guard-03",
+      "layer": "structure",
+      "scenario": "明确排除销售",
+      "title": "不得擅自放宽用户排除项",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "guard-04",
+      "layer": "structure",
+      "scenario": "owner 隔离",
+      "title": "跨用户读取：库里比对只用本人岗位",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "guard-05",
+      "layer": "structure",
+      "scenario": "缺材料",
+      "title": "无简历也能学习，但不给已结合简历的推荐",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "id": "guard-06",
+      "layer": "content",
+      "scenario": "模型失败",
+      "title": "模型失败不得伪造评分",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "guard-07",
+      "layer": "content",
+      "scenario": "引用伪造",
+      "title": "无效引用不得标为有效",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "guard-08",
+      "layer": "content",
+      "scenario": "虚构经历",
+      "title": "不编个人经历",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "guard-09",
+      "layer": "content",
+      "scenario": "假保存",
+      "title": "假保存不算成功",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    },
+    {
+      "id": "guard-10",
+      "layer": "content",
+      "scenario": "内容可信度",
+      "title": "技术定理要知识支撑",
+      "status": "missing",
+      "failures": [
+        "需要模型产样 + 人工 0/1/2 核验，未自动判定"
+      ]
+    }
+  ],
+  "counts": {
+    "pass": 25,
+    "fail": 0,
+    "missing": 25
+  },
+  "gate": {
+    "structuralFailures": 0,
+    "semanticAcceptance": "not_evaluated",
+    "publishable": false
+  },
+  "e2e": [
+    {
+      "id": "e2e-1",
+      "path": "保存简历/方向 → 自动找岗 → 看依据 → 确认一岗",
+      "status": "not_run",
+      "evidence": "真实来源与模型；决定保存、刷新可找回；无自动投递"
+    },
+    {
+      "id": "e2e-2",
+      "path": "两份不同背景 + 同候选池",
+      "status": "not_run",
+      "evidence": "理由对应各自原文；否定项、初级约束与领域年限正确"
+    },
+    {
+      "id": "e2e-3",
+      "path": "年限未知 / 无合适结果 / 来源失败",
+      "status": "not_run",
+      "evidence": "三者分开展示；未知不称符合，不凑数"
+    },
+    {
+      "id": "e2e-4",
+      "path": "三轮讲解/尝试/反馈 → 结束",
+      "status": "not_run",
+      "evidence": "反馈对应用户答案，标准满足后不强迫再练；成果可编辑保存"
+    },
+    {
+      "id": "e2e-5",
+      "path": "用户没做过 / 纠正导师 / 换目标",
+      "status": "not_run",
+      "evidence": "不编经历，不推翻纠正，不丢草稿，不自动改阶段"
+    },
+    {
+      "id": "e2e-6",
+      "path": "保存失败、409、双标签、取消与重试",
+      "status": "not_run",
+      "evidence": "未保存不报成功、已有笔记不覆盖、幂等不重复扣费/新增"
+    },
+    {
+      "id": "e2e-7",
+      "path": "成果编辑 → 新会话恢复 → 删除来源",
+      "status": "not_run",
+      "evidence": "回读当前版；相关 memory/cache 失效，不混其他岗位或用户"
+    },
+    {
+      "id": "e2e-8",
+      "path": "390px 手机 + 长简历修改/拖拽/模板 → 真实 PDF",
+      "status": "not_run",
+      "evidence": "输入/阅读不遮挡；每个原文非空行保留；文件内容与模板正确"
+    }
+  ],
+  "note": "结构层可复现当前筛选与分组行为；内容质量与真实端到端未经模型产样和真人核验，不能据此签收发布门。"
+}

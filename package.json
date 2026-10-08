@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "knowledge:build": "node scripts/compile-knowledge-base.mjs && node scripts/report-knowledge-quality.mjs",
+    "evals:quality": "NODE_OPTIONS=--experimental-vm-modules WRITE_QUALITY_BASELINE=docs/architecture/evals/quality-baseline-latest.json jest evals/quality-pack.v1.test.ts",
     "ops:env": "vercel env pull .env.ops.local --environment=production --yes",
     "ops:funnel": "node --env-file=.env.ops.local scripts/report-product-funnel.mjs",
     "ops:tokenpay-pricing": "node --env-file=.env.ops.local scripts/report-tokenpay-profit-share.mjs"

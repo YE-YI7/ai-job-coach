@@ -1,0 +1,330 @@
+{
+  "date": "2026-10-08T08:39:20.403Z",
+  "promptVersion": "learning-v10-cited-criteria",
+  "synthetic": true,
+  "kind": "live model smoke, not human semantic calibration",
+  "results": [
+    {
+      "id": "confusion-to-attempt",
+      "rows": [
+        {
+          "message": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+          "frame": {
+            "intent": "learn",
+            "goal": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+            "criterion": "不用看稿，用自己的话说清「这段 RAG 原理我看了很久还是没有理解，能不能」里的一个机制点，并说它什么时候不成立",
+            "criterionVersion": 1,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\nRAG 可以先用一句话理解：**模型答题前，先去资料柜里翻几页，再照着翻到的东西回答。**\n\n拆成两个动作：\n\n1. **检索（R）**：拿你的问题去资料库里找最相关的几段文字。\n2. **生成（G）**：把“你的问题 + 找到的那几段文字”一起交给模型，让它基于这些内容写答案。\n\n关键点在于：模型不是靠记忆硬答，而是**先拿到证据再开口**。\n\n练习示例（虚构，不是你的经历）：你问“公司年假几天”。系统先去员工手册里搜到“入职满一年享 5 天年假”这一段，再把这句话和你的问题一起给模型，模型回答“5 天”。如果手册里根本没写年假，检索不到内容，模型就不该编，而应该说“资料里没有”。\n\n它什么时候不成立：**检索没找到对的资料时**。比如资料库只有旧版手册、或者搜出来的段落跟问题无关，那模型拿到的就是错的或空的证据，答案照样会错——RAG 并不能保证一定答对，它只保证“尽量有据可依”。\n\n现在请你用自己的话说一次：**RAG 里“检索”这一步在干什么？它在什么情况下会失效？**\n</answer>\n\n<followups>[\"请再举一个检索失败的例子\", \"检索和生成哪个更容易出错\"]</followups>",
+          "outcome": null,
+          "latencyMs": 2755,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 1974,
+            "outputTokens": 305,
+            "latencyMs": 2512,
+            "averageTokensPerSecond": 121.4
+          }
+        },
+        {
+          "message": "我还是不懂，能不能就解释召回率分母",
+          "frame": {
+            "intent": "learn",
+            "goal": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+            "criterion": "不用看稿，用自己的话说清「这段 RAG 原理我看了很久还是没有理解，能不能」里的一个机制点，并说它什么时候不成立",
+            "criterionVersion": 1,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n先把“召回率”拆成两个词：**召回**和**率**。\n\n**召回**的意思是：该被找出来的东西，实际被找出来了多少。\n\n**率**就是拿它跟“本来该找出来的总数”比。\n\n所以召回率的分母，就是**本来该被找出来的总数**，也就是资料库里所有真正相关的段落。\n\n用一个标明「练习示例」的小例子：\n\n假设资料库里一共 10 段话，其中真正能回答你问题的有 3 段。系统检索后只找回了其中 2 段。\n\n- 分母 = 真正相关的总数 = 3\n- 分子 = 被找回的相关段落 = 2\n- 召回率 = 2 / 3 ≈ 67%\n\n它什么时候不成立：如果“真正相关的段落”本身没标清楚，或者资料库里根本没有相关内容，分母就没有意义，这个数也算不出来。\n\n现在请你用自己的话说一次：**召回率的分母是什么？它在什么情况下算不出来？**\n</answer>\n\n<followups>[\"请再举一个召回率算错的例子\", \"精确率和召回率有什么区别\"]</followups>",
+          "outcome": null,
+          "latencyMs": 1951,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2293,
+            "outputTokens": 240,
+            "latencyMs": 1863,
+            "averageTokensPerSecond": 128.8
+          }
+        },
+        {
+          "message": "我的理解是：分母是标注集里全部相关材料，分子是检索实际找回的相关材料。例如相关材料共10条找回8条，召回率是80%",
+          "frame": {
+            "intent": "learn",
+            "goal": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+            "criterion": "不用看稿，用自己的话说清「这段 RAG 原理我看了很久还是没有理解，能不能」里的一个机制点，并说它什么时候不成立",
+            "criterionVersion": 1,
+            "stage": "feedback",
+            "attemptTurnIds": [],
+            "currentIsAttempt": true,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n你这次答对了核心机制：**分母是“全部相关材料”，分子是“实际找回的相关材料”**，而且你举的 10 条找回 8 条、80% 这个例子也算对了。\n\n不过你只回答了“分母是什么”，没有回答我上一轮问的另一半：**它在什么情况下算不出来**。这是本题还差的一点。\n\n补一个提示方向：如果“相关材料”本身没有被标出来，或者资料库里根本没有相关内容，分母还能确定吗？\n\n请你接着补一句：**召回率在什么情况下算不出来？**\n</answer>\n\n\n\n<followups>[\"请再举一个召回率算不出来的例子\", \"精确率和召回率有什么区别\"]</followups>",
+          "outcome": {
+            "ok": true,
+            "outcome": {
+              "sessionId": "",
+              "goal": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+              "criterionVersion": 1,
+              "attemptTurnIds": [
+                "f09c8c57-2f9b-4548-b370-96a0db6eec74"
+              ],
+              "answerDraft": "我的理解是：分母是标注集里全部相关材料，分子是检索实际找回的相关材料。例如相关材料共10条找回8条，召回率是80%",
+              "observedStatus": "未独立检验",
+              "evidenceRefs": [
+                "turn:f09c8c57-2f9b-4548-b370-96a0db6eec74",
+                "criterion:v1"
+              ],
+              "openIssue": "未说明召回率在什么情况下算不出来",
+              "nextStep": null,
+              "revision": 1,
+              "status": "draft"
+            },
+            "note": "这里只记本题作答，不代表其他题目或岗位能力已达标。\n完成标准的依据还没有全部回查到你的原回答，暂不标记本题完成。"
+          },
+          "latencyMs": 1837,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2684,
+            "outputTokens": 238,
+            "latencyMs": 1716,
+            "averageTokensPerSecond": 138.7
+          }
+        },
+        {
+          "message": "懂了",
+          "frame": {
+            "intent": "learn",
+            "goal": "这段 RAG 原理我看了很久还是没有理解，能不能换一个简单例子讲讲",
+            "criterion": "不用看稿，用自己的话说清「这段 RAG 原理我看了很久还是没有理解，能不能」里的一个机制点，并说它什么时候不成立",
+            "criterionVersion": 1,
+            "stage": "closing",
+            "attemptTurnIds": [
+              "f09c8c57-2f9b-4548-b370-96a0db6eec74"
+            ],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<clarify level=\"blocking\">你说的“懂了”，是指召回率的分母是什么，还是指它在什么情况下算不出来？</clarify>\n\n<followups>[\"请带我补一句：召回率什么时候算不出来\"]</followups>",
+          "outcome": null,
+          "latencyMs": 1042,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2771,
+            "outputTokens": 51,
+            "latencyMs": 952,
+            "averageTokensPerSecond": 53.6
+          }
+        }
+      ]
+    },
+    {
+      "id": "switch-and-revise",
+      "rows": [
+        {
+          "message": "讲讲 RAG 的评估口径",
+          "frame": {
+            "intent": "learn",
+            "goal": "讲讲 RAG 的评估口径",
+            "criterion": "不用看稿，用自己的话说清「讲讲 RAG 的评估口径」里的一个机制点，并说它什么时候不成立",
+            "criterionVersion": 1,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\nRAG 的评估口径，核心是**把“检索”和“生成”分开评**，而不是只看最终答案好不好。\n\n原因：RAG 出错可能出在两处——要么没检索到该有的资料，要么检索到了但模型没用对。只看最终答案，你无法判断该修哪一头。\n\n一个必要的机制点：**检索侧看“召回”，生成侧看“忠实”**。\n\n- 召回：该被找到的资料，有没有被找出来。资料根本没进上下文，后面再强也白搭。\n- 忠实：模型说的话，是否真出自检索到的资料，而不是自己编的。\n\n**练习示例**（虚构，仅作演示）：假设一个问答系统，用户问“公司年假多少天”，正确依据是员工手册第 3 页写着“15 天”。\n\n- 如果检索没把第 3 页捞出来，模型答“10 天”——这是**召回失败**。\n- 如果第 3 页捞出来了，模型却答“20 天”——这是**忠实失败**。\n\n两种都答错，但修的地方完全不同。\n\n这个口径什么时候不成立？当**没有标准答案、也没有可靠依据文档**时，“召回”和“忠实”都失去参照——比如开放式创作类问题，就没有唯一正确的“该检索到的资料”。\n\n现在请你用自己的话说一次：**检索侧和生成侧分别评什么，以及这个口径在什么情况下不成立。**\n</answer>\n\n<followups>[\"请用一个具体例子带我区分召回和忠实\", \"如果只有最终答案，怎么反推是哪一侧出问题\"]</followups>",
+          "outcome": null,
+          "latencyMs": 3209,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 1949,
+            "outputTokens": 344,
+            "latencyMs": 2992,
+            "averageTokensPerSecond": 115
+          }
+        },
+        {
+          "message": "先不学了，帮我改简历这句话",
+          "frame": {
+            "intent": "revise",
+            "goal": "先不学了，帮我改简历这句话",
+            "criterion": "草稿里每个动作和数字都能回到你给过的原话，你能指出这一版改在哪里（先不学了，帮我改简历这句话）",
+            "criterionVersion": 2,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<clarify level=\"blocking\">你要改的那句简历原文是什么？请把原句发给我。</clarify>\n\n<followups>[\"原句是：负责课程项目会议摘要功能\"]</followups>",
+          "outcome": null,
+          "latencyMs": 1162,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2340,
+            "outputTokens": 46,
+            "latencyMs": 1075,
+            "averageTokensPerSecond": 42.8
+          }
+        },
+        {
+          "message": "我主要负责需求文档和工单归类，没有做开发。请用这两个真实动作给我一句简历草稿，不加数字",
+          "frame": {
+            "intent": "revise",
+            "goal": "先不学了，帮我改简历这句话",
+            "criterion": "草稿里每个动作和数字都能回到你给过的原话，你能指出这一版改在哪里（先不学了，帮我改简历这句话）",
+            "criterionVersion": 2,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n可以。只基于你给的两个动作，草稿如下：\n\n**负责需求文档整理与工单归类。**\n\n这一版只保留你原话里的两个事实：**需求文档**、**工单归类**。没有加数字，也没有补“推动上线”“提升效率”“跨部门协作”这类你没说过的东西。\n\n如果你想让它更像简历句式，可以微调成：\n\n**负责需求文档整理，并完成工单归类。**\n\n两版事实范围一样，区别只是语气。\n\n**练习示例**（虚构，仅作演示）：如果有人说“我负责会议记录和资料归档”，那只能写成“负责会议记录与资料归档”，不能写成“主导会议流程优化”。后者多出来的动作没有原话支撑。\n\n现在请你试一次：把上面这句草稿改成你更顺口的版本，发给我看。\n</answer>\n\n<followups>[\"请帮我把这句改得更像简历用语\", \"我想再加一个真实动作，请帮我判断能不能写\"]</followups>",
+          "outcome": null,
+          "latencyMs": 1806,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2417,
+            "outputTokens": 209,
+            "latencyMs": 1709,
+            "averageTokensPerSecond": 122.3
+          }
+        }
+      ]
+    },
+    {
+      "id": "criterion-covered",
+      "rows": [
+        {
+          "message": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+          "frame": {
+            "intent": "practice",
+            "goal": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+            "criterion": "独立答完这题（带我练一道 Agent 分工题：只练角色边界，不），答案对上完成标准那一条，不复述导师原话",
+            "criterionVersion": 1,
+            "stage": "explain",
+            "attemptTurnIds": [],
+            "currentIsAttempt": false,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n先讲清一个必要概念：**Agent 分工里的“角色边界”，不是写这个 Agent 叫什么名字，而是写清它负责什么、不负责什么、以及它把什么交给谁。**\n\n一个角色边界通常要回答三件事：\n\n1. **它自己做什么**：输入什么、产出什么。\n2. **它不做什么**：哪些判断或动作明确不归它。\n3. **它交给谁**：不归它的部分，下一步流转给哪个角色。\n\n**练习示例**（虚构，不是你的经历）：\n\n假设一个“会议纪要 Agent”团队有三个角色：记录员、归纳员、发送员。\n\n- 记录员：把会议录音转成逐字稿。它**不判断**哪些是重点，也**不发送**给任何人。\n- 归纳员：从逐字稿里提炼待办和结论。它**不修改**原始逐字稿，也**不直接联系**参会人。\n- 发送员：把归纳结果发给指定参会人。它**不重新归纳**内容，只按归纳员给的结果发送。\n\n这里的关键不是名字，而是每个角色都写清了“不做什么”和“交给谁”。\n\n下面请你试答一道题，只练角色边界：\n\n**练习**：一个“客服工单 Agent”团队，你打算设两个角色——**分类员**和**回复员**。请分别写出这两个角色各自“做什么、不做什么、交给谁”。\n\n你先写，我来指出哪里成立、哪里要改。\n</answer>\n\n<followups>[\"请帮我看看我写的分类员边界\", \"回复员不做什么该怎么写\"]</followups>",
+          "outcome": null,
+          "latencyMs": 2757,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 1975,
+            "outputTokens": 347,
+            "latencyMs": 2535,
+            "averageTokensPerSecond": 136.9
+          }
+        },
+        {
+          "message": "我的答案：资料 Agent 只负责检索和给出处，写作 Agent 只基于出处起草。检索失败就明确返回缺资料，不让写作 Agent 补造事实，结果由用户确认",
+          "frame": {
+            "intent": "practice",
+            "goal": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+            "criterion": "独立答完这题（带我练一道 Agent 分工题：只练角色边界，不），答案对上完成标准那一条，不复述导师原话",
+            "criterionVersion": 1,
+            "stage": "feedback",
+            "attemptTurnIds": [],
+            "currentIsAttempt": true,
+            "criterionSatisfied": false,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n你这版答案里，**角色边界最核心的两条已经立住了**：\n\n- “资料 Agent 只负责检索和给出处”——写清了它做什么，也隐含了它不负责起草。\n- “检索失败就明确返回缺资料，不让写作 Agent 补造事实”——这正是角色边界里最关键的“不做什么 + 交给谁”：资料 Agent 不替写作 Agent 编内容，把“缺资料”这个状态交出去。\n- “结果由用户确认”——这是你多补的一条合理内容，不属于本题两个 Agent 的职责划分，但也不冲突，不用删。\n\n按本题只练角色边界的要求，**这题算完成**。\n\n如果只挑一个可以更清楚的点：写作 Agent 那句“只基于出处起草”，写了“做什么”，但没写它**不做什么、交给谁**。比如它不负责判断出处是否充分，遇到出处不足时把问题交回资料 Agent 或用户。这不是错误，只是边界还能再收一句。\n\n要不要就此结束，还是再练一个？\n</answer>\n\n\n\n<followups>[\"结束这次\", \"再练一个角色边界题\"]</followups>",
+          "outcome": {
+            "ok": true,
+            "outcome": {
+              "sessionId": "",
+              "goal": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+              "criterionVersion": 1,
+              "attemptTurnIds": [
+                "b8cd9dcb-70ec-4c11-bfb3-db956dfc53fa"
+              ],
+              "answerDraft": "我的答案：资料 Agent 只负责检索和给出处，写作 Agent 只基于出处起草。检索失败就明确返回缺资料，不让写作 Agent 补造事实，结果由用户确认",
+              "observedStatus": "提示下完成",
+              "evidenceRefs": [
+                "turn:b8cd9dcb-70ec-4c11-bfb3-db956dfc53fa",
+                "criterion:v1"
+              ],
+              "openIssue": null,
+              "nextStep": null,
+              "revision": 1,
+              "status": "draft"
+            },
+            "note": "模型给出的独立完成判断不采纳：这一轮是在导师提示之后作答，所以按「提示下完成」记。\n这里只记本题作答，不代表其他题目或岗位能力已达标。"
+          },
+          "latencyMs": 2521,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2478,
+            "outputTokens": 321,
+            "latencyMs": 2392,
+            "averageTokensPerSecond": 134.2
+          }
+        },
+        {
+          "message": "先这样，够了",
+          "frame": {
+            "intent": "practice",
+            "goal": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+            "criterion": "独立答完这题（带我练一道 Agent 分工题：只练角色边界，不），答案对上完成标准那一条，不复述导师原话",
+            "criterionVersion": 1,
+            "stage": "closing",
+            "attemptTurnIds": [
+              "b8cd9dcb-70ec-4c11-bfb3-db956dfc53fa"
+            ],
+            "currentIsAttempt": false,
+            "criterionSatisfied": true,
+            "scenarioAudited": false
+          },
+          "answer": "<answer>\n好，那这次就到这里。你上一轮写的那版角色边界，已经按本题要求答完，这题算完成。\n\n需要时随时回来，我们可以再练一个角色边界题，或者换别的方向。\n</answer>\n\n\n\n<followups>[\"再练一个角色边界题\"]</followups>",
+          "outcome": {
+            "ok": true,
+            "outcome": {
+              "sessionId": "",
+              "goal": "带我练一道 Agent 分工题：只练角色边界，不需要新的迁移场景",
+              "criterionVersion": 1,
+              "attemptTurnIds": [
+                "b8cd9dcb-70ec-4c11-bfb3-db956dfc53fa"
+              ],
+              "answerDraft": "我的答案：资料 Agent 只负责检索和给出处，写作 Agent 只基于出处起草。检索失败就明确返回缺资料，不让写作 Agent 补造事实，结果由用户确认",
+              "observedStatus": "提示下完成",
+              "evidenceRefs": [
+                "turn:b8cd9dcb-70ec-4c11-bfb3-db956dfc53fa",
+                "criterion:v1"
+              ],
+              "openIssue": null,
+              "nextStep": null,
+              "revision": 1,
+              "status": "draft"
+            },
+            "note": "模型给出的独立完成判断不采纳：这一轮是在导师提示之后作答，所以按「提示下完成」记。\n这里只记本题作答，不代表其他题目或岗位能力已达标。"
+          },
+          "latencyMs": 1380,
+          "usage": {
+            "model": "deepseek-flash",
+            "inputTokens": 2657,
+            "outputTokens": 145,
+            "latencyMs": 1280,
+            "averageTokensPerSecond": 113.3
+          }
+        }
+      ]
+    }
+  ]
+}

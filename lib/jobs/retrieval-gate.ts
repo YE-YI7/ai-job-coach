@@ -22,9 +22,13 @@ import {
   type ProfileHardFields,
 } from "@/lib/coach-harness/subagents/retrieval";
 import type { DiscoveredJob } from "./discovery";
+import { canonicalUrl } from "./job-identity";
 
-/** Private saved shortlists must be reconsidered when eligibility parsing changes. */
-export const RETRIEVAL_GATE_VERSION = "employment-months-v1";
+/**
+ * Private saved shortlists must be reconsidered when eligibility parsing changes.
+ * v2 = 简历侧年限认中文数字（「三年经验」不再读成空），召回放开入门/校招词形。
+ */
+export const RETRIEVAL_GATE_VERSION = "employment-months-v2-cn-tenure";
 
 import type { HardDimension } from "./labels";
 export type { HardDimension } from "./labels";
@@ -210,9 +214,15 @@ export function jdHardRequirements(jdText: string): { hard: HardRequirement; req
 
 /* ------------------------- 档案侧硬指标 ------------------------- */
 
-/** 年份本身不是年限；明确自述优先，只有带职业身份的完整月份区间可补算。 */
+/**
+ * 年份本身不是年限；明确自述优先，只有带职业身份的完整月份区间可补算。
+ * 中文数字必须和 JD 侧同一套读法（`CN_NUM`）：只认阿拉伯数字时，写「三年产品经验」的简历
+ * 会被判成「没有可核对的年限」，同一份材料两侧口径不一致就是假未知。
+ * 「内」不许出现在“年”与“经验/工作”之间：`一年内完成工作` 说的是时限，不是这个人有一年经验——
+ * 凭空造出一个年限会让人被硬筛剔掉，比读不出来（保留 + 标注待核实）更糟。
+ */
 const RESUME_YEARS =
-  /(?<![\d.])(\d{1,2}(?:\.\d)?)\s*(?:\+|以上)?\s*年(?:的)?[^。；;\n\d]{0,8}?(?:经验|经历|工作)|\b(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s*(?:of\s+)?(?:[a-z][a-z\-]*\s+){0,4}experience\b/gi;
+  /(?<![\d.])(\d{1,2}(?:\.\d)?|[一二两三四五六七八九十]{1,3})\s*(?:\+|以上)?\s*年(?:的)?[^。；;\n\d内]{0,8}?(?:经验|经历|工作)|\b(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s*(?:of\s+)?(?:[a-z][a-z\-]*\s+){0,4}experience\b/gi;
 
 /** 完整、已结束的任职月份；合并重叠区间，不把学习、实习或项目日期算成全职年限。 */
 function datedEmploymentYears(text: string): number | undefined {
@@ -307,22 +317,8 @@ export function applyRetrievalGate(
 
 /* -------------------- 与库里已跟踪岗位比对 FR-10 后半 -------------------- */
 
-/**
- * 「同一条岗位」只认来源链接一模一样。
- *
- * 为什么不用公司 + 岗位名：那会把「字节 · 产品经理（上海）」和「字节 · 产品经理（北京）」
- * 当成一条藏起来——用户少看到的正是一个真机会。认错比漏认贵，所以取最严的口径：
- * 链接相同 = 就是招聘板上同一条布告。漏掉的是跨源重发的老岗，最多重复推荐一条。
- *
- * 链接从哪来：本页「加进投递跟踪」写进 JD 的「来源：」行（见 JobDiscovery 的导入模板）。
- * 用户手粘的 JD 没有这一行 → 拿不准 → 照常推荐。
- */
+/** 「同一条岗位」的归一口径见 `job-identity.ts`（库内比对与用户决定共用一份）。 */
 const SAVED_SOURCE_LINE = /^\s*来源\s*[：:]\s*(https?:\/\/\S+?)\s*$/m;
-
-function canonicalUrl(url: string): string {
-  // 先去锚点再去尾斜杠：`/9/#x` 的斜杠在锚点前面，反了顺序它会留下来，和 `/9` 对不上。
-  return url.trim().replace(/#.*$/, "").replace(/\/+$/, "");
-}
 
 /** 库里已跟踪岗位对应的来源链接集合。 */
 export function trackedJobUrls(opportunities: Array<{ workspaceType?: string; jdText?: string | null }>): Set<string> {

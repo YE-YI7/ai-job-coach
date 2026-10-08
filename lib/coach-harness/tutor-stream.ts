@@ -19,7 +19,7 @@ export function createTutorStream(userText:string,emit:(text:string)=>void){
   // Blocking replies have their own final collapse guard; do not expose them.
   if(raw.trimStart().startsWith("<clarify"))return;
   const body=raw.trimStart().startsWith("<answer>")
-   ? raw.trimStart().slice(8).split(/<\/?(?:answer|clarify|followups)\b/i)[0]
+   ? raw.trimStart().slice(8).split(/<\/?(?:answer|clarify|followups|outcome)\b/i)[0]
    : undefined;
   // Hold the unfinished sentence, including split internal markers/assertions.
   const boundary=body?Math.max(body.lastIndexOf("。"),body.lastIndexOf("！"),body.lastIndexOf("？"),body.lastIndexOf("\n")):-1;

@@ -1,0 +1,24 @@
+/* 成果卡：层级靠字号与细线，不靠卡片堆叠；它跟在回答之后，绝不浮在输入框上。 */
+.card{margin:12px 0 4px;padding:14px 0;border-top:1px solid #e0dad1;border-bottom:1px solid #e0dad1;color:#2b2d2f}
+.card header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.card h4{margin:0 0 10px;font-size:16px;font-weight:650;letter-spacing:-.01em}
+.state{font-size:14px;color:#6b655b;white-space:nowrap}
+.goal{margin:0 0 12px;font-size:16px;line-height:1.7;color:#4c4941;overflow-wrap:anywhere}
+.answer{margin:0 0 12px}
+.caption{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px;font-size:14px;color:#6b655b;letter-spacing:.02em}
+.caption small{color:#6b655b;font-size:14px}
+.answer textarea{width:100%;min-height:120px;padding:10px 12px;border:1px solid #d9d5ce;border-radius:10px;background:#fffdfb;font:inherit;font-size:16px;line-height:1.75;color:#2b2d2f;resize:vertical}
+.observed{margin:0 0 8px;font-size:16px;line-height:1.7;font-weight:600}
+.observed span{display:block;font-weight:400;font-size:14px;color:#6b655b;margin-top:3px}
+.line{margin:0 0 8px;font-size:16px;line-height:1.75;color:#4c4941;overflow-wrap:anywhere}
+.caveat{margin:0 0 8px;font-size:14px;line-height:1.7;color:#6d6a61;overflow-wrap:anywhere}
+.card footer{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.card footer button{display:inline-flex;align-items:center;gap:5px;border:1px solid #d9d5ce;background:#fff;color:#4c4941;font:inherit;font-size:14px;padding:7px 10px;border-radius:8px;cursor:pointer;min-height:44px}
+.card footer button:hover:not(:disabled){background:#f3efe8}
+.card footer button:focus-visible{outline:2px solid #a64317;outline-offset:2px}
+.card footer button:disabled{opacity:.5;cursor:not-allowed}
+.card footer .primary{border-color:#c9805c;color:#8d3a17;font-weight:600}
+.error{margin:8px 0 0;font-size:14px;line-height:1.6;color:#9b3013;overflow-wrap:anywhere}
+.recall{margin:8px 0 0;font-size:14px;line-height:1.7;color:#4c4941;overflow-wrap:anywhere}
+.recall code{font-size:14px;color:#6d6a61;word-break:break-all}
+.free{margin:8px 0 0;font-size:14px;color:#6b655b;line-height:1.6}

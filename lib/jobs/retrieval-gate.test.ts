@@ -144,3 +144,15 @@ test("地点仍由 matchJobs 负责：这里不做第二套城市判定", () => 
   expect(r.kept).toHaveLength(1);
   expect(r.kept[0].jdRequirements).toEqual([]);
 });
+
+test("中文数字年限与 JD 侧同一读法：「三年产品经验」是可核对的 3 年，不是空白", () => {
+  expect(profileHardFields("三年产品经验，负责会员体系。").yearsExperience).toBe(3);
+  // 门槛 5 年 > 已证明的 3 年：这是真冲突，该被硬筛剔掉并说明理由，而不是当成「待补」一直留着。
+  const result = applyRetrievalGate([job({ description: "岗位职责：整理需求。任职要求：5 年以上相关工作经验。" })], { profile: profileHardFields("三年产品经验，负责会员体系。"), nowMs: NOW });
+  expect(result.filtered).toHaveLength(1);
+  expect(result.filtered[0].reasons.join()).toContain("档案 3 年 < JD 下限 5 年");
+});
+
+test("「一年内完成」是时限不是年限，不许凭空造出一年经验", () => {
+  expect(profileHardFields("负责数据看板，2024.07 入职，一年内完成三版迭代工作。").yearsExperience).toBeUndefined();
+});

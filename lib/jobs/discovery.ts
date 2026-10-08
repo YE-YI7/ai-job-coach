@@ -52,6 +52,22 @@ export const SKILL_TERMS: string[] = [
   "solidworks", "autocad", "plc", "ansys", "creo", "sap", "erp", "excel", "cpa", "金蝶", "用友", "成本核算", "税务申报", "机械设计", "电气设计", "护理",
 ];
 const cities = [["上海", "shanghai"], ["北京", "beijing"], ["深圳", "shenzhen"], ["杭州", "hangzhou"], ["广州", "guangzhou"], ["香港", "hong kong"]];
+
+/**
+ * 校招/入门岗的标题不写完整职级名：「产品培训生」「Product Intern」里根本没有「产品经理」四个字，
+ * 按字面包含判定会把整批校招岗挡在候选外（用户少看到的正是他这个年份该投的那批）。
+ *
+ * 只放开这一种形状：**必须先出现入门词**，再取入门词前面那段方向词去比对。
+ * 「产品召回工程师」没有入门词 → 不放过；「暑期产品实习生」的方向词读成「暑期产品」→ 也对不上，
+ * 宁可不召回，也不把「产品」两个字当成万能词。
+ */
+const ENTRY_LEVEL = /(?:培训生|管培生|实习生?|见习生|毕业生|助理|\bintern\b|\btrainee\b|\bgraduate\b)/i;
+function entryLevelDirection(title: string): string | null {
+  if (!ENTRY_LEVEL.test(title)) return null;
+  const stem = title.toLowerCase().replace(ENTRY_LEVEL, "").match(/^[\u4e00-\u9fa5a-z ]+/)?.[0].trim();
+  return stem && stem.length >= 2 ? stem : null;
+}
+
 /** 上网搜一轮能捞回两三百条，界面上给到 12 条候选；再多就变成列表噪音，看不见理由了。 */
 export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; location: string; resume: string }, limit = 12) {
   const role = positiveDirection(profile.role).toLowerCase();
@@ -65,8 +81,10 @@ export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; locati
   if (!locationTerms.length && !unrestricted) locationTerms.push(...location.split(/[/、,，]+/).map(s=>s.trim()).filter(Boolean));
   const skills = SKILL_TERMS.filter(skill => profile.resume.toLowerCase().split(/[。；;\n]/).some(clause => clause.includes(skill) && !/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
   return jobs.flatMap(job => {
-    if (!roleTerms.some(term => job.title.toLowerCase().includes(term))) return [];
-    if (discipline && !job.title.toLowerCase().includes(discipline)) return [];
+    const title = job.title.toLowerCase();
+    const direction = entryLevelDirection(job.title);
+    if (!roleTerms.some(term => title.includes(term)) && !(direction && roleTerms.some(term => term.startsWith(direction)))) return [];
+    if (discipline && !title.includes(discipline)) return [];
     // Remote is not assumed to mean permission to work from any country.
     const remoteOnly = /^(remote|worldwide|anywhere|全球|远程|不限地点)$/i.test(job.location.trim());
     if (!unrestricted && !remoteOnly && !locationTerms.some(term => job.location.toLowerCase().includes(term))) return [];

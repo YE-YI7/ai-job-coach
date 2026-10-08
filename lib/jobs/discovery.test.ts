@@ -39,3 +39,11 @@ test("manufacturing engineering direction cannot become software engineering",()
  const jobs=parse([{...raw,title:"机械设计工程师"},{...raw,title:"软件工程师",jobUrl:"https://jobs.ashbyhq.com/meshy/456"}]);
  expect(matchJobs(jobs,{role:"机械工程师",location:"上海",resume:"负责机械设计"}).map(j=>j.title)).toEqual(["机械设计工程师"]);
 });
+test("校招与入门岗按方向词召回，不因为标题没写完整职级名就被挡掉",()=>{
+  const jobs=parse([{...raw,title:"产品培训生"},{...raw,title:"产品实习生（2026校招）",jobUrl:"https://jobs.ashbyhq.com/meshy/2"},{...raw,title:"Product Intern",jobUrl:"https://jobs.ashbyhq.com/meshy/3"}]);
+  expect(matchJobs(jobs,{role:"产品经理",location:"",resume:""}).map(job=>job.title).sort()).toEqual(["Product Intern","产品培训生","产品实习生（2026校招）"]);
+});
+test("入门词是前提：描述里出现「产品」两个字不算方向相符",()=>{
+  const jobs=parse([{...raw,title:"产品召回工程师"},{...raw,title:"渠道经理",jobUrl:"https://jobs.ashbyhq.com/meshy/4"},{...raw,title:"暑期产品实习生",jobUrl:"https://jobs.ashbyhq.com/meshy/5"}]);
+  expect(matchJobs(jobs,{role:"产品经理",location:"",resume:""})).toHaveLength(0);
+});

@@ -43,9 +43,12 @@ export async function PATCH(req:Request){
  let b;try{b=await req.json();}catch{return Response.json({error:"请求格式错误"},{status:400,headers});}
  if(!uuid.test(b?.sessionId||"")||typeof b?.summary!=="string"||b.summary.length>6000||!(b.expectedSummary===null||typeof b.expectedSummary==="string"))return Response.json({error:"笔记格式无效（最多6000字）"},{status:400,headers});
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
- const {data:current,error:readError}=await db.from("coach_learning_sessions").select("version,summary").eq("id",b.sessionId).eq("user_id",user.id).maybeSingle();
+ const {data:current,error:readError}=await db.from("coach_learning_sessions").select("version,summary,outcome,source_turn_id").eq("id",b.sessionId).eq("user_id",user.id).maybeSingle();
  if(readError||!current)return Response.json({error:"无法读取这次学习"},{status:readError?503:404,headers});
  if((current.summary??null)!==b.expectedSummary)return Response.json({error:"笔记已更新，请重新打开学习记录后再修改；你的草稿仍保留"},{status:409,headers});
- const {data,error}=await db.from("coach_learning_sessions").update({summary:b.summary,version:current.version+1}).eq("id",b.sessionId).eq("user_id",user.id).eq("version",current.version).select("id").maybeSingle();
+ // Notes and source-bound cards share the same revision. Manual edits must not
+ // leave a stale answer hidden behind the readable summary.
+ const answer=current.outcome ? (/我的答案：\s*\n([\s\S]*?)(?:\n\s*本题表现：|$)/.exec(b.summary)?.[1]?.trim() ?? b.summary.trim()) : null;
+ const {data,error}=await db.from("coach_learning_sessions").update({summary:b.summary,version:current.version+1,...(current.outcome?{outcome:{...current.outcome,answerDraft:answer,revision:current.version+1},last_request_id:null}:{})}).eq("id",b.sessionId).eq("user_id",user.id).eq("version",current.version).select("id").maybeSingle();
  return Response.json(error||!data?{error:"笔记未保存，请保留草稿后重试"}:{ok:true,summary:b.summary},{status:error?503:!data?409:200,headers});
 }

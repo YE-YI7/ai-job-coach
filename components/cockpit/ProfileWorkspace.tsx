@@ -22,7 +22,7 @@ export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,
    {!opportunity.resumeText&&children}
   </section>
   <section aria-label="岗位">
-   <JobDiscovery key={`${opportunity.id}:${opportunity.role}:${opportunity.location}`} profileId={opportunity.id} ready={!!opportunity.resumeText?.trim() && role.trim()===opportunity.role && location.trim()===(opportunity.location||"")} onImport={onImportJob}/>
+   <JobDiscovery key={`${opportunity.id}:${opportunity.role}:${opportunity.location}`} profileId={opportunity.id} ready={!!opportunity.resumeText?.trim() && role.trim()===opportunity.role && location.trim()===(opportunity.location||"")} onImport={onImportJob} onAddJob={onAddJob}/>
    <button className={styles.secondaryButton} onClick={onAddJob}>我有岗位，看看是否合适</button>
    {!!jobs.length&&<div className={styles.existingJobList}>{jobs.map(job=><button key={job.id} onClick={()=>onSelectJob(job.id)}><span><small>{job.company}</small><strong>{job.role}</strong></span><span>继续</span></button>)}</div>}
   </section>

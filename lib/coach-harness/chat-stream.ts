@@ -1,11 +1,12 @@
 import {trackProductEvent} from "@/lib/product-events";
 
-/** Hide the structured follow-up trailer, including a marker split across chunks. */
+/** Hide the structured follow-up and outcome trailers, including a marker split across chunks. */
 export function visibleTutorText(text:string) {
-  const marker="<followups>";
-  const index=text.indexOf(marker);
-  if(index>=0)return text.slice(0,index);
-  for(let n=marker.length-1;n>0;n--)if(text.endsWith(marker.slice(0,n)))return text.slice(0,-n);
+  for(const marker of ["<followups>","<outcome"]) {
+    const index=text.indexOf(marker);
+    if(index>=0)return text.slice(0,index);
+    for(let n=marker.length-1;n>0;n--)if(text.endsWith(marker.slice(0,n)))return text.slice(0,-n);
+  }
   return text;
 }
 

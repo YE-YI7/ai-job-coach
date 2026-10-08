@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
@@ -34,6 +34,8 @@ import {resolveSavedJobReference} from "@/lib/coach-harness/job-reference";
 import {createTutorStream,unwrapTutorAnswer} from "@/lib/coach-harness/tutor-stream";
 import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
 import { coachingStrategy, responseTime } from "@/lib/coach-harness/coaching-strategy";
+import { renderTeachingFrame, teachingFrame } from "@/lib/coach-harness/teaching-frame";
+import { LEARNING_OUTCOME_VERSION, extractOutcomeTag, outcomeFromModel } from "@/lib/coach-harness/learning-outcome";
 import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
 
 export const runtime = "nodejs";
@@ -65,7 +67,7 @@ async function history(userId: string, opportunityId: string | null, sessionId:s
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return ((data || []) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:Record<string,unknown>|null}>)
-    .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean;responseLatencyMs?:number|null}|null}>;
+    .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean;responseLatencyMs?:number|null;teaching?:import("@/lib/coach-harness/teaching-frame").TeachingTurn["teaching"]}|null}>;
 }
 /** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
 async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, userId: string, opportunityId: string | null): Promise<string> {
@@ -170,6 +172,12 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   }
   const rendered = renderContextForPrompt(context).text;
   const state = coachingStrategy(body.message, [...turns.slice(-7).map(t => t.learning_trace?.responseLatencyMs), responseTime(body.responseLatencyMs)], contextId || "general");
+  // 本轮的目标、完成标准与终止判定先由服务端算好（来自用户原话 + 已落库轮次），
+  // 再作为一条料交给模型：收不收口不取决于模型这一轮想不想继续讲。
+  const frame = teachingFrame({
+    message: body.message,
+    turns: turns.map((t) => ({ id: t.id, question: t.question, answer: t.answer, proactive: t.learning_trace?.proactive === true, teaching: t.learning_trace?.teaching })),
+  });
   // Only restore owner/job-bound successful research. A chat never starts a network fan-out.
   const researchJob = context.opportunity || reference.job;
   const research = researchJob ? renderCompanyResearch(await readCompanyResearch(user.id, researchJob).catch(() => null)) : "";
@@ -199,6 +207,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         pendingExchange ? { kind: "pending_exchange", refId: turns[turns.length - 1].id, text: pendingExchange } : null,
         research ? { kind: "company_research", refId: contextId ?? undefined, text: research } : null,
         { kind: "coaching_strategy", text: state.text },
+        { kind: "teaching_frame", refId: sessionId ?? undefined, text: renderTeachingFrame(frame) },
         pageContext ? { kind: "page_activity", text: pageContext } : null,
         profileMemory ? { kind: "profile_summary", text: profileMemory } : null,
         learningMemory ? { kind: "learning_progress", text: learningMemory } : null,
@@ -261,7 +270,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const groundingFailed = firstBlock(groundingChecks);
   if (groundingFailed) return NextResponse.json({ error: chatFailureMessage(new Error(groundingFailed.reason.message)) }, { status: (groundingFailed.data?.status as number) ?? 422, headers });
   if (groundedDraft) rawAnswer = String((groundingChecks.find((d) => d.guardId === GROUNDING_VERIFICATION_GUARD_ID)!.data as { draft: string }).draft);
-  const parsed=parseTutorReply(unwrapTutorAnswer(rawAnswer));
+  // 成果草稿是正文之外的独立标签：先摘出来，正文与它各走各的核验，标签都不外露给用户。
+  const outcomeTag = groundedDraft ? { text: rawAnswer, draft: null as ReturnType<typeof extractOutcomeTag>["draft"], malformed: false } : extractOutcomeTag(rawAnswer);
+  const parsed=parseTutorReply(unwrapTutorAnswer(outcomeTag.text));
   // 槽3 落库前核验·第二道：信息不足分级——blocking 轮的超长“伪完整”回答收敛为一句
   // 澄清问句；无依据的“已确认/已掌握”类断言就地降级为待确认。纯字符串级，不触网。
   // 只认「这次真的进了提示词的原文」——被预算舍弃的材料不算已提供（FR-21）。
@@ -283,14 +294,34 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const {answer,suggestions}=guarded;
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){if(visibleTextAt!==null&&onReplace)onReplace(answer);else{visibleTextAt=Date.now();onDelta(answer);}onStatus?.("回答已核对，正在保存…");}
+  // 成果草稿在这里定稿：本轮 turn id 由调用方先生成，标签里的尝试证据才指得回自己。
+  // answerDraft 只从用户原话里取，模型没有输入口（§8.2「模型示范不能混进去」）。
+  const turnId = randomUUID();
+  const lastAttempt = [...turns].reverse().find((t) => frame.attemptTurnIds.includes(t.id));
+  const builtOutcome = outcomeTag.draft
+    ? outcomeFromModel(outcomeTag.draft, {
+        sessionId: sessionId ?? "",
+        attempts: frame.currentIsAttempt ? [...frame.attemptTurnIds, turnId] : frame.attemptTurnIds,
+        answerDraft: frame.currentIsAttempt ? body.message : lastAttempt?.question ?? "",
+        goal: frame.goal,
+        criterionVersion: frame.criterionVersion,
+        scenarioAudited: frame.scenarioAudited,
+        feedbackText: outcomeTag.text,
+        requiredCriterionParts: frame.intent==="learn"?["mechanism","boundary"]:frame.intent==="practice"?["answer"]:["facts"],
+      })
+    : null;
+  const outcome = builtOutcome?.ok ? builtOutcome.outcome : null;
+  const outcomeNote = builtOutcome
+    ? builtOutcome.ok ? builtOutcome.note : builtOutcome.copy
+    : outcomeTag.malformed ? "本轮的成果草稿没有通过校验，本次未形成可保存成果；正文与原回答仍然保留。" : null;
   // 版本联合指纹：这一轮的「哪个版本」必须可拆成五个组件（FR-34）。
   // 台账里只存哈希，不存提示词正文与知识正文。
   const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:LEARNING_PROMPT_VERSION;
   const harness=harnessFingerprint({promptVersion,systemPrompt:actualSystem,retrieval:{...TUTOR_RETRIEVAL_CONFIG,materials:tutorMaterialFingerprintPayload()}});
   // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
-  const trace={promptVersion,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},guards:guardLedgerRows(guardVerdicts)};
+  const trace={promptVersion,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
   const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
-  const {data,error} = await db.from("coach_agent_turns").insert({user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
+  const {data,error} = await db.from("coach_agent_turns").insert({id:turnId,user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
   // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：
   // 正则识别无法区分陈述与假设，推进岗位状态必须由用户点头。
@@ -307,7 +338,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     } }).eq("id", data.id).eq("user_id", user.id);
     if (suggestionError) { stageSuggestion = null; console.error("Stage suggestion was not persisted"); }
   }
-  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,learning_trace:trace},{headers});
+  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,outcome:outcome??null,outcomeNote:outcomeNote??null,learning_trace:trace},{headers});
 }
 
 async function currentStageOf(db: NonNullable<Awaited<ReturnType<typeof getDbClient>>>, userId: string, opportunityId: string): Promise<OpportunityStage> {

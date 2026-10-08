@@ -1,6 +1,7 @@
 {
   "_meta": {
     "pulled_at": "2026-09-30",
+    "incremental_verified_at": "2026-10-08: coach_learning_sessions outcome/source_turn_id/last_request_id verified via information_schema after migration",
     "source": "Supabase PostgREST OpenAPI: GET ${SUPABASE_URL}/rest/v1/ (trailing slash required)",
     "why": "生产库有若干表不在仓库迁移里（历史手工建的），所以本文件的真源是生产 schema 而不是 supabase/migrations。lib/db-schema-contract.test.ts 用它挡住「代码引用了生产库没有的列」——这类错误在单元测试里永远不报，一上线整条查询直接 500。",
     "refresh": "重拉一次：需要登录态 + 代理，见 spec §19；拉完替换 tables 字段并更新 pulled_at。"
@@ -107,6 +108,9 @@
       "migrated_from"
     ],
     "coach_learning_sessions": [
+      "source_turn_id",
+      "outcome",
+      "last_request_id",
       "id",
       "user_id",
       "opportunity_id",

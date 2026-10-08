@@ -1,9 +1,12 @@
 import { callLLM } from "@/lib/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
+import { buildReview, reviewReasons, type JobReview } from "./review-contract";
 import type { VerifiedJob } from "./verification-gate";
 
-export const PERSONALIZATION_VERSION = "evidence-shortlist-v5-validated-partial";
+export const PERSONALIZATION_VERSION = "evidence-shortlist-v6-structured-review";
 export class JobAssessmentError extends Error {}
+/** 卡片与决定保存读的是结构化评审，`reasons` 只是它的展示投影。 */
+export type ReviewedJob = VerifiedJob & { review: JobReview };
 /** JSON providers sometimes serialize IDs as strings. Only exact listed integers
  * are accepted; no substring, approximate citation, or invented fallback. */
 function evidenceIndex(value: unknown): number | null {
@@ -81,7 +84,7 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
   const parsed=JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g,"")) as {items?:unknown[]};
   if(!Array.isArray(parsed.items)) throw new Error("岗位个性化评审未返回有效结果，请重试");
   const seen=new Set<string>();
-  const selected:VerifiedJob[]=[];
+  const selected:ReviewedJob[]=[];
   let rejectedCount = 0;
   for(const value of parsed.items.slice(0,5)) {
     if(!value||typeof value!=="object")throw new Error("岗位评审格式不正确");
@@ -94,15 +97,15 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
       rejectedCount += 1;
       continue;
     }
+    // 资格判定用整份简历，和硬筛同一口径；截断的 6000 字只是喂模型的上下文。
+    const review=buildReview({job,resume,resumeQuote:resumeQuote??null,jdQuote,gap:item.gap||null});
+    // 已知资格冲突被列为优先推荐是 §9.1 的独立硬失败，服务端拦下，不靠提示词自觉。
+    if(review.eligibility==="conflict"){rejectedCount+=1;continue;}
     seen.add(job.id);
-    selected.push({...job,reasons:[
-      ...(resumeQuote?[`可迁移经历：${resumeQuote.text}`]:["简历暂未提供此岗的直接经历"]),
-      `岗位依据：${jdQuote.text}`, ...(item.gap?[`待补能力：${item.gap}`]:[]), ...(item.learn?[`可以先练：${item.learn}`]:[]),
-      ...job.reasons.filter(r=>r.startsWith("需核实在读")||r.startsWith("地点待核实")||r.includes("远程")),
-    ]});
+    selected.push({...job,review,reasons:reviewReasons(review,job,{gap:item.gap||null,learn:item.learn||null})});
   }
   if (rejectedCount && !selected.length) throw new JobAssessmentError("AI 岗位评审未通过引用核验，请重试，本次未扣额度；你的简历不受影响。");
-  // An unknown mandatory identity must remain visible and never beat confirmed candidates.
-  selected.sort((a,b)=>Number(a.reasons.some(r=>r.startsWith("需核实在读")))-Number(b.reasons.some(r=>r.startsWith("需核实在读"))));
+  // 资格未知的岗位可以看见，但不排在已确认符合条件的岗位之前。
+  selected.sort((a,b)=>Number(a.review.eligibility==="unknown")-Number(b.review.eligibility==="unknown"));
   return {jobs:selected,modelCalls:1,evaluatedCount:pool.length,rejectedCount};
 }

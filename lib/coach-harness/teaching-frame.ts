@@ -171,7 +171,7 @@ const STAGE_MOVE: Record<TeachingStage, string> = {
   feedback:
     "用户这一轮自己作答了：先逐句核对他的原话，再对照原来的本题标准反馈。用户已经明确说过的限制或条件不能再作为缺口；不能扩写新标准。用户多补充的合理内容不算错误，例如「结果由用户确认」不应因本题只练两个Agent的职责就要求删除。标准已经覆盖时明确本题完成，openIssue 留空，正文也不得给「需要补充/收紧」的必改清单，只给结束或可选再练。只有原话中能定位到的错误或原标准未覆盖项才指出一个关键缺口；给缺口时 outcome.openIssue 必须与正文一致，不能一面说有缺口一面说全部完成。不要求每题都迁移，不重新倾倒讲解。",
   closing:
-    "用户要收尾：只引用他自己实际说过的内容，不能把导师讲解或示范说成用户已经回答。标准尚未确认时就说尚未检验，不得因为用户说懂了或结束而宣称完成。已确认覆盖时可说本题完成，只给「结束这次 / 再练一个」两个选择。不虚构新缺口，不得说他已经掌握、已达标或已独立检验通过。",
+    "用户要收尾：立即尊重停止，不再澄清懂了是什么意思，不再要求补答或布置新练习，不虚构新缺口。只引用用户实际回答；未确认标准时不宣称完成，不把导师示范说成用户已回答。",
 };
 
 const INTENT_LABEL: Record<TeachingIntent, string> = { learn: "学懂", practice: "练回答", revise: "改材料" };
@@ -190,6 +190,16 @@ export function renderTeachingFrame(frame: TeachingFrame): string {
       : "还没有观察到用户本人作答：不得给任何表现判断，也不得说他已练过。",
     "本轮只记录本题观察；专项内容评测尚未签收，不给永久能力或已专项验收的说法。这是内部证据边界，不向用户讲专项评测、签收、完成标准模板等内部工作流术语。",
     frame.intent === "revise" ? "改材料只给用户可直接使用的草稿，草稿里每个事实都要能回到用户原话；不调用练习、不布置课程。" : "",
+    /RAG|召回率|检索/i.test(frame.goal) ? "数值口径：召回率=找回的相关条数/全部相关条数，精确率=找回的相关条数/全部找回条数。找回8条但其中2条不相关，分子是6而不是8；分母为0时该比例未定义，不能说100%。算式必须逐项对照输入，没提供的相关总数不能猜。" : "",
   ];
   return lines.filter(Boolean).join("\n");
+}
+
+/** 短句收尾不再交由模型猜用户心理，也不以结束代替能力认证。 */
+export function finalizeTeachingReply(frame: TeachingFrame, reply: {answer: string; suggestions: string[]}) {
+  if (frame.stage !== "closing") return reply;
+  const observation = frame.criterionSatisfied
+    ? "你刚才的作答已覆盖这道题的要求，这只代表本题表现。"
+    : frame.attemptTurnIds.length ? "你刚才的回答保留在对话里，尚未确认的部分不记成已经掌握。" : "这次先不做掌握程度的判断。";
+  return {answer: `好，这次先到这里。\n\n${observation}\n\n需要时再回来继续。`, suggestions: [] as string[]};
 }

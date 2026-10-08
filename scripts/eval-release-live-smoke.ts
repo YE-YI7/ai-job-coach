@@ -3,7 +3,9 @@ import {randomUUID} from "node:crypto";
 import {callLLM} from "../lib/llm";
 import {runWithGenerationContext} from "../lib/generation-context";
 import {LEARNING_SYSTEM,LEARNING_PROMPT_VERSION} from "../lib/coach-harness/learning-memory";
-import {teachingFrame,renderTeachingFrame,type TeachingTurn} from "../lib/coach-harness/teaching-frame";
+import {teachingFrame,renderTeachingFrame,finalizeTeachingReply,type TeachingTurn} from "../lib/coach-harness/teaching-frame";
+import {parseTutorReply} from "../lib/coach-harness/chat-options";
+import {unwrapTutorAnswer} from "../lib/coach-harness/tutor-stream";
 import {extractOutcomeTag,outcomeFromModel} from "../lib/coach-harness/learning-outcome";
 async function main(){
  if(process.env.RUN_LIVE_RELEASE_SMOKE!=="1")throw Error("Set RUN_LIVE_RELEASE_SMOKE=1 to make at most 10 real model calls");
@@ -25,8 +27,9 @@ async function main(){
    const tagged=extractOutcomeTag(answer);
    const built=tagged.draft?outcomeFromModel(tagged.draft,{sessionId:"",attempts:frame.currentIsAttempt?[...frame.attemptTurnIds,id]:frame.attemptTurnIds,answerDraft:frame.currentIsAttempt?message:turns.findLast(t=>frame.attemptTurnIds.includes(t.id))?.question||"",goal:frame.goal,criterionVersion:frame.criterionVersion,scenarioAudited:false,feedbackText:tagged.text,requiredCriterionParts:frame.intent==="learn"?["mechanism","boundary"]:frame.intent==="practice"?["answer"]:["facts"]}):null;
    const satisfied=!!built?.ok&&built.outcome.observedStatus!=="未独立检验"&&!built.outcome.openIssue;
-   turns.push({id,question:message,answer:tagged.text,teaching:{...frame,criterionSatisfied:satisfied}});
-   rows.push({message,frame,answer:tagged.text,outcome:built,latencyMs:Date.now()-started,usage});
+   const final=finalizeTeachingReply(frame,parseTutorReply(unwrapTutorAnswer(tagged.text)));
+   turns.push({id,question:message,answer:final.answer,teaching:{...frame,criterionSatisfied:satisfied}});
+   rows.push({message,frame,answer:final.answer,rawModel:tagged.text,outcome:built,latencyMs:Date.now()-started,usage});
   }
   return {id:item.id,rows};
  }));

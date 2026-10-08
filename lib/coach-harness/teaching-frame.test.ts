@@ -1,4 +1,18 @@
-import {detectTeachingIntent,isUserAttempt,renderTeachingFrame,teachingFrame,TEACHING_CRITERION_VERSION,type TeachingTurn} from "./teaching-frame";
+import {detectTeachingIntent,finalizeTeachingReply,isUserAttempt,renderTeachingFrame,teachingFrame,TEACHING_CRITERION_VERSION,type TeachingTurn} from "./teaching-frame";
+
+test.each([false,true])("收尾尊重停止，模型追问或假完成不外露（已覆盖=%s）",criterionSatisfied=>{
+ const frame=teachingFrame({message:"先这样，够了",turns:[]});
+ const result=finalizeTeachingReply({...frame,criterionSatisfied},{answer:"<clarify level=\"blocking\">懂了是什么意思？你已经完全掌握了。</clarify>",suggestions:["必须继续迁移"]});
+ expect(result.answer).toContain("先到这里");
+ expect(result.answer).not.toMatch(/clarify|是什么意思|完全掌握|必须/);
+ expect(result.suggestions).toEqual([]);
+ expect(result.answer.includes("覆盖这道题")).toBe(criterionSatisfied);
+});
+test("讲解和实际作答不被模板替换",()=>{
+ const frame=teachingFrame({message:"我的答案：资料只检索，写作只用出处",turns:[]});
+ const reply={answer:"这个分工成立。",suggestions:["再练一题"]};
+ expect(finalizeTeachingReply(frame,reply)).toBe(reply);
+});
 
 const A1="11111111-1111-4111-8111-111111111111";
 const A2="22222222-2222-4222-8222-222222222222";

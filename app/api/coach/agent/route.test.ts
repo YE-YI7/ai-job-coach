@@ -25,6 +25,16 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test("明确结束时模型澄清不流出，保存的也是最终收尾而非假完成",async()=>{
+  const q=setupGeneration();
+  (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("<clarify level=\"blocking\">你已经完全掌握，继续做题？</clarify>");return '<clarify level="blocking">懂了是什么意思？</clarify>';});
+  const response=await POST(new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({message:"先这样，够了",requestId:"11111111-1111-4111-8111-111111111111"})}));
+  const wire=await response.text();
+  expect(wire).not.toMatch(/完全掌握|懂了是什么意思|继续做题/);
+  const done=wire.trim().split("\n").map(x=>JSON.parse(x)).at(-1);
+  expect(done).toMatchObject({ok:true,answer:expect.stringContaining("先到这里")});
+  expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({answer:done.answer}));
+ });
  test("准入失败不泄露内部事实 ID 清单，也不调用模型",async()=>{
   setupGeneration();
   const unregister=registerGuard(1,{id:"test.capacity-leak",run:()=>decide(1,"test.capacity-leak","block","context_budget_exceeded","关键内容装不进 4000 token 预算：confirmed_fact [private-id] 需要 83 token。",{status:422})});

@@ -34,7 +34,7 @@ import {resolveSavedJobReference} from "@/lib/coach-harness/job-reference";
 import {createTutorStream,unwrapTutorAnswer} from "@/lib/coach-harness/tutor-stream";
 import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
 import { coachingStrategy, responseTime } from "@/lib/coach-harness/coaching-strategy";
-import { renderTeachingFrame, teachingFrame } from "@/lib/coach-harness/teaching-frame";
+import { finalizeTeachingReply, renderTeachingFrame, teachingFrame } from "@/lib/coach-harness/teaching-frame";
 import { LEARNING_OUTCOME_VERSION, extractOutcomeTag, outcomeFromModel } from "@/lib/coach-harness/learning-outcome";
 import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
 
@@ -238,7 +238,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const fingerprint=createHash("sha256").update(user.id+":"+id+":"+actualSystem+actualPrompt).digest("hex");
   const contextReadyMs=Date.now()-startedAt;
   const userEvidence=`${body.message}\n${turns.slice(-4).map(t=>t.question).join("\n")}`;
-  const streamText=createTutorStream(userEvidence,text=>{if(onReplace){visibleTextAt??=Date.now();onReplace(text);}});
+  const streamText=createTutorStream(userEvidence,text=>{if(onReplace && frame.stage!=="closing"){visibleTextAt??=Date.now();onReplace(text);}});
   const generate = async (model:string) => {
     modelCalls++;
     onStatus?.(`正在等待 ${model} 响应…`);
@@ -291,7 +291,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   });
   guardVerdicts.push(...replyChecks);
   const guarded = (replyChecks.find((d) => d.guardId === INSUFFICIENCY_GUARD_ID)!.data as unknown as { legacy: GuardResult }).legacy;
-  const {answer,suggestions}=guarded;
+  const {answer,suggestions}=finalizeTeachingReply(frame, guarded);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){if(visibleTextAt!==null&&onReplace)onReplace(answer);else{visibleTextAt=Date.now();onDelta(answer);}onStatus?.("回答已核对，正在保存…");}
   // 成果草稿在这里定稿：本轮 turn id 由调用方先生成，标签里的尝试证据才指得回自己。

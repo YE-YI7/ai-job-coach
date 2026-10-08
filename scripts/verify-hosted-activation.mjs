@@ -1,11 +1,11 @@
 // Explicit synthetic real-model acceptance; secrets never leave process memory.
-// NODE_USE_ENV_PROXY=1 node --env-file=.env.ops.local scripts/verify-hosted-activation.mjs <deployment-id|formal>
+// NODE_USE_ENV_PROXY=1 node --env-file=.env.ops.local scripts/verify-hosted-activation.mjs <deployment-id|formal|local>
 import {createClient} from '@supabase/supabase-js';
 import {randomUUID,createHmac} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 const target=process.argv[2];
-if(target!=='formal'&&!/^dpl_[a-zA-Z0-9]+$/.test(target||''))throw Error('Expected deployment id or formal');
+if(!['formal','local'].includes(target)&&!/^dpl_[a-zA-Z0-9]+$/.test(target||''))throw Error('Expected deployment id, formal or local');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
 const id=randomUUID();
 console.log(JSON.stringify({syntheticTestUserId:id}));
@@ -13,8 +13,8 @@ const payload=Buffer.from(JSON.stringify({userId:id,version:2,exp:Math.floor(Dat
 const cookie='sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
 async function request(path,body,stream=false){
   const started=Date.now();
-  if(target==='formal'){
-    const r=await fetch('https://www.ai-job-coach.xin'+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(100000),redirect:'error'});
+  if(target==='formal'||target==='local'){
+    const r=await fetch((target==='formal'?'https://www.ai-job-coach.xin':'http://localhost:3322')+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(100000),redirect:'error'});
     assert.equal(r.ok,true,`Application HTTP ${r.status}`);
     if(!stream)return r.json();
     assert.match(r.headers.get('content-type')||'',/application\/x-ndjson/);
@@ -43,7 +43,7 @@ try{
   const opportunityId=saved.opportunity.id;
   const read=await request('/api/coach/opportunities');assert.equal(read.opportunities.find(item=>item.id===opportunityId)?.jdText,intake.input.jdText);
   const session=await request('/api/coach/agent/sessions',{opportunityId,title:'验收：从零学习需求访谈'});assert.equal(session.ok,true);
-  const chat=await request('/api/coach/agent',{opportunityId,sessionId:session.session.id,mode:'auto',message:'我没有做过需求访谈。请教我第一步怎么做，用一个简单的例子，然后问我一个练习问题。不要假设我已有实习经历。',requestId:randomUUID()},true);
+  const chat=await request('/api/coach/agent',{opportunityId,sessionId:session.session.id,modelMode:'auto',message:'我没有做过需求访谈。请教我第一步怎么做，用一个简单的例子，然后问我一个练习问题。不要假设我已有实习经历。',requestId:randomUUID()},true);
   const done=chat.events.find(event=>event.type==='done');assert.equal(done?.ok,true,done?.error||'Missing successful done event');
   assert.ok(done.answer?.length>20);assert.ok(chat.events.some(event=>['delta','replace'].includes(event.type)&&event.text?.length));
   assert.equal(done.learning_trace.model,'step-3.7-flash');assert.equal(done.learning_trace.modelUsage.model,'step-3.7-flash');assert.ok(done.learning_trace.modelUsage.outputTokens>0);
@@ -51,7 +51,7 @@ try{
   const {data:quota,error:qError}=await db.from('user_quotas').select('free_chat_daily').eq('user_id',id).single();if(qError)throw qError;assert.equal(quota.free_chat_daily,1);
   const {data:events,error:eError}=await db.from('ai_generation_events').select('provider,model,status').eq('user_id',id);if(eError)throw eError;
   assert.ok(events.some(event=>event.provider==='stepfun'&&event.status==='success'));
-  console.log(JSON.stringify({target,passed:true,genuineAiIntake:true,intakeMs,streamingTutorSaved:true,tutorFirstTextMs:chat.firstTextMs,tutorLatencyMs:chat.latencyMs,actualModel:done.learning_trace.modelUsage.model,outputTokens:done.learning_trace.modelUsage.outputTokens,freeUsesRemaining:quota.free_chat_daily,originalMaterialPersisted:true}));
+  console.log(JSON.stringify({target,passed:true,genuineAiIntake:true,intakeMs,streamingTutorSaved:true,tutorFirstTextMs:chat.firstTextMs,tutorLatencyMs:chat.latencyMs,actualModel:done.learning_trace.modelUsage.model,outputTokens:done.learning_trace.modelUsage.outputTokens,freeUsesRemaining:quota.free_chat_daily,analyzedJdPersisted:true}));
 }finally{
   const audit=await db.from('ai_generation_events').delete().eq('user_id',id);if(audit.error)throw audit.error;
   const {error}=await db.from('users').delete().eq('id',id);if(error)throw error;

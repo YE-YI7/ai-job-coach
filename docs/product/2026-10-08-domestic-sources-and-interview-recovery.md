@@ -20,3 +20,12 @@
 ## 不包含
 
 首页定位重写、状态语言统一、单一下一步聚合、移动端重设计及登录链路改造未在本轮混入。每日就业市场 cron 不是每日招聘源扩展，不能将两者混说。仍需逐家扩充、核验国内招聘来源；本轮没有声称“大厂全部接通”。
+
+## 发布结果
+
+- 代码 `bee2039`，11 个本任务文件；已普通 push 到 `origin/backend` 和 `origin/codex/agent-distribution`，ls-remote核验均为 `bee2039384ef3729930a48f6449ad656a6e561a4`。既有 auth/admin 脏改动未提交、未发布。
+- 独立干净快照：177 套、1783 项通过，2 套/3 项跳过（含本轮显式开启才执行的公开源实测）；类型检查、本地生产构建及云端生产构建通过。本轮 eslint 0 error，3 个原有 warning。
+- 部署 `dpl_3TQdBDPudCDR1JDadE9SC3AvE5Eu`，production/READY，项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`、团队 `team_7qIutahimwnjCje1fOtQEPyT`；API核验 releaseCommit=bee2039。先 skip-domain 构建再 promote；暂存域名 HTTP 被 Vercel保护拦住，未当应用验收通过。
+- 正式 `https://www.ai-job-coach.xin/` 首页200，实际正文含益职；匿名招聘搜索POST401且返回应用“请先登录”，不是保护页。alias API确认正式域名指向上述部署。最近10分钟本部署 error日志查询无结果，仅代表短窗。
+- 无数据库迁移、真人数据写入或充值；浏览器连接不可用，仍未完成真实账号面试与收费岗位推荐端到端复验。来源实测是本地服务端公共请求，不能证明云端每个来源未来都持续可用。
+- 回滚目标：上一正式部署 `dpl_FgdCyebfipFc1bvcd8CzN6oZiRFs`。

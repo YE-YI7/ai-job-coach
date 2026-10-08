@@ -51,7 +51,7 @@ describe("resume draft source mapping", () => {
     }));
 
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, error: expect.stringContaining("没有生成通过事实校验") }));
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, error: expect.stringContaining("没有生成通过事实校验"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
     expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({
@@ -128,6 +128,20 @@ describe("resume draft source mapping", () => {
     // 下发给质检后仍保留的建议才进入 preview/artifact：宁缺毋滥但不误伤好建议。
     expect(applyResumeChanges).toHaveBeenCalledWith(expect.any(String), [expect.objectContaining({ after: expect.stringContaining("准确率口径") })]);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), true);
+  });
+
+  test("failed overall review with warning-level fabricated responsibility is refunded, not delivered", async () => {
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ changes: [{ section: "经历", before: "负责模型评测", after: "模型评测覆盖准确率口径", reason: "岗位匹配", sourceIds: ["claim-1"] }] }))
+      .mockImplementationOnce(async (messages: { content: string }[]) => {
+        const prompt = messages.at(-1)!.content;
+        const changes = JSON.parse(prompt.slice(prompt.indexOf("[", prompt.indexOf("待审修改"))));
+        return JSON.stringify({ status: "failed", summary: "扩大职责", findings: [{ changeId: changes[0].id, severity: "warning", message: "增加了未提供的指标责任" }] });
+      });
+    const response = await POST(new Request("http://localhost/api/coach/resume-draft", { method: "POST", body: JSON.stringify({ opportunityId: "opp-1", resumeText: "AI Job Coach：负责模型评测", jobDescription: "负责 AI 产品评测" }) }));
+    expect(response.status).toBe(422);
+    expect((await response.json()).recovery.question).toContain("你本人");
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
   });
 });
 

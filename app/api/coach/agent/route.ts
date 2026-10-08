@@ -325,7 +325,7 @@ export async function POST(req:Request) {
         first_text_ms:trace?.timing?.firstTextMs,duration_ms:Date.now()-requestStart}) : Promise.resolve();
   if(user)await record("started");
   const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void,onReplace?: (text:string)=>void)=>{
-    const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat"});
+    const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat",firstCoaching:true});
     return async(request:Request)=>{
       try { const response=await run(request);const body=await response.clone().json().catch(()=>null);
         await record(body?.ok?"completed":"failed",body?.learning_trace);return response;

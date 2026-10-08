@@ -1,0 +1,13 @@
+.recovery { margin: 24px 0; padding: 24px 0; border-block: 1px solid var(--line, #e7e5e1); display: grid; gap: 16px; color: var(--ink, #24272f); }
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.heading strong { font-size: 1.125rem; }
+.heading span, .actions span { font-size: .875rem; color: var(--muted, #69707d); }
+.recovery blockquote { margin: 0; padding: 14px 18px; background: #f7f5f1; border: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.recovery label { font-size: 1rem; line-height: 1.7; }
+.recovery textarea { width: 100%; box-sizing: border-box; border: 0; border-radius: 10px; background: #f7f5f1; padding: 16px; font: inherit; line-height: 1.7; color: inherit; resize: vertical; }
+.recovery textarea:focus-visible { outline: 2px solid var(--muted, #69707d); outline-offset: 3px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.actions button { border: 0; border-radius: 10px; padding: 12px 18px; background: var(--accent-deep, #c94f17); color: white; font: inherit; cursor: pointer; }
+.actions button:disabled { opacity: .55; cursor: default; }
+.actions button:focus-visible { outline: 2px solid var(--muted, #69707d); outline-offset: 3px; }
+.recovery p[role="alert"] { margin: 0; color: var(--accent-deep, #c94f17); }

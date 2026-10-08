@@ -1,6 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
 import { compileContextBundle } from "./context";
+import { RESUME_SUPPLEMENT_MARKER } from "./resume-recovery";
 import { readReviewFindings, resumeQualityStatus } from "./resume-quality-state";
 import { assertRunTransition, isTerminalRunStatus, isValidStopReason, normalizeRunStatus } from "./state-machine";
 import type { CoachRunStatus, CoachStopReason } from "./types";
@@ -94,6 +95,7 @@ async function recordResumeClaims(input: {
   const existing = await lookup;
   if (existing.error) throw existing.error;
   const existingKeys = new Set((existing.data || []).map((claim: { entity_key: unknown }) => String(claim.entity_key)));
+  const selfReportedSupplement = input.content.includes(RESUME_SUPPLEMENT_MARKER);
   const rows = input.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line) => ({
     user_id: input.userId,
     opportunity_id: input.global ? null : input.opportunityId,
@@ -104,9 +106,10 @@ async function recordResumeClaims(input: {
     value: line,
     display_text: line,
     source_excerpt: line,
-    status: "confirmed",
+    status: selfReportedSupplement ? "unverified" : "confirmed",
+    ...(selfReportedSupplement ? { source_kind: "user_statement", verification_level: "self_reported" } : {}),
     visibility: "recruiter_safe",
-    confirmed_at: new Date().toISOString(),
+    confirmed_at: selfReportedSupplement ? null : new Date().toISOString(),
   })).filter((row) => !existingKeys.has(row.entity_key));
   if (rows.length) {
     const { error } = await db.from("coach_claims").insert(rows);

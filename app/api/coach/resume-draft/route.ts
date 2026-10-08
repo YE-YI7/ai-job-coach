@@ -17,6 +17,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
+import { resumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -122,8 +123,8 @@ export async function POST(request: Request) {
       operation: "resume_draft",
       requestId,
     }, () => callLLM([
-      { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。禁止同义换词式改写（如「拆成」改「拆解为」这类没有信息增量的润色）——这样的段落直接不要输出；每条修改必须带来新信息、可核实量化或与该 JD 要求的明确对应。每条建议必须引用能完整支持它的 sourceIds。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
-      { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。` },
+      { role: "system", content: `你是益职的岗位简历编辑器。只改写用户已经提供的事实，不补项目、职责、技能、数字或时间。禁止只有同义换词的润色。可以重组已有事实、明确用户实际动作与交付、突出已有事实与 JD 的对应；不要求用户补出新数字或新经历。补充经历仍是用户自述，不代表已核实。每条建议必须引用能完整支持它的 sourceIds；before 必须是原文连续片段。若证据不够就不要生成。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"与 JD 的具体对应","sourceIds":["resume-line-1"]}]}` },
+      { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
     if (!changes.length) {
       await finalizeQuota(reservation, false);
       reservation = null;
-      return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，请补充更完整的经历；本次未扣额度" }, { status: 422 });
+      return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，原文已保留，本次未扣额度", recovery: resumeRecovery(resumeText) }, { status: 422 });
     }
     const reviewerOutput = await callLLM([
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值；5. after 文字完整通顺——句子没有在词中间被截断（如「已上线腾」）、没有与 before 对不上的可疑错字换字（如「周活」写成「腾活」）、括号引号成对。第 5 条任一成立即 severity=error，并在 message 里写明断在哪。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
@@ -175,11 +176,17 @@ export async function POST(request: Request) {
     const errorChangeIds = new Set(reviewerFindings
       .filter((finding) => String((finding as Record<string, unknown>)?.severity) === "error")
       .map((finding) => String((finding as Record<string, unknown>)?.changeId || "")));
-    const finalChanges = changes.filter((change) => !errorChangeIds.has(change.id));
+    // A failed overall review is not a success just because the model labelled
+    // its unsupported-responsibility finding "warning" rather than "error".
+    const failedFindingIds = new Set(reviewerFindings.map(finding => String((finding as Record<string, unknown>)?.changeId || "")));
+    const knownIds = new Set(changes.map(change => change.id));
+    const unexplainedFailure = reviewer.status !== "passed" && (reviewer.status !== "failed" || !failedFindingIds.size || [...failedFindingIds].some(id => !knownIds.has(id)));
+    const finalChanges = unexplainedFailure ? [] : changes.filter(change =>
+      !errorChangeIds.has(change.id) && (reviewer.status !== "failed" || !failedFindingIds.has(change.id)));
     if (!finalChanges.length) {
       await finalizeQuota(reservation, false);
       reservation = null;
-      return NextResponse.json({ ok: false, error: "改写未通过文字与事实质检，请重试或补充更完整的经历；本次未扣额度" }, { status: 422 });
+      return NextResponse.json({ ok: false, error: "改写未通过文字与事实质检，原文已保留，本次未扣额度", recovery: resumeRecovery(resumeText) }, { status: 422 });
     }
     const preview = applyResumeChanges(resumeText, finalChanges);
     const ats = reviewAtsText(preview.text, jobDescription);
@@ -194,7 +201,7 @@ export async function POST(request: Request) {
       });
       const factsStatus = rejected.length === 0 && preview.findings.length === 0 ? "passed" : "failed";
       const reviews = await Promise.all([
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "所有改写均可追溯到已确认事实。" : "存在无法定位或未通过事实校验的改写。", findings: [...rejected, ...preview.findings], contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "改写引用已提供材料；不代表经历已核实。" : "存在无法定位或未通过事实校验的改写。", findings: [...rejected, ...preview.findings], contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),

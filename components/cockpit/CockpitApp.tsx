@@ -3,6 +3,8 @@
 import Image from "next/image";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
+import ResumeRecovery from "./ResumeRecovery";
+import { appendResumeSupplement, type ResumeRecovery as Recovery } from "@/lib/coach-harness/resume-recovery";
 import {tutorInvitation} from "@/lib/interview/tutor-invitation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
 import {requestsTeaching,learningHandoff} from "@/lib/interview/learning-handoff";
@@ -74,6 +76,7 @@ import type {
 } from "./interview-assessment-logic";
 import { detectLowInfoAnswer } from "@/lib/interview/low-info-detector";
 import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
+import { createOpportunitySaveQueue } from "@/lib/opportunities/save-queue";
 import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
 import { applyReorderToOpportunity } from "@/lib/opportunities/resume-blocks";
@@ -126,9 +129,10 @@ function coverageTotal(opportunity: Opportunity) {
   return strong + weak + missing + unverified;
 }
 
-function useQuotaLabel(type: "chat" | "resume" | "interview") {
+function useQuotaLabel(type: "chat" | "resume" | "interview", busy = false) {
   const [label, setLabel] = useState("1 次额度");
   useEffect(() => {
+    if (busy) return;
     let active = true;
     fetch("/api/quota/check").then((response) => response.json()).then((result) => {
       const check = result?.checks?.[type];
@@ -140,7 +144,7 @@ function useQuotaLabel(type: "chat" | "resume" | "interview") {
       setLabel(check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [type]);
+  }, [type, busy]);
   return label;
 }
 
@@ -169,6 +173,11 @@ export function CockpitApp({
   const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("direction");
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const resumeRequestBusy = useRef(false);
+  const saveOpportunity = useRef(createOpportunitySaveQueue());
+  const latestOpportunities = useRef(opportunities);
+  latestOpportunities.current = opportunities;
+  const [resumeRecovery, setResumeRecovery] = useState<{ opportunityId: string; recovery: Recovery } | null>(null);
   const [validatingResume, setValidatingResume] = useState(false);
   const [supplementingMaterial, setSupplementingMaterial] = useState(false);
   const [resumeUploadOpen, setResumeUploadOpen] = useState(false);
@@ -242,11 +251,14 @@ export function CockpitApp({
     if (!localLoaded || dataMode !== "live") return;
     const timer = window.setTimeout(() => {
       for (const opportunity of opportunities.filter((item) => !localIds.includes(item.id))) {
-        fetch("/api/coach/opportunities", {
+        void saveOpportunity.current(opportunity.id, async () => {
+          // Ignore a stale render queued behind an explicit material save.
+          if (resumeRequestBusy.current || !latestOpportunities.current.includes(opportunity)) return;
+          const response = await fetch("/api/coach/opportunities", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ opportunity, preserveStage: true }),
-        }).then(async (response) => {
+          });
           if (!response.ok) throw new Error(`岗位云同步失败（${response.status}）`);
         }).catch((error) => {
           // 同步失败不能无声吞掉：本地有、云端没有，就会出现「界面有 JD、接口报缺 JD」的矛盾。
@@ -255,7 +267,7 @@ export function CockpitApp({
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [dataMode, localIds, localLoaded, opportunities]);
+  }, [dataMode, localIds, localLoaded, opportunities, generatingResume]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const relatedJobs = opportunities.filter((item) => item.id !== active?.id && item.workspaceType !== "preparation" && item.jdText?.trim());
@@ -604,11 +616,15 @@ export function CockpitApp({
     setMobileRail("actions");
   };
 
-  const generateResumeDraft = async () => {
-    if (!active?.resumeText || !active.jdText || generatingResume) {
+  const generateResumeDraft = async (target = active) => {
+    // Use the just-saved material, not a stale React render after supplementation.
+    const active = target;
+    if (!active?.resumeText || !active.jdText) {
       announce("请先补充简历和 JD");
       return;
     }
+    if (resumeRequestBusy.current) return;
+    resumeRequestBusy.current = true;
     setGeneratingResume(true);
     if (dataMode === "live") trackProductEvent("resume_generation_started", { opportunity_id: active.id });
     try {
@@ -618,7 +634,11 @@ export function CockpitApp({
         body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
       });
       const result = await response.json();
+      if (response.status === 422 && result.recovery && typeof result.recovery.question === "string" && typeof result.recovery.sourceExcerpt === "string") {
+        setResumeRecovery({ opportunityId: active.id, recovery: result.recovery });
+      }
       if (!response.ok || !result.ok) throw apiResponseError(response, result, "生成失败");
+      setResumeRecovery(current => current?.opportunityId === active.id ? null : current);
       setOpportunities((current) => current.map((item) => item.id === active.id ? {
         ...item,
         resumeChanges: result.changes,
@@ -633,6 +653,30 @@ export function CockpitApp({
       if (dataMode === "live") trackProductEvent("resume_generation_failed", { opportunity_id: active.id });
       announce(error instanceof Error ? error.message : "简历生成失败");
     } finally {
+      resumeRequestBusy.current = false;
+      setGeneratingResume(false);
+    }
+  };
+
+  const supplementResumeDraft = async (answer: string) => {
+    if (!active?.resumeText || resumeRequestBusy.current) throw new Error("请等待当前修改完成");
+    const updated = { ...active, resumeText: appendResumeSupplement(active.resumeText, answer), resumeCheckStale: true, frozenStale: Boolean(active.applicationQuality?.artifactId) };
+    resumeRequestBusy.current = true;
+    setGeneratingResume(true);
+    try {
+    if (dataMode === "live" && !localIds.includes(active.id)) {
+      await saveOpportunity.current(active.id, async () => {
+        const response = await fetch("/api/coach/opportunities", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity: updated, preserveStage: true }) });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw apiResponseError(response, result, "补充保存失败，输入仍在");
+      });
+    }
+    setOpportunities(items => items.map(item => item.id === updated.id ? updated : item));
+    announce("补充已保存，正在按更新后的材料继续改稿");
+    resumeRequestBusy.current = false;
+    await generateResumeDraft(updated);
+    } finally {
+      resumeRequestBusy.current = false;
       setGeneratingResume(false);
     }
   };
@@ -952,7 +996,7 @@ export function CockpitApp({
             {activeTab==="resume"&&active.resumeText&&resumeUploadOpen&&<ContextMaterialAction kind="resume" title="上传 / 替换简历" description="拖入文件或粘贴内容，会更新当前岗位的简历文本。" placeholder="粘贴新的简历内容" loading={supplementingMaterial} onSubmit={async (s)=>{try{await supplementOpportunity(s);setResumeUploadOpen(false);}finally{}}}/>}
             {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); }} onSupplement={supplementOpportunity} onConfirmEvidence={(requirement)=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补齐关键经历",prompt:`请带我梳理能证明「${requirement}」的真实经历，先问一个具体问题，不要替我编造。`});setMobileRail("actions");}} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={generateResumeDraft} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
+            {activeTab === "resume" && <ResumeTab opportunity={active} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
             {/* 面试台不再挂「概览+优先练题清单」：开练入口就在训练台上，
                 导师聊天保留在右栏，练面试时随时能就题问导师。 */}
             {activeTab === "interview" && <div className={styles.interviewWorkbench}>
@@ -1343,8 +1387,8 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
-  const quotaLabel = useQuotaLabel("resume");
+function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; recovery: Recovery | null; onSupplement: (answer: string) => Promise<void>; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
+  const quotaLabel = useQuotaLabel("resume", generating || validating || freezing);
   const [checkingPdf, setCheckingPdf] = useState(false);
   const progress = resumeProgress(opportunity);
   const currentExport = applyResumeChanges(opportunity.resumeText || "", opportunity.resumeChanges.filter(change => change.status === "accepted"));
@@ -1387,10 +1431,11 @@ function ResumeTab({ opportunity, onOpenEvidence, onUpdate, onEdit, onReorder, o
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>
       </div>
+      {recovery && <ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/>}
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
-          <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />
+          <div id={`resume-current-${opportunity.id}`}><ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} /></div>
           <div className={styles.resumeExportRow}><div><strong>保存与导出当前简历</strong><p>已采用的修改会进入导出；未决定的部分保留原文。检查建议不影响导出。</p>{currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}</div><ResumeExport opportunityId={opportunity.id} baseText={currentExport.text}/></div>
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}

@@ -38,4 +38,10 @@
 
 ## 发布核验
 
-待干净生产构建与正式域名核验后补记。
+代码 5542ba3 已推 backend。隔离发布目录逐文件与提交比对 17 个任务文件全部一致，未包含其他会话 auth/admin 脏改动；本地与 Vercel 生产构建成功。生产部署 dpl_7zwUot7EbhPKmwyEK8hbJvHcGBJd（ai-job-coach-huwuwre6p-velmavalienteqejimu22-jpgs-projects.vercel.app）Ready 并 promote；正式 www.ai-job-coach.xin/api/health 返回 ok/database ok。
+
+正式域名又用第三个全新合成账号核验：通过真实 quota RPC 预留并结算 3 次测试额度，构造 0 普通额度条件（不是重新宣称一遍完整导入旅程）；真实导师 POST 200、quota source=first_coaching，回答围绕零售经历追问并标注方法例子不是用户经历。数据库普通额度 0、保障 committed、已保存回复 1；第二次 POST 403。
+
+正式第二个账号刷新后仍包含完整补充；点击改稿实际再次 422，免费简历额度仍为 1，界面显示“补充已保存”且不再出现相同补充输入。正式 PDF 按钮生成新预览并保存 PDF，渲染检查完整含补充，无截字；390px 收起侧栏后问题/按钮/正文可读、无横向溢出。不是所有模板、跨设备写入或所有岗位的完整签收。
+
+3 个合成账号及其关联记录已清理，数据库核验 remaining_fixture_users=0。测试事件已标记 is_test，临时认证 Cookie 与私有运行环境文件清除；只保留非敏感合成截图/PDF/测试日志作为此次证据。

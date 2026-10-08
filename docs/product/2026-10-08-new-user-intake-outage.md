@@ -23,4 +23,12 @@
 
 ## 供应商接入补核
 
-按用户指定改为主要问主窗口、其次ASM，不再以运营窗口窄检索裁决接入。两个指定窗口找到StepFun官方API和HopBase历史接入及钥匙串配置；本轮认证GET模型列表StepFun/HopBase Flash均200，未生成回答、未查询余额、不等于当前余额充分或结构化整理可用。未把本机实验密钥传进Vercel，未改变原实验预算。已向用户询问是否允许StepFun作为线上站点供应商，待确认后配置与真实AI验收；不以降级版冒充修好全部激活路径。私有凭据位置仅留内部交接，不写进公开仓库报告。
+按用户指定改为主要问主窗口、其次ASM，不再以运营窗口窄检索裁决接入。两个指定窗口找到StepFun官方API和HopBase历史接入及钥匙串配置；认证GET模型列表StepFun/HopBase Flash均200，不等于当前余额充分或结构化整理可用。私有凭据位置仅留内部交接，不写进公开仓库报告。
+
+## 用户授权后的站点模型接入
+
+用户明确批准使用现有StepFun接入，不再反复请求确认。新增生产环境STEPFUN_API_KEY（Sensitive，仅通过stdin）、HOSTED_LLM_PROVIDER=stepfun、HOSTED_LLM_MODEL=step-3.7-flash。没有充值，没有把密钥写进代码、仓库或日志，没有更改ASM本机实验预算。官方地址固定为https://api.stepfun.com/v1，连接TokenPay的用户继续使用自己的模型与密钥；缺Step密钥不静默切回余额耗尽的DeepSeek。
+
+真实上游JSON生成200且成功解析；极小64-token试验出现空正文，扩大到512/1024可成功。API即使收到thinking-disabled也可能输出reasoning，所以不声称关闭推理：请求低effort、保持现有预算及正文非空校验，不向用户展示推理字段，保留失败退款与原文降级。402不再无意义重试。导师selection与实际站点模型同步，避免记录DeepSeek但实际调用Step。
+
+verify-hosted-activation.mjs使用专用合成新用户验证真实JD识别、无简历不虚构强证据、材料存取、导师NDJSON正文与done、真实模型/用量、历史持久化和成功扣两次免费额度；结束清理自身生成审计与账号。暂存/正式验收结果以执行后追加为准；不以单元测试冒充真实面试/语音全流程。

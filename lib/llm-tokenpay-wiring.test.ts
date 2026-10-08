@@ -14,6 +14,7 @@ jest.mock("openai", () => {
     chat = { completions: { create: (...args: unknown[]) => create(...args) } };
     constructor(options: unknown) {
       this.options = options;
+      (globalThis as Record<string, unknown>).__openaiOptions = options;
     }
   }
   return { __esModule: true, default: FakeOpenAI };
@@ -51,7 +52,7 @@ jest.mock("./llm-telemetry", () => ({
   classifyGenerationFailure: () => "unknown",
 }));
 
-import { callLLM } from "./llm";
+import { callLLM, buildChatCompletionRequest } from "./llm";
 import { getGenerationContext } from "./generation-context";
 import { getTokenPayCredential } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
@@ -66,8 +67,59 @@ function completion(text: string) {
 beforeEach(() => {
   jest.clearAllMocks();
   delete process.env.LLM_STUB;
+  delete process.env.HOSTED_LLM_PROVIDER;
+  delete process.env.HOSTED_LLM_MODEL;
+  delete process.env.STEPFUN_API_KEY;
   process.env.DEEPSEEK_API_KEY = "test-deepseek-key";
   (resolveTokenDanceModel as jest.Mock).mockImplementation((_u: string, model: string) => Promise.resolve(model));
+});
+
+describe("站点 StepFun 接线", () => {
+  beforeEach(() => {
+    process.env.HOSTED_LLM_PROVIDER = "stepfun";
+    process.env.STEPFUN_API_KEY = "test-step-key";
+    (getGenerationContext as jest.Mock).mockReturnValue({ userId: "new-user", operation: "intake" });
+    (getTokenPayCredential as jest.Mock).mockResolvedValue(null);
+    create.mockResolvedValue(completion("ok"));
+  });
+  afterEach(() => {
+    delete process.env.HOSTED_LLM_PROVIDER;
+    delete process.env.HOSTED_LLM_MODEL;
+    delete process.env.STEPFUN_API_KEY;
+  });
+  test("旧 DeepSeek 路由落到已配置站点模型、官方地址和站点密钥", async () => {
+    await callLLM(messages, {model:"deepseek-chat",timeoutMs:100});
+    expect(create.mock.calls[0][0].model).toBe("step-3.7-flash");
+    expect((globalThis as Record<string, unknown>).__openaiOptions).toMatchObject({apiKey:"test-step-key",baseURL:"https://api.stepfun.com/v1"});
+  });
+  test("公开工具无用户上下文仍使用站点模型", async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue(undefined);
+    process.env.HOSTED_LLM_MODEL = "step-3.5-flash";
+    await callLLM(messages, {timeoutMs:100});
+    expect(create.mock.calls[0][0].model).toBe("step-3.5-flash");
+    expect(getTokenPayCredential).not.toHaveBeenCalled();
+  });
+  test("已连接 TokenPay 优先，不挪用站点密钥", async () => {
+    (getTokenPayCredential as jest.Mock).mockResolvedValue("tp-key");
+    await callLLM(messages, {model:"glm-5.3",timeoutMs:100});
+    expect(create.mock.calls[0][0].model).toBe("glm-5.3");
+    expect((globalThis as Record<string, unknown>).__openaiOptions).toMatchObject({apiKey:"tp-key",baseURL:"https://tokendance.space/gateway/v1"});
+  });
+  test("缺密钥明确失败，不退到 DeepSeek", async () => {
+    delete process.env.STEPFUN_API_KEY;
+    await expect(callLLM(messages)).rejects.toThrow("STEPFUN_API_KEY");
+    expect(create).not.toHaveBeenCalled();
+  });
+  test("站点 402 不重试、不切其他模型", async () => {
+    create.mockRejectedValue(Object.assign(new Error("Insufficient Balance"),{status:402}));
+    await expect(callLLM(messages,{timeoutMs:100})).rejects.toThrow();
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+  test("JSON 与低推理预算参数，不复用 DeepSeek thinking 协议", () => {
+    const request=buildChatCompletionRequest(messages,"stepfun","step-3.7-flash",{responseFormat:"json_object"});
+    expect(request).toMatchObject({reasoning_effort:"low",response_format:{type:"json_object"}});
+    expect(request.thinking).toBeUndefined();
+  });
 });
 
 describe("callLLM 的 TokenPay 网关接线", () => {

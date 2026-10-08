@@ -4,6 +4,7 @@ import { getGenerationContext } from "./generation-context";
 import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationUsage, recordGenerationEvent } from "./llm-telemetry";
 import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
+import { hostedStepModel } from "./hosted-model";
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -17,7 +18,7 @@ type LlmOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
-  provider?: "deepseek" | "openai" | "tokendance";
+  provider?: "deepseek" | "openai" | "tokendance" | "stepfun";
   timeout?: number;
   timeoutMs?: number;
   maxRetries?: number;
@@ -38,7 +39,7 @@ export function tokenDanceRecoveryActionFromError(error: unknown): TokenPayRecov
     : undefined;
 }
 
-export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai" | "tokendance", model: string, options?: LlmOptions) {
+export function buildChatCompletionRequest(messages: Message[], provider: "deepseek" | "openai" | "tokendance" | "stepfun", model: string, options?: LlmOptions) {
   const request: Record<string, unknown> = {
     model,
     messages,
@@ -52,6 +53,10 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
     request.thinking = { type: options?.thinking || "disabled" };
   }
   if (options?.responseFormat) request.response_format = { type: options.responseFormat };
+  // Step's API may return reasoning even with a thinking-disable flag. Use a
+  // bounded effort, and only expose final content (the streaming reader below
+  // already separates reasoning). Do not promise reasoning is disabled.
+  if (provider === "stepfun") request.reasoning_effort = "low";
   // Kimi thinking models may require fixed sampling parameters; omit rather
   // than sending the application's generic temperature (TokenDance Kimi guide).
   if(provider==="tokendance"&&model.startsWith("kimi-"))delete request.temperature;
@@ -107,6 +112,8 @@ async function callWithTimeoutAndRetry<T>(
         errorCode === "invalid_api_key" ||
         errorCode === "insufficient_quota" ||
         statusCode === 401 ||
+        statusCode === 402 ||
+        /insufficient balance/i.test(msg) ||
         statusCode === 400
       ) {
         throw e;
@@ -149,7 +156,7 @@ export async function callLLM(
   }
 
   const trace = getGenerationContext();
-  let provider: "deepseek" | "openai" | "tokendance" = options?.provider || "deepseek";
+  let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
   let apiKey: string | undefined;
   // A connected TokenPay account becomes the user's model provider for every
   // metered AI action carrying a generation context. Unconnected users keep
@@ -162,6 +169,17 @@ export async function callLLM(
     }
   }
   let model = options?.model || (provider === "openai" ? "gpt-3.5-turbo" : "deepseek-v4-flash");
+  // Connected users keep their own gateway/model. Hosted actions (including
+  // intake and interview) share one explicit site provider, not stale per-route
+  // DeepSeek identifiers. A missing Step credential fails visibly, never swaps
+  // silently to the depleted provider.
+  const hostedModel = hostedStepModel();
+  if (provider === "deepseek" && hostedModel) {
+    provider = "stepfun";
+    model = hostedModel;
+  } else if (provider === "stepfun") {
+    model = options?.model || hostedModel || "step-3.7-flash";
+  }
   // The model is only valid if it exists on the provider we actually hit. Once a
   // connected TokenPay account flips the provider to the TokenDance gateway, the
   // caller-supplied DeepSeek model id has to be reconciled with the gateway
@@ -200,6 +218,8 @@ export async function callLLM(
     ? process.env.DEEPSEEK_API_KEY
     : provider === "openai"
       ? process.env.OPENAI_API_KEY
+      : provider === "stepfun"
+        ? process.env.STEPFUN_API_KEY
       : undefined;
 
   if (!apiKey) {
@@ -229,6 +249,8 @@ export async function callLLM(
       ? "https://api.deepseek.com"
       : provider === "tokendance"
         ? "https://tokendance.space/gateway/v1"
+        : provider === "stepfun"
+          ? "https://api.stepfun.com/v1"
         : undefined, // OpenAI 使用默认 baseURL
     defaultHeaders: provider === "tokendance" ? tokenDanceAttributionHeaders() : undefined,
     timeout: options?.timeout || 30000, // SDK 级别的超时（作为最后防线）

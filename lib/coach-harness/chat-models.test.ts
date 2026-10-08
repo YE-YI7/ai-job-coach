@@ -40,6 +40,23 @@ function mockFetchCatalog(ok: boolean, entries?: Array<{ id: string; chat: boole
 
 const chat = (...ids: string[]) => ids.map((id) => ({ id, chat: true }));
 
+describe("托管导师的真实模型标识", () => {
+  afterEach(() => { delete process.env.HOSTED_LLM_PROVIDER; delete process.env.HOSTED_LLM_MODEL; });
+  test("未连接账号自动/经济都返回站点模型，显式高级模型仍需连接", async () => {
+    process.env.HOSTED_LLM_PROVIDER="stepfun";
+    const mod=await freshChatModels(null);
+    await expect(mod.resolveChatModel("u-1","auto","分析 JD")).resolves.toEqual({model:"step-3.7-flash",connected:false});
+    await expect(mod.resolveChatModel("u-1","fast","教我面试")).resolves.toEqual({model:"step-3.7-flash",connected:false});
+    await expect(mod.resolveChatModel("u-1","glm-5.3","分析 JD")).rejects.toThrow("连接 TokenPay");
+  });
+  test("连接账号不被站点配置覆盖", async () => {
+    process.env.HOSTED_LLM_PROVIDER="stepfun";
+    mockFetchCatalog(true,chat("glm-5.3"));
+    const mod=await freshChatModels();
+    await expect(mod.resolveChatModel("u-1","glm-5.3","架构")).resolves.toEqual({model:"glm-5.3",connected:true});
+  });
+});
+
 describe("chatModelAccess", () => {
   test("未连接 TokenPay：不请求目录，可用列表为空", async () => {
     const fetchMock = mockFetchCatalog(true, chat("glm-5.3"));

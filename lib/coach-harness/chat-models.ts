@@ -1,4 +1,5 @@
 import {getTokenPayCredential} from "@/lib/tokenpay";
+import {hostedStepModel} from "@/lib/hosted-model";
 import {chooseChatModel,type ChatMode} from "./chat-options";
 import {intersectSelectable,intersectHostedChat,findModel,isSelectableModelId} from "./model-catalog";
 let cache:{until:number;ids:string[];hosted:string[]}|undefined;
@@ -72,6 +73,8 @@ export async function resolveTokenDanceModel(userId:string,requested:string){
 export async function resolveChatModel(userId:string,mode:ChatMode,query:string){
  const access=await chatModelAccess(userId);
  if(!access.connected&&mode!=="auto"&&mode!=="fast")throw Error("请先连接 TokenPay 才能使用该模型");
+ const hosted=hostedStepModel();
+ if(!access.connected&&hosted)return {model:hosted,connected:false};
  const available=mode==="auto"?access.available.filter(id=>(coolingUntil.get(id)||0)<=Date.now()):access.available;
  const model=chooseChatModel(mode,query,available);
  if(!model)throw Error("该模型当前不可用，请改用自动或经济模式");

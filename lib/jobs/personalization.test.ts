@@ -48,6 +48,20 @@ test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  expect(result.modelCalls).toBe(1);expect(callLLM).toHaveBeenCalledTimes(1);
  expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({maxRetries:0,maxTokens:1400});
 });
+test("数字字符串引用仅在现有证据编号内归一化，不因此丢掉真实候选", async () => {
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidenceId:"0",jdEvidenceId:"0"}]}));
+ expect((await personalizeJobs([job()],resume,"owner","run","AI产品经理")).jobs).toHaveLength(1);
+});
+test("一条坏引用不拖垮另一条已经核验的推荐，坏项不进入结果", async () => {
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item("2"),jdEvidenceId:99},item()]}));
+ const result=await personalizeJobs([job(),job("2")],resume,"owner","run","AI产品经理");
+ expect(result.jobs.map(j=>j.id)).toEqual(["1"]);
+ expect(result.rejectedCount).toBe(1);
+});
+test.each(["0x0", "0.0", "", false, null])("非法引用 %j 不当作零号证据",async id=>{
+ (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),jdEvidenceId:id}]}));
+ await expect(personalizeJobs([job()],resume,"owner","run","AI产品经理")).rejects.toThrow("引用核验");
+});
 test("逐字引用包含句末标点仍有效，不能把有效引用误报失败",async()=>{
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[item()]}));
  const result=await personalizeJobs([job()],resume,"owner","run","AI 产品经理");

@@ -1,7 +1,7 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { matchJobs } from "@/lib/jobs/discovery";
-import { matchesRequestedSeniority, matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
+import { JobAssessmentError, matchesRequestedSeniority, matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
 import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota";
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     }
     const personalized = await personalizeJobs(verified.kept, profile.resumeText, user.id, runId, profile.role);
     await checkCancelled();
-    const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:personalized.jobs, personalization:{version:PERSONALIZATION_VERSION,modelCalls:personalized.modelCalls,evaluatedCount:personalized.evaluatedCount}, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
+    const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:personalized.jobs, personalization:{version:PERSONALIZATION_VERSION,modelCalls:personalized.modelCalls,evaluatedCount:personalized.evaluatedCount,rejectedCount:personalized.rejectedCount ?? 0}, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
       verification:{status:verified.status, note:verified.note, directoryVerifiedAt:verified.directoryVerifiedAt, coverage:verified.coverage},
       tierPreference:preference, tierOptions:TIER_ORDER.map(tier=>({value:tier,label:TIER_LABEL[tier]})),
       search:{keywords, blockedCount:blocked.length, calls:searched.calls, cacheHit, callsThisRequest: cacheHit ? 0 : searched.calls, truncatedCalls:searched.truncatedCalls,
@@ -179,6 +179,7 @@ export async function POST(request: Request) {
       }
     }
     console.error("Job discovery failed", error instanceof Error ? error.message : "unknown");
+    if (error instanceof JobAssessmentError) return Response.json({runId,code:"ASSESSMENT_INVALID",error:error.message},{status:502});
     return Response.json({runId,error:runId ? "岗位搜索或结果保存失败，请重试；你的简历不受影响。" : "读取简历或建立搜索任务失败，请重试"},{status:500});
   }
 }

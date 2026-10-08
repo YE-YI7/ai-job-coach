@@ -2,7 +2,18 @@ import { callLLM } from "@/lib/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { VerifiedJob } from "./verification-gate";
 
-export const PERSONALIZATION_VERSION = "evidence-shortlist-v4-junior-intent";
+export const PERSONALIZATION_VERSION = "evidence-shortlist-v5-validated-partial";
+export class JobAssessmentError extends Error {}
+/** JSON providers sometimes serialize IDs as strings. Only exact listed integers
+ * are accepted; no substring, approximate citation, or invented fallback. */
+function evidenceIndex(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && /^(?:0|[1-9]\d*)$/.test(value)) {
+    const index = Number(value);
+    return Number.isSafeInteger(index) ? index : null;
+  }
+  return null;
+}
 /** Only explicit desired seniority is a constraint; an old junior title is not a preference. */
 export function matchesRequestedSeniority(job: { title: string }, role: string, resume: string) {
   const intent = [role, ...resume.split(/[。；;\n]/).filter(line => /求职|方向|目标|希望|寻找|想找|找.{0,6}岗位|seeking|looking for/i.test(line))].join("\n");
@@ -71,16 +82,18 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
   if(!Array.isArray(parsed.items)) throw new Error("岗位个性化评审未返回有效结果，请重试");
   const seen=new Set<string>();
   const selected:VerifiedJob[]=[];
+  let rejectedCount = 0;
   for(const value of parsed.items.slice(0,5)) {
     if(!value||typeof value!=="object")throw new Error("岗位评审格式不正确");
     const item=value as Record<string,unknown>;
     const job=pool.find(j=>j.id===item.id),input=inputs.find(j=>j.id===item.id);
     if(!job||!input||seen.has(job.id))throw new Error("岗位评审包含未知或重复岗位");
-    const jdQuote=Number.isInteger(item.jdEvidenceId)?input.jdEvidence.find(e=>e.id===item.jdEvidenceId):null;
-    const resumeQuote=Number.isInteger(item.resumeEvidenceId)?facts.find(e=>e.id===item.resumeEvidenceId):null;
-    if(!jdQuote)throw new Error("岗位评审缺少可核验JD引用");
-    if(item.resumeEvidenceId!==null&&!resumeQuote)throw new Error("岗位评审简历引用不可核验");
-    if(typeof item.gap!=="string"||typeof item.learn!=="string"||item.gap.length>250||item.learn.length>250)throw new Error("岗位评审缺口或学习建议格式不正确");
+    const jdQuote=input.jdEvidence.find(e=>e.id===evidenceIndex(item.jdEvidenceId));
+    const resumeQuote=facts.find(e=>e.id===evidenceIndex(item.resumeEvidenceId));
+    if(!jdQuote || (item.resumeEvidenceId!==null&&!resumeQuote) || typeof item.gap!=="string" || typeof item.learn!=="string" || item.gap.length>250 || item.learn.length>250) {
+      rejectedCount += 1;
+      continue;
+    }
     seen.add(job.id);
     selected.push({...job,reasons:[
       ...(resumeQuote?[`可迁移经历：${resumeQuote.text}`]:["简历暂未提供此岗的直接经历"]),
@@ -88,7 +101,8 @@ export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userI
       ...job.reasons.filter(r=>r.startsWith("需核实在读")||r.startsWith("地点待核实")||r.includes("远程")),
     ]});
   }
+  if (rejectedCount && !selected.length) throw new JobAssessmentError("AI 岗位评审未通过引用核验，请重试，本次未扣额度；你的简历不受影响。");
   // An unknown mandatory identity must remain visible and never beat confirmed candidates.
   selected.sort((a,b)=>Number(a.reasons.some(r=>r.startsWith("需核实在读")))-Number(b.reasons.some(r=>r.startsWith("需核实在读"))));
-  return {jobs:selected,modelCalls:1,evaluatedCount:pool.length};
+  return {jobs:selected,modelCalls:1,evaluatedCount:pool.length,rejectedCount};
 }

@@ -1,5 +1,5 @@
 import { POST } from "./route";
-import { personalizeJobs } from "@/lib/jobs/personalization";
+import { JobAssessmentError, personalizeJobs } from "@/lib/jobs/personalization";
 import { reserveQuota, finalizeQuota } from "@/lib/quota";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
@@ -61,6 +61,14 @@ test("个性化失败不伪报搜索成功或保存通用推荐",async()=>{
  expect(completeTask).not.toHaveBeenCalled();
  expect(finalizeQuota).toHaveBeenCalledWith(expect.any(Object),false);
  expect(failTask).toHaveBeenCalledWith(expect.objectContaining({failureType:"search_or_save_failed"}));
+});
+test("全部引用无效时明确标上游评审失败并返还额度", async () => {
+ (personalizeJobs as jest.Mock).mockRejectedValue(new JobAssessmentError("AI 岗位评审未通过引用核验，请重试，本次未扣额度"));
+ const response=await POST(request());
+ expect(response.status).toBe(502);
+ expect((await response.json()).code).toBe("ASSESSMENT_INVALID");
+ expect(finalizeQuota).toHaveBeenCalledWith(expect.any(Object),false);
+ expect(completeTask).not.toHaveBeenCalled();
 });
 
 test("额度不足不调用评审；重放保存结果不扣第二次额度",async()=>{

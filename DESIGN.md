@@ -43,6 +43,26 @@ typography:
     fontSize: "10px"
     fontWeight: 700
     lineHeight: 1.4
+  cockpit-reading:
+    fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.85
+  cockpit-section:
+    fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
+    fontSize: "18px"
+    fontWeight: 700
+    lineHeight: 1.5
+  resume-body:
+    fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.8
+  editor-control:
+    fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.6
 rounded:
   control: "10px"
   card: "16px"
@@ -133,6 +153,10 @@ components:
 - **Title**（760，15px）：区域标题和栏标题。
 - **Body**（400，11–12px，1.6）：解释、证据与行动原因。
 - **Label**（700，9–10px）：状态、来源和辅助元数据。
+
+### Cockpit Reading and Editing Scale
+
+作战盘的导师正文使用 16px / 1.85，分节标题使用 18px / 1.5；简历工作纸正文使用 14px / 1.8，工具栏使用 13px。这是长文阅读与编辑表面的局部尺度，不将密集元数据统一放大。对话输入区保持白色、圆角外容器；聚焦只改变外边界，不在文本框内部画矩形框。侧栏使用平整暖白表面，避免颗粒干扰正文。简历重排使用 240ms 的位置连续过渡，系统减少动态效果时立即更新位置，始终保留文字反馈。
 
 ### Public Surface Scale
 

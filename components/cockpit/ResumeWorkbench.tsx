@@ -1,6 +1,8 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronDown, GripVertical, ShieldCheck, Circle } from "lucide-react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Check, ChevronDown, GripVertical, ShieldCheck, Circle, ArrowUp, ArrowDown } from "lucide-react";
+import { gsap } from "gsap";
+import { resumeMotionKeys, resumeMoveTarget } from "./resume-motion";
 import type { Opportunity, ResumeChange } from "@/lib/opportunities/types";
 import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "@/lib/opportunities/resume-blocks";
@@ -71,6 +73,11 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
   const [editValue, setEditValue] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const [template, chooseTemplate] = useResumeTemplate();
+  const sheet = useRef<HTMLDivElement>(null);
+  const positions = useRef<Map<string, number> | null>(null);
+  const moveFocus = useRef<{ key: string; label: string } | null>(null);
+  const [moveFromText, setMoveFromText] = useState<string | null>(null);
+  const moveNotice = moveFromText !== null && opportunity.resumeText !== moveFromText ? "顺序已调整，预览与 PDF 会使用新顺序。" : "";
 
   const blocks = useMemo(
     () => assignChangesToBlocks(splitResumeBlocks(opportunity.resumeText || ""), opportunity.resumeChanges),
@@ -78,14 +85,56 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
   );
 
   const changeById = useMemo(() => new Map(opportunity.resumeChanges.map((c) => [c.id, c])), [opportunity.resumeChanges]);
+  const motionKeys = resumeMotionKeys(blocks);
   const usedIds = new Set<string>();
 
   const gap = useMemo(() => uncoverableGap(opportunity.requirements || []), [opportunity.requirements]);
 
+  useLayoutEffect(() => {
+    const previous = positions.current;
+    positions.current = null;
+    if (!previous || !sheet.current) return;
+    const focus = moveFocus.current;
+    moveFocus.current = null;
+    if (focus) {
+      const section = Array.from(sheet.current.querySelectorAll<HTMLElement>("[data-motion-key]")).find(element => element.dataset.motionKey === focus.key);
+      const buttons = Array.from(section?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+      // Moving to the boundary disables that arrow; keep keyboard users on
+      // the moved section rather than dropping focus back to the document.
+      (buttons.find(button => button.getAttribute("aria-label") === focus.label && !button.disabled) ?? buttons[0])?.focus({ preventScroll: true });
+    }
+    const media = gsap.matchMedia();
+    media.add("(prefers-reduced-motion: no-preference)", () => {
+      const rootTop = sheet.current!.getBoundingClientRect().top;
+      sheet.current!.querySelectorAll<HTMLElement>("[data-motion-key]").forEach(element => {
+        const oldTop = previous.get(element.dataset.motionKey!);
+        if (oldTop === undefined) return;
+        const y = oldTop - (element.getBoundingClientRect().top - rootTop);
+        if (Math.abs(y) < 1) return;
+        gsap.fromTo(element, { y }, { y: 0, duration: .24, ease: "power3.out", clearProps: "transform" });
+      });
+    }, sheet);
+    return () => media.revert();
+  }, [opportunity.resumeText]);
+
+  const move = (fromId: string, targetId: string) => {
+    setExpanded(new Set());
+    setMoveFromText(opportunity.resumeText || "");
+    const focused = document.activeElement;
+    moveFocus.current = focused instanceof HTMLButtonElement && sheet.current?.contains(focused)
+      ? { key: motionKeys[blocks.findIndex(block => block.id === fromId)], label: focused.getAttribute("aria-label") || "" }
+      : null;
+    if (sheet.current) {
+      const top = sheet.current.getBoundingClientRect().top;
+      positions.current = new Map(Array.from(sheet.current.querySelectorAll<HTMLElement>("[data-motion-key]")).map(element => [element.dataset.motionKey!, element.getBoundingClientRect().top - top]));
+    }
+    onReorder(fromId, targetId);
+  };
+
   const reorder = (targetId: string) => {
     if (!dragId || dragId === targetId) { setDragId(null); return; }
     // 顺序直接落回简历正文：保存、质检、冻结、导出用的都是重排后的文本。
-    onReorder(dragId, targetId);
+    move(dragId, targetId);
     setDragId(null);
   };
   const toggle = (id: string) => setExpanded((prev) => prev.has(id) ? new Set() : new Set([id]));
@@ -112,20 +161,22 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
           ))}
         </div>
       </div>
-      <div className={`${styles.resumeSheet} ${styles[TEMPLATE_CLASS[template]]}`}>
-        {blocks.map((block) => {
+      <p className={styles.blockMoveNotice} role="status">{moveNotice}</p>
+      <div ref={sheet} className={`${styles.resumeSheet} ${styles[TEMPLATE_CLASS[template]]}`}>
+        {blocks.map((block, blockIndex) => {
           const meta = KIND_META[block.kind];
           const changes = block.changeIds.map((id) => changeById.get(id)).filter((c): c is ResumeChange => Boolean(c));
           const isExpanded = expanded.has(block.id);
           const pendingHere = changes.filter((c) => c.status === "pending").length;
           return (
-            <section key={block.id} data-kind={block.kind} draggable={!block.synthetic && !editingId}
+            <section key={motionKeys[blockIndex]} data-motion-key={motionKeys[blockIndex]} data-kind={block.kind} draggable={!block.synthetic && !editingId}
               onMouseEnter={() => { if (changes.length && !editingId && !dragId) setExpanded(new Set([block.id])); }}
               onMouseLeave={(event) => { if (!editingId && !event.currentTarget.contains(document.activeElement)) setExpanded(new Set()); }}
               onBlur={(event) => { if (!editingId && !event.currentTarget.contains(event.relatedTarget)) setExpanded(new Set()); }}
               onKeyDown={(event) => { if (event.key === "Escape") { setEditingId(null); event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus(); setExpanded(new Set()); } }}
               onDragStart={() => { if (!block.synthetic) { setDragId(block.id); setExpanded(new Set()); } }} onDragOver={(e) => { if (!dragId || block.synthetic) return; e.preventDefault(); }} onDrop={() => reorder(block.id)} onDragEnd={() => setDragId(null)}
               className={`${styles.sheetSection} ${isExpanded ? styles.sectionPopoverOpen : ""} ${dragId === block.id ? styles.blockDragging : ""}`}>
+              <div className={styles.sectionHeader}>
               <button type="button" className={`${styles.blockHead} ${styles.blockTrigger}`} aria-expanded={isExpanded} aria-controls={`resume-options-${block.id}`} onClick={() => changes.length ? setExpanded(new Set([block.id])) : toggle(block.id)}>
                 <GripVertical size={15} className={styles.blockGrip} aria-hidden="true" />
                 <span className={styles.blockKind}>{meta.label}</span>
@@ -133,6 +184,14 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
                 {changes.length > 0 && <span className={styles.blockBadge}>{pendingHere ? `${pendingHere} 处待确认` : `${changes.length} 处改动`}</span>}
                 <ChevronDown size={16} className={`${styles.blockChevron} ${isExpanded ? styles.blockChevronOpen : ""}`} />
               </button>
+              {!block.synthetic && <div className={styles.blockMoveControls} aria-label={`调整${block.title}的顺序`}>
+                {([-1, 1] as const).map(direction => {
+                  const target = resumeMoveTarget(blocks.map(item => item.id), blockIndex, direction);
+                  const disabled = !target || Boolean(editingId) || Boolean(blocks.find(item => item.id === target)?.synthetic);
+                  return <button key={direction} type="button" disabled={disabled} aria-label={`${direction === -1 ? "上移" : "下移"}${block.title}`} title={direction === -1 ? "上移" : "下移"} onClick={() => { if (target && !disabled) move(block.id, target); }}>{direction === -1 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}</button>;
+                })}
+              </div>}
+              </div>
               <div className={styles.blockBody}>
                 {block.synthetic
                   ? changes.map(change => <p key={change.id}>{renderMarkdownLine(change.status === "rejected" ? change.before : change.after, [], usedIds)}</p>)

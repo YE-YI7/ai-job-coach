@@ -76,3 +76,9 @@ describe("冷却重试档位（不再写死模型字面量）",()=>{
   expect(source).toMatch(/ECONOMY_MODEL_ID/);
  });
 });
+test("站点余额不足不冒充用户余额不足，也不泄露上游请求ID或自动重试",()=>{
+ const error=new Error("LLM API 调用失败: Insufficient Balance (request_id: private-request)");
+ expect(chatFailureMessage(error)).toContain("站点的 AI 服务额度");
+ expect(chatFailureMessage(error)).not.toMatch(/private-request|充值/);
+ expect(resolveCooldownRetry({mode:"auto",receivedText:false,currentModel:"glm-5.3",error})).toBeNull();
+});

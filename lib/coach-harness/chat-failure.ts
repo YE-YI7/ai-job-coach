@@ -16,6 +16,7 @@ import { ECONOMY_MODEL_ID } from "./model-catalog";
 
 export type ChatFailureClass =
   | "provider_quota"
+  | "hosted_provider_quota"
   | "repetition_abort"
   | "model_timeout"
   | "rate_limited"
@@ -48,6 +49,7 @@ export interface ChatFailureRow {
 /** 顺序即历史匹配顺序（TokenPay 最先、缺省 unknown 最后），不许调整。 */
 export const CHAT_FAILURE_TABLE: readonly ChatFailureRow[] = [
   { failure: "provider_quota", userCopy: (message) => message, retryable: "none", persists: false, detection: /TokenPay/, wired: true },
+  { failure: "hosted_provider_quota", userCopy: "站点的 AI 服务额度暂时用完了，问题和档案仍保留。请稍后再试，或连接你自己的 TokenPay。", retryable: "none", persists: false, detection: /insufficient.?balance|insufficient_quota|API 配额不足/i, wired: true },
   { failure: "repetition_abort", userCopy: "导师输出重复，已停止本次回答且未保存。请重试或更换模型。", retryable: "manual", persists: false, detection: /导师输出重复/, wired: true },
   { failure: "model_timeout", userCopy: "模型响应超时。问题仍保留在输入框，可重试或选择其他模型。", retryable: "auto_per_routing", persists: false, detection: /timeout|timed\s*out|abort/i, wired: true },
   { failure: "rate_limited", userCopy: "模型当前请求较多，请稍后重试或选择其他模型。", retryable: "manual", persists: false, detection: /429|rate.?limit/i, wired: true },

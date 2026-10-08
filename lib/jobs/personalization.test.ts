@@ -46,7 +46,7 @@ test("一次模型调用产生带核验引用和练习的推荐",async()=>{
  expect(result.jobs[0].reasons.join()).toContain("电商会员");
  expect(result.jobs[0].reasons.join()).toContain("可以先练");
  expect(result.modelCalls).toBe(1);expect(callLLM).toHaveBeenCalledTimes(1);
- expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({maxRetries:0,maxTokens:1400});
+ expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({maxRetries:0,maxTokens:1400,reasoningBudgetTokens:4096,timeoutMs:45000});
 });
 test("数字字符串引用仅在现有证据编号内归一化，不因此丢掉真实候选", async () => {
  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({items:[{...item(),resumeEvidenceId:"0",jdEvidenceId:"0"}]}));

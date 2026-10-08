@@ -57,10 +57,19 @@ test("同一请求重放已保存结果，不再次搜索", async () => {
 
 test("个性化失败不伪报搜索成功或保存通用推荐",async()=>{
  (personalizeJobs as jest.Mock).mockRejectedValue(new Error("invalid evidence"));
- expect((await POST(request())).status).toBe(500);
+ const response=await POST(request());
+ expect(response.status).toBe(502);
+ expect((await response.json()).error).toContain("匹配评审未完成");
  expect(completeTask).not.toHaveBeenCalled();
  expect(finalizeQuota).toHaveBeenCalledWith(expect.any(Object),false);
- expect(failTask).toHaveBeenCalledWith(expect.objectContaining({failureType:"search_or_save_failed"}));
+ expect(failTask).toHaveBeenCalledWith(expect.objectContaining({failureType:"assessment_failed",stepId:"screen"}));
+});
+test("推理耗尽输出预算时记录明确失败环节、退款、不保存假结果",async()=>{
+ (personalizeJobs as jest.Mock).mockRejectedValue(new Error("Empty response from LLM (finish_reason=length)"));
+ expect((await POST(request())).status).toBe(502);
+ expect(failTask).toHaveBeenCalledWith(expect.objectContaining({failureType:"assessment_output_limit",stepId:"screen"}));
+ expect(finalizeQuota).toHaveBeenCalledWith(expect.any(Object),false);
+ expect(completeTask).not.toHaveBeenCalled();
 });
 test("全部引用无效时明确标上游评审失败并返还额度", async () => {
  (personalizeJobs as jest.Mock).mockRejectedValue(new JobAssessmentError("AI 岗位评审未通过引用核验，请重试，本次未扣额度"));

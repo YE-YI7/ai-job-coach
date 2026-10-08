@@ -17,7 +17,7 @@ import { compileContextBundle } from "@/lib/coach-harness/context";
 import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeEvent, startExecution, startTask } from "@/lib/coach-harness/run-ledger";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 /** Two open searches + one batch read, plus one query per domestic source.
  * Cover all companies before spending the latency budget on a second keyword. */
 const MAX_SOURCE_CALLS = 3 + DOMESTIC_SOURCE_IDS.length;
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     if (!profile) return Response.json({ error: "找不到这份基础简历" }, { status: 404, headers });
     const db = await getDbClient();
     if (!db) throw new Error("数据库不可用");
-    const { data, error } = await db.from("coach_runs").select("id")
+    const { data, error } = await db.from("coach_runs").select("id,error")
       .eq("user_id", user.id).eq("opportunity_id", profileId).eq("action_type", "job_decision").eq("input->>billingUnit", "job_search")
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
@@ -47,7 +47,12 @@ export async function GET(request: Request) {
     if (result?.jobs && result.profileFingerprint === profileFingerprint(profile, preference.effectiveTiers)) {
       return Response.json({ found: true, result, status: ledger.status, completedAt: ledger.completedAt }, { headers });
     }
-    return Response.json({ found: false, status: ledger.status, runId: ledger.runId }, { headers });
+    const failureType = data.error?.failureType;
+    const failureMessage = failureType === "assessment_failed" || failureType === "assessment_output_limit"
+      ? "岗位已找到，但 AI 匹配评审未完成。本次未扣额度，简历仍保留，请重新查找。"
+      : "上次搜索未完成，可重新查找；简历仍保留。";
+    return Response.json({ found: false, status: ledger.status, runId: ledger.runId,
+      ...(ledger.status === "failed" ? {failureType,error:failureMessage,retryable:true} : {}) }, { headers });
   } catch { return Response.json({ error: "上次搜索读取失败，请重试；不会自动重复搜索。" }, { status: 503, headers }); }
 }
 
@@ -90,6 +95,7 @@ export async function POST(request: Request) {
   if (requestId !== undefined && (typeof requestId !== "string" || !/^[\da-f-]{36}$/i.test(requestId))) return Response.json({error:"请求编号不正确"},{status:400});
   let runId: string | undefined;
   let reservation: QuotaReservation | null = null;
+  let phase: "search" | "assessment" | "save" = "search";
   try {
     const saved = await listCockpitOpportunities(user.id);
     const profile = saved.find(item => item.id === profileId && item.workspaceType === "preparation");
@@ -151,8 +157,10 @@ export async function POST(request: Request) {
         return Response.json({runId,error:"岗位已找到，但 AI 评审额度不足；请补充额度后重试。",needUpgrade:true},{status:403});
       }
     }
+    phase = "assessment";
     const personalized = await personalizeJobs(verified.kept, profile.resumeText, user.id, runId, profile.role);
     await checkCancelled();
+    phase = "save";
     const result = {runId, profileFingerprint:profileFingerprint(profile, preference.effectiveTiers), jobs:personalized.jobs, personalization:{version:PERSONALIZATION_VERSION,modelCalls:personalized.modelCalls,evaluatedCount:personalized.evaluatedCount,rejectedCount:personalized.rejectedCount ?? 0}, filtered:verified.filtered, pendingProfileFields:verified.pendingProfileFields,
       verification:{status:verified.status, note:verified.note, directoryVerifiedAt:verified.directoryVerifiedAt, coverage:verified.coverage},
       tierPreference:preference, tierOptions:TIER_ORDER.map(tier=>({value:tier,label:TIER_LABEL[tier]})),
@@ -180,11 +188,13 @@ export async function POST(request: Request) {
       const task = await getTaskLedger({ userId: user.id, runId }).catch(() => null);
       if (task?.runStatus === "cancelled") return Response.json({ runId, error: "搜索已取消，简历未被改动。" }, { status: 409 });
       if (task && !["completed", "failed", "cancelled"].includes(task.runStatus)) {
-        await failTask({ userId: user.id, runId, reason: "error", failureType: "search_or_save_failed" }).catch(() => undefined);
+        const outputLimited = /finish_reason=length/.test(error instanceof Error ? error.message : "");
+        await failTask({ userId: user.id, runId, reason: "error", failureType: phase === "assessment" ? (outputLimited ? "assessment_output_limit" : "assessment_failed") : "search_or_save_failed", stepId: phase === "assessment" ? "screen" : undefined }).catch(() => undefined);
       }
     }
-    console.error("Job discovery failed", error instanceof Error ? error.message : "unknown");
+    console.error("Job discovery failed", {runId,phase,message:error instanceof Error ? error.message : "unknown"});
     if (error instanceof JobAssessmentError) return Response.json({runId,code:"ASSESSMENT_INVALID",error:error.message},{status:502});
+    if (phase === "assessment") return Response.json({runId,code:"ASSESSMENT_FAILED",error:"岗位已找到，但 AI 匹配评审未完成。本次未扣额度，简历仍保留，请重新查找。"},{status:502});
     return Response.json({runId,error:runId ? "岗位搜索或结果保存失败，请重试；你的简历不受影响。" : "读取简历或建立搜索任务失败，请重试"},{status:500});
   }
 }

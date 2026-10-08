@@ -120,6 +120,12 @@ describe("站点 StepFun 接线", () => {
     expect(request).toMatchObject({reasoning_effort:"low",response_format:{type:"json_object"}});
     expect(request.thinking).toBeUndefined();
   });
+  test("推理 allowance 仅给 Step，总上限有界，不放大用户网关预算", () => {
+    const options={maxTokens:1400,reasoningBudgetTokens:9000,responseFormat:"json_object" as const};
+    expect(buildChatCompletionRequest(messages,"stepfun","step-3.7-flash",options).max_tokens).toBe(5496);
+    expect(buildChatCompletionRequest(messages,"tokendance","glm-5.3",options).max_tokens).toBe(1400);
+    expect(buildChatCompletionRequest(messages,"deepseek","deepseek-chat",options).max_tokens).toBe(1400);
+  });
 });
 
 describe("callLLM 的 TokenPay 网关接线", () => {

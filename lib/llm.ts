@@ -18,6 +18,9 @@ type LlmOptions = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  // Optional allowance for providers whose completion cap includes reasoning.
+  // Does not enlarge TokenPay/user-selected model budgets.
+  reasoningBudgetTokens?: number;
   provider?: "deepseek" | "openai" | "tokendance" | "stepfun";
   timeout?: number;
   timeoutMs?: number;
@@ -56,7 +59,10 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
   // Step's API may return reasoning even with a thinking-disable flag. Use a
   // bounded effort, and only expose final content (the streaming reader below
   // already separates reasoning). Do not promise reasoning is disabled.
-  if (provider === "stepfun") request.reasoning_effort = "low";
+  if (provider === "stepfun") {
+    request.reasoning_effort = "low";
+    request.max_tokens = (options?.maxTokens ?? 2000) + Math.min(4096, Math.max(0, Math.floor(options?.reasoningBudgetTokens ?? 0)));
+  }
   // Kimi thinking models may require fixed sampling parameters; omit rather
   // than sending the application's generic temperature (TokenDance Kimi guide).
   if(provider==="tokendance"&&model.startsWith("kimi-"))delete request.temperature;
@@ -253,7 +259,7 @@ export async function callLLM(
           ? "https://api.stepfun.com/v1"
         : undefined, // OpenAI 使用默认 baseURL
     defaultHeaders: provider === "tokendance" ? tokenDanceAttributionHeaders() : undefined,
-    timeout: options?.timeout || 30000, // SDK 级别的超时（作为最后防线）
+    timeout: options?.timeout ?? options?.timeoutMs ?? 30000, // SDK 与调用方声明的截止时间一致
   });
 
   // wrapper to call SDK

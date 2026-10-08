@@ -1,4 +1,14 @@
-import { waitForSavedSearch } from "./search-recovery";
+import { needsExplicitSearch, waitForSavedSearch } from "./search-recovery";
+test("刷新恢复过期的已完成搜索必须显式重搜，不自动扣 AI 额度", () => {
+  expect(needsExplicitSearch(true, { found: false, status: "completed", runId: "old-batch" })).toBe(true);
+  expect(needsExplicitSearch(false, { found: false, status: "completed", runId: "old-batch" })).toBe(false);
+});
+test("已有失配/未知状态记录只读；真首次搜索和匹配的缓存可继续", () => {
+  expect(needsExplicitSearch(true, { found: false, runId: "old-batch" })).toBe(true);
+  expect(needsExplicitSearch(true, { found: false, status: "failed" })).toBe(true);
+  expect(needsExplicitSearch(true, { found: false })).toBe(false);
+  expect(needsExplicitSearch(true, { found: true, runId: "cached" })).toBe(false);
+});
 test("恢复轮询直到保存结果，不另起任务", async () => {
   const read = jest.fn().mockResolvedValueOnce({ status: "running" }).mockResolvedValueOnce({ found: true, result: { jobs: ["a"] } });
   expect(await waitForSavedSearch(read, new AbortController().signal, async () => {})).toMatchObject({ found: true });

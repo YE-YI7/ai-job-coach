@@ -7,7 +7,7 @@ import type { ReviewedJob } from "@/lib/jobs/personalization";
 import { decisionEntityKey, decisionForUrl, isStaleMaterials, type JobDecision, type JobDecisionKind } from "@/lib/jobs/job-decision";
 import { groupCandidates, zeroCandidateState } from "@/lib/jobs/result-presentation";
 import styles from "./CockpitApp.module.css";
-import { waitForSavedSearch } from "@/lib/jobs/search-recovery";
+import { needsExplicitSearch, waitForSavedSearch } from "@/lib/jobs/search-recovery";
 import { RefreshCw } from "lucide-react";
 import JobResultCard from "./JobResultCard";
 import discoveryStyles from "./JobDiscovery.module.css";
@@ -84,6 +84,9 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
         } else if (restore && saved.found) { result = saved.result; }
         else if (restore && ["failed", "cancelled", "partial"].includes(saved.status)) {
           setMessage("上次搜索未完成，可重新查找；不会自动重复执行。"); return;
+        }
+        else if (needsExplicitSearch(restore, saved)) {
+          setMessage("资料或搜索范围已更新。点击重新查找后才会重新评审并消耗 AI 额度。"); return;
         }
       }
       if (!result) {

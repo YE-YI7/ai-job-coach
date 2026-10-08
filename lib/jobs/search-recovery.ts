@@ -1,4 +1,9 @@
-export type SavedSearch = { found?: boolean; status?: string; result?: unknown; error?: string };
+export type SavedSearch = { found?: boolean; status?: string; runId?: string; result?: unknown; error?: string };
+/** An existing but stale batch must not turn a mount/reload into a paid rerun.
+ * Only a genuinely first search may auto-start; manual search remains explicit. */
+export function needsExplicitSearch(restore: boolean, saved: SavedSearch): boolean {
+  return restore && !saved.found && Boolean(saved.runId || saved.status);
+}
 /** A refreshed page subscribes to the existing task; it never starts a duplicate search. */
 export async function waitForSavedSearch(read: () => Promise<SavedSearch>, signal: AbortSignal,
   pause: (signal: AbortSignal) => Promise<void> = signal => new Promise((resolve, reject) => {

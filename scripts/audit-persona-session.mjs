@@ -29,12 +29,18 @@ if (process.argv[2] === 'cleanup') {
   if (remaining.error || remaining.data?.length) throw Error('Synthetic cleanup not confirmed');
   console.log(JSON.stringify({ cleanup: true, markedEvents: events.data?.length || 0 }));
 } else {
-  const userId = randomUUID();
+  const reauth = process.argv[2] === 'reauth';
+  const userId = reauth ? JSON.parse(readFileSync(statePath, 'utf8')).userId : randomUUID();
+  if (reauth) {
+    const existing = await db.from('users').select('id').eq('id', userId).like('email', 'persona-%@example.invalid').single();
+    if (existing.error || !existing.data) throw Error('Synthetic fixture identity not confirmed');
+  } else {
   writeFileSync(statePath, JSON.stringify({ userId, synthetic: true, createdAt: new Date().toISOString() }), { mode: 0o600 });
   const created = await db.from('users').insert({ id: userId, email: `persona-${userId}@example.invalid` });
   if (created.error) throw created.error;
   const quota = await db.from('user_quotas').upsert({ user_id: userId, free_chat_daily: 3, last_free_reset: new Date().toISOString().slice(0, 10) }, { onConflict: 'user_id' });
   if (quota.error) throw quota.error;
+  }
   const payload = Buffer.from(JSON.stringify({ userId, version: 2, exp: Math.floor(Date.now() / 1000) + 1200 })).toString('base64url');
   const token = payload + '.' + createHmac('sha256', process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
   browser('cookies', 'set', 'sb-access-token', token, '--url', base, '--httpOnly');

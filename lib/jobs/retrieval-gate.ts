@@ -23,6 +23,9 @@ import {
 } from "@/lib/coach-harness/subagents/retrieval";
 import type { DiscoveredJob } from "./discovery";
 
+/** Private saved shortlists must be reconsidered when eligibility parsing changes. */
+export const RETRIEVAL_GATE_VERSION = "employment-months-v1";
+
 import type { HardDimension } from "./labels";
 export type { HardDimension } from "./labels";
 export { PENDING_LABEL } from "./labels";

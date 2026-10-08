@@ -15,6 +15,7 @@ import type {OpportunityStage} from "@/lib/opportunities/types";
 import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from "./tutor-intervention";
 import {modelTurnNotice,isAcknowledged,rememberAcknowledged,type ModelTurnNotice} from "./model-change";
 import TaskRunTray from "./TaskRunTray";
+import {canShowTutorInvitation} from "./tutor-invitation";
 type Turn={id:string;question:string;answer:string;learning_trace?:{suggestions?:string[];model?:string;modelCalls?:number;proactive?:boolean;insufficiency?:InsufficiencyTrace|null;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
 type Session={id:string;title:string;status:"active"|"archived";summary?:string};
 export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean};
@@ -78,7 +79,8 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
   },15000);
   return()=>{window.clearTimeout(timer);abort.abort();};
  },[enabled,opportunityId,busy,loading,message,turns.length]);
- const activeInvitation=invitation||outreach;
+ const candidateInvitation=invitation||outreach;
+ const activeInvitation=candidateInvitation&&canShowTutorInvitation({turnCount:turns.length,busy,loading,pending,message,dismissed:dismissedInvitations.includes(candidateInvitation.id)})?candidateInvitation:null;
  useEffect(()=>{
   const token=++generation.current;lock.current=false;setFailedLesson(null);setOutreach(null);
   jumpToLatest.current=false;

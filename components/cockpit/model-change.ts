@@ -30,10 +30,19 @@ export type ModelTurnNotice = {
 
 const TIER_RANK: Record<PricingTier | "unknown", number> = { free: 0, cheap: 1, expensive: 2, unknown: 1 };
 
+// 已实测的网关回显版本名，仅用于展示身份；不改请求模型或计费路由。
+function displayModelId(id: string): string {
+  return id === "deepseek-v4-1-flash-260910" ? "deepseek-v4.1-flash" : id;
+}
+
+function sameDisplayModel(a: string, b: string): boolean {
+  return displayModelId(a) === displayModelId(b);
+}
+
 export function modelTier(id: string | undefined | null): PricingTier | "unknown" {
   if (!id) return "unknown";
   if (id === ECONOMY_MODEL_ID) return "cheap";
-  return findModel(id)?.tier ?? "unknown";
+  return findModel(displayModelId(id))?.tier ?? "unknown";
 }
 
 const TIER_LABEL_CN: Record<PricingTier | "unknown", string> = {
@@ -45,7 +54,7 @@ const TIER_LABEL_CN: Record<PricingTier | "unknown", string> = {
 
 function label(id: string | undefined | null): string {
   if (!id) return "未知模型";
-  return findModel(id)?.name ?? id;
+  return findModel(displayModelId(id))?.name ?? id;
 }
 
 /** 用户在挑选器里点的档对应的模型；auto 不承诺具体模型，返回 null。 */
@@ -64,7 +73,7 @@ export function modelTurnNotice(input: { modelMode: ChatMode; trace: ModelTurnTr
 
   // route 明确说过换了档：这是事实，不是推断，优先于下面两条启发式。
   const swap = trace.modelSwap;
-  if (swap && swap.from && swap.to && swap.from !== swap.to) {
+  if (swap && swap.from && swap.to && !sameDisplayModel(swap.from, swap.to)) {
     const up = TIER_RANK[modelTier(swap.to)] > TIER_RANK[modelTier(swap.from)];
     return build(up ? "tier-up" : "change", swap.from, swap.to, up
       ? `${label(swap.from)} 这一轮不可用，已换到 ${label(swap.to)}（${TIER_LABEL_CN[modelTier(swap.to)]}）完成回答，计费更高。确认再继续，或换回原来的档。`
@@ -73,14 +82,14 @@ export function modelTurnNotice(input: { modelMode: ChatMode; trace: ModelTurnTr
 
   // route 台账里的首选模型与实际应答模型不一致（冷却重试或网关回显不同 id）：
   // 小注不臆断原因，只说谁完成了回答；若实际那档更贵，同样按升档处理等确认。
-  if (requested && answered && requested !== answered) {
+  if (requested && answered && !sameDisplayModel(requested, answered)) {
     const up = TIER_RANK[modelTier(answered)] > TIER_RANK[modelTier(requested)];
     return build(up ? "tier-up" : "change", requested, answered, up
       ? `这一轮台账首选是 ${label(requested)}，实际由 ${label(answered)}（${TIER_LABEL_CN[modelTier(answered)]}）完成回答，计费更高。确认再继续，或换回实惠档。`
       : `这一轮台账首选是 ${label(requested)}，实际由 ${label(answered)}（${TIER_LABEL_CN[modelTier(answered)]}）完成了回答。`);
   }
   const expected = expectedModelForMode(input.modelMode);
-  if (expected && answered && expected !== answered) {
+  if (expected && answered && !sameDisplayModel(expected, answered)) {
     const up = TIER_RANK[modelTier(answered)] > TIER_RANK[modelTier(expected)];
     const text = up
       ? `你选的是 ${label(expected)}（${TIER_LABEL_CN[modelTier(expected)]}），这一轮实际由 ${label(answered)}（${TIER_LABEL_CN[modelTier(answered)]}）回答，计费更高。确认再继续，或换回原来的档。`

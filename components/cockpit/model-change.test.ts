@@ -1,6 +1,14 @@
 import {expectedModelForMode, isAcknowledged, modelTier, modelTurnNotice, rememberAcknowledged} from "./model-change";
 
 describe("modelTurnNotice", () => {
+  test("同一 Flash 的已知网关版本回显不是换档", () => {
+    expect(modelTurnNotice({modelMode: "deepseek-v4.1-flash", trace: {model: "deepseek-v4.1-flash", modelUsage: {model: "deepseek-v4-1-flash-260910"}}})).toBeNull();
+    expect(modelTier("deepseek-v4-1-flash-260910")).toBe("cheap");
+  });
+  test("网关别名不能吞掉真实高阶模型替换", () => {
+    expect(modelTurnNotice({modelMode: "deepseek-v4.1-flash", trace: {model: "deepseek-v4.1-flash", modelUsage: {model: "kimi-k3"}}})?.requiresConfirm).toBe(true);
+    expect(modelTier("deepseek-v4-1-flash-unknown")).toBe("unknown");
+  });
   test("经济档正常回答：什么也不说", () => {
     expect(modelTurnNotice({modelMode: "fast", trace: {model: "deepseek-v4-flash", modelUsage: {model: "deepseek-v4-flash"}}})).toBeNull();
   });

@@ -28,6 +28,28 @@ describe("material intake on model outage",()=>{
   expect(response.status).toBe(503);
   expect((await response.json()).ok).toBe(false);
  });
+ test("new-user pasted JD survives hosted 402 as exact unclassified source, not fake AI analysis",async()=>{
+  const text="示例公司招聘产品经理\n岗位职责：梳理需求并跟进交付。\n任职要求：本科，有产品实习经历。";
+  (callLLM as jest.Mock).mockRejectedValue(Error("LLM API 调用失败: 402 Insufficient Balance (request_id: private-id)"));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:text})}));
+  const body=await response.json();
+  expect(response.status).toBe(200);
+  expect(body).toMatchObject({ok:true,analysis:null,analysisDeferred:true,reasonCode:"hosted_provider_quota",retryable:false,input:{workspaceType:"preparation",profileText:text,jdText:"",resumeText:""}});
+  expect(JSON.stringify(body)).not.toMatch(/private-id|Insufficient Balance|优先投递/);
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  expect(finalizeQuota).not.toHaveBeenCalledWith(expect.anything(),true);
+ });
+ test("known job and supplied resume remain exact during hosted exhaustion",async()=>{
+  (callLLM as jest.Mock).mockRejectedValue(Error("API 配额不足，请检查账户余额"));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({materialKindHint:"job",company:"示例公司",role:"产品经理",sourceText:"真实JD原文",resumeText:"真实简历原文"})}));
+  expect(await response.json()).toMatchObject({analysis:null,reasonCode:"hosted_provider_quota",input:{workspaceType:"job",company:"示例公司",role:"产品经理",jdText:"真实JD原文",resumeText:"真实简历原文"}});
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+ });
+ test("hosted quota outage preserves resume-first material without asking users to recharge",async()=>{
+  (callLLM as jest.Mock).mockRejectedValue(Error("LLM API 调用失败: insufficient_quota"));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({materialKindHint:"preparation",sourceText:"想做上海产品经理",resumeText:"真实实习原文"})}));
+  expect(await response.json()).toMatchObject({analysis:null,reasonCode:"hosted_provider_quota",input:{workspaceType:"preparation",resumeText:"真实实习原文",profileText:"想做上海产品经理"}});
+ });
 });
 
 describe("supplement keeps the client's ground truth",()=>{

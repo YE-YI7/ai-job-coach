@@ -11,7 +11,7 @@ import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota"
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
-import {intakeErrorMessage} from "@/lib/opportunities/intake-error";
+import {intakeErrorMessage,isHostedIntakeQuotaFailure} from "@/lib/opportunities/intake-error";
 import {deferredIntake,preserveUnclassifiedIntake} from "@/lib/opportunities/deferred-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
 
@@ -366,6 +366,16 @@ export async function POST(request: Request) {
     console.error("Opportunity analysis failed", error);
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
+    // A hosted balance outage must not prevent accepting the user's material.
+    // Unknown text stays in source notes: no invented company, JD or verdict.
+    if (extracted && isHostedIntakeQuotaFailure(error)) {
+      const input = preserveUnclassifiedIntake(extracted);
+      if (input) return NextResponse.json({
+        ok: true, input, analysis: null, analysisDeferred: true,
+        reasonCode: "hosted_provider_quota", retryable: false,
+        error: "材料已读取，站点的 AI 服务额度暂时用完；原文会先保存，服务恢复后再分析。",
+      });
+    }
     // Only after successful text extraction and a transient/empty model response.
     // Original material is preserved; there is explicitly no reliable analysis.
     const detail=error instanceof Error?error.message:"";

@@ -9,6 +9,27 @@
  */
 
 import type { OpportunityAction } from "@/lib/opportunities/types";
+import type { InterviewRoundtableSession, InterviewRoundtableTurn } from "@/lib/opportunities/types";
+
+export type RoundtableTurnView = Omit<InterviewRoundtableTurn, "assessment"> & { assessment?: InterviewAssessmentView };
+export type RoundtableSessionView = Omit<InterviewRoundtableSession, "turns" | "summary"> & {
+  turns: RoundtableTurnView[];
+  summary?: InterviewRoundSummaryView;
+};
+
+/** Persisted API records are not render-ready views. Older records lack variance
+ * and optional lists; never cast them directly, invent scores or rewrite storage. */
+export function restoreRoundtableSession(session: InterviewRoundtableSession): RoundtableSessionView {
+  const turns = (Array.isArray(session.turns) ? session.turns : []).filter(turn => turn && typeof turn === "object").map(turn => {
+    const { assessment: raw, ...rest } = turn;
+    const source = raw && typeof raw === "object" && "source" in raw && raw.source === "demo" ? "demo" : "llm";
+    const assessment = normalizeInterviewAssessment(raw, source);
+    return { ...rest, ...(assessment ? { assessment } : {}) };
+  });
+  const summary = normalizeRoundSummary(session.summary);
+  return { ...session, currentIndex: Math.max(0, Math.min(Number.isInteger(session.currentIndex) ? session.currentIndex : 0, Math.max(0, turns.length - 1))),
+    turns, summary: summary ?? undefined };
+}
 
 export type InterviewAssessmentStatus = "assessed" | "needs_more_input";
 
@@ -85,9 +106,11 @@ function readPriority(value: unknown): "urgent" | "high" | "normal" {
  * 缺失即 null：宁可写「未实测」，不补一个假的 ±0。
  */
 function readVariance(payload: Record<string, unknown>, bandKey: string): InterviewScoreVariance {
-  const raw = payload[bandKey];
+  const saved = payload.variance && typeof payload.variance === "object" ? payload.variance as Record<string, unknown> : {};
+  const raw = payload[bandKey] ?? saved.band;
   const band = typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
-  const note = typeof payload.scoreBandNote === "string" ? payload.scoreBandNote.trim().slice(0, MAX_STRING_LENGTH) : "";
+  const noteValue = payload.scoreBandNote ?? saved.note;
+  const note = typeof noteValue === "string" ? noteValue.trim().slice(0, MAX_STRING_LENGTH) : "";
   return { band, note };
 }
 

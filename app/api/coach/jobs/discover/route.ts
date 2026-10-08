@@ -18,8 +18,9 @@ import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeE
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-/** Two open searches + one batch read, supplemented by two keywords × two official APIs. */
-const MAX_SOURCE_CALLS = 7;
+/** Two open searches + one batch read, plus one query per domestic source.
+ * Cover all companies before spending the latency budget on a second keyword. */
+const MAX_SOURCE_CALLS = 3 + DOMESTIC_SOURCE_IDS.length;
 const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
   createHash("sha256").update(JSON.stringify([OPEN_SEARCH_VERSION, DOMESTIC_SEARCH_VERSION, PERSONALIZATION_VERSION, RETRIEVAL_GATE_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
 
@@ -54,13 +55,17 @@ class IncompleteSearch extends Error {
   constructor(readonly result: Awaited<ReturnType<typeof searchLiveJobs>>) { super("招聘来源未完整返回"); }
 }
 async function readLiveJobs(keywords: string[], location: string) {
+  // Official title search is narrower than semantic retrieval: "AI 产品经理"
+  // misses "商家成长产品" with an Agent JD. Retrieve by the privacy-gated role
+  // alias first, then keep the existing resume/specialty/eligibility gates.
+  const officialKeyword = keywords.find(term => term === "产品经理") ?? keywords[0];
   let fetched = false;
   try {
     const result = await unstable_cache(async () => {
       fetched = true;
       const [open, official] = await Promise.all([
         searchOpenJobs(keywords, location),
-        searchLiveJobs(keywords.slice(0,2), { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: 4 }),
+        searchLiveJobs(officialKeyword ? [officialKeyword] : [], { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: DOMESTIC_SOURCE_IDS.length }),
       ]);
       const result = { postings: [...open.postings,...official.postings], failures: [...open.failures,...official.failures],
         calls: open.calls+official.calls, truncatedCalls: open.truncatedCalls+official.truncatedCalls };

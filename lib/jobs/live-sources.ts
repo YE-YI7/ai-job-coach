@@ -1,11 +1,12 @@
 /**
  * 益职**运行时**自己上网搜岗位的数据源层（不是开发时把结果抄进仓库）。
  *
- * 现状与边界（2026-09-30 逐源实测，不是照文档抄的）：
+ * 现状与边界（2026-10-08 逐源实测，不是照文档抄的）：
  * - 免 key、能按关键词查的只有英文/远程板子：RemoteOK（`?tag=`，实测按词返回不同结果）、
  *   Jobicy（`?tag=`，认空格不认连字符）。Remotive 的公开接口**任何参数都不生效**
  *   （`?search=nurse` 与不带参数返回同一批 16 条），所以按「最新一批」的流源用，不假装搜过。
- * - 10-01接腾讯官网公开查询；产品默认只查国内源。BOSS/猎聘/拉勾不绕登录墙/验证码。
+ * - 国内直连六源：腾讯、网易、百度、美团、京东校招、快手校招。
+ *   字节公开请求当前 405，不能声称已接通；BOSS/猎聘/拉勾不绕登录墙/验证码。
  * - 每个源都可能坏。一个源坏了不能把整批结果变成「没有岗位」，也不能悄悄少几个源不说
  *   （`failures` 一路带到界面）。
  * - 出网的只有关键词（过 PII 闸），回来的正文一律按不可信数据处理。
@@ -13,7 +14,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "web-search";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "web-search";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -29,13 +30,17 @@ export interface LiveSourceDescriptor {
 export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "tencent", label: "腾讯招聘官网", homepage: "https://careers.tencent.com", mode: "keyword", coverageNote: "国内社会招聘，单公司覆盖；不是全市场" },
   { id: "netease", label: "网易招聘官网", homepage: "https://hr.163.com", mode: "keyword", coverageNote: "国内社会招聘，含职责与任职要求；不是全市场" },
+  { id: "baidu", label: "百度招聘官网", homepage: "https://talent.baidu.com", mode: "keyword", coverageNote: "国内社会招聘，含完整 JD" },
+  { id: "meituan", label: "美团招聘官网", homepage: "https://zhaopin.meituan.com", mode: "keyword", coverageNote: "国内社会招聘，含完整 JD" },
+  { id: "jd", label: "京东校园招聘", homepage: "https://campus.jd.com", mode: "keyword", coverageNote: "应届生招聘，不冒充社会招聘" },
+  { id: "kuaishou", label: "快手校园招聘", homepage: "https://campus.kuaishou.cn", mode: "keyword", coverageNote: "校招与实习，含完整 JD" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
-export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v3-specialty";
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v4-six-sources";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
@@ -46,13 +51,13 @@ const TIMEOUT_MS = 12_000;
 class SourceError extends Error {}
 
 /** 出网纪律：只允许 https + 白名单主机 + 不跟随跳转 + 体积上限 + 超时。 */
-async function fetchJson(url: URL, allowedHosts: string[], body?: Record<string, unknown>): Promise<unknown> {
+async function fetchJson(url: URL, allowedHosts: string[], body?: Record<string, unknown> | URLSearchParams): Promise<unknown> {
   if (url.protocol !== "https:" || !allowedHosts.includes(url.hostname)) throw new SourceError("不支持的地址");
   let response: Response;
   try {
     response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store",
-      ...(body ? { method: "POST", body: JSON.stringify(body) } : {}),
-      headers: { accept: "application/json", ...(body ? { "content-type": "application/json" } : {}), "user-agent": "YiZhiJobCoach/1.0 (job search for the signed-in user)" } });
+      ...(body ? { method: "POST", body: body instanceof URLSearchParams ? body.toString() : JSON.stringify(body) } : {}),
+      headers: { accept: "application/json", ...(body ? { "content-type": body instanceof URLSearchParams ? "application/x-www-form-urlencoded" : "application/json", origin: url.origin, referer: `${url.origin}/` } : {}), "user-agent": "YiZhiJobCoach/1.0 (job search for the signed-in user)" } });
   } catch { throw new SourceError("招聘源暂时不可用"); }
   if (!response.ok || !response.body) throw new SourceError("招聘源暂时不可用");
   const reader = response.body.getReader();
@@ -254,7 +259,82 @@ const neteaseAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+// 严格按官网明确的国内地点收录；“远程”、海外和空地点不能猜成国内。
+const domesticPlaces = (places: string[]) => [...new Set(places.filter(place => /(?:^|[省市、,\s-])(?:北京|上海|天津|重庆|广州|深圳|杭州|南京|苏州|成都|武汉|西安|长沙|合肥|济南|青岛|郑州|厦门|福州|珠海|东莞|佛山|宁波|无锡|大连|沈阳|哈尔滨|长春|石家庄|太原|南昌|南宁|昆明|贵阳|海口|兰州|乌鲁木齐|呼和浩特|银川|西宁|拉萨|香港|澳门)/.test(place)))];
+const record = (raw: unknown): Record<string, unknown> => raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+const placeNames = (raw: unknown) => Array.isArray(raw) ? raw.map(item => str(record(item).name)) : [];
+
+const baiduAdapter: Adapter = {
+  id: "baidu", hosts: ["talent.baidu.com"],
+  async search({ keyword }) {
+    const payload = record(await fetchJson(new URL("https://talent.baidu.com/httservice/getPostListNew"), this.hosts,
+      new URLSearchParams({ recruitType: "SOCIAL", keyWord: keyword, curPage: "1", pageSize: "20" })));
+    const data = record(payload.data);
+    if (payload.status !== "ok" || !Array.isArray(data.list)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.list.slice(0, 20).flatMap(raw => {
+      const row = record(raw), id = str(row.postId), title = str(row.name), places = domesticPlaces(str(row.workPlace).split(/[,、]/));
+      if (!/^[\da-f-]{36}$/i.test(id) || !title || !places.length) return [];
+      return [{ sourceId: `baidu:${id}`, url: `https://talent.baidu.com/jobs/detail/SOCIAL/${id}`, company: "百度", companyDomain: "baidu.com",
+        title: title.slice(0, 200), location: places.join("、"), fetchedAt, postedAt: postedIso(row.publishDate),
+        rawPageText: toPlainText(["岗位职责", str(row.workContent), "任职要求", str(row.serviceCondition), str(row.education), str(row.workYears)].join("\n")) }];
+    });
+  },
+};
+const meituanAdapter: Adapter = {
+  id: "meituan", hosts: ["zhaopin.meituan.com"],
+  async search({ keyword }) {
+    const payload = record(await fetchJson(new URL("https://zhaopin.meituan.com/api/official/job/getJobList"), this.hosts,
+      { page: { pageNo: 1, pageSize: ROWS_PER_CALL }, jobShareType: "1", keywords: keyword, cityList: [], department: [], jobType: [{ code: "3", subCode: [] }] }));
+    const data = record(payload.data);
+    if (!Array.isArray(data.list)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.list.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = str(row.jobUnionId), title = str(row.name), places = domesticPlaces(placeNames(row.cityList));
+      if (!/^\d+$/.test(id) || !title || !places.length || row.jobStatus !== "000") return [];
+      return [{ sourceId: `meituan:${id}`, url: `https://zhaopin.meituan.com/web/position/detail?jobUnionId=${id}&jobShareType=1&highlightType=social`, company: "美团", companyDomain: "meituan.com",
+        title: title.slice(0, 200), location: places.join("、"), fetchedAt, postedAt: null,
+        rawPageText: toPlainText(["岗位职责", str(row.jobDuty), "任职要求", str(row.jobRequirement)].join("\n")) }];
+    });
+  },
+};
+const jdAdapter: Adapter = {
+  id: "jd", hosts: ["campus.jd.com"],
+  async search({ keyword }) {
+    const payload = record(await fetchJson(new URL("https://campus.jd.com/api/wx/position/page?type=present"), this.hosts,
+      { pageSize: ROWS_PER_CALL, pageIndex: 0, parameter: { positionName: keyword, planIdList: [], positionDeptList: [], jobDirectionCodeList: [], workCityCodeList: [] } }));
+    const data = record(payload.body);
+    if (payload.success !== true || !Array.isArray(data.items)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.items.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = String(row.publishId ?? ""), title = str(row.positionName);
+      const places = domesticPlaces(Array.isArray(row.requirementVoList) ? row.requirementVoList.map(item => str(record(item).workCity)) : []);
+      if (!/^\d+$/.test(id) || !title || !places.length) return [];
+      return [{ sourceId: `jd:${id}`, url: `https://campus.jd.com/#/newDetails?publishId=${id}`, company: "京东", companyDomain: "jd.com",
+        title: title.slice(0, 200), location: places.join("、"), fetchedAt, postedAt: null,
+        rawPageText: toPlainText(["应届生招聘", "岗位职责", str(row.workContent), "任职要求", str(row.qualification)].join("\n")) }];
+    });
+  },
+};
+const kuaishouAdapter: Adapter = {
+  id: "kuaishou", hosts: ["campus.kuaishou.cn"],
+  async search({ keyword }) {
+    const payload = record(await fetchJson(new URL("https://campus.kuaishou.cn/recruit/campus/e/api/v1/open/positions/simple"), this.hosts,
+      { pageNum: 1, pageSize: ROWS_PER_CALL, name: keyword }));
+    const data = record(payload.result);
+    if (payload.code !== 0 || !Array.isArray(data.list)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.list.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = str(row.code), title = str(row.name), places = domesticPlaces(placeNames(row.workLocationDicts));
+      if (!/^[\da-f]{32}$/i.test(id) || !title || !places.length || row.positionStatusCode !== "Release") return [];
+      return [{ sourceId: `kuaishou:${id}`, url: `https://campus.kuaishou.cn/recruit/campus/e/#/campus/job-info/?code=${id}`, company: "快手", companyDomain: "kuaishou.com",
+        title: title.slice(0, 200), location: places.join("、"), fetchedAt, postedAt: null,
+        rawPageText: toPlainText([row.positionNatureCode === "intern" ? "实习生招聘" : "校园招聘", "岗位职责", str(row.description), "任职要求", str(row.positionDemand)].join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

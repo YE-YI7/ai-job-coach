@@ -3,7 +3,7 @@ const row={PostId:"123456",RecruitPostName:"AI产品经理",CountryName:"中国"
 afterEach(()=>jest.restoreAllMocks());
 test("国内默认源不调用海外远程板；只发送关键词，不含简历",async()=>{
  const fetcher=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({Code:200,Data:{Posts:[row]}})));
- expect(DOMESTIC_SOURCE_IDS).toEqual(["tencent","netease"]);
+ expect(DOMESTIC_SOURCE_IDS).toEqual(["tencent","netease","baidu","meituan","jd","kuaishou"]);
  const result=await searchLiveJobs(["AI产品经理"],{sourceIds:["tencent"]});
  expect(fetcher).toHaveBeenCalledTimes(1);
  const url=String(fetcher.mock.calls[0][0]);expect(new URL(url).hostname).toBe("careers.tencent.com");expect(new URL(url).searchParams.get("keyword")).toBe("AI产品经理");
@@ -27,5 +27,5 @@ test("网易公开查询仅传关键词，保留职责要求、多个国内地�
 });
 test("一个国内源失败不阻断另一个源，也不隐藏失败",async()=>{
  jest.spyOn(globalThis,"fetch").mockImplementation(async url=>new Response(JSON.stringify(String(url).includes("hr.163.com")?{code:500}:{Code:200,Data:{Posts:[row]}})));
- const result=await searchLiveJobs(["产品经理"],{sourceIds:DOMESTIC_SOURCE_IDS});expect(result.postings).toHaveLength(1);expect(result.failures).toEqual([{source:"netease",keyword:"产品经理"}]);
+ const result=await searchLiveJobs(["产品经理"],{sourceIds:["tencent","netease"]});expect(result.postings).toHaveLength(1);expect(result.failures).toEqual([{source:"netease",keyword:"产品经理"}]);
 });

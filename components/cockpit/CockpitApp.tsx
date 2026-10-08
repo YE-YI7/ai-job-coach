@@ -63,6 +63,7 @@ import {
   needsMoreInputHints,
   normalizeInterviewAssessment,
   normalizeRoundSummary,
+  restoreRoundtableSession,
   resolveNextStep,
   scoreBandLine,
   scoreBandShort,
@@ -1485,7 +1486,7 @@ type RoundtableSessionView = Omit<InterviewRoundtableSession, "turns" | "summary
 };
 
 const toSessionRecord = (session: RoundtableSessionView) => session as unknown as InterviewRoundtableSession;
-const toSessionView = (session: InterviewRoundtableSession) => session as unknown as RoundtableSessionView;
+const toSessionView = restoreRoundtableSession;
 
 /** demo 模式下的示例反馈：必须标注为示例，不得冒充真实模型输出。 */
 function buildDemoAssessment(answer: string): InterviewAssessmentView | null {

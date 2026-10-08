@@ -159,8 +159,10 @@ test("出网的只有过闸的关键词：真跑一次源，逐个地址检查�
     expect(url.startsWith("https://")).toBe(true);
     expect(url).not.toMatch(/13800138000|guoxm|郭小明|字节|抖音|example\.com/i);
   }
-  // 国内两源均真实调用，出网没有简历信息。
-  expect(urls.every(url=>["careers.tencent.com","hr.163.com"].includes(new URL(url).hostname))).toBe(true);
+  // 六个国内官网均进入运行时扇出，出网没有简历信息。
+  const hosts = ["careers.tencent.com","hr.163.com","talent.baidu.com","zhaopin.meituan.com","campus.jd.com","campus.kuaishou.cn"];
+  expect(urls.every(url=>hosts.includes(new URL(url).hostname))).toBe(true);
+  expect(new Set(urls.map(url=>new URL(url).hostname))).toEqual(new Set(hosts));
   expect(urls.some(url=>new URL(url).hostname==="hr.163.com")).toBe(true);
   expect(urls.some(url=>new URL(url).searchParams.get("keyword")==="产品经理")).toBe(true);
   const body = await response.json();

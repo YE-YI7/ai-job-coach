@@ -207,9 +207,39 @@ export function jdHardRequirements(jdText: string): { hard: HardRequirement; req
 
 /* ------------------------- 档案侧硬指标 ------------------------- */
 
-/** 只认「N 年经验」这类自述，不拿简历里的日期区间倒推年限（`(?<![\d.])` 挡住「2024年工作」截出 24）。 */
+/** 年份本身不是年限；明确自述优先，只有带职业身份的完整月份区间可补算。 */
 const RESUME_YEARS =
   /(?<![\d.])(\d{1,2}(?:\.\d)?)\s*(?:\+|以上)?\s*年(?:的)?[^。；;\n\d]{0,8}?(?:经验|经历|工作)|\b(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)\s*(?:of\s+)?(?:[a-z][a-z\-]*\s+){0,4}experience\b/gi;
+
+/** 完整、已结束的任职月份；合并重叠区间，不把学习、实习或项目日期算成全职年限。 */
+function datedEmploymentYears(text: string): number | undefined {
+  const intervals: Array<[number, number]> = [];
+  const range = /(?<!\d)(20\d{2})[.\/年-](\d{1,2})月?\s*[-—–~至]+\s*(20\d{2})[.\/年-](\d{1,2})月?(?!\d)/g;
+  for (const line of text.split(/[\n。；;]/)) {
+    if (/(实习|兼职|在校|教育|本科|硕士|博士|大学|intern|part.time|education)/i.test(line)
+      || !/(任职|就职|工作经历|专员|经理|工程师|设计师|分析师|主管|负责人|顾问|销售|会计|护士|technician|engineer|manager|analyst|designer)/i.test(line)) continue;
+    for (const m of line.matchAll(range)) {
+      const [sy, sm, ey, em] = m.slice(1).map(Number);
+      if (sm < 1 || sm > 12 || em < 1 || em > 12) continue;
+      const start = sy * 12 + sm - 1;
+      const end = ey * 12 + em;
+      if (end <= start || end - start > 480) continue;
+      // Future-dated or open-ended entries need confirmation rather than invented tenure.
+      const now = new Date();
+      if (end > now.getUTCFullYear() * 12 + now.getUTCMonth() + 1) continue;
+      intervals.push([start, end]);
+    }
+  }
+  if (!intervals.length) return undefined;
+  intervals.sort((a, b) => a[0] - b[0]);
+  let months = 0;
+  let [start, end] = intervals[0];
+  for (const [nextStart, nextEnd] of intervals.slice(1)) {
+    if (nextStart <= end) end = Math.max(end, nextEnd);
+    else { months += end - start; [start, end] = [nextStart, nextEnd]; }
+  }
+  return Math.floor((months + end - start) / 12);
+}
 
 /** 简历文本 → 档案硬指标；缺哪一项就不填（缺项走「待补」，不阻断）。 */
 export function profileHardFields(resumeText: string): ProfileHardFields {
@@ -221,6 +251,10 @@ export function profileHardFields(resumeText: string): ProfileHardFields {
     if (Number.isFinite(value) && value > 0 && value <= 40) years = Math.max(years, value);
   }
   if (years > 0) profile.yearsExperience = years;
+  else {
+    const datedYears = datedEmploymentYears(resumeText);
+    if (datedYears !== undefined) profile.yearsExperience = datedYears;
+  }
   // 取档案里最高的一档：写过「硕士」就按硕士判。
   const degrees = degreeHits(resumeText, clauses);
   if (degrees.length) {

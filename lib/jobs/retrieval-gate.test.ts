@@ -78,6 +78,26 @@ test("Ms. 不会被当成硕士学历", () => {
   expect(profileHardFields("Contact Ms. Wang for details.").education).toBeUndefined();
 });
 
+test("真实入口场景：完整任职月份识别两年，排除三年负责人岗位", () => {
+  const resume = "林小雨，本科，2024年毕业。2024.07—2026.06，零售公司运营专员：整理订单与库存数据。";
+  expect(profileHardFields(resume).yearsExperience).toBe(2);
+  const result = applyRetrievalGate([job({ description: "要求三年以上工作经验，本科及以上。" })], { profile: profileHardFields(resume), nowMs: NOW });
+  expect(result.kept).toHaveLength(0);
+  expect(result.filtered).toHaveLength(1);
+});
+
+test("任职区间重叠不重复计数，未满一年保留零年", () => {
+  expect(profileHardFields("2023.01—2024.12 公司A产品经理\n2024.01—2025.12 公司B运营专员").yearsExperience).toBe(3);
+  expect(profileHardFields("2025.01—2025.06 公司运营专员").yearsExperience).toBe(0);
+});
+
+test("学习、实习、无职业身份、无月份、未来和非法日期不猜年限", () => {
+  for (const text of ["2020.09—2024.06 大学本科", "2024.01—2025.12 产品经理实习", "2024.01—2025.12 个人项目", "2024.13—2025.12 运营专员", "2024.01—2099.12 运营专员", "2024.01—至今 运营专员"]) {
+    expect(profileHardFields(text).yearsExperience).toBeUndefined();
+  }
+  expect(profileHardFields("5年工作经验。2024.01—2025.12 运营专员").yearsExperience).toBe(5);
+});
+
 /* ----------------            硬筛 + 待补（FR-5/6）            ---------------- */
 
 const gate = (jobs: MatchedJob[], resumeText: string) =>

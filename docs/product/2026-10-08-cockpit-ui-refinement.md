@@ -24,4 +24,16 @@ Product Design用于现有页面和用户动线检查；GSAP用于重排关系�
 - 核心47个用例通过；全量177套1782用例通过，1套/1用例跳过（含工作树既有auth/admin测试）。类型检查、本轮TS文件eslint及生产构建通过。
 - 手动设计扫描及一次复核：变更行未出现非advisory缺陷；旧side-tab两处、经典模板字体警告留在原实现，本轮未扩大修复。新增字号已记录于DESIGN.md；颜色/圆角advisory按保留现有暖色局部体系处理，未开启自动钩子或设置全局忽略。
 
-交付是本地界面精修，不等于生产已发布。原有auth/admin脏改动不属于本轮，禁止随本轮提交。浏览器截图在本轮工具结果中展示，未存成独立截图文件。
+原有auth/admin脏改动不属于本轮，未随本轮提交或发布。浏览器截图在本轮工具结果中展示，未存成独立截图文件。
+
+## 正式发布
+
+用户明确要求“上线”后，03357fc已推送origin/codex/agent-distribution及backend。从该提交独立导出干净快照，未包含其他auth/admin工作树改动；干净全量175套1775项通过，1套/2项跳过，tsc通过。此前混合工作树1782项与此计数不同，不把他人测试算成本次发布证据。
+
+- Vercel：ai-job-coach，prj_fav7gQZKEEE2JO3b8v9S9leeRhkS，team_7qIutahimwnjCje1fOtQEPyT。
+- Deployment：dpl_FgdCyebfipFc1bvcd8CzN6oZiRFs，production，READY，releaseCommit=03357fc。云端生产构建通过，先skip-domain暂存，真实页面与匿名接口核验后promote成功。
+- 正式域名：https://www.ai-job-coach.xin/，alias API核验指向上述部署。首页200且为实际益职正文；匿名导师POST返回401。构建中占位HTML返回的200已排除，不算通过。
+- 可回滚上一正式部署dpl_BhsiG1YKq8ZRx9ANXU9mCgE9SnAg；本轮无数据库迁移。
+- 本部署发布后最近10分钟error日志查询无结果，未配置drain，仅为短窗检查。
+- 正式浏览器连接本轮超时；生产preview未登录307，不把HTTP检查当成新一轮真人简历/PDF/语音验收。本地真实浏览器UI证据仍如上。
+- 未改模型服务配置、额度或真人用户数据；上一发布的站点自带DeepSeek余额问题不由本轮UI发布解决。

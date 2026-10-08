@@ -21,7 +21,8 @@
 - Jest：162 套通过，1631 用例通过；既有 1 套、2 用例跳过。
 - 修改文件 ESLint 无问题，production build 成功，含类型检查；构建的既有 Edge/middleware 弃用警告保留。
 - 手动 Impeccable detect 本轮 UI 文件一次，结果为空；自动钩子未开启。
-- 上线与上线后复验另在本节下追加，以实际部署状态为准。
+- 代码 `38fd5e1` 已 push 到 `backend`。干净生产部署 `dpl_6fE9qrEqBcxNZSBHJ2q3vX3DZjdn` 为 Ready，已 promote；www 与非 www 正式域名均通过 inspect 核验指向这一部署。
+- 上线后本人 Chrome 刷新并切回 Kimi：三轮学习记录恢复，加载期间与历史窗口均无旧邀请。第四轮真实发送后立即清空输入，流式回复完成、页面提示已同步，约 70.7 tokens/s；已知版本回显仍存在，但不再误报换档，回答后也不再重插旧邀请。实际截图核对了阅读区域与底部输入，没有改版式。
 
 ## 尚未签收的边界
 

@@ -1,4 +1,5 @@
 /** Public job metadata is shared; resumes are only used locally for keyword ranking. */
+import { positiveDirection } from "./direction";
 export const JOB_SOURCES = [
   { board: "meshy", company: "Meshy" },
   { board: "kong", company: "Kong" },
@@ -53,7 +54,7 @@ export const SKILL_TERMS: string[] = [
 const cities = [["上海", "shanghai"], ["北京", "beijing"], ["深圳", "shenzhen"], ["杭州", "hangzhou"], ["广州", "guangzhou"], ["香港", "hong kong"]];
 /** 上网搜一轮能捞回两三百条，界面上给到 12 条候选；再多就变成列表噪音，看不见理由了。 */
 export function matchJobs(jobs: DiscoveredJob[], profile: { role: string; location: string; resume: string }, limit = 12) {
-  const role = profile.role.toLowerCase();
+  const role = positiveDirection(profile.role).toLowerCase();
   const roleTerms = ROLE_SYNONYMS.filter(group => group.some(term => role.includes(term))).flat();
   // Specific engineering direction is not interchangeable with all engineers.
   const discipline = /^(?:高级|资深|初级)?\s*(机械|电气|土木|化工|质量|结构|工艺|嵌入式|硬件)\s*(?:设计)?工程师/.exec(role)?.[1];

@@ -11,6 +11,7 @@
  */
 import { containsPii, MAX_KEYWORDS, stripPii, type PiiBits } from "@/lib/coach-harness/subagents/retrieval";
 import { ROLE_SYNONYMS, SKILL_TERMS } from "./discovery";
+import { positiveDirection } from "./direction";
 
 export interface OutboundKeywordInput {
   role: string;
@@ -29,14 +30,15 @@ export interface OutboundKeywords {
 const EMPTY_PII: PiiBits = { names: [], companies: [] };
 
 function candidateTerms(input: OutboundKeywordInput): string[] {
-  const role = input.role.toLowerCase();
+  const direction = positiveDirection(input.role);
+  const role = direction.toLowerCase();
   const translated = ROLE_SYNONYMS.filter((group) => group.some((term) => role.includes(term))).flat();
   // 词表没覆盖的方向：把用户自己打的那句按空格/分隔拆开原样带上（仍要过闸）。
   const rawRoleParts = translated.length ? [] : role.split(/[\s/、,，+＋]+/).filter((part) => part.length >= 2);
   const resume = input.resumeText.toLowerCase();
   const skills = SKILL_TERMS.filter((term) => resume.split(/[。；;\n]/).some(clause=>clause.includes(term)&&!/(没有|没做|未做|不熟|不会|希望|想学|no experience|never)/i.test(clause)));
   const specialty = /\b(?:ai|agent|llm|aigc)\b|人工智能|大模型|智能体/i.test(role) ? ["大模型","人工智能","智能体"] : [];
-  return [...new Set([input.role.trim(), ...translated, ...rawRoleParts, ...skills, ...specialty].map((term) => stripPii(term, input.pii ?? EMPTY_PII)).filter(Boolean))];
+  return [...new Set([direction, ...translated, ...rawRoleParts, ...skills, ...specialty].map((term) => stripPii(term, input.pii ?? EMPTY_PII)).filter(Boolean))];
 }
 
 export function outboundKeywords(input: OutboundKeywordInput): OutboundKeywords {

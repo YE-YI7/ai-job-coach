@@ -1,4 +1,11 @@
-import { appendResumeSupplement, resumeRecovery } from "./resume-recovery";
+import { appendResumeSupplement, resumeRecovery, resumeSourceLines } from "./resume-recovery";
+
+test("supplement provenance affects only supplement lines, not name or education", () => {
+ expect(resumeSourceLines(appendResumeSupplement("姓名\n教育背景\n本科\n负责客服", "逐条核对工单。\n没有改产品。"))).toEqual([
+  ...["姓名", "教育背景", "本科", "负责客服"].map(text => ({text, supplement:false})),
+  ...["逐条核对工单。", "没有改产品。"].map(text => ({text, supplement:true})),
+ ]);
+});
 
 test("asks about an exact supplied experience, not invented achievements", () => {
   const resume = "某同学\n邮箱 test@example.invalid\n协助整理门店销售数据，制作每周汇总表。";

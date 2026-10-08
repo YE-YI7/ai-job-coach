@@ -30,6 +30,10 @@ export function isTrivialRewrite(before: string, after: string) {
   const a = normalizeForDiff(before);
   const b = normalizeForDiff(after);
   if (!a || !b) return true;
+  // Turning a dense multi-clause paragraph into scanable bullets is useful even
+  // when every factual word stays identical. A whitespace-only tweak isn't.
+  const bullets = (value: string) => (value.match(/^\s*[-*•]\s+\S/gm) || []).length;
+  if (a === b && bullets(after) >= 2 && bullets(after) > bullets(before) && /[。；;，,]/.test(before)) return false;
   if (a === b) return true;
   const limit = Math.max(2, Math.floor(Math.min(a.length, b.length) * 0.1));
   return editDistanceWithin(a, b, limit) <= limit;

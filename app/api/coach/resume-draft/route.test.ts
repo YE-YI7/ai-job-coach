@@ -143,6 +143,24 @@ describe("resume draft source mapping", () => {
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
   });
+
+  test("discarded proposals do not fail the factual review of the retained artifact", async () => {
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ changes: [
+      { before: "不存在的原文", after: "负责不存在的工作", sourceIds: ["claim-1"] },
+      { before: "负责模型评测", after: "模型评测覆盖准确率口径", sourceIds: ["claim-1"] },
+    ] })).mockResolvedValueOnce(JSON.stringify({ status: "passed", summary: "保留项通过", findings: [] }));
+    (applyResumeChanges as jest.Mock).mockReturnValue({ text: "保留项预览", findings: [] });
+    (reviewAtsText as jest.Mock).mockReturnValue({ ok: true, coverage: 1, findings: [] });
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({ id: "art-1", version: 1 });
+    (recordArtifactReview as jest.Mock).mockResolvedValue({ reviewer_type: "facts", status: "passed" });
+    const response = await POST(new Request("http://localhost/api/coach/resume-draft", { method: "POST", body: JSON.stringify({ opportunityId: "opp-1", resumeText: "AI Job Coach：负责模型评测", jobDescription: "负责 AI 产品评测" }) }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.rejectedCount).toBe(1);
+    expect(body.applicationQuality.status).toBe("ready");
+    expect(recordArtifactReview).toHaveBeenCalledWith(expect.objectContaining({ reviewerType: "facts", status: "passed", findings: [] }));
+    expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({ content: expect.objectContaining({ discardedSuggestions: [expect.objectContaining({ index: 0 })] }) }));
+  });
 });
 
 describe("isTrivialRewrite (同义换词不进确认列表)", () => {

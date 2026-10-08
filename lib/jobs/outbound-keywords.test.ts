@@ -2,6 +2,11 @@ import { outboundKeywords, domesticKeywords } from "./outbound-keywords";
 import { MAX_KEYWORDS } from "@/lib/coach-harness/subagents/retrieval";
 
 const resume = (text: string) => ({ role: "产品经理", resumeText: text });
+test("不考虑销售不能反向扩展成销售搜索", () => {
+  const result = outboundKeywords({ role: "上海初级用户运营或产品运营，不考虑销售", resumeText: "使用Excel" });
+  expect(result.keywords.join(" ")).not.toMatch(/销售|sales|account executive/i);
+  expect(result.keywords).toContain("运营");
+});
 test("真实Agent经历进入国内查询，否定经历不进入",()=>{
  expect(domesticKeywords(outboundKeywords({role:"AI 产品经理",resumeText:"负责Agent产品开发"}).keywords)).toContain("agent");
  expect(domesticKeywords(outboundKeywords({role:"AI 产品经理",resumeText:"没有做过Agent产品，希望学习"}).keywords)).not.toContain("agent");

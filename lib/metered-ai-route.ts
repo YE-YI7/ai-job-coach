@@ -23,7 +23,11 @@ export function withMeteredAiRoute<TRequest extends Request>(
     const requestId = /^[a-zA-Z0-9_-]{8,180}$/.test(suppliedKey) ? suppliedKey : crypto.randomUUID();
     let reservation = await reserveQuota(user.id, config.quotaType, `${config.operation}:${requestId}`);
     if (!reservation && config.firstCoaching && config.operation === "cockpit_agent" && config.quotaType === "chat") {
-      reservation = await reserveFirstCoachingQuota(user.id);
+      const body = await request.clone().json().catch(() => null);
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof body?.sessionId === "string" && uuid.test(body.sessionId) && typeof body?.requestId === "string" && uuid.test(body.requestId)) {
+        reservation = await reserveFirstCoachingQuota(user.id, body.sessionId, body.requestId);
+      }
     }
     if (!reservation) {
       return NextResponse.json(

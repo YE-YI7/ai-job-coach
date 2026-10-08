@@ -1,7 +1,7 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { listCockpitOpportunities, readUserTierPreference } from "@/lib/coach-harness/repository";
 import { matchJobs } from "@/lib/jobs/discovery";
-import { matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
+import { matchesRequestedSeniority, matchesRequestedSpecialty, personalizeJobs, PERSONALIZATION_VERSION } from "@/lib/jobs/personalization";
 import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota";
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
     const profile = saved.find(item => item.id === profileId && item.workspaceType === "preparation");
     if (!profile) return Response.json({error:"找不到这份基础简历"},{status:404});
     if (!profile.resumeText?.trim() || !profile.role?.trim()) return Response.json({error:"请先保存简历和求职方向"},{status:400});
+    const resumeText = profile.resumeText;
     const tracked = trackedJobUrls(saved);
     // 出网的只有过闸的关键词：简历正文不整段外发，也不从正文抠片段拼查询。
     const outgoing = outboundKeywords({ role: profile.role, resumeText: profile.resumeText });
@@ -131,7 +132,9 @@ export async function POST(request: Request) {
     const { fresh, tracked: alreadyTracked } = splitSavedJobs(available, tracked);
     // Do not truncate before hard screening: eligible jobs must not be crowded out.
     const jobs = matchJobs(fresh.filter(job=>matchesRequestedSpecialty(job,profile.role)), {role:profile.role,location:profile.location || "",resume:profile.resumeText},fresh.length);
-    const gate = applyRetrievalGate(jobs, { profile: profileHardFields(profile.resumeText) });
+    const seniorityExcluded = jobs.filter(job => !matchesRequestedSeniority(job, profile.role, resumeText));
+    const gate = applyRetrievalGate(jobs.filter(job => matchesRequestedSeniority(job, profile.role, resumeText)), { profile: profileHardFields(resumeText) });
+    gate.filtered.push(...seniorityExcluded.map(job => ({ id: job.id, company: job.company, title: job.title, location: job.location, url: job.url, publishedAt: job.publishedAt, reasons: ["你希望找初级岗位，这个岗位的职级不符合当前方向"] })));
     // 目标档位：面板点过的（含「不限」）直接生效；别处抽到的意向没确认前不拿来剔岗位
     const preference = await readUserTierPreference(user.id);
     // 公司层次仍查离线名录（这一步不额外外呼）；名录坏了不会少岗位，全部保留 + 标注未核验

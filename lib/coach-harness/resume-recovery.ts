@@ -2,6 +2,16 @@
 export const RESUME_SUPPLEMENT_MARKER = "补充经历（用户提供，待核实）：";
 export interface ResumeRecovery { sourceExcerpt: string; question: string; detailSaved?: boolean }
 
+/** Preserve provenance per line; adding one self-report must not relabel an entire upload. */
+export function resumeSourceLines(resume: string) {
+  let supplement = false;
+  return resume.split(/\n+/).flatMap(raw => {
+    const text = raw.trim();
+    if (text === RESUME_SUPPLEMENT_MARKER) { supplement = true; return []; }
+    return text ? [{ text, supplement }] : [];
+  }).slice(0, 120);
+}
+
 export function resumeRecovery(resume: string): ResumeRecovery {
   const suppliedDetail = resume.split(RESUME_SUPPLEMENT_MARKER).at(-1)?.trim();
   if (resume.includes(RESUME_SUPPLEMENT_MARKER) && suppliedDetail) {

@@ -1,4 +1,4 @@
-import { assessmentPool, eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSpecialty, resumeEvidence } from "./personalization";
+import { assessmentPool, eligibility, personalizeJobs, positiveSkillTerms, matchesRequestedSeniority, matchesRequestedSpecialty, resumeEvidence } from "./personalization";
 import { callLLM } from "@/lib/llm";
 import type { VerifiedJob } from "./verification-gate";
 jest.mock("@/lib/llm",()=>({callLLM:jest.fn()}));
@@ -7,6 +7,17 @@ const job=(id="1",description="负责Agent产品设计，开展需求分析"):Ve
 const resume="负责电商会员、复购与需求分析。没有做过Agent产品，希望转AI方向。";
 const item=(id="1")=>({id,resumeEvidenceId:0,jdEvidenceId:0,gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
 beforeEach(()=>jest.resetAllMocks());
+test.each(["高级产品运营经理", "资深运营", "Senior Operations Manager", "产品运营总监"])("初级求职不推荐%s", title => {
+ expect(matchesRequestedSeniority({title}, "用户运营或产品运营", "两年客服。求职方向：希望找上海初级岗位，不考虑销售。")).toBe(false);
+});
+test("旧初级职位不等于当前职级偏好，普通产品经理也不因经理二字被排除", () => {
+ expect(matchesRequestedSeniority({title:"高级产品运营经理"}, "产品运营", "初级客服专员，三年经验。")).toBe(true);
+ expect(matchesRequestedSeniority({title:"产品经理"}, "初级产品经理", "负责客服")).toBe(true);
+});
+test("排除职级后没有候选，不调用模型", async () => {
+ const result = await personalizeJobs([{...job(),title:"高级产品运营经理"}], "求职方向：希望找初级岗位", "owner", "run", "产品运营");
+ expect(result.jobs).toEqual([]);expect(callLLM).not.toHaveBeenCalled();
+});
 test("否定与学习愿望不算技能经历",()=>expect(positiveSkillTerms(resume,["agent","需求分析"])).toEqual(["需求分析"]));
 test("assessment budget shared across employers, not consumed by first company's many postings",()=>{
  const jobs=Array.from({length:30},(_,i)=>({...job(String(i)),company:"第一家公司"}));

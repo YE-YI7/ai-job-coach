@@ -2,6 +2,10 @@ import { parseJobBoard, matchJobs, fetchJobBoard } from "./discovery";
 const source = {board:"meshy",company:"Meshy"};
 const raw = {title:"Product Manager",location:"Shanghai",descriptionPlain:"Use SQL and Python",jobUrl:"https://jobs.ashbyhq.com/meshy/123",isListed:true};
 const parse = (jobs: unknown[]) => parseJobBoard({jobs},source,"2026-09-27T00:00:00Z");
+test("negative sales preference does not let sales titles through screening", () => {
+  const jobs = parse([{...raw,title:"产品运营"},{...raw,title:"销售经理",jobUrl:"https://jobs.ashbyhq.com/meshy/sales"}]);
+  expect(matchJobs(jobs,{role:"用户运营或产品运营，不考虑销售",location:"上海",resume:""}).map(j=>j.title)).toEqual(["产品运营"]);
+});
 test("only listed postings, trustworthy source links, and unique URLs",()=>{
   expect(parse([raw,raw,{...raw,isListed:false},{...raw,jobUrl:"https://evil.test/meshy/123"},{...raw,jobUrl:"https://jobs.ashbyhq.com/other/123"}])).toHaveLength(1);
 });

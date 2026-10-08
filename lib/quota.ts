@@ -43,21 +43,22 @@ export async function reserveQuota(
   return { id: String(row.reservation_id), source: String(row.source_field || 'unknown'), remaining: row.remaining == null ? null : Number(row.remaining) };
 }
 
-/** Service-only, atomic first mentor turn fallback. No database means no grant. */
-export async function reserveFirstCoachingQuota(userId: string): Promise<QuotaReservation | null> {
+/** Service-only, atomic first learning round (explanation + feedback). No database means no grant. */
+export async function reserveFirstCoachingQuota(userId: string, sessionId: string, requestId: string): Promise<QuotaReservation | null> {
   const client = await getDbClient();
   if (!client) return null;
-  const { data, error } = await client.rpc('reserve_first_guidance', { p_user_id: userId });
+  const { data, error } = await client.rpc('reserve_learning_guidance', { p_user_id: userId, p_session_id: sessionId, p_request_id: requestId });
   if (error) throw error;
-  return typeof data === 'string' && data ? { id: `first-coach:${data}`, source: 'first_coaching', remaining: 0 } : null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row?.reservation_id ? { id: `first-coach:${row.reservation_id}`, source: row.replay ? 'first_coaching_replay' : 'first_coaching', remaining: Number(row.remaining) } : null;
 }
 
 export async function finalizeQuota(reservation: QuotaReservation | null, success: boolean) {
-  if (!reservation || reservation.id.startsWith('offline-') || reservation.id.startsWith('tokenpay-')) return true;
+  if (!reservation || reservation.source === 'first_coaching_replay' || reservation.id.startsWith('offline-') || reservation.id.startsWith('tokenpay-')) return true;
   const client = await getDbClient();
   if (!client) return false;
   const firstCoaching = reservation.id.startsWith('first-coach:');
-  const { data, error } = await client.rpc(firstCoaching ? 'finalize_first_guidance' : 'finalize_user_quota', {
+  const { data, error } = await client.rpc(firstCoaching ? 'finalize_learning_guidance' : 'finalize_user_quota', {
     p_reservation_id: firstCoaching ? reservation.id.slice('first-coach:'.length) : reservation.id,
     p_success: success,
   });

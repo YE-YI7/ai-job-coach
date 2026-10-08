@@ -2,7 +2,14 @@ import { callLLM } from "@/lib/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { VerifiedJob } from "./verification-gate";
 
-export const PERSONALIZATION_VERSION = "evidence-shortlist-v3-all-industries";
+export const PERSONALIZATION_VERSION = "evidence-shortlist-v4-junior-intent";
+/** Only explicit desired seniority is a constraint; an old junior title is not a preference. */
+export function matchesRequestedSeniority(job: { title: string }, role: string, resume: string) {
+  const intent = [role, ...resume.split(/[。；;\n]/).filter(line => /求职|方向|目标|希望|寻找|想找|找.{0,6}岗位|seeking|looking for/i.test(line))].join("\n");
+  const junior = /初级|入门|应届|初阶|\bjunior\b|entry[- ]level/i.test(intent)
+    && !/不(?:限|考虑|找|要).{0,4}(?:初级|入门|应届|junior)|不限级别/i.test(intent);
+  return !junior || !/高级|资深|总监|负责人|首席|\b(?:senior|sr\.?|principal|head|director|lead)\b/i.test(job.title);
+}
 const DENIAL = /(没有|没做|未做|不熟|不会|不懂|只.{0,8}使用|希望|想学|学习中|no experience|never|not familiar)/i;
 export function resumeEvidence(resume:string) {
   return resume.split(/(?<=[。；;\n])/).map(text=>text.trim()).filter(text=>text && !DENIAL.test(text) && /负责|主导|项目|经验|经历|技能|使用|开发|设计|参与|built|led|experience/i.test(text)).map((text,id)=>({id,text}));
@@ -50,7 +57,7 @@ export function assessmentPool(jobs: VerifiedJob[], resume: string): VerifiedJob
   return diverse.sort((a,b)=>Number(a.reasons.some(r=>r.startsWith("需核实在读")))-Number(b.reasons.some(r=>r.startsWith("需核实在读"))));
 }
 export async function personalizeJobs(jobs: VerifiedJob[], resume: string, userId: string, runId: string, role: string) {
-  const pool = assessmentPool(jobs,resume);
+  const pool = assessmentPool(jobs.filter(job => matchesRequestedSeniority(job, role, resume)),resume);
   if (!pool.length) return {jobs:[], modelCalls:0, evaluatedCount:0};
   const resumeInput=resume.slice(0,6000);
   const facts=resumeEvidence(resumeInput);

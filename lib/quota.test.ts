@@ -36,24 +36,32 @@ describe("first coaching fallback", () => {
   beforeEach(() => jest.resetAllMocks());
   it("fails closed without database", async () => {
     mockDb.mockResolvedValue(null);
-    await expect(reserveFirstCoachingQuota("user-1")).resolves.toBeNull();
+    await expect(reserveFirstCoachingQuota("user-1", "session", "request")).resolves.toBeNull();
   });
   it("returns null when the lifetime grant is unavailable", async () => {
     const rpc = jest.fn().mockResolvedValue({ data: null, error: null });
     mockDb.mockResolvedValue({ rpc } as never);
-    await expect(reserveFirstCoachingQuota("user-1")).resolves.toBeNull();
+    await expect(reserveFirstCoachingQuota("user-1", "session", "request")).resolves.toBeNull();
   });
   it("uses the isolated RPC for reservation and refund", async () => {
-    const rpc = jest.fn().mockResolvedValueOnce({ data: "grant-id", error: null }).mockResolvedValueOnce({ data: true, error: null });
+    const rpc = jest.fn().mockResolvedValueOnce({ data: [{reservation_id:"grant-id",remaining:1,replay:false}], error: null }).mockResolvedValueOnce({ data: true, error: null });
     mockDb.mockResolvedValue({ rpc } as never);
-    const reservation = await reserveFirstCoachingQuota("user-1");
+    const reservation = await reserveFirstCoachingQuota("user-1", "session", "request");
     expect(reservation?.source).toBe("first_coaching");
     await expect(finalizeQuota(reservation, false)).resolves.toBe(true);
-    expect(rpc).toHaveBeenNthCalledWith(1, "reserve_first_guidance", { p_user_id: "user-1" });
-    expect(rpc).toHaveBeenNthCalledWith(2, "finalize_first_guidance", { p_reservation_id: "grant-id", p_success: false });
+    expect(rpc).toHaveBeenNthCalledWith(1, "reserve_learning_guidance", { p_user_id: "user-1", p_session_id: "session", p_request_id: "request" });
+    expect(rpc).toHaveBeenNthCalledWith(2, "finalize_learning_guidance", { p_reservation_id: "grant-id", p_success: false });
   });
   it("does not grant a free turn on a database error", async () => {
     mockDb.mockResolvedValue({ rpc: jest.fn().mockResolvedValue({ data: null, error: new Error("offline") }) } as never);
-    await expect(reserveFirstCoachingQuota("user-1")).rejects.toThrow("offline");
+    await expect(reserveFirstCoachingQuota("user-1", "session", "request")).rejects.toThrow("offline");
+  });
+  it("replayed saved response doesn't increment the grant again", async () => {
+    const rpc = jest.fn().mockResolvedValue({data:[{reservation_id:"saved",remaining:0,replay:true}],error:null});
+    mockDb.mockResolvedValue({rpc} as never);
+    const reservation = await reserveFirstCoachingQuota("user", "session", "request");
+    expect(reservation?.source).toBe("first_coaching_replay");
+    await expect(finalizeQuota(reservation,true)).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

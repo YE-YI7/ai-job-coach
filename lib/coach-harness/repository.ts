@@ -1,7 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
 import { compileContextBundle } from "./context";
-import { RESUME_SUPPLEMENT_MARKER } from "./resume-recovery";
+import { resumeSourceLines } from "./resume-recovery";
 import { readReviewFindings, resumeQualityStatus } from "./resume-quality-state";
 import { assertRunTransition, isTerminalRunStatus, isValidStopReason, normalizeRunStatus } from "./state-machine";
 import type { CoachRunStatus, CoachStopReason } from "./types";
@@ -95,8 +95,7 @@ async function recordResumeClaims(input: {
   const existing = await lookup;
   if (existing.error) throw existing.error;
   const existingKeys = new Set((existing.data || []).map((claim: { entity_key: unknown }) => String(claim.entity_key)));
-  const selfReportedSupplement = input.content.includes(RESUME_SUPPLEMENT_MARKER);
-  const rows = input.content.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120).map((line) => ({
+  const rows = resumeSourceLines(input.content).map(({ text: line, supplement: selfReportedSupplement }) => ({
     user_id: input.userId,
     opportunity_id: input.global ? null : input.opportunityId,
     source_id: input.sourceId,
@@ -107,7 +106,10 @@ async function recordResumeClaims(input: {
     display_text: line,
     source_excerpt: line,
     status: selfReportedSupplement ? "unverified" : "confirmed",
-    ...(selfReportedSupplement ? { source_kind: "user_statement", verification_level: "self_reported" } : {}),
+    // Bulk inserts must provide the same columns on every row; omitted fields
+    // become NULL rather than their DB defaults when another row supplies them.
+    source_kind: selfReportedSupplement ? "user_statement" : "user_upload",
+    verification_level: "self_reported",
     visibility: "recruiter_safe",
     confirmed_at: selfReportedSupplement ? null : new Date().toISOString(),
   })).filter((row) => !existingKeys.has(row.entity_key));

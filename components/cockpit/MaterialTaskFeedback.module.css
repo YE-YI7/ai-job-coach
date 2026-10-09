@@ -12,7 +12,7 @@
 .progress li > span { display: inline-flex; justify-content: center; align-items: center; min-width: 24px; height: 24px; background: var(--paper, #fbfaf8); border-radius: 50%; }
 .progress p { line-height: 1.7; font-size: 14px; }
 .progress small { color: var(--muted, #69707d); overflow-wrap: anywhere; font-size: 12px; }
-.receipt { max-width: 760px; padding-block: 24px; font-size: 16px; line-height: 1.75; overflow-wrap: anywhere; }
+.receipt { width: min(100%, 760px); box-sizing: border-box; margin-inline: auto; padding: 24px clamp(20px, 3vw, 40px); font-size: 16px; line-height: 1.75; overflow-wrap: anywhere; }
 .receiptHeading { display: flex; gap: 16px; align-items: flex-start; margin-block-end: 28px; }
 .receiptHeading h1 { margin: 0; font-size: clamp(28px, 3vw, 32px); line-height: 1.4; scroll-margin-block-start: 88px; }
 .receiptHeading p { color: var(--muted, #69707d); margin-block: 8px 0; }

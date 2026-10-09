@@ -22,9 +22,12 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  printf '安装失败：益职本地作战台需要 Node.js 18 或更高版本。\n' >&2
-  exit 1
+SKILLS_ONLY="${YI_ZHI_SKILLS_ONLY:-0}"
+if [ "$SKILLS_ONLY" != "1" ]; then
+  if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 18 ? 0 : 1)'; then
+    printf '安装未开始：完整作战盘需要 Node.js 18+。可明确选择 YI_ZHI_SKILLS_ONLY=1，仅安装方法，不会接通作战盘。\n' >&2
+    exit 1
+  fi
 fi
 
 INSTALL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/yi-zhi-install.XXXXXX")"
@@ -42,7 +45,6 @@ YI_ZHI_ROOT="${YI_ZHI_HOME:-$HOME/.yi-zhi}"
 MCP_DESTINATION="$YI_ZHI_ROOT/mcp/server.mjs"
 KNOWLEDGE_DESTINATION="$YI_ZHI_ROOT/knowledge/knowledge-documents.json"
 RELEASE_DESTINATION="$YI_ZHI_ROOT/release.json"
-NODE_COMMAND="$(command -v node)"
 
 mkdir -p "$DESTINATION"
 
@@ -58,11 +60,20 @@ for SOURCE_SKILL in "$SOURCE_ROOT"/*; do
   cp -R "$SOURCE_SKILL" "$TARGET_SKILL"
 done
 
+if [ "$SKILLS_ONLY" = "1" ]; then
+  printf '\n仅 Skills 已安装到 %s；本地作战盘与 MCP 未接通，不代表完整安装成功。\n' "$DESTINATION"
+  printf '材料由宿主 Agent 按其自身权限处理；不会由本安装器建立或宣称益职持久档案。\n'
+  exit 0
+fi
+NODE_COMMAND="$(command -v node)"
+
 mkdir -p "$(dirname "$MCP_DESTINATION")"
 cp "$PLUGIN_ROOT/mcp/server.mjs" "$MCP_DESTINATION"
 mkdir -p "$(dirname "$KNOWLEDGE_DESTINATION")"
 cp "$PLUGIN_ROOT/knowledge/knowledge-documents.json" "$KNOWLEDGE_DESTINATION"
 cp "$PLUGIN_ROOT/release.json" "$RELEASE_DESTINATION"
+printf '\n安装文件已准备；尚未证明 MCP 注册或浏览器打开成功。\n'
+printf '重启宿主后先调用 yi_zhi_diagnose，再验证 yi_zhi_get_cockpit_url；不能只看 Skills 已安装。\n'
 
 if [ "$TARGET" = "workbuddy" ]; then
   WORKBUDDY_ROOT="${WORKBUDDY_HOME:-$HOME/.workbuddy}"

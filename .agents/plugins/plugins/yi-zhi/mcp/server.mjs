@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline";
-import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, writeFile, unlink } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -28,6 +28,7 @@ const KNOWLEDGE_REFRESH_MS = Math.max(Number(process.env.YI_ZHI_KNOWLEDGE_REFRES
 const MAX_TEXT = 200_000;
 let cockpitOrigin = "";
 let cockpitServer;
+let cockpitFailureCode = "";
 let knowledgeCache;
 let knowledgeCachePath = "";
 let knowledgeCheckedAt = 0;
@@ -36,6 +37,12 @@ let updateStatus;
 let updateNoticeDelivered = false;
 
 const toolDefinitions = [
+  {
+    name: "yi_zhi_diagnose",
+    description: "Verify this MCP connection, installed version, knowledge availability and private-directory write access using an ephemeral probe. Report local cockpit availability honestly; browser opening and host registration are not inferred. Never reads job materials or payment credentials.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { title: "Diagnose 益职 startup", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
   {
     name: "yi_zhi_check_update",
     description: "Check whether this local 益职 Plugin is current. The MCP performs this check automatically at most once per week when the Agent starts; call with force=true only when the user explicitly asks to check now. This never installs an update or reads job-search materials.",
@@ -412,7 +419,12 @@ async function checkForUpdate({ force = false } = {}) {
   } finally {
     clearTimeout(timeout);
   }
-  await saveUpdateState(updateStatus);
+  try {
+    await saveUpdateState(updateStatus);
+  } catch (error) {
+    // An optional release cache must not prevent capability diagnosis.
+    process.stderr.write(`益职更新缓存不可写：${error?.code || "STORAGE_UNAVAILABLE"}。请调用 yi_zhi_diagnose。\n`);
+  }
   return updateStatus;
 }
 
@@ -629,6 +641,7 @@ function cockpitText(state, item) {
 }
 
 function cockpitUrl(caseId) {
+  if (!cockpitOrigin) return null;
   const url = new URL(cockpitOrigin);
   if (caseId) url.searchParams.set("case", caseId);
   return url.toString();
@@ -661,15 +674,42 @@ function result(text, data, openCaseId) {
   const shouldNotifyUpdate = Boolean(updateStatus?.update_available) && !updateNoticeDelivered;
   const updateNotice = shouldNotifyUpdate ? `\n\n${updateStatusText(updateStatus)}` : "";
   if (shouldNotifyUpdate) updateNoticeDelivered = true;
-  const content = [{ type: "text", text: `${url ? `${text}\n\n打开本地作战盘：${url}` : text}${updateNotice}` }];
+  const headlessNotice = openCaseId && !url ? "\n\n本地作战盘未接通；当前为无界面 MCP 模式，已保存的事实与产物仍可通过工具访问。调用 yi_zhi_diagnose 查看原因。" : "";
+  const content = [{ type: "text", text: `${url ? `${text}\n\n打开本地作战盘：${url}` : text}${headlessNotice}${updateNotice}` }];
   if (url) content.push({ type: "resource_link", uri: url, name: "益职求职作战盘", title: "在浏览器中打开益职" });
-  const structuredContent = url ? { ...data, cockpit_url: url } : { ...data };
+  const structuredContent = url ? { ...data, cockpit_url: url } : { ...data, ...(openCaseId ? { cockpit_available: false, mode: "mcp-headless" } : {}) };
   const publicUpdate = publicUpdateStatus();
   if (publicUpdate) structuredContent.update = publicUpdate;
   return { content, structuredContent, isError: false };
 }
 
 async function callTool(name, args = {}) {
+  if (name === "yi_zhi_diagnose") {
+    let storageCode = "";
+    const probe = join(DATA_DIR, `.diagnostic-${randomUUID()}`);
+    let created = false;
+    try {
+      await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+      await writeFile(probe, "probe", { flag: "wx", mode: 0o600 });
+      created = true;
+      await unlink(probe);
+      created = false;
+    } catch (error) { storageCode = error?.code || "STORAGE_UNAVAILABLE"; }
+    finally { if (created) await unlink(probe).catch(() => undefined); }
+    let knowledgeAvailable = false;
+    try { knowledgeAvailable = Boolean((await loadKnowledge())?.documents?.length); } catch { /* Diagnose, don't conceal. */ }
+    const release = await loadInstalledRelease();
+    const diagnosis = {
+      version: release.version, node_version: process.versions.node,
+      mode: storageCode ? "skills-only" : cockpitOrigin ? "mcp-cockpit" : "mcp-headless",
+      mcp_connected: true, tool_count: toolDefinitions.length, data_path: DATA_DIR,
+      storage: { writable: !storageCode, code: storageCode || "OK" },
+      knowledge_available: knowledgeAvailable,
+      cockpit: { available: Boolean(cockpitOrigin), url: cockpitOrigin || null, code: cockpitFailureCode || "OK" },
+      browser_open: "not_verified", host_registration: "current_connection_verified_only"
+    };
+    return result(`益职启动诊断：${diagnosis.mode}\n本地存储：${storageCode || "可写"}\n作战盘：${cockpitOrigin || cockpitFailureCode}\n浏览器打开和其他宿主注册尚未验证。${storageCode ? "\n本地持久保存不可用，请改用宿主 Skills 方法；不要宣称材料已保存。" : ""}`, { diagnosis });
+  }
   const state = await loadState();
 
   if (name === "yi_zhi_check_update") {
@@ -944,7 +984,7 @@ async function handle(message) {
         protocolVersion: message.params?.protocolVersion || "2025-03-26",
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: "yi-zhi", version: release.version },
-        instructions: `Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. Before drafting application material, call yi_zhi_get_application_context; it automatically shares confirmed preparation facts and the base resume with job cases. Record only user-confirmed facts and freeze every real JD, submitted resume, application answer, interview record, and outcome. A final application package must pass an independent reviewer, facts, ATS, and PDF checks. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
+        instructions: `Before starting the workflow, call yi_zhi_diagnose. Do not claim a browser is open or materials are saved when the diagnosis says otherwise; if local storage is unavailable, use Skills guidance without claiming persistent records. Act as a proactive job-search mentor. Start by planning today's highest-value action across all local cases. A JD is not required. Before drafting application material, call yi_zhi_get_application_context; it automatically shares confirmed preparation facts and the base resume with job cases. Record only user-confirmed facts and freeze every real JD, submitted resume, application answer, interview record, and outcome. A final application package must pass an independent reviewer, facts, ATS, and PDF checks. The connected person is the job seeker, never the owner of the 益职 product.${update.update_available ? ` 益职 ${update.latest_version} is available. Tell the user once and use yi_zhi_check_update for the safe update instructions; never silently overwrite local data.` : " The Plugin checks its stable release at most once per week when this MCP starts."}`
       });
     }
     if (message.method === "ping") return response(message.id, {});
@@ -974,7 +1014,14 @@ async function dispatch(value) {
 // Hold a snapshot in memory before a package manager swaps the versioned
 // Plugin directory. Cockpit-only use still starts if this preload fails.
 await loadKnowledge().catch(() => undefined);
-await startCockpitServer();
+try {
+  if (process.env.YI_ZHI_COCKPIT_DISABLED === "1") cockpitFailureCode = "DISABLED_BY_USER";
+  else await startCockpitServer();
+} catch (error) {
+  cockpitFailureCode = error?.code || "LOOPBACK_UNAVAILABLE";
+  cockpitServer?.close(() => undefined);
+  process.stderr.write(`益职本地界面未接通（${cockpitFailureCode}），继续提供无界面 MCP；调用 yi_zhi_diagnose 查看能力边界。\n`);
+}
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 let dispatchQueue = Promise.resolve();
 input.on("line", (line) => {

@@ -1,4 +1,14 @@
-import { MAX_TEXT_LENGTH, type GapReport } from './matcher';
+import { MAX_TEXT_LENGTH, type GapReport, type GapTermHit } from './matcher';
+
+export type GapDecision = { choice: 'experience' | 'gap' | 'irrelevant'; note?: string };
+export type GapDecisions = Record<string, GapDecision>;
+
+export function gapEvidenceLabel(hit: GapTermHit, decision?: GapDecision): string {
+  if (decision?.choice === 'experience') return decision.note?.trim() ? '已补经历 · 待核实' : '有经历 · 待补原文';
+  if (decision?.choice === 'gap') return '本人确认尚未做过';
+  if (decision?.choice === 'irrelevant') return '认为不适用 · 待核对 JD';
+  return hit.status === 'direct' ? '词面命中' : hit.status === 'related' ? '相近经历 · 待确认' : '待确认';
+}
 
 /** Visible FAQ and JSON-LD use the same truth source. */
 export const GAP_FAQS = [
@@ -40,7 +50,7 @@ export function gapEventProperties(report: GapReport, sample: boolean) {
 }
 
 /** A local, explicitly requested artifact; no network or user identifiers. */
-export function buildGapChecklist(report: GapReport, sample: boolean): string {
+export function buildGapChecklist(report: GapReport, sample: boolean, decisions: GapDecisions = {}): string {
   const unmet = report.hardRequirements.filter((requirement) => !requirement.satisfied);
   return [
     `益职 AI · 简历对照清单${sample ? '（示例）' : ''}`,
@@ -50,7 +60,14 @@ export function buildGapChecklist(report: GapReport, sample: boolean): string {
     ...(unmet.length ? unmet.map((item) => `[ ] ${item.label}\n    JD：${item.jdEvidence}`) : ['未发现需要补证据的硬门槛；仍请核对完整 JD。']),
     '',
     '再补真实经历',
-    ...(report.summary.jdKeywordCount === 0 ? ['未抽到可对照的关键词，不能给出命中结论；请核对完整 JD，词典不覆盖所有职业。'] : report.missing.length ? report.missing.map((term) => `[ ] ${term}：做过 → 补对应经历；没做过 → 不写成已有能力。`) : ['抽到的关键词都有词面命中，仍需核对经历是否充分。']),
+    ...(report.summary.jdKeywordCount === 0 ? ['未抽到可对照的关键词，不能给出命中结论；请核对完整 JD，词典不覆盖所有职业。'] : report.matched.flatMap((hit) => [
+      `[ ] ${hit.term}：${gapEvidenceLabel(hit, decisions[hit.term])}`,
+      `    JD：${hit.jdEvidence || '请核对完整原文'}`,
+      `    简历：${hit.resumeEvidence || '未找到相关原文，不等于没有经历'}`,
+      `    规则：${hit.rule}`,
+      ...(decisions[hit.term]?.note?.trim() ? [`    本人补充（待核实）：${decisions[hit.term].note!.trim().slice(0, 500)}`] : []),
+      ...(hit.inResume && !decisions[hit.term] ? ['    仍需核对职责、范围和实际结果。'] : ['    待补证据：项目 / 我的动作 / 合作对象 / 可核验结果。没有的内容不要编造。']),
+    ])),
     '',
     '最后补结果证据',
     ...(report.weakQuantification.length ? report.weakQuantification.map((line) => `[ ] ${line}\n    补充：个人动作、结果、范围或对比基准；不编数字。`) : ['未发现明显缺量化描述的条目；这不代表简历已完整。']),

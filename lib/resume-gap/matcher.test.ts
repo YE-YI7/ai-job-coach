@@ -195,3 +195,54 @@ describe('analyzeResumeGap / 边界与健壮性', () => {
     );
   });
 });
+
+describe('source-backed evidence regressions', () => {
+  it('finds the reported cross-functional example as related, not a capability claim', () => {
+    const resume = '协同研发、设计上线实验，转化率从12%提升至16%。';
+    const r = run(resume, '通过跨部门协作改善留存。');
+    const item = hit(r, '跨部门协作')!;
+    expect(item.status).toBe('related');
+    expect(item.inResume).toBe(false);
+    expect(item.resumeEvidence).toContain('协同研发、设计上线实验');
+    expect(item.jdEvidence).toContain('跨部门协作');
+    expect(item.rule).toContain('需你确认');
+  });
+
+  it.each(['团队内部协作', '研发、设计工具使用', '没有协同研发、设计上线实验', '与研发协同。设计独立完成'])('does not infer cross-functional work from %s', (resume) => {
+    expect(hit(run(resume, '跨部门协作'), '跨部门协作')?.status).toBe('unconfirmed');
+  });
+
+  it.each(['没有做过 Python 项目', '从未使用 Python', 'no Python experience', 'Python 没用过'])('does not count a denied skill: %s', (resume) => {
+    const item = hit(run(resume, '熟悉 Python'), 'Python')!;
+    expect(item.inResume).toBe(false);
+    expect(item.rule).toContain('否定');
+  });
+  it('does not mistake a positive Chinese conjunction for a denial', () => {
+    expect(hit(run('不仅会 Python，还用 SQL 分析数据。', 'Python SQL'), 'Python')?.inResume).toBe(true);
+  });
+
+  it('prefers a later positive source over an earlier denial', () => {
+    expect(hit(run('去年没有使用 Python。现在使用 Python 开发报表。', 'Python'), 'Python')?.resumeEvidence).toContain('现在使用');
+  });
+
+  it('shows exact full-width source and the alias rule', () => {
+    const item = hit(run('用 ＪＳ 完成页面。', '熟悉 JavaScript。'), 'JavaScript')!;
+    expect(item.inResume).toBe(true);
+    expect(item.resumeEvidence).toBe('用 ＪＳ 完成页面');
+    expect(item.rule).toContain('js');
+  });
+
+  it('keeps English word boundaries across spaces and rejects substring matches', () => {
+    const r = run('Python SQL 项目，Django 开发', 'Python SQL Go');
+    expect(hit(r, 'Python')?.inResume).toBe(true);
+    expect(hit(r, 'SQL')?.inResume).toBe(true);
+    expect(hit(r, 'Go')?.inResume).toBe(false);
+  });
+
+  it('quotes only a short relevant source, not the whole resume', () => {
+    const item = hit(run('手机：123456\n教育：本科\n用 Java 开发订单。\n' + '无关经历。'.repeat(300), 'Java'), 'Java')!;
+    expect(item.resumeEvidence).toBe('用 Java 开发订单');
+    expect(item.resumeEvidence.length).toBeLessThanOrEqual(80);
+    expect(item.resumeEvidence).not.toContain('123456');
+  });
+});

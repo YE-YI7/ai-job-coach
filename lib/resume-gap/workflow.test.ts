@@ -1,5 +1,5 @@
 import { analyzeResumeGap, MAX_TEXT_LENGTH } from './matcher';
-import { buildGapChecklist, GAP_EXAMPLES, gapEventProperties, isGapExample, validateGapInput } from './workflow';
+import { buildGapChecklist, GAP_EXAMPLES, gapEventProperties, gapEvidenceLabel, isGapExample, validateGapInput } from './workflow';
 
 describe('public gap workflow', () => {
   it('requires both real materials before reporting', () => {
@@ -43,5 +43,21 @@ describe('public gap workflow', () => {
     const text = buildGapChecklist(analyzeResumeGap({ resumeText: '庭院花卉养护', jdText: '花卉养护师' }), false);
     expect(text).toContain('不能给出命中结论');
     expect(text).not.toContain('都有词面命中');
+  });
+  it('exports user corrections separately, without changing machine evidence or hard gates', () => {
+    const report = analyzeResumeGap({ resumeText: '协同研发、设计上线实验', jdText: '跨部门协作，3年以上工作经验' });
+    const before = JSON.stringify(report);
+    const text = buildGapChecklist(report, false, { '跨部门协作': { choice: 'experience', note: '我负责协调上线排期' } });
+    expect(text).toContain('已补经历 · 待核实');
+    expect(text).toContain('本人补充（待核实）：我负责协调上线排期');
+    expect(text).toContain('简历：协同研发、设计上线实验');
+    expect(text).toContain('工作经验：≥ 3 年');
+    expect(JSON.stringify(report)).toBe(before);
+    expect(buildGapChecklist(report, false, { '跨部门协作': { choice: 'gap' } })).toContain('本人确认尚未做过');
+    expect(buildGapChecklist(report, false, { '跨部门协作': { choice: 'irrelevant' } })).toContain('待核对 JD');
+  });
+  it('does not treat a click with no supporting story as verified experience', () => {
+    const item = analyzeResumeGap({ resumeText: 'Java', jdText: 'Python' }).matched[0];
+    expect(gapEvidenceLabel(item, { choice: 'experience', note: ' ' })).toBe('有经历 · 待补原文');
   });
 });

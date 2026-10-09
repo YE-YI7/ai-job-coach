@@ -5,7 +5,7 @@
  * - 确定性词面命中对照：无模型、无网络、无副作用（模块内仅缓存预编译正则，结果确定）。
  * - 不做语义理解：中文分词无法在本模块内做，中文关键词依赖下方可配置词典 SKILL_DICTIONARY；
  *   英文/驼峰 token 与「数字+单位」token 用正则从 JD 里补充抽取。
- * - 命中判断前先做文本规范化：小写化、全角转半角、去所有空白；
+ * - 关键词命中保留英文词边界，兼容大小写、全角和术语内空白；
  *   别名归一（js↔javascript、golang↔go、大厂名如 字节/今日头条↔字节跳动）通过词典别名组实现。
  * - 硬门槛（经验年限/学历/语言/地点/实习·到岗/院校）用正则+词典从 JD 原文抽取，
  *   satisfied 只表示「简历里找到了对应词面证据」，未找到记为未满足/存疑，附 jdEvidence 原文片段。
@@ -26,6 +26,10 @@ export interface ResumeGapInput {
 export interface GapTermHit {
   term: string;
   inResume: boolean;
+  status: 'direct' | 'related' | 'unconfirmed';
+  jdEvidence: string;
+  resumeEvidence: string;
+  rule: string;
 }
 
 export interface HardRequirement {
@@ -161,7 +165,7 @@ export const SKILL_DICTIONARY: DictEntry[] = [
   { term: 'PPT', aliases: ['ppt'] },
   // —— 软技能 ——
   { term: '沟通', aliases: ['沟通', '沟通能力'] },
-  { term: '跨部门协作', aliases: ['跨部门', '协作'] },
+  { term: '跨部门协作', aliases: ['跨部门', '跨团队'] },
   { term: '团队管理', aliases: ['团队管理', '带团队', '管理经验'] },
   { term: '抗压', aliases: ['抗压'] },
   { term: '自驱', aliases: ['自驱', '自驱力', '自我驱动', '主动性'] },
@@ -234,12 +238,13 @@ function dictHits(norm: string): DictEntry[] {
 
 interface Candidate {
   display: string;
-  check: (resumeNorm: string) => boolean;
-  rank: number; // 词典 > 英文 token > 数字单位
+  aliases: string[];
 }
 
 function extractJdCandidates(jdText: string): Candidate[] {
-  const norm = normalizeText(jdText);
+  // Keep spaces between English words: “Python SQL” must not become “pythonsql”.
+  const norm = asText(jdText).slice(0, MAX_TEXT_LENGTH).replace(/[\uFF01-\uFF5E\u3000]/g, (ch) =>
+    ch === '\u3000' ? ' ' : String.fromCharCode(ch.charCodeAt(0) - 0xfee0)).toLowerCase();
   if (!norm) return [];
   const byKey = new Map<string, Candidate>();
 
@@ -252,8 +257,7 @@ function extractJdCandidates(jdText: string): Candidate[] {
     if (!byKey.has(key)) {
       byKey.set(key, {
         display: entry.term,
-        check: (r) => keys.some((a) => containsAlias(r, a.replace(/\s+/g, ''))),
-        rank: 0,
+        aliases: keys,
       });
     }
   }
@@ -273,7 +277,7 @@ function extractJdCandidates(jdText: string): Candidate[] {
       if (a === tok) { covered = true; break; }
     }
     if (covered || byKey.has(tok)) continue;
-    byKey.set(tok, { display: tok, check: (r) => containsAlias(r, tok), rank: 1 });
+    byKey.set(tok, { display: tok, aliases: [tok] });
   }
 
   // 3) 数字+单位 token（10w、20%、百万级…）
@@ -281,7 +285,7 @@ function extractJdCandidates(jdText: string): Candidate[] {
   for (const m of norm.matchAll(numRe)) {
     const tok = m[0];
     if (byKey.has(tok)) continue;
-    byKey.set(tok, { display: tok, check: (r) => r.includes(tok), rank: 2 });
+    byKey.set(tok, { display: tok, aliases: [tok] });
   }
 
   return [...byKey.values()];
@@ -495,11 +499,10 @@ function extractWeakQuantification(resumeText: string): string[] {
    ============================ */
 
 export function analyzeResumeGap(input: ResumeGapInput): GapReport {
-  const resumeNorm = normalizeText(input && input.resumeText);
   const candidates = extractJdCandidates(input && input.jdText);
 
   const matched: GapTermHit[] = candidates
-    .map((c) => ({ term: c.display, inResume: c.check(resumeNorm) }))
+    .map((c) => termEvidence(c, asText(input?.resumeText), asText(input?.jdText)))
     .sort(
       (a, b) =>
         Number(b.inResume) - Number(a.inResume) || a.term.localeCompare(b.term, 'zh-Hans-CN'),
@@ -516,4 +519,53 @@ export function analyzeResumeGap(input: ResumeGapInput): GapReport {
   };
 
   return { matched, missing, hardRequirements, weakQuantification, summary };
+}
+
+/** Match on source text, preserving offsets and word boundaries across spaces. */
+function sourceHit(raw: string, aliases: string[], positiveOnly: boolean) {
+  const source = raw.slice(0, MAX_TEXT_LENGTH).replace(/[\uFF01-\uFF5E\u3000]/g, (ch) =>
+    ch === '\u3000' ? ' ' : String.fromCharCode(ch.charCodeAt(0) - 0xfee0));
+  let denied: { quote: string; alias: string } | undefined;
+  for (const alias of aliases) {
+    const normalized = normalizeText(alias);
+    const escaped = [...normalized].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+    const ascii = isAsciiToken.test(normalized);
+    const re = new RegExp(`${ascii ? '(?<![a-z0-9])' : ''}${escaped}${ascii ? '(?![a-z0-9])' : ''}`, 'gi');
+    for (const match of source.matchAll(re)) {
+      const index = match.index ?? 0;
+      const quote = evidenceWindow(raw, index, match[0].length);
+      const before = source.slice(Math.max(0, index - 28), index).split(/[。；;\n！!？?，,]/).pop() || '';
+      const after = source.slice(index + match[0].length, index + match[0].length + 24);
+      // An explicit admission of no experience must not become a positive match.
+      const negated = /(?:没有|未曾|从未|没|未|不(?!但|仅|断))(?:.{0,12})(?:做过|使用|接触|掌握|熟悉|了解|经验|会)?\s*$/.test(before)
+        || /\b(?:no|not|never|without)\b[^.;\n]{0,24}$/i.test(before)
+        || /^\s*(?:没有经验|无经验|没用过|未使用|不会|不熟悉|不熟|未掌握)/.test(after);
+      if (!positiveOnly || !negated) return { quote, alias, negated: false };
+      denied = { quote, alias };
+    }
+  }
+  return denied ? { ...denied, negated: true } : undefined;
+}
+
+function termEvidence(candidate: Candidate, resume: string, jd: string): GapTermHit {
+  const jdHit = sourceHit(jd, candidate.aliases, false);
+  const resumeHit = sourceHit(resume, candidate.aliases, true);
+  const base = { term: candidate.display, jdEvidence: jdHit?.quote || '', resumeEvidence: resumeHit?.quote || '' };
+  if (resumeHit && !resumeHit.negated) return {
+    ...base, inResume: true, status: 'direct', rule: `词面或别名命中「${resumeHit.alias}」；仍需核实职责与熟练程度。`,
+  };
+  if (resumeHit?.negated) return {
+    ...base, inResume: false, status: 'unconfirmed', rule: '原文含否定表述，不计为已有能力；请核对上下文。',
+  };
+  if (candidate.display === '跨部门协作') {
+    for (const match of resume.slice(0, MAX_TEXT_LENGTH).matchAll(/[^。；;\n！!？?]+/g)) {
+      const clause = match[0];
+      const teams = ['研发', '设计', '运营', '销售', '市场', '测试', '法务', '财务', '客服'].filter((team) => clause.includes(team));
+      if (teams.length >= 2 && /协同|协作|合作|协调|对接|联合/.test(clause) && !/没有|未曾|从未|没做|未做|不涉及/.test(clause)) return {
+        ...base, resumeEvidence: evidenceWindow(resume, (match.index ?? 0) + Math.max(0, clause.search(/协同|协作|合作|协调|对接|联合/)), 2),
+        inResume: false, status: 'related', rule: '同一句提到协作动作和至少两个职能；是相近证据，需你确认实际职责。',
+      };
+    }
+  }
+  return { ...base, inResume: false, status: 'unconfirmed', rule: '未找到词面或已配置的相近证据；不能据此判定你没做过。' };
 }

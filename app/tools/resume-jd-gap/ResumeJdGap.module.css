@@ -69,6 +69,22 @@
 .terms li { font-size: 15px; text-decoration: underline; text-decoration-color: #d5b99a; text-underline-offset: 6px; overflow-wrap: anywhere; }
 .matched { margin-top: 24px; font-size: 14px; color: #606570; }
 .matched summary, .faq summary { cursor: pointer; padding: 10px 0; min-height: 44px; }
+.evidenceRow { border-bottom: 1px solid #e3dfd8; padding: 8px 0; }
+.evidenceRow:last-child { border-bottom: 0; }
+.evidenceRow summary { cursor: pointer; min-height: 48px; padding: 10px 0; overflow-wrap: anywhere; }
+.evidenceRow summary strong { font-size: 16px; font-weight: 650; }
+.evidenceRow summary span { font-size: 14px; color: #606570; margin-left: 16px; }
+.sourcePair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 16px 0; }
+.sourcePair div { min-width: 0; }
+.sourcePair dt { color: #606570; font-size: 14px; margin-bottom: 8px; }
+.sourcePair dd { margin: 0; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
+.decisions { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0; }
+.decisions button { border: 0; border-bottom: 2px solid transparent; background: none; min-height: 44px; padding: 8px 0; color: #606570; font-size: 14px; }
+.decisions button:hover, .decisions button[aria-pressed="true"] { color: #24272f; border-bottom-color: #ad461d; }
+.evidenceNote { display: block; margin: 16px 0; font-size: 14px; }
+.evidenceNote textarea { display: block; width: 100%; margin-top: 8px; padding: 8px 0; border: 0; border-bottom: 1px solid #d8d4cd; border-radius: 0; resize: vertical; background: transparent; font: inherit; line-height: 1.8; color: #24272f; caret-color: #9b3f1b; }
+.evidenceNote textarea:focus { outline: none; border-bottom: 2px solid #606570; }
+.evidenceNote textarea::placeholder { color: #606570; }
 .weakLines { padding-left: 20px; margin: 0; }
 .weakLines li { font-size: 15px; padding: 7px 0; overflow-wrap: anywhere; }
 .empty { padding: 32px 0; color: #606570; }
@@ -81,6 +97,9 @@
 .footer { display: flex; justify-content: space-between; gap: 20px; color: #606570; border-top: 1px solid #e3dfd8; margin-top: 54px; padding-top: 24px; font-size: 14px; }
 .footer a { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; }
 @media (max-width: 760px) {
+  .sourcePair { grid-template-columns: 1fr; gap: 16px; }
+  .evidenceRow summary span { display: block; margin-left: 0; margin-top: 4px; }
+  .evidenceNote textarea { font-size: 16px; }
   .container { padding: 18px 20px 32px; }
   .header { display: block; padding: 30px 0 24px; }
   .privacy { margin-top: 22px !important; }

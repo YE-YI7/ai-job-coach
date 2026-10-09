@@ -4,6 +4,7 @@ import Image from "next/image";
 import { MapPin, BriefcaseBusiness, ArrowUpRight, CheckCircle2, ArrowRight, CircleAlert } from "lucide-react";
 import { companyLogo } from "@/lib/jobs/company-logos";
 import type { ReviewedJob } from "@/lib/jobs/personalization";
+import type {Opportunity} from '@/lib/opportunities/types';
 import { JOB_DECISION_LABEL, JOB_DECISION_ORDER, JOB_DECISION_REASONS, type JobDecision, type JobDecisionKind } from "@/lib/jobs/job-decision";
 import styles from "./JobDiscovery.module.css";
 
@@ -15,6 +16,8 @@ interface Props {
   importing: boolean;
   degraded: boolean;
   onImport: () => void;
+  assessment?:Opportunity;
+  onOpenJob:(id:string)=>void;
   /** 用户在上一批里对同一条岗表过的态（按来源链接找回）。 */
   decision: JobDecision | null;
   /** 材料换过版本：旧决定仍在，但不能让它看起来像是新简历算出来的。 */
@@ -24,7 +27,7 @@ interface Props {
   onDecide: (kind: JobDecisionKind, reason: string | null) => void;
 }
 
-export default function JobResultCard({ job, disabled, importing, degraded, onImport, decision, staleMaterials, decisionBusy, decisionError, onDecide }: Props) {
+export default function JobResultCard({ job, disabled, importing, degraded, onImport, assessment, onOpenJob, decision, staleMaterials, decisionBusy, decisionError, onDecide }: Props) {
   const { review } = job;
   const logo = companyLogo(job.company);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
@@ -86,7 +89,8 @@ export default function JobResultCard({ job, disabled, importing, degraded, onIm
         <a href={job.url} target="_blank" rel="noopener noreferrer">查看招聘原文<ArrowUpRight size={14}/></a>
         <small>读取于 {new Date(job.checkedAt).toLocaleDateString("zh-CN")}</small>
       </div>
-      <button type="button" className={styles.import} disabled={disabled} onClick={onImport}>{importing ? "正在分析…" : "看看是否值得投"}<ArrowRight size={16}/></button>
+      <button type="button" className={styles.import} disabled={disabled} onClick={onImport}>{importing ? "正在保存判断…" : assessment ? "判断已保存" : "看看是否值得投 · 不额外扣额度"}<ArrowRight size={16}/></button>
     </div>
+    {assessment&&<section className={styles.assessment} aria-label="投递判断" role="status"><h5>{assessment.recommendationLabel}</h5><p>{assessment.recommendationReason}</p><button type="button" onClick={()=>onOpenJob(assessment.id)}>打开已保存的岗位 <ArrowRight size={16}/></button><small>已加入左侧机会列表 · 复用搜岗评审，不额外扣额度</small></section>}
   </article>;
 }

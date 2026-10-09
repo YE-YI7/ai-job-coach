@@ -55,5 +55,10 @@
 .footer{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid #e7e5e1;padding-top:16px;margin-top:14px}
 .provenance{font-size:12px;line-height:1.5;color:#62635e}.provenance a{color:inherit;display:inline-flex;align-items:center;gap:5px;text-decoration:none}.provenance a:hover{text-decoration:underline}.provenance small{display:block;font-size:12px;margin-top:4px}
 .audit{margin-top:18px;font-size:13px;color:#62635e;line-height:1.65}.audit summary{cursor:pointer;padding:8px 0;color:#424641}.audit p{margin:10px 0}
+.assessment{margin-top:20px;padding-top:20px;border-top:1px solid #e7e5e1}
+.assessment h5{font-size:18px;line-height:1.5;margin:0 0 8px;color:#24272f}
+.assessment p{font-size:16px;line-height:1.8;white-space:pre-line;overflow-wrap:anywhere;margin:0 0 16px;max-width:65ch}
+.assessment button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 14px;border:1px solid #e7e5e1;border-radius:10px;background:#fff;color:#24272f;font-size:14px;cursor:pointer}
+.assessment small{display:block;font-size:14px;line-height:1.6;color:#69707d;margin-top:10px}
 .skeleton{height:188px;border-radius:14px;background:#f7f5f1;border:1px solid #e7e5e1;display:flex;flex-direction:column;gap:14px;padding:24px}.skeleton span{height:14px;width:65%;background:#e7e5e1;border-radius:4px}.skeleton span:nth-child(2){width:35%}.skeleton span:nth-child(3){width:80%;margin-top:18px}
 @media(max-width:640px){.header{flex-direction:column;gap:14px}.refresh{width:100%}.card{padding:18px}.identity h4{font-size:17px}.cardHead{flex-wrap:wrap}.verdict{margin-left:60px}.footer{align-items:stretch;flex-direction:column;gap:12px}.import{width:100%}.attributes{gap:10px 14px}.decisionChoice{width:100%;justify-content:flex-start}}

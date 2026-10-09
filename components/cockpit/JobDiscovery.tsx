@@ -6,6 +6,7 @@ import type { CompanyTier } from "@/lib/coach-harness/subagents/verification";
 import type { ReviewedJob } from "@/lib/jobs/personalization";
 import { decisionEntityKey, decisionForUrl, isStaleMaterials, type JobDecision, type JobDecisionKind } from "@/lib/jobs/job-decision";
 import { groupCandidates, zeroCandidateState } from "@/lib/jobs/result-presentation";
+import type { Opportunity } from "@/lib/opportunities/types";
 import styles from "./CockpitApp.module.css";
 import { needsExplicitSearch, waitForSavedSearch } from "@/lib/jobs/search-recovery";
 import { RefreshCw } from "lucide-react";
@@ -25,9 +26,10 @@ type TierPreference = {
 };
 /** 一条决定必须说清「对哪一批、哪份材料」；这两个值都来自本轮查找结果，界面不自己编。 */
 type Batch = { runId: string; materialsVersion: string };
-export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
-  profileId: string; ready: boolean; onImport: (sourceText: string) => Promise<void>; onAddJob: () => void;
+export default function JobDiscovery({profileId, ready, onImport, onAddJob, onOpenJob,savedJobs=[]}: {
+  profileId: string; ready: boolean; onImport: (opportunity: Opportunity) => void; onAddJob: () => void; onOpenJob:(id:string)=>void;savedJobs?:Opportunity[];
 }) {
+  const [assessmentResults,setAssessmentResults]=useState<Record<string,Opportunity>>({});
   const [jobs, setJobs] = useState<Candidate[]>([]);
   const [filtered, setFiltered] = useState<FilteredJob[]>([]);
   const [pending, setPending] = useState<HardDimension[]>([]);
@@ -134,7 +136,7 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
       const result = await response.json();
       if (!response.ok) throw Error(result.error || "偏好没有保存到云端，原设置保留");
       setPreference(result.preference); setTierBusy(false);
-      await discover();
+      setMessage("偏好已保存；点击重新查找才会重新评审并计费。");
     } catch(error) {
       setTierMessage(error instanceof Error ? error.message : "偏好没有保存到云端，原设置保留");
       setTierBusy(false);
@@ -153,7 +155,7 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
       const result = await response.json();
       if (!response.ok) throw Error(result.error || "这条意向没有核对成功，原状态保留");
       setTierBusy(false);
-      await discover();
+      setMessage("意向已保存；点击重新查找才会重新评审并计费。");
     } catch(error) {
       setTierMessage(error instanceof Error ? error.message : "这条意向没有核对成功，原状态保留");
       setTierBusy(false);
@@ -164,10 +166,17 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
     if (imported.current.has(job.id)) return;
     imported.current.add(job.id);
     setImporting(job.id); setMessage("");
-    try { await onImport(`公司：${job.company}\n岗位：${job.title}\n地点：${job.location}\n来源：${job.url}\n\n${job.description}`); }
+    try {
+      if(!batch)throw Error("搜索批次尚未恢复，请刷新后重试");
+      const response=await fetch('/api/coach/jobs/assess',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profileId,runId:batch.runId,jobId:job.id})});
+      const result=await response.json();
+      if(!response.ok||!result.ok||!result.opportunity?.id)throw Error(result.error||'投递判断未保存，本次未扣额度');
+      setAssessmentResults(current=>({...current,[job.id]:result.opportunity}));
+      onImport(result.opportunity);
+    }
     catch (error) { imported.current.delete(job.id); setMessage(error instanceof Error ? error.message : "岗位分析失败，可以重试"); }
     finally { setImporting(""); }
-  }, [onImport]);
+  }, [onImport,batch,profileId]);
   /**
    * 决定只写这一条岗的一次表态：走 coach_claims 的 job_decision 命名空间，
    * 不碰目标档位那份长期偏好（那是另一条路，要用户确认才生效）。
@@ -209,6 +218,7 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
     const decision = batch ? decisionForUrl(decisions, job.url, batch.runId) ?? null : null;
     return <JobResultCard key={job.id} job={job} degraded={verification?.status === "degraded"} disabled={!!importing || busy}
       importing={importing === job.id} onImport={() => { void importJob(job); }}
+      assessment={assessmentResults[job.id]??savedJobs.find(saved=>saved.jdText?.startsWith(`来源：${job.url}\n`))} onOpenJob={onOpenJob}
       decision={decision} staleMaterials={!!decision && isStaleMaterials(decision, batch?.materialsVersion ?? null)}
       decisionBusy={decisionBusy === job.id} decisionError={decisionErrorFor === job.id ? decisionError : ""}
       onDecide={(kind, reason) => { void decide(job, kind, reason); }}/>;
@@ -219,7 +229,7 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob}: {
   });
   const { lead, rest, unknown } = groupCandidates(jobs);
   return <div className={discoveryStyles.discovery} aria-busy={busy}>
-    <div className={discoveryStyles.header}><button className={discoveryStyles.refresh} disabled={!ready || busy || !!importing} onClick={()=>void discover()}><RefreshCw size={16}/>{busy ? "正在查找…" : "重新查找"}</button></div>
+    <div className={discoveryStyles.header}><button className={discoveryStyles.refresh} disabled={!ready || busy || !!importing} onClick={()=>{if(window.confirm('重新查找会进行一次 AI 评审：未连接 TokenPay 时消耗 1 次额度，已连接时按 TokenPay 用量计费。失败不扣站点额度。继续吗？'))void discover();}}><RefreshCw size={16}/>{busy ? "正在查找…" : "重新查找 · AI 计费"}</button></div>
     {!ready && <p className={discoveryStyles.status}>请先保存简历和方向。</p>}
     {!!tierOptions.length && <details className={discoveryStyles.audit}>
       <summary>公司偏好 · {tiers.length?tiers.map(labelOf).join("、"):"不限"}</summary><div className={styles.tierPreference}>

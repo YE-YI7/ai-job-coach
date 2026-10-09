@@ -5,7 +5,7 @@ import styles from "./CockpitApp.module.css";
 import JobDiscovery from "./JobDiscovery";
 import {ArrowUpRight,Check,FileText,Compass} from "lucide-react";
 
-export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,onCoach,onSaveDirection,onImportJob,children}:{opportunity:Opportunity;jobs:Opportunity[];onAddJob:()=>void;onSelectJob:(id:string)=>void;onCoach:()=>void;onSaveDirection:(role:string,location:string)=>Promise<void>;onImportJob:(sourceText:string)=>Promise<void>;children:React.ReactNode}){
+export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,onCoach,onSaveDirection,onImportJob,children}:{opportunity:Opportunity;jobs:Opportunity[];onAddJob:()=>void;onSelectJob:(id:string)=>void;onCoach:()=>void;onSaveDirection:(role:string,location:string)=>Promise<void>;onImportJob:(opportunity:Opportunity)=>void;children:React.ReactNode}){
  const [role,setRole]=useState(opportunity.role),[location,setLocation]=useState(opportunity.location||"");
  const [busy,setBusy]=useState(false),[result,setResult]=useState("");
  return <div className={styles.profileWorkspace}>
@@ -22,7 +22,7 @@ export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,
    {!opportunity.resumeText&&children}
   </section>
   <section aria-label="岗位">
-   <JobDiscovery key={`${opportunity.id}:${opportunity.role}:${opportunity.location}`} profileId={opportunity.id} ready={!!opportunity.resumeText?.trim() && role.trim()===opportunity.role && location.trim()===(opportunity.location||"")} onImport={onImportJob} onAddJob={onAddJob}/>
+   <JobDiscovery key={`${opportunity.id}:${opportunity.role}:${opportunity.location}`} profileId={opportunity.id} ready={!!opportunity.resumeText?.trim() && role.trim()===opportunity.role && location.trim()===(opportunity.location||"")} onImport={onImportJob} onOpenJob={onSelectJob} savedJobs={jobs} onAddJob={onAddJob}/>
    <button className={styles.secondaryButton} onClick={onAddJob}>我有岗位，看看是否合适</button>
    {!!jobs.length&&<div className={styles.existingJobList}>{jobs.map(job=><button key={job.id} onClick={()=>onSelectJob(job.id)}><span><small>{job.company}</small><strong>{job.role}</strong></span><span>继续</span></button>)}</div>}
   </section>

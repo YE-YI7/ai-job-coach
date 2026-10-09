@@ -7,6 +7,10 @@ const job=(id="1",description="负责Agent产品设计，开展需求分析"):Ve
 const resume="负责电商会员、复购与需求分析。没有做过Agent产品，希望转AI方向。";
 const item=(id="1")=>({id,resumeEvidenceId:0,jdEvidenceId:0,gap:"Agent产品经历尚未提供",learn:"画出会员助手的任务拆解和失败恢复步骤"});
 beforeEach(()=>jest.resetAllMocks());
+test('扁平长简历引用是原文短句，不把全简历放进证据',()=>{
+ const resume='郭测试，联系方式，'+ '主导智能客服Agent意图识别优化项目，'.repeat(20)+'转人工率下降18%';
+ const facts=resumeEvidence(resume);expect(facts.length).toBeGreaterThan(1);expect(facts.every(f=>f.text.length<=180&&resume.includes(f.text))).toBe(true);expect(facts.some(f=>f.text==='主导智能客服Agent意图识别优化项目，')).toBe(true);
+});
 test.each(["高级产品运营经理", "资深运营", "Senior Operations Manager", "产品运营总监"])("初级求职不推荐%s", title => {
  expect(matchesRequestedSeniority({title}, "用户运营或产品运营", "两年客服。求职方向：希望找上海初级岗位，不考虑销售。")).toBe(false);
 });

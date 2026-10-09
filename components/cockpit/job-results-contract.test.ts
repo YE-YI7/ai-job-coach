@@ -3,6 +3,15 @@ import path from "node:path";
 // 静态UI契约，不替代真实浏览器验收。
 const source=fs.readFileSync(path.join(process.cwd(),"components/cockpit/JobResultCard.tsx"),"utf8");
 const discovery=fs.readFileSync(path.join(process.cwd(),"components/cockpit/JobDiscovery.tsx"),"utf8");
+test("值得投复用服务端评审，确认保存后原地展开并可恢复，不再重跑收费整理",()=>{
+ expect(discovery).toContain('/api/coach/jobs/assess');
+ expect(discovery).not.toContain('/api/opportunities/analyze');
+ expect(discovery).toContain('setAssessmentResults');
+ expect(discovery).toContain('savedJobs.find');
+ expect(source).toContain('不额外扣额度');
+ expect(source).toContain('aria-label="投递判断"');
+ expect(source).toContain('打开已保存的岗位');
+});
 test("卡片保留岗位、地点、出处；依据与风险各一条，主操作是判断是否值得投",()=>{
  expect(source).toContain("{job.title}");expect(source).toContain("{job.company}");expect(source).toContain("job.location");expect(source).toContain("job.url");expect(source).toContain("看看是否值得投");expect(source).toContain("查看招聘原文");expect(source).toContain("disabled={disabled}");expect(source).toContain("onClick={onImport}");expect(source).toContain("<details");expect(source).not.toMatch(/<details[^>]+\bopen\b/);expect(source).toContain("companyLogo(job.company)");expect(source).toContain("<Image");expect(source).not.toContain("Building2");
  // PRD A2/A3：两态、一条依据、一条最影响决定的风险，全部来自服务端契约而不是字符串前缀

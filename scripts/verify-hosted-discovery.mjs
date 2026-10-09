@@ -34,6 +34,12 @@ try{
   const {data:quota,error:qError}=await db.from('user_quotas').select('free_chat_daily').eq('user_id',id).single();if(qError)throw qError;assert.equal(quota.free_chat_daily,0);
   const {data:events,error:eError}=await db.from('ai_generation_events').select('provider,model,status,output_tokens,latency_ms').eq('request_id',result.runId).eq('user_id',id);if(eError)throw eError;
   assert.equal(events.length,1);assert.equal(events[0].status,'success');assert.equal(events[0].provider,'stepfun');
+  const assessed=await request('/api/coach/jobs/assess',{runId:result.runId,profileId,jobId:result.jobs[0].id});
+  assert.equal(assessed.ok,true);assert.equal(assessed.quota.consumed,0);assert.equal(assessed.opportunity.workspaceType,'job');assert.ok(assessed.opportunity.recommendationReason);
+  const repeated=await request('/api/coach/jobs/assess',{runId:result.runId,profileId,jobId:result.jobs[0].id});assert.equal(repeated.opportunity.id,assessed.opportunity.id);
+  const listed=await request('/api/coach/opportunities');assert.ok(listed.opportunities.some(o=>o.id===assessed.opportunity.id));
+  const after=await db.from('user_quotas').select('free_chat_daily').eq('user_id',id).single();assert.equal(after.data.free_chat_daily,0);
+  console.log(JSON.stringify({assessmentSaved:true,assessmentRestored:true,sameOpportunityOnRetry:true,assessmentWorksWithZeroCredit:true,assessmentExtraCharge:0}));
   console.log(JSON.stringify({target,passed:true,durationMs,evaluatedCount:result.personalization.evaluatedCount,jobs:result.jobs.map(job=>({company:job.company,title:job.title,url:job.url})),model:events[0].model,outputTokens:events[0].output_tokens,modelMs:events[0].latency_ms,restored:true,replayWithoutExtraCharge:true,remainingFreeUses:0,status:restored.status,failedSourceCount:result.failedSources.length}));
 }finally{
   const audit=await db.from('ai_generation_events').delete().eq('user_id',id);if(audit.error)throw audit.error;

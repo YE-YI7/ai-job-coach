@@ -3,7 +3,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import { buildReview, reviewReasons, type JobReview } from "./review-contract";
 import type { VerifiedJob } from "./verification-gate";
 
-export const PERSONALIZATION_VERSION = "evidence-shortlist-v7-reasoning-budget";
+export const PERSONALIZATION_VERSION = "evidence-shortlist-v8-line-evidence";
 export class JobAssessmentError extends Error {}
 /** 卡片与决定保存读的是结构化评审，`reasons` 只是它的展示投影。 */
 export type ReviewedJob = VerifiedJob & { review: JobReview };
@@ -35,7 +35,15 @@ export function matchesRequestedSeniority(job: { title: string }, role: string, 
 }
 const DENIAL = /(没有|没做|未做|不熟|不会|不懂|只.{0,8}使用|希望|想学|学习中|no experience|never|not familiar)/i;
 export function resumeEvidence(resume:string) {
-  return resume.split(/(?<=[。；;\n])/).map(text=>text.trim()).filter(text=>text && !DENIAL.test(text) && /负责|主导|项目|经验|经历|技能|使用|开发|设计|参与|built|led|experience/i.test(text)).map((text,id)=>({id,text}));
+  return resume.split(/(?<=[。；;\n])/).filter(text=>!DENIAL.test(text)).flatMap(text=>{
+    if(text.length<=180)return [text];
+    // Flattened PDF resumes often have no line breaks. Keep exact contiguous
+    // clauses, not a rewritten summary or an entire resume citation.
+    return text.split(/(?<=[，,])/).flatMap(clause=>{
+      if(clause.length<=180)return [clause];
+      const chunks:string[]=[];for(let i=0;i<clause.length;i+=160)chunks.push(clause.slice(i,i+160));return chunks;
+    });
+  }).map(text=>text.trim()).filter(text=>text && /负责|主导|项目|经验|经历|技能|使用|开发|设计|参与|built|led|experience/i.test(text)).map((text,id)=>({id,text}));
 }
 /** A requested specialty is not satisfied by a generic role-family match. */
 export function matchesRequestedSpecialty(job: {title:string;description:string}, role: string) {

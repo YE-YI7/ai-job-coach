@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, ShieldCheck } from "lucide-react";
 import { INTAKE_PHASE_LABELS, intakeReceipt, type IntakePhase } from "@/lib/opportunities/intake-flow";
 import type { Opportunity } from "@/lib/opportunities/types";
@@ -40,9 +40,14 @@ export function MaterialTaskProgress({ phase, startedAt, requestId }: { phase: I
 }
 
 export function MaterialReceipt({ opportunity, deferred, onContinue }: { opportunity: Opportunity; deferred: boolean; onContinue: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+    headingRef.current?.scrollIntoView({ block: "start" });
+  }, []);
   const receipt = intakeReceipt(opportunity, deferred);
   return <section className={styles.receipt} aria-label="材料识别与保存结果">
-    <div className={styles.receiptHeading}><FileText size={28} aria-hidden="true"/><div><h1>{receipt.title}</h1><p>{receipt.savedAt}</p></div></div>
+    <div className={styles.receiptHeading}><FileText size={28} aria-hidden="true"/><div><h1 ref={headingRef} tabIndex={-1}>{receipt.title}</h1><p>{receipt.savedAt}</p></div></div>
     <dl><div><dt>识别为</dt><dd>{receipt.kind}</dd></div><div><dt>{opportunity.workspaceType === "preparation" ? "求职方向" : "公司 / 岗位"}</dt><dd>{opportunity.workspaceType === "preparation" ? opportunity.role : `${opportunity.company} · ${opportunity.role}`}</dd></div><div><dt>地点</dt><dd>{opportunity.location || "待确认"}</dd></div></dl>
     {!!receipt.requirements.length && <div><h2>JD 中的关键要求</h2><ul>{receipt.requirements.map((requirement, i) => <li key={i}>{requirement}</li>)}</ul></div>}
     {!!receipt.missing.length && <p>还需确认：{receipt.missing.join("、")}</p>}

@@ -231,7 +231,8 @@ export function freshnessLabel(postedAtIso: string | null | undefined, nowMs: nu
   if (!postedAtIso) return "待核实";
   const posted = Date.parse(postedAtIso);
   if (!Number.isFinite(posted)) return "待核实";
-  return nowMs - posted <= JOB_TTL_DAYS * 24 * 60 * 60 * 1000 ? "in_sale" : "待核实";
+  const age = nowMs - posted;
+  return Number.isFinite(age) && age >= 0 && age <= JOB_TTL_DAYS * 24 * 60 * 60 * 1000 ? "in_sale" : "待核实";
 }
 
 /* ------------------------- 数据源（注入） ------------------------- */
@@ -253,7 +254,7 @@ export interface RawJobPosting {
 }
 
 export interface JobSource {
-  searchByKeyword(keyword: string): Promise<RawJobPosting[]>;
+  searchByKeyword(keyword: string, options?: { signal: AbortSignal }): Promise<RawJobPosting[]>;
 }
 
 /* ------------------------------ 产物 ------------------------------ */
@@ -362,9 +363,23 @@ export async function runRetrievalAgent(input: RetrievalInput, deps: RetrievalDe
   try {
     for (const keyword of input.keywords) {
       if (sourceCalls >= input.budget.maxSourceCalls) throw new Error("__budget_exhausted__");
-      const postings = await deps.source.searchByKeyword(keyword);
+      const remaining = input.budget.maxWallClockMs - (deps.clock() - started);
+      if (remaining <= 0) throw new Error("__wall_clock_timeout__");
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
       sourceCalls += 1;
+      let postings: RawJobPosting[];
+      try {
+        postings = await Promise.race([
+          deps.source.searchByKeyword(keyword, { signal: controller.signal }),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => {
+            controller.abort(); reject(new Error("__wall_clock_timeout__"));
+          }, remaining); }),
+        ]);
+      } finally { if (timer) clearTimeout(timer); }
       pulledTokens += payloadTokens(postings);
+      if (pulledTokens > input.budget.maxTokens) throw new Error("__budget_exhausted__");
+      if (deps.clock() - started > input.budget.maxWallClockMs) throw new Error("__wall_clock_timeout__");
       for (const posting of postings) {
         const key = jobDedupeKey(posting);
         if (seenKeys.has(key)) continue; // 跨关键词只出现一次
@@ -404,16 +419,17 @@ export async function runRetrievalAgent(input: RetrievalInput, deps: RetrievalDe
     }
   } catch (error) {
     const isBudget = error instanceof Error && error.message === "__budget_exhausted__";
+    const isTimeout = error instanceof Error && error.message === "__wall_clock_timeout__";
     const failed: SubAgentOutcome<RetrievalProduct> = {
       status: "failed",
       idempotencyKey: input.budget.idempotencyKey,
       // 失败分支只有计量，没有 product：已经攒到的 jobs 就地扣下。
       usage: meter(input.budget, sourceCalls, pulledTokens, started, deps.clock()),
       failure: {
-        reason: isBudget ? "budget_exhausted" : "source_error",
+        reason: isBudget ? "budget_exhausted" : isTimeout ? "wall_clock_timeout" : "source_error",
         userCopy: RETRIEVAL_FAILURE_COPY,
         partialWithheld: jobs.length > 0,
-        detail: isBudget ? "扇出超源调用上限，中途停跑" : `数据源异常：${String(error)}`,
+        detail: isBudget ? "实际正文或扇出超预算，中途停跑" : isTimeout ? "墙钟耗尽，停止后续源调用" : `数据源异常：${String(error)}`,
       },
     };
     store.set(input.budget.idempotencyKey, failed);

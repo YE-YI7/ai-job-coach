@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import compiledKnowledge from "@/data/knowledge-documents.generated.json";
+import { CONTEXT_COMPILER_VERSION } from "./context";
 import { BLOCKING_BODY_LIMIT, BLOCKING_BODY_SENTENCES, REASK_KINDS } from "./insufficiency-guard";
 import { DEFAULT_GUARD_IDS } from "./guard-slots";
 import { CITATION_VERIFIER_GUARD_INPUT } from "./citation-verifier";
@@ -33,6 +34,7 @@ export const TUTOR_RETRIEVAL_CONFIG = {
   maxInputTokens: 4000,
   knowledgeLimit: 2,
   claimSelectionVersion: "tutor-bounded-relevant-facts-v1",
+  contextCompilerVersion: CONTEXT_COMPILER_VERSION,
 } as const;
 
 /**

@@ -33,6 +33,11 @@ const TASK_CLAIM_TYPES: Record<CoachActionType, Set<string>> = {
 
 /** 安全约束、任务规则和输出 Schema 的固定开销。这部分永远优先于业务内容。 */
 const BASE_OVERHEAD_TOKENS = 400;
+export const CONTEXT_COMPILER_VERSION = "context-content-bound-v3";
+
+function materialHash(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
 
 /**
  * 粗估 token：中文按 1.5 字符/token，其余按 4 字符/token。
@@ -352,6 +357,7 @@ export function compileContextBundle(input: {
   const unverifiedClaimIds: string[] = [];
   const blockedClaimIds: string[] = [];
   const blockedClaimDetails: CareerClaim[] = [];
+  const admittedClaimIds = new Set(keptClaims.map(c => c.id));
   for (const claim of scopedClaims) {
     const citable = isCitableSource(claim.sourceKind);
     const usable = claim.status !== "withdrawn" && claim.status !== "conflicted";
@@ -360,6 +366,7 @@ export function compileContextBundle(input: {
       blockedClaimDetails.push(claim);
       continue;
     }
+    if (!admittedClaimIds.has(claim.id)) continue;
     if (claim.status === "confirmed" && claim.verificationLevel !== "none") allowedClaimIds.push(claim.id);
     else unverifiedClaimIds.push(claim.id);
   }
@@ -367,6 +374,7 @@ export function compileContextBundle(input: {
   const compiledAt = (input.now || new Date()).toISOString();
   const fingerprintPayload = {
     version: 2,
+    compilerVersion: CONTEXT_COMPILER_VERSION,
     task: input.task,
     intent: input.intent ?? null,
     planVersion: input.planVersion ?? null,
@@ -377,11 +385,11 @@ export function compileContextBundle(input: {
     userId: input.userId,
     currentInput: input.currentInput ?? null,
     questionSource: input.questionSource ?? null,
-    historySummary: input.historySummary ?? null,
-    claims: keptClaims.map((claim) => [claim.id, claim.status, claim.sourceKind, claim.verificationLevel, claim.updatedAt || "", claim.displayText, claim.sourceExcerpt]),
+    historySummary: included.some(e => e.kind === "history_summary") ? input.historySummary : null,
+    claims: keptClaims,
     attachments: keptAttachments.map((attachment) => [attachment.id, attachment.required, attachment.text]),
-    artifacts: keptArtifacts.map((artifact) => [artifact.id, artifact.version, artifact.status]),
-    knowledge: keptKnowledge.map((item) => item.id),
+    artifacts: keptArtifacts,
+    knowledge: keptKnowledge,
     budget,
   };
 
@@ -403,7 +411,7 @@ export function compileContextBundle(input: {
     questionSource: input.questionSource?.text.trim()
       ? { id: input.questionSource.id, text: input.questionSource.text, version: input.questionSource.version ?? null }
       : null,
-    historySummary: input.historySummary?.text.trim()
+    historySummary: included.some(e => e.kind === "history_summary") && input.historySummary?.text.trim()
       ? { id: input.historySummary.id, text: input.historySummary.text }
       : null,
     attachments: keptAttachments,
@@ -452,11 +460,25 @@ export function replayContextSelection(
   if (stored.fingerprint === now.fingerprint && stored.selection.included.length === now.selection.included.length) {
     return { matches: true, drift: [], storedFingerprint: stored.fingerprint, currentFingerprint: now.fingerprint };
   }
-  const before = new Map(stored.selection.included.map((entry) => [entry.refId, entry]));
-  const after = new Map(now.selection.included.map((entry) => [entry.refId, entry]));
+  const key = (entry: ContextSelectionEntry) => `${entry.kind}:${entry.refId}`;
+  const content = (bundle: ContextBundle, entry: ContextSelectionEntry): unknown => {
+    switch (entry.kind) {
+      case "current_input": return bundle.currentInput;
+      case "question_source": return bundle.questionSource;
+      case "opportunity": return bundle.opportunity;
+      case "attachment": return bundle.attachments.find(a => a.id === entry.refId);
+      case "confirmed_fact": return bundle.claims.find(c => c.id === entry.refId);
+      case "artifact": case "recent_practice": return bundle.artifacts.find(a => a.id === entry.refId);
+      case "knowledge": return bundle.knowledge.find(k => k.id === entry.refId);
+      case "history_summary": return bundle.historySummary;
+    }
+  };
+  const before = new Map(stored.selection.included.map((entry) => [key(entry), entry]));
+  const after = new Map(now.selection.included.map((entry) => [key(entry), entry]));
   const drift: ContextReplayResult["drift"] = [];
-  for (const [refId, next] of after) {
-    const prev = before.get(refId);
+  for (const [itemKey, next] of after) {
+    const refId = next.refId;
+    const prev = before.get(itemKey);
     if (!prev) {
       drift.push({ kind: next.kind, refId, change: "added", detail: `现在被装进 context：${next.reason}` });
       continue;
@@ -464,13 +486,14 @@ export function replayContextSelection(
     if (prev.trustType !== next.trustType
       || prev.estimatedTokens !== next.estimatedTokens
       || prev.rule !== next.rule
-      || (prev.refVersion || null) !== (next.refVersion || null)) {
+      || (prev.refVersion || null) !== (next.refVersion || null)
+      || materialHash(content(stored, prev) ?? null) !== materialHash(content(now, next) ?? null)) {
       drift.push({ kind: next.kind, refId, change: "changed", detail: `${prev.reason} → ${next.reason}` });
     }
   }
-  for (const [refId, prev] of before) {
-    if (!after.has(refId)) {
-      drift.push({ kind: prev.kind, refId, change: "removed", detail: `不再被装入 context：${prev.reason}` });
+  for (const [itemKey, prev] of before) {
+    if (!after.has(itemKey)) {
+      drift.push({ kind: prev.kind, refId: prev.refId, change: "removed", detail: `不再被装入 context：${prev.reason}` });
     }
   }
   return { matches: false, drift, storedFingerprint: stored.fingerprint, currentFingerprint: now.fingerprint };

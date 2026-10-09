@@ -18,6 +18,11 @@ import { estimateTokens } from "../context";
 import { TranscriptInputError, createInMemoryIdempotencyStore, type BudgetSpec } from "./contract";
 
 const NOW = Date.parse("2026-09-30T00:00:00Z");
+
+test("未来发布日期与无效时钟不能标为近期在招", () => {
+  expect(freshnessLabel(new Date(NOW + 86400_000).toISOString(), NOW)).toBe("待核实");
+  expect(freshnessLabel(new Date(NOW).toISOString(), NaN)).toBe("待核实");
+});
 const budget: BudgetSpec = { maxSourceCalls: 8, maxTokens: 100_000, maxWallClockMs: 600_000, idempotencyKey: "r-idem" };
 
 /* ------------------------------------------------------------------ */
@@ -204,6 +209,38 @@ function makeInput(overrides: Partial<RetrievalInput> = {}): RetrievalInput {
 }
 
 describe("runRetrievalAgent", () => {
+  it("实际正文超 token 预算立即停扇出，失败不交半成品", async () => {
+    const source = { searchByKeyword: jest.fn().mockResolvedValue([posting({ rawPageText: "大段原文".repeat(2000) })]) };
+    const outcome = await runRetrievalAgent(makeInput({ budget: { ...budget, maxTokens: 1200 } }), { source, clock: () => NOW });
+    expect(outcome.status).toBe("failed");
+    expect(outcome).not.toHaveProperty("product");
+    expect(source.searchByKeyword).toHaveBeenCalledTimes(1);
+    expect(outcome.usage.tokens).toBeGreaterThan(1200);
+  });
+  it("首源耗尽墙钟后不启动下一源，失败调用仍如实计量", async () => {
+    let now = NOW;
+    const source = { searchByKeyword: jest.fn().mockImplementation(async () => { now += 3100; return [posting({})]; }) };
+    const outcome = await runRetrievalAgent(makeInput({ budget: { ...budget, maxWallClockMs: 3000 } }), { source, clock: () => now });
+    expect(outcome.status).toBe("failed");
+    expect(source.searchByKeyword).toHaveBeenCalledTimes(1);
+    const failedSource = { searchByKeyword: jest.fn().mockRejectedValue(Error("network")) };
+    const failed = await runRetrievalAgent(makeInput(), { source: failedSource, clock: () => NOW });
+    expect(failed.usage.sourceCalls).toBe(1);
+  });
+  it("无响应的源按剩余墙钟中断并发出取消信号", async () => {
+    jest.useFakeTimers();
+    try {
+      let signal: AbortSignal | undefined;
+      const source: JobSource = { searchByKeyword: (_keyword, options) => {
+        signal = options?.signal;
+        return new Promise(() => undefined);
+      } };
+      const result = runRetrievalAgent(makeInput({ keywords: ["产品经理"], budget: { ...budget, maxWallClockMs: 1500 } }), { source, clock: () => NOW });
+      await jest.advanceTimersByTimeAsync(1500);
+      expect((await result).status).toBe("failed");
+      expect(signal?.aborted).toBe(true);
+    } finally { jest.useRealTimers(); }
+  });
   it("同一岗位跨关键词只出现一次，结果带来源 URL、抓取时间、去重键与命中理由", async () => {
     const same = posting({});
     const source: JobSource = {

@@ -33,6 +33,36 @@ const claim = (overrides: Partial<CareerClaim> = {}): CareerClaim => ({
   ...overrides,
 });
 
+test("同 ID 同长度知识与同版本成果改正文，缓存与回放都失效", () => {
+  const base = { task: "mock_interview" as const, userId: "owner", claims: [],
+    knowledge: [{ id: "k", title: "规则", description: "说明", goal: "指导", scope: "求职", confidence: "medium" as const, evidenceUrls: ["https://example.com/a"], content: "旧的依据" }],
+    artifacts: [{ id: "a", artifactType: "mock_interview", version: 1, title: "练习", status: "draft", content: "旧的回答", claimIds: [], createdAt: "2026-10-09" }] };
+  const before = compileContextBundle(base);
+  for (const changed of [
+    { ...base, knowledge: [{ ...base.knowledge[0], content: "新的依据" }] },
+    { ...base, artifacts: [{ ...base.artifacts[0], content: "新的回答" }] },
+  ]) {
+    expect(contextIsStale(before, compileContextBundle(changed))).toBe(true);
+    expect(replayContextSelection(before, changed).drift).toContainEqual(expect.objectContaining({ change: "changed" }));
+  }
+});
+
+test("未装入的摘要不残留在工作集，预算外事实不能成为可引用来源", () => {
+  const bundle = compileContextBundle({ task: "mock_interview", userId: "owner", claimSelection: "relevant",
+    claims: [claim({ id: "oversized", displayText: "超长事实".repeat(1000) }), claim({ id: "fits", displayText: "客服访谈" })],
+    historySummary: { id: "old", text: "历史".repeat(1000) }, budget: { maxInputTokens: 600 } });
+  expect(bundle.claims.map(c => c.id)).toContain("fits");
+  expect(bundle.allowedClaimIds).not.toContain("oversized");
+  expect(bundle.historySummary).toBeNull();
+});
+
+test("事实的引用来源和可见性更改，旧结果不得复用", () => {
+  const base = { task: "resume_workshop" as const, userId: "owner", claims: [claim({ sourceId: "old" })] };
+  const before = compileContextBundle(base);
+  expect(contextIsStale(before, compileContextBundle({ ...base, claims: [claim({ sourceId: "new" })] }))).toBe(true);
+  expect(contextIsStale(before, compileContextBundle({ ...base, claims: [claim({ sourceId: "old", visibility: "private" })] }))).toBe(true);
+});
+
 test("普通辅导从大档案召回相关事实，不把全库事实当作必需材料", () => {
   const claims = Array.from({ length: 100 }, (_, i) => claim({ id: `past-${i}`, displayText: "财务历史记录".repeat(40), updatedAt: "2026-10-01" }));
   const target = claim({ id: "target", displayText: "设计 multi-agent workflow，拆任务、分配角色和处理冲突", updatedAt: "2020-01-01" });

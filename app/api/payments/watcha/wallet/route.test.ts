@@ -1,0 +1,16 @@
+jest.mock('@/lib/auth', () => ({ getCurrentUserFromRequest: jest.fn() }));
+jest.mock('@/lib/watcha-wallet', () => ({ getWatchaPointBalance: jest.fn(), getPendingWatchaTransfer: jest.fn(), redeemWatchaPoints: jest.fn() }));
+jest.mock('@/lib/watcha-pay', () => ({ getWatchaPayAccess: jest.fn(), WatchaPayError: class extends Error {} }));
+import { getCurrentUserFromRequest } from '@/lib/auth';
+import { getWatchaPointBalance, redeemWatchaPoints } from '@/lib/watcha-wallet';
+import { getWatchaPayAccess } from '@/lib/watcha-pay';
+import { GET, POST } from './route';
+const origin='https://www.ai-job-coach.xin';
+const request=(body:unknown,site=origin)=>new Request(`${origin}/api/payments/watcha/wallet`,{method:'POST',headers:{origin:site,'Content-Type':'application/json'},body:JSON.stringify(body)});
+beforeEach(()=>{jest.resetAllMocks();jest.mocked(getCurrentUserFromRequest).mockResolvedValue({id:'logged-in-user'});});
+it('requires authentication',async()=>{jest.mocked(getCurrentUserFromRequest).mockResolvedValue(null);expect((await GET()).status).toBe(401);expect((await POST(request({confirmExchange:true}))).status).toBe(401);});
+it('rejects cross-site exchange',async()=>{expect((await POST(request({confirmExchange:true},'https://evil.example'))).status).toBe(403);expect(redeemWatchaPoints).not.toHaveBeenCalled();});
+it.each([{confirmExchange:false},{confirmExchange:true,user_id:'victim'},{confirmExchange:true,amount:100},{},null])('rejects unconfirmed or injected requests %#',async(body)=>{expect((await POST(request(body))).status).toBe(400);expect(redeemWatchaPoints).not.toHaveBeenCalled();});
+it('binds exchange to login, not client identity',async()=>{jest.mocked(redeemWatchaPoints).mockResolvedValue({balance:10,redeemed:10});const response=await POST(request({confirmExchange:true}));expect(response.status).toBe(200);expect(redeemWatchaPoints).toHaveBeenCalledWith('logged-in-user');expect(response.headers.get('cache-control')).toBe('private, no-store');});
+it('refresh only reads and never exchanges',async()=>{jest.mocked(getWatchaPayAccess).mockResolvedValue({configured:false,channel:'alipay'});expect((await GET()).status).toBe(200);expect(redeemWatchaPoints).not.toHaveBeenCalled();expect(getWatchaPointBalance).not.toHaveBeenCalled();});
+it('does not echo provider secrets on failure',async()=>{jest.mocked(redeemWatchaPoints).mockRejectedValue(new Error('secret'));const response=await POST(request({confirmExchange:true}));expect(response.status).toBe(503);expect(JSON.stringify(await response.json())).not.toContain('secret');});

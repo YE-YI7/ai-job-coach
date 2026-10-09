@@ -588,6 +588,9 @@
       "nickname",
       "avatar_url"
     ],
+    "watcha_point_wallets": ["user_id", "environment", "balance"],
+    "watcha_point_transfers": ["id", "user_id", "environment", "entitlement_id", "amount", "status", "created_at", "credited_at"],
+    "watcha_point_reservations": ["id", "user_id", "environment", "operation_id", "status", "created_at", "finished_at"],
     "watcha_tokens": [
       "user_id",
       "watcha_user_id",

@@ -6,7 +6,7 @@ type Environment = "sandbox" | "live";
 type Configuration = { environment: Environment; key: string; entitlementId: string };
 export type WatchaPayAccess =
   | { access: "unavailable"; reason: "configuration_action_required" }
-  | { access: "granted" | "purchase_required"; entitlement: { type: "quota"; remaining: number }; purchase: { url: string } };
+  | { access: "granted" | "purchase_required"; entitlement: { type: "quota"; remaining: number }; purchase: { url: string; qrUrl?: string } };
 
 export class WatchaPayError extends Error {
   constructor(public readonly code: string, public readonly status = 503) {
@@ -40,7 +40,7 @@ function purchaseUrl(value: unknown): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new WatchaPayError("invalid_purchase_url", 502); }
   const permitted = url.protocol === "https:" &&
-    (url.hostname === "pay.watcha.cn" || url.hostname === "render.alipay.com") ||
+    (url.hostname === "pay.watcha.cn" || url.hostname === "render.alipay.com" || url.hostname === "mobilecodec.alipay.com") ||
     url.protocol === "alipays:" && url.hostname === "platformapi";
   if (!permitted || url.username || url.password || url.port || /[\r\n]/.test(value)) {
     throw new WatchaPayError("invalid_purchase_url", 502);
@@ -62,7 +62,8 @@ export function parseWatchaPayAccess(value: unknown): WatchaPayAccess {
   return {
     access: data.access,
     entitlement: { type: "quota", remaining: entitlement.remaining as number },
-    purchase: { url: purchaseUrl(record(data.purchase).url) },
+    purchase: { url: purchaseUrl(record(data.purchase).url),
+      ...(record(data.purchase).qr_url ? { qrUrl: purchaseUrl(record(data.purchase).qr_url) } : {}) },
   };
 }
 
@@ -99,6 +100,13 @@ export async function getWatchaPayAccess(userId: string, capability: WatchaPayCa
 export async function consumeWatchaPaySandboxQuota(userId: string, capability: WatchaPayCapability, operationId: string, amount = 1) {
   const config = watchaPayConfiguration(capability);
   if (!config || config.environment !== "sandbox") throw new WatchaPayError("sandbox_only");
+  return consumeWatchaPayTransfer(userId, capability, operationId, amount);
+}
+
+/** Only call after persisting an immutable, user-authorized transfer in the database. */
+export async function consumeWatchaPayTransfer(userId: string, capability: WatchaPayCapability, operationId: string, amount: number) {
+  const config = watchaPayConfiguration(capability);
+  if (!config) throw new WatchaPayError("configuration_action_required");
   if (!userId || userId.length > 200 || !operationId || operationId.length > 200 || !Number.isSafeInteger(amount) || amount < 1) {
     throw new WatchaPayError("invalid_consume_request", 400);
   }

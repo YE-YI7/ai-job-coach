@@ -4,6 +4,7 @@
 
 import { getDbClient } from './db';
 import { hasActiveTokenPayConnection } from './tokenpay';
+import { getWatchaPointBalance, hasWatchaOperation, reserveWatchaPoint } from './watcha-wallet';
 
 export interface UserQuota {
   free_chat_daily: number;
@@ -32,6 +33,7 @@ export async function reserveQuota(
   }
   const client = await getDbClient();
   if (!client) return { id: `offline-${idempotencyKey}`, source: 'offline', remaining: null };
+  if (await hasWatchaOperation(userId, `${type}:${idempotencyKey}`)) return null;
   const { data, error } = await client.rpc('reserve_user_quota', {
     p_user_id: userId,
     p_quota_type: type,
@@ -39,7 +41,10 @@ export async function reserveQuota(
   });
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row?.allowed || !row.reservation_id) return null;
+  if (!row?.allowed || !row.reservation_id) {
+    if (row?.reservation_id) return null; // Existing hosted attempt must not fall through to a second billing source.
+    return reserveWatchaPoint(userId, `${type}:${idempotencyKey}`);
+  }
   return { id: String(row.reservation_id), source: String(row.source_field || 'unknown'), remaining: row.remaining == null ? null : Number(row.remaining) };
 }
 
@@ -58,8 +63,9 @@ export async function finalizeQuota(reservation: QuotaReservation | null, succes
   const client = await getDbClient();
   if (!client) return false;
   const firstCoaching = reservation.id.startsWith('first-coach:');
-  const { data, error } = await client.rpc(firstCoaching ? 'finalize_learning_guidance' : 'finalize_user_quota', {
-    p_reservation_id: firstCoaching ? reservation.id.slice('first-coach:'.length) : reservation.id,
+  const watcha = reservation.id.startsWith('watcha:');
+  const { data, error } = await client.rpc(watcha ? 'finalize_watcha_point' : firstCoaching ? 'finalize_learning_guidance' : 'finalize_user_quota', {
+    p_reservation_id: watcha ? reservation.id.slice('watcha:'.length) : firstCoaching ? reservation.id.slice('first-coach:'.length) : reservation.id,
     p_success: success,
   });
   if (error) throw error;
@@ -140,11 +146,16 @@ export async function getOrCreateQuota(userId: string): Promise<UserQuota> {
 export async function checkQuota(
   userId: string,
   type: 'chat' | 'resume' | 'interview'
-): Promise<{ allowed: boolean; remaining: number | null; source: 'free' | 'paid' | 'tokenpay' }> {
+): Promise<{ allowed: boolean; remaining: number | null; source: 'free' | 'paid' | 'tokenpay' | 'watcha' }> {
   if (await hasActiveTokenPayConnection(userId)) {
     return { allowed: true, remaining: null, source: 'tokenpay' };
   }
   const quota = await getOrCreateQuota(userId);
+  const paidFallback = async () => {
+    const balance = await getWatchaPointBalance(userId);
+    return balance > 0 ? { allowed: true, remaining: balance, source: 'watcha' as const }
+      : { allowed: false, remaining: 0, source: 'free' as const };
+  };
 
   if (type === 'chat') {
     if (quota.free_chat_daily > 0) {
@@ -153,7 +164,7 @@ export async function checkQuota(
     if (quota.paid_chat_remaining > 0) {
       return { allowed: true, remaining: quota.paid_chat_remaining, source: 'paid' };
     }
-    return { allowed: false, remaining: 0, source: 'free' };
+    return paidFallback();
   }
 
   if (type === 'resume') {
@@ -163,7 +174,7 @@ export async function checkQuota(
     if (quota.paid_resume_remaining > 0) {
       return { allowed: true, remaining: quota.paid_resume_remaining, source: 'paid' };
     }
-    return { allowed: false, remaining: 0, source: 'free' };
+    return paidFallback();
   }
 
   if (type === 'interview') {
@@ -174,7 +185,7 @@ export async function checkQuota(
     if (quota.free_chat_daily > 0) {
       return { allowed: true, remaining: quota.free_chat_daily, source: 'free' };
     }
-    return { allowed: false, remaining: 0, source: 'free' };
+    return paidFallback();
   }
 
   return { allowed: false, remaining: 0, source: 'free' };

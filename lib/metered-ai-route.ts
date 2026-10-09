@@ -44,6 +44,7 @@ export function withMeteredAiRoute<TRequest extends Request>(
       }, () => handler(request));
       const finalized = await finalizeQuota(reservation, response.ok);
       if (reservation.source === "first_coaching" && !finalized) throw new Error("首次辅导结算失败，请重试");
+      if (reservation.source === "watcha" && !finalized) throw new Error("积分结算未完成，请重试");
       response.headers.set("x-yi-zhi-quota-source", reservation.source);
       if (reservation.remaining !== null) response.headers.set("x-yi-zhi-quota-remaining", String(reservation.remaining));
       return response;

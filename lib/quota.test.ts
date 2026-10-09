@@ -4,9 +4,31 @@ import { checkQuota, finalizeQuota, reserveQuota, reserveFirstCoachingQuota } fr
 
 jest.mock("./db", () => ({ getDbClient: jest.fn() }));
 jest.mock("./tokenpay", () => ({ hasActiveTokenPayConnection: jest.fn() }));
+jest.mock("./watcha-wallet", () => ({ hasWatchaOperation: jest.fn().mockResolvedValue(false), reserveWatchaPoint: jest.fn(), getWatchaPointBalance: jest.fn().mockResolvedValue(0) }));
+import { reserveWatchaPoint } from './watcha-wallet';
 
 const mockDb = getDbClient as jest.MockedFunction<typeof getDbClient>;
 const mockHasTokenPay = hasActiveTokenPayConnection as jest.MockedFunction<typeof hasActiveTokenPayConnection>;
+
+describe('Watcha points', () => {
+  beforeEach(() => { jest.clearAllMocks(); mockHasTokenPay.mockResolvedValue(false); });
+  it('falls back only when hosted quota is exhausted', async () => {
+    mockDb.mockResolvedValue({rpc:jest.fn().mockResolvedValue({data:[{allowed:false,reservation_id:null}],error:null})} as never);
+    jest.mocked(reserveWatchaPoint).mockResolvedValue({id:'watcha:r1',source:'watcha',remaining:9});
+    expect((await reserveQuota('user','chat','request-123'))?.source).toBe('watcha');
+    expect(reserveWatchaPoint).toHaveBeenCalledWith('user','chat:request-123');
+  });
+  it('rejects replay rather than charging a second source', async () => {
+    mockDb.mockResolvedValue({rpc:jest.fn().mockResolvedValue({data:[{allowed:false,reservation_id:'existing'}],error:null})} as never);
+    expect(await reserveQuota('user','chat','request-123')).toBeNull();
+    expect(reserveWatchaPoint).not.toHaveBeenCalled();
+  });
+  it('refunds the paid reservation atomically using its ledger ID', async () => {
+    const rpc=jest.fn().mockResolvedValue({data:true,error:null});mockDb.mockResolvedValue({rpc} as never);
+    expect(await finalizeQuota({id:'watcha:r1',source:'watcha',remaining:9},false)).toBe(true);
+    expect(rpc).toHaveBeenCalledWith('finalize_watcha_point',{p_reservation_id:'r1',p_success:false});
+  });
+});
 
 describe("TokenPay quota source", () => {
   beforeEach(() => {

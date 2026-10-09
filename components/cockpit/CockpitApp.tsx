@@ -86,6 +86,7 @@ import { applyReorderToOpportunity } from "@/lib/opportunities/resume-blocks";
 import { commitStage, mergeStageResult } from "@/lib/opportunities/stage-save";
 import { trackProductEvent } from "@/lib/product-events";
 import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
+import WatchaPayWidget from "@/components/payments/WatchaPayWidget";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "salary";
@@ -134,6 +135,12 @@ function coverageTotal(opportunity: Opportunity) {
 
 function useQuotaLabel(type: "chat" | "resume" | "interview", busy = false) {
   const [label, setLabel] = useState("1 次额度");
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const refresh = () => setVersion(value => value + 1);
+    window.addEventListener("yizhi-quota-changed", refresh);
+    return () => window.removeEventListener("yizhi-quota-changed", refresh);
+  }, []);
   useEffect(() => {
     if (busy) return;
     let active = true;
@@ -144,10 +151,10 @@ function useQuotaLabel(type: "chat" | "resume" | "interview", busy = false) {
         setLabel("使用 TokenPay 余额");
         return;
       }
-      setLabel(check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
+      setLabel(check.source === "watcha" ? `1 积分 · 剩余 ${check.remaining}` : check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [type, busy]);
+  }, [type, busy, version]);
   return label;
 }
 
@@ -972,6 +979,7 @@ export function CockpitApp({
           )}
           <span>{compactAccountLabel(userEmail)}</span>
           <TokenPayWidget compact />
+          {dataMode !== "demo" && <WatchaPayWidget />}
           <button disabled={intakeBusy} className={creating ? styles.secondaryButton : styles.iconButton} onClick={creating ? () => setCreating(false) : logout} aria-label={creating ? "返回工作区" : "退出登录"} title={creating ? "返回工作区" : "退出登录"}>
             {creating ? "返回工作区" : <LogOut size={17} aria-hidden="true" />}
           </button>
@@ -1063,7 +1071,7 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
     <main className={styles.shell}>
       <header className={styles.topbar}>
         <Brand />
-        <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><TokenPayWidget compact /><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
+        <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><TokenPayWidget compact /><WatchaPayWidget /><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
       </header>
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>

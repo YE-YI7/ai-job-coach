@@ -48,6 +48,10 @@ it.each(["javascript:alert(1)", "https://evil.example/pay", "https://render.alip
 it("supports the official mobile Alipay scheme", () => {
   expect(parseWatchaPayAccess({ ...valid, purchase: { url: "alipays://platformapi/startapp?appId=20000067" } })).toMatchObject({ purchase: { url: "alipays://platformapi/startapp?appId=20000067" } });
 });
+it('preserves the official desktop QR image and rejects untrusted QR URLs', () => {
+  expect(parseWatchaPayAccess({...valid,purchase:{...valid.purchase,qr_url:'https://mobilecodec.alipay.com/show.htm?code=synthetic'}})).toMatchObject({purchase:{qrUrl:'https://mobilecodec.alipay.com/show.htm?code=synthetic'}});
+  expect(()=>parseWatchaPayAccess({...valid,purchase:{...valid.purchase,qr_url:'https://evil.example/qr'}})).toThrow();
+});
 it.each([
   { ...valid, access: "unknown" },
   { ...valid, entitlement: { type: "permanent" } },

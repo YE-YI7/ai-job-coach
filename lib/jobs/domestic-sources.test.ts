@@ -3,7 +3,7 @@ const row={PostId:"123456",RecruitPostName:"AI产品经理",CountryName:"中国"
 afterEach(()=>jest.restoreAllMocks());
 test("国内默认源不调用海外远程板；只发送关键词，不含简历",async()=>{
  const fetcher=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({Code:200,Data:{Posts:[row]}})));
- expect(DOMESTIC_SOURCE_IDS).toEqual(["tencent","netease","baidu","meituan","jd","kuaishou"]);
+ expect(DOMESTIC_SOURCE_IDS).toEqual(["tencent","netease","baidu","meituan","jd","kuaishou","xiaomi"]);
  const result=await searchLiveJobs(["AI产品经理"],{sourceIds:["tencent"]});
  expect(fetcher).toHaveBeenCalledTimes(1);
  const url=String(fetcher.mock.calls[0][0]);expect(new URL(url).hostname).toBe("careers.tencent.com");expect(new URL(url).searchParams.get("keyword")).toBe("AI产品经理");

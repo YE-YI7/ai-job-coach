@@ -41,15 +41,15 @@ test("overseas, missing city, closed jobs and invalid source IDs do not enter re
   ] } })));
   expect((await searchLiveJobs(["产品"], { sourceIds: ["meituan"] })).postings).toEqual([]);
 });
-test("all six domestic companies are actually called within one-query budget; failure isolated", async () => {
+test("all domestic companies are actually called within one-query budget; failure isolated", async () => {
   jest.spyOn(globalThis, "fetch").mockImplementation(async input => {
     const url = String(input);
     if (url.includes("meituan")) return new Response(JSON.stringify(fixtures.meituan));
     throw Error("source unavailable");
   });
   const result = await searchLiveJobs(["产品"], { sourceIds: DOMESTIC_SOURCE_IDS, maxCalls: DOMESTIC_SOURCE_IDS.length });
-  expect(result.calls).toBe(6);
+  expect(result.calls).toBe(DOMESTIC_SOURCE_IDS.length);
   expect(result.truncatedCalls).toBe(0);
-  expect(result.failures.map(f => f.source).sort()).toEqual(["baidu", "jd", "kuaishou", "netease", "tencent"]);
+  expect(result.failures.map(f => f.source).sort()).toEqual(DOMESTIC_SOURCE_IDS.filter(id => id !== "meituan").sort());
   expect(result.postings[0].company).toBe("美团");
 });

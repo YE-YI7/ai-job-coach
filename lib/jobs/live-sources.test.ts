@@ -124,7 +124,7 @@ test("预算截掉的是靠后的关键词，不是某个源一整轮没被碰�
 });
 
 test("源清单与署名口径是同一份，界面不会说出第二套名字", () => {
-  expect(LIVE_SOURCES.map((source) => source.id)).toEqual(["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "remoteok", "jobicy", "remotive", "ashby"]);
+  expect(LIVE_SOURCES.map((source) => source.id)).toEqual(["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi", "remoteok", "jobicy", "remotive", "ashby"]);
   expect(LIVE_SOURCES.every((source) => source.coverageNote.length > 0)).toBe(true);
   // 按词查的源和整轮流源是分开的两种：扇出预算只有前者花得多
   expect(LIVE_SOURCES.filter((source) => source.mode === "feed").map((source) => source.id)).toEqual(["remotive", "ashby"]);

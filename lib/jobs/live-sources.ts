@@ -5,7 +5,7 @@
  * - 免 key、能按关键词查的只有英文/远程板子：RemoteOK（`?tag=`，实测按词返回不同结果）、
  *   Jobicy（`?tag=`，认空格不认连字符）。Remotive 的公开接口**任何参数都不生效**
  *   （`?search=nurse` 与不带参数返回同一批 16 条），所以按「最新一批」的流源用，不假装搜过。
- * - 国内直连六源：腾讯、网易、百度、美团、京东校招、快手校招。
+ * - 国内直连七源：腾讯、网易、百度、美团、京东校招、快手校招、小米社招。
  *   字节公开请求当前 405，不能声称已接通；BOSS/猎聘/拉勾不绕登录墙/验证码。
  * - 每个源都可能坏。一个源坏了不能把整批结果变成「没有岗位」，也不能悄悄少几个源不说
  *   （`failures` 一路带到界面）。
@@ -14,7 +14,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "web-search";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "xiaomi" | "web-search";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -34,13 +34,14 @@ export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "meituan", label: "美团招聘官网", homepage: "https://zhaopin.meituan.com", mode: "keyword", coverageNote: "国内社会招聘，含完整 JD" },
   { id: "jd", label: "京东校园招聘", homepage: "https://campus.jd.com", mode: "keyword", coverageNote: "应届生招聘，不冒充社会招聘" },
   { id: "kuaishou", label: "快手校园招聘", homepage: "https://campus.kuaishou.cn", mode: "keyword", coverageNote: "校招与实习，含完整 JD" },
+  { id: "xiaomi", label: "小米招聘官网", homepage: "https://hr.xiaomi.com/website/opportunities.html", mode: "keyword", coverageNote: "国内社会招聘，含职责与要求；覆盖汽车、硬件等业务，不是全行业" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
-export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v4-six-sources";
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v5-seven-sources";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
@@ -334,7 +335,35 @@ const kuaishouAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+// 官网 jobs.js 使用的匿名社招查询。限定小米自身租户，不接受任意飞书招聘域名。
+const xiaomiAdapter: Adapter = {
+  id: "xiaomi", hosts: ["hr.xiaomi.com"],
+  async search({ keyword }) {
+    const url = new URL("https://hr.xiaomi.com/website/api/agent/searchJobPage");
+    url.searchParams.set("keyword", keyword);
+    url.searchParams.set("type", "1");
+    url.searchParams.set("pageNum", "1");
+    url.searchParams.set("pageSize", String(ROWS_PER_CALL));
+    const payload = record(await fetchJson(url, this.hosts));
+    const data = record(payload.data);
+    if (payload.code !== 0 || !Array.isArray(data.list)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.list.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = str(row.jobPostId), title = str(row.title);
+      const places = domesticPlaces(Array.isArray(row.cityZhNames) ? row.cityZhNames.map(str) : []);
+      const description = str(row.description), requirement = str(row.requirement);
+      if (!/^\d+$/.test(id) || !title || !places.length || row.type !== 1 || !description || !requirement) return [];
+      const canonical = `https://xiaomi.jobs.f.mioffice.cn/index/position/${id}/detail`;
+      // ID 与官网原页必须吻合；不拼接猜测原页，也不跟随重定向。
+      if (str(row.url) !== canonical) return [];
+      return [{ sourceId: `xiaomi:${id}`, url: canonical, company: "小米", companyDomain: "xiaomi.com",
+        title: title.slice(0, 200), location: places.join("、"), fetchedAt, postedAt: postedIso(row.publishTime),
+        rawPageText: toPlainText(["社会招聘", str(row.levelOneDeptName), "岗位职责", description, "任职要求", requirement].join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, xiaomi: xiaomiAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

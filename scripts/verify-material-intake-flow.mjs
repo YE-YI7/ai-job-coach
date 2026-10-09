@@ -11,13 +11,14 @@ const userId = randomUUID(), requestId = randomUUID();
 const payload = Buffer.from(JSON.stringify({userId, version:2, exp:Math.floor(Date.now()/1000)+900})).toString('base64url');
 const cookie = 'sb-access-token=' + payload + '.' + createHmac('sha256', process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
 async function request(path, body, stream = false) {
+  const started = Date.now();
   if (target === 'formal') {
     const response = await fetch('https://www.ai-job-coach.xin' + path, {method:body?'POST':'GET', headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson','X-Intake-Request-Id':requestId}:{})}, body:body?JSON.stringify(body):undefined, signal:AbortSignal.timeout(100000), redirect:'error'});
     assert.ok(response.ok, `Application HTTP ${response.status}`);
     if (!stream) return response.json();
     assert.match(response.headers.get('content-type') || '', /application\/x-ndjson/);
-    const start=Date.now(), reader=response.body.getReader(), decoder=new TextDecoder();let text='', firstProgressMs=null;
-    while(true) { const {done,value}=await reader.read();if(done)break;text+=decoder.decode(value,{stream:true});if(firstProgressMs===null&&text.includes('"type":"progress"'))firstProgressMs=Date.now()-start; }
+    const reader=response.body.getReader(), decoder=new TextDecoder();let text='', firstProgressMs=null;
+    while(true) { const {done,value}=await reader.read();if(done)break;text+=decoder.decode(value,{stream:true});if(firstProgressMs===null&&text.includes('"type":"progress"'))firstProgressMs=Date.now()-started; }
     text+=decoder.decode();return {events:text.trim().split('\n').map(JSON.parse),firstProgressMs};
   }
   const config=[`header = ${JSON.stringify('Cookie: '+cookie)}`,'header = "Content-Type: application/json"',...(stream?['header = "Accept: application/x-ndjson"',`header = ${JSON.stringify('X-Intake-Request-Id: '+requestId)}`]:[]),...(body?['request = "POST"','data = '+JSON.stringify(JSON.stringify(body))]:[])].join('\n');

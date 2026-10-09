@@ -22,17 +22,17 @@ export default function PrivacyPage() {
       title: "数据使用方式",
       items: [
         "仅用于面试复盘分析、简历评审等产品功能",
-        "不会将用户数据用于 AI 模型训练",
-        "不会向任何第三方出售或共享用户数据",
-        "分析过程中可能调用 DeepSeek 或用户授权的 TokenDance 接口，仅传输完成当前任务所需的文本",
+        "益职不会主动将求职材料用于训练模型；模型供应商的数据处理规则以其政策为准",
+        "不会出售求职材料；为完成你发起的 AI 分析，会向相应模型供应商传输任务所需文本",
+        "站点模型可能使用 StepFun（阶跃星辰）或 DeepSeek；连接 TokenPay 后使用用户授权的 TokenDance 模型服务。材料入口展示当前提供方",
       ],
     },
     {
       icon: Server,
       title: "数据存储与保留",
       items: [
-        "面试原始文本默认保留 30 天，到期自动清除",
-        "分析结果保留至用户主动删除",
+        "已保存的原文、事实来源和分析结果进入账号云端工作区；目前不承诺 30 天自动清除",
+        "可删除界面中的岗位或复盘；底层来源与备份的完整清除需申请处理，界面删除不等于立即清除全部副本",
         "部分数据存储在浏览器本地（localStorage），清除浏览器数据即可删除",
         "服务端数据存储在加密数据库中",
         "TokenPay API Key 使用应用层加密保存；断开连接后不再用于模型调用",
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
       items: [
         "随时查看已保存的面试复盘记录",
         "随时删除单条或全部复盘历史",
-        "一键清空所有个人数据",
+        "可申请清除账号相关数据；目前不承诺一键清空全部副本",
         "导出个人数据（计划中）",
       ],
     },
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
       icon: Shield,
       title: "安全措施",
       items: [
-        "上传内容自动脱敏处理（手机号、邮箱、姓名等）",
+        "上传前请自行删除不必要的联系方式与敏感信息；不承诺所有材料都会自动脱敏",
         "所有 API 请求通过身份认证",
         "HTTPS 加密传输",
         "用户上传前需确认不包含受保密协议限制的内容",
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
       items: [
         "如有隐私相关问题或数据删除请求",
         "请通过应用内反馈功能联系我们",
-        "我们将在 48 小时内处理您的请求",
+        "申请处理时间以实际回复为准",
       ],
     },
   ];
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
           <p className="text-sm text-slate-700 leading-relaxed">
             AI求职教练（以下简称“本应用”）非常重视用户隐私。本政策说明我们如何收集、使用、存储和保护您的个人数据。使用本应用即表示您同意本隐私政策的条款。
           </p>
-          <p className="text-xs text-slate-400 mt-2">最后更新：2026年9月</p>
+          <p className="text-xs text-slate-400 mt-2">最后更新：2026年10月9日</p>
         </div>
 
         {/* 各部分 */}
@@ -125,10 +125,10 @@ export default function PrivacyPage() {
           </p>
           <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
             <p className="text-xs text-slate-700">
-              <span className="font-medium">DeepSeek AI</span> — 用于面试内容解析、多角色讨论生成、答案改写等
+              <span className="font-medium">StepFun（阶跃星辰） / DeepSeek</span> — 站点模型用于求职材料整理、面试辅导与复盘等 AI 任务
             </p>
             <p className="text-[10px] text-slate-500">
-              传输数据范围：完成当前生成任务所需的文本。具体处理规则以 DeepSeek 的现行政策为准。
+              传输数据范围：完成当前任务所需的 JD、简历、经历和上下文文字。供应商可能随站点配置变化，材料入口展示当前提供方；其处理规则以对应供应商的现行政策为准。
             </p>
             <p className="text-xs text-slate-700">
               <span className="font-medium">TokenDance / TokenPay</span> — 用于 OAuth 式 API Key 授权、余额查询、用户确认充值，以及在用户连接后转发模型请求

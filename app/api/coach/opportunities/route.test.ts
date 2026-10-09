@@ -1,6 +1,6 @@
 import { POST, PATCH } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { createCockpitOpportunity, recordTierIntentFromText, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
+import { createCockpitOpportunity, listCockpitOpportunities, recordTierIntentFromText, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
 import type { Opportunity } from "@/lib/opportunities/types";
 
 jest.mock("@/lib/auth");
@@ -38,6 +38,24 @@ describe("coach opportunities POST", () => {
     jest.clearAllMocks();
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "user-1", email: "user@example.com" });
     (createCockpitOpportunity as jest.Mock).mockImplementation(async (_userId, input) => ({ ...input, id: "opportunity-1" }));
+    (listCockpitOpportunities as jest.Mock).mockResolvedValue([]);
+  });
+  test("lost-response retry returns the same saved opportunity from the current user only", async () => {
+    const intakeRequestId="da4b86f7-c4e1-4cb1-93ad-bdfb84cce555";
+    const saved={...opportunity(),id:"existing",intakeRequestId};
+    (listCockpitOpportunities as jest.Mock).mockResolvedValue([saved]);
+    const response=await POST(new Request("https://example.com",{method:"POST",body:JSON.stringify({opportunity:opportunity(),intakeRequestId})}));
+    expect(await response.json()).toMatchObject({ok:true,replay:true,opportunity:{id:"existing"}});
+    expect(listCockpitOpportunities).toHaveBeenCalledWith("user-1");
+    expect(createCockpitOpportunity).not.toHaveBeenCalled();
+  });
+  test("new intake saves its correlation ID; invalid IDs cannot invoke repository writes", async () => {
+    const intakeRequestId="da4b86f7-c4e1-4cb1-93ad-bdfb84cce555";
+    await POST(new Request("https://example.com",{method:"POST",body:JSON.stringify({opportunity:opportunity(),intakeRequestId})}));
+    expect(createCockpitOpportunity).toHaveBeenCalledWith("user-1",expect.objectContaining({intakeRequestId}));
+    jest.clearAllMocks();
+    const response=await POST(new Request("https://example.com",{method:"POST",body:JSON.stringify({opportunity:opportunity(),intakeRequestId:"bad"})}));
+    expect(response.status).toBe(400);expect(createCockpitOpportunity).not.toHaveBeenCalled();
   });
 
   test("persists a preparation workspace without requiring a JD", async () => {

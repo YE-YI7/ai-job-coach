@@ -77,6 +77,8 @@ import type {
 } from "./interview-assessment-logic";
 import { detectLowInfoAnswer } from "@/lib/interview/low-info-detector";
 import { shareBaseResumeAcrossOpportunities } from "@/lib/opportunities/material-intake";
+import { createIntakeCache, IntakeSaveError, readIntakeResponse, type IntakePhase, type IntakeProgress } from "@/lib/opportunities/intake-flow";
+import { MaterialDataNotice, MaterialReceipt, MaterialTaskProgress } from "./MaterialTaskFeedback";
 import { createOpportunitySaveQueue } from "@/lib/opportunities/save-queue";
 import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
@@ -171,6 +173,9 @@ export function CockpitApp({
   const [mobileRail, setMobileRail] = useState<Rail>(null);
   const [notice, setNotice] = useState("");
   const [creating, setCreating] = useState(false);
+  const [intakeBusy, setIntakeBusy] = useState(false);
+  const [intakeFormSequence, setIntakeFormSequence] = useState(0);
+  const intakeCache = useRef(createIntakeCache<AnalyzeIntakeResult>());
   const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("direction");
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
@@ -380,12 +385,16 @@ export function CockpitApp({
         : "示例行动已完成；刷新后会恢复");
   };
 
-  const createOpportunity = async (intake: OpportunityIntake, entry: "direction" | "resume" | "interview" = "resume") => {
+  const createOpportunity = async (intake: OpportunityIntake, entry: "direction" | "resume" | "interview" = "resume", onProgress: IntakeProgress = () => {}) => {
     const requestBody = intake.file ? new FormData() : null;
-    const requestId = crypto.randomUUID();
-    if (dataMode === "live") trackProductEvent("material_intake_started", { request_id:requestId, input_type: intake.file ? "file" : "text_or_link" });
     const baseProfile = active?.workspaceType === "preparation" ? active : opportunities.find(item => item.workspaceType === "preparation" && item.resumeText?.trim());
     const baseResume = entry !== "direction" ? baseProfile?.resumeText || "" : "";
+    onProgress("reading");
+    const fileDigest = intake.file ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await intake.file.arrayBuffer()))).map(byte => byte.toString(16).padStart(2, "0")).join("") : null;
+    const inputKey = JSON.stringify([entry, intake.sourceText, baseResume, fileDigest]);
+    const requestId = intakeCache.current.requestId(inputKey);
+    if (dataMode === "live") trackProductEvent("material_intake_started", { request_id:requestId, input_type: intake.file ? "file" : "text_or_link" });
+    onProgress("reading", requestId);
     if (requestBody) {
       requestBody.set("requestId", requestId);
       if (entry === "direction") requestBody.set("materialKindHint", "preparation");
@@ -393,16 +402,19 @@ export function CockpitApp({
       if (baseResume) requestBody.set("resumeText", baseResume);
       if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
     }
+    const result = await intakeCache.current.analyze(inputKey, async () => {
     const response = await fetch("/api/opportunities/analyze", {
       method: "POST",
-      headers: requestBody ? undefined : { "Content-Type": "application/json" },
+      headers: { ...(requestBody ? {} : { "Content-Type": "application/json" }), Accept: "application/x-ndjson", "X-Intake-Request-Id": requestId },
       body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume, materialKindHint: entry === "direction" ? "preparation" : undefined }),
     }).catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"network_error"});throw error;});
-    const result = await response.json().catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"invalid_response",status:response.status});throw error;});
+    const result = await readIntakeResponse(response, onProgress).catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"invalid_response",status:response.status});throw error;});
     if (!response.ok || !result.ok || !result.input) {
       if (dataMode === "live") trackProductEvent("material_intake_failed", { request_id:requestId, reason_code:result.reasonCode || "analysis_rejected", input_type: intake.file ? "file" : "text_or_link", status: response.status });
       throw apiResponseError(response, result, "材料暂时读不了，请重试");
     }
+    return result as AnalyzeIntakeResult;
+    });
 
     const input = result.input as NewOpportunityInput;
     const analysis = result.analysis as Partial<Opportunity>;
@@ -442,21 +454,23 @@ export function CockpitApp({
       interviewFocus: analysis?.interviewFocus ?? [],
     };
     let opportunity: Opportunity = { ...opportunityDraft, id: localId };
+    onProgress("saving", requestId);
     try {
-      const response = await fetch("/api/coach/opportunities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity: opportunityDraft }) });
+      const response = await fetch("/api/coach/opportunities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunity: opportunityDraft, intakeRequestId: requestId }) });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "同步失败");
       opportunity = result.opportunity;
       if (dataMode === "live") trackProductEvent("workspace_saved", {request_id:requestId,opportunity_id:opportunity.id,workspace_type:opportunity.workspaceType || "job"});
     } catch {
-      setLocalIds((current) => [localId, ...current]);
+      throw new IntakeSaveError("整理结果还在，但云端保存未成功。请重试保存；不会重新调用模型或消耗分析次数。不要刷新此页面。");
     }
+    intakeCache.current.clear();
     setOpportunities((current) => shareBaseResumeAcrossOpportunities([opportunity, ...current]));
     setActiveId(opportunity.id);
     setActiveTab(entry === "interview" ? "interview" : entry === "resume" && opportunity.resumeText && opportunity.jdText ? "resume" : "overview");
-    setCreating(false);
     if (dataMode === "live") trackProductEvent("material_intake_completed", { request_id:requestId, analysis_deferred:Boolean(result.analysisDeferred), opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
-    announce(opportunity.id === localId ? "岗位已保存到当前浏览器，云同步稍后重试" : analysis ? "岗位已同步并完成初步分析" : "岗位已同步，分析暂未完成");
+    announce(analysis ? "材料已同步并完成初步分析" : "原文已同步，分析暂未完成");
+    return { opportunity, deferred: Boolean(result.analysisDeferred || !result.analysis) };
   };
 
   const supplementOpportunity = async (supplement: OpportunitySupplement) => {
@@ -517,7 +531,7 @@ export function CockpitApp({
       if (dataMode === "live") trackProductEvent("opportunity_material_completed", { opportunity_id: active.id, material_kind: supplement.kind });
       announce(result.analysis
         ? `已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`
-        : `已收到${supplement.kind === "job" ? "岗位 JD" : supplement.kind === "resume" ? "简历" : "经历"}，材料已保存，AI 判断稍后自动补上`);
+        : `已收到${supplement.kind === "job" ? "岗位 JD" : supplement.kind === "resume" ? "简历" : "经历"}，分析未完成；请稍后主动继续辅导，不会自动发起收费分析`);
       raiseGapCoaching(updated);
     } catch (error) {
       if (dataMode === "live") trackProductEvent("opportunity_material_failed", { opportunity_id: active.id, material_kind: supplement.kind });
@@ -958,7 +972,7 @@ export function CockpitApp({
           )}
           <span>{compactAccountLabel(userEmail)}</span>
           <TokenPayWidget compact />
-          <button className={creating ? styles.secondaryButton : styles.iconButton} onClick={creating ? () => setCreating(false) : logout} aria-label={creating ? "返回工作区" : "退出登录"} title={creating ? "返回工作区" : "退出登录"}>
+          <button disabled={intakeBusy} className={creating ? styles.secondaryButton : styles.iconButton} onClick={creating ? () => setCreating(false) : logout} aria-label={creating ? "返回工作区" : "退出登录"} title={creating ? "返回工作区" : "退出登录"}>
             {creating ? "返回工作区" : <LogOut size={17} aria-hidden="true" />}
           </button>
         </div>
@@ -970,7 +984,7 @@ export function CockpitApp({
 
       <div className={`${styles.workspace} ${!creating && activeTab === "salary" ? styles.salaryWorkspace : ""}`} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
-          onOpenProfile={() => { const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
+          onOpenProfile={() => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
           opportunities={filtered}
           query={query}
@@ -978,16 +992,16 @@ export function CockpitApp({
           onQueryChange={setQuery}
           pinnedIds={railPins}
           canReorder={!query.trim()}
-          onSelect={(id) => { setCreating(false); setActiveId(id); setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!)); setMobileRail(null); }}
+          onSelect={(id) => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} setCreating(false); setActiveId(id); setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!)); setMobileRail(null); }}
           onTogglePin={toggleOpportunityPin}
           onReorder={reorderOpportunities}
           onDelete={deleteOpportunity}
-          onCreate={() => { setNewEntry("resume"); setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
+          onCreate={() => { if(intakeBusy)return; setIntakeFormSequence(value=>value+1); setNewEntry("resume"); setCreateOrigin("opportunity"); setCreating(true); setMobileRail(null); }}
           onClose={() => setMobileRail(null)}
         />
 
         <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
-          {creating ? <NewOpportunityForm initialEntry={newEntry} onCreate={createOpportunity} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
+          {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry} initialSourceText={newEntry==="resume" && active?.workspaceType==="preparation" && !active.resumeText ? active.profileText || "" : ""} onCreate={createOpportunity} onBusyChange={setIntakeBusy} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
           {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
           {active.workspaceType !== "preparation" && <>
@@ -1041,6 +1055,7 @@ export function CockpitApp({
 
 type NewOpportunityInput = { workspaceType?: "job" | "preparation"; company: string; role: string; location: string; jdText: string; resumeText: string; profileText?: string; sourceLabel?: string };
 type OpportunityIntake = { sourceText: string; file: File | null };
+type AnalyzeIntakeResult = { input: NewOpportunityInput; analysis: Partial<Opportunity> | null; analysisDeferred?: boolean; reasonCode?: string };
 type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null };
 
 function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: (entry: "direction" | "resume" | "interview") => void; onLogout: () => void }) {
@@ -1143,18 +1158,25 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
   );
 }
 
-function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview") => Promise<void>; onCancel: () => void; initialEntry?: "direction" | "resume" | "interview" }) {
+function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "resume", initialSourceText = "" }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview", progress: IntakeProgress) => Promise<{ opportunity: Opportunity; deferred: boolean }>; onCancel: () => void; onBusyChange: (busy: boolean) => void; initialEntry?: "direction" | "resume" | "interview"; initialSourceText?: string }) {
   const [entry, setEntry] = useState(initialEntry);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [sourceText, setSourceText] = useState("");
+  const [sourceText, setSourceText] = useState(initialSourceText);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [phase, setPhase] = useState<IntakePhase>("reading");
+  const [startedAt, setStartedAt] = useState(0);
+  const [requestId, setRequestId] = useState("");
+  const [receipt, setReceipt] = useState<{ opportunity: Opportunity; deferred: boolean } | null>(null);
   const quotaLabel = useQuotaLabel("chat");
   const canSubmit = Boolean(sourceText.trim() || file);
 
   const chooseFile = (candidate?: File) => {
+    if (submitting) return;
     if (!candidate) return;
     const supported = /\.(pdf|docx|txt|md)$/i.test(candidate.name);
     if (!supported) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
@@ -1163,27 +1185,35 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
     setError("");
   };
 
+  if (receipt) return <MaterialReceipt {...receipt} onContinue={onCancel}/>;
+
   return (
     <div className={styles.createPage}>
-      <button type="button" className={styles.secondaryButton} onClick={onCancel}>← 返回工作区</button>
+      <button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>← 返回工作区</button>
       <div className={styles.createIntro}>
         <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
-        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={entry === value} onClick={() => setEntry(value)}>{label}</button>)}</div>
+        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" disabled={submitting} key={value} aria-pressed={entry === value} onClick={() => {setEntry(value);setSaveFailed(false);}}>{label}</button>)}</div>
         <p>{entry === "direction" ? "先上传简历，或写下想做的方向。不要求先有 JD；这里先整理目标，尚不自动搜索招聘网站。" : entry === "interview" ? "粘贴这次面试的 JD 或招聘链接。已有简历也可以一起上传，建立档案后进入模拟面试。" : "先粘贴 JD 或招聘链接，也可以上传简历。缺的材料会在下一步提醒你补，不用一次填完。"}</p>
       </div>
       <form
         className={styles.createForm}
         onSubmit={async (event) => {
           event.preventDefault();
-          if (!canSubmit || submitting) return;
+          if (!canSubmit || submittingRef.current) return;
+          submittingRef.current = true;
           setSubmitting(true);
+          onBusyChange(true);
+          setStartedAt(Date.now());
           setError("");
           try {
-            await onCreate({ sourceText, file }, entry);
+            setReceipt(await onCreate({ sourceText, file }, entry, (nextPhase, id) => { setPhase(nextPhase); if(id)setRequestId(id); }));
           } catch (submitError) {
+            setSaveFailed(submitError instanceof IntakeSaveError);
             setError(submitError instanceof Error ? submitError.message : "材料暂时读不了，请重试");
           } finally {
+            submittingRef.current = false;
             setSubmitting(false);
+            onBusyChange(false);
           }
         }}
       >
@@ -1202,18 +1232,19 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
         >
           <div className={styles.intakePrompt}><Link2 size={18} /><span>链接、文字或文件</span></div>
           <textarea
+            disabled={submitting}
             value={sourceText}
-            onChange={(event) => { setSourceText(event.target.value); setError(""); }}
+            onChange={(event) => { setSourceText(event.target.value); setError(""); setSaveFailed(false); }}
             rows={8}
             aria-label="求职材料内容"
             placeholder={entry === "direction" ? "拖入简历文件，或粘贴简历原文。还没有简历，也可以先写一段你做过的事。" : "粘贴招聘链接或 JD。已有基础简历会自动带入，不用重复上传。"}
             autoFocus
           />
-          {file && <div className={styles.fileChip}><UploadCloud size={16} /><span>{file.name}</span><button type="button" onClick={() => { setFile(null); if (inputRef.current) inputRef.current.value = ""; }} aria-label={`移除 ${file.name}`}><X size={14} /></button></div>}
+          {file && <div className={styles.fileChip}><UploadCloud size={16} /><span>{file.name}</span><button type="button" disabled={submitting} onClick={() => { setFile(null); setSaveFailed(false); if (inputRef.current) inputRef.current.value = ""; }} aria-label={`移除 ${file.name}`}><X size={14} /></button></div>}
           <div className={styles.intakeFooter}>
             <label className={styles.attachButton}>
               <UploadCloud size={16} />选择文件
-              <input ref={inputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => chooseFile(event.target.files?.[0])} />
+              <input disabled={submitting} ref={inputRef} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => chooseFile(event.target.files?.[0])} />
             </label>
             <span>也可以粘贴或拖进来 · 4MB 以内</span>
           </div>
@@ -1222,8 +1253,10 @@ function NewOpportunityForm({ onCreate, onCancel, initialEntry = "resume" }: { o
           <ShieldCheck size={18} />
           <p><strong>我会先替你判断：</strong>这是岗位、简历还是求职目标，再建对应档案，只追问会影响下一步的内容。</p>
         </div>
-        {error && <p className={styles.intakeError} role="alert">{error}</p>}
-        <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在读材料…" : `让导师整理 · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
+        <MaterialDataNotice/>
+        {submitting && <MaterialTaskProgress phase={phase} startedAt={startedAt} requestId={requestId}/>}
+        {error && <div role="alert"><p className={styles.intakeError}>{error}</p>{requestId && <small>任务编号：{requestId}</small>}</div>}
+        <div className={styles.formActions}><button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在处理…" : saveFailed ? "重试保存 · 不消耗模型额度" : `${error ? "重试整理" : "让导师整理"} · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
       </form>
     </div>
   );
@@ -1277,6 +1310,7 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
         <span className={styles.contextActionIcon}>{kind === "job" ? <Link2 size={18} /> : <UploadCloud size={18} />}</span>
         <div><strong>{loading ? "正在读取并重新判断…" : title}</strong><p>{loading ? "我会保留已有材料，只更新受影响的判断。" : description}</p></div>
       </div>
+      <MaterialDataNotice/>
       {!loading && <div className={styles.contextActionButtons}>
         <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />上传文件</button>
         <button type="button" className={styles.contextSecondaryAction} onClick={() => setExpanded((value) => !value)}>{kind === "job" ? <Link2 size={15} /> : <FileText size={15} />}{expanded ? "收起输入" : kind === "job" ? "粘贴 JD / 链接" : "粘贴内容"}</button>

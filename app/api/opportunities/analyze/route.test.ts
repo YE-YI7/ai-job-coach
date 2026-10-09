@@ -3,6 +3,7 @@ import {getCurrentUserFromRequest} from "@/lib/auth";
 import {callLLM} from "@/lib/llm";
 import {reserveQuota,finalizeQuota} from "@/lib/quota";
 import {buildAgentKnowledgeContext} from "@/lib/knowledge/context";
+import { readIntakeResponse } from "@/lib/opportunities/intake-flow";
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
@@ -22,6 +23,28 @@ describe("material intake on model outage",()=>{
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ok:true,analysis:null,analysisDeferred:true,input:{jdText:"",resumeText:"本人真实经历原文"}});
   expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+ });
+ test("stream phases are emitted from actual processing and terminal failure remains visible",async()=>{
+  const progress=jest.fn();
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/x-ndjson","X-Intake-Request-Id":"test-request-123"},body:JSON.stringify({sourceText:"未知材料",requestId:"test-request-123"})}));
+  expect(response.headers.get("content-type")).toContain("application/x-ndjson");
+  const body=await readIntakeResponse(response,progress);
+  expect(progress.mock.calls).toEqual([["reading","test-request-123"],["analyzing","test-request-123"]]);
+  expect(body).toMatchObject({ok:false,status:503,requestId:"test-request-123"});
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+ });
+ test("streaming success retains JSON result and genuine checking phase",async()=>{
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"示例公司",role:"产品经理",location:"上海",jdText:"岗位原文",requirements:[],actions:[]}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/x-ndjson"},body:JSON.stringify({sourceText:"岗位原文"})}));
+  const progress=jest.fn(),body=await readIntakeResponse(response,progress);
+  expect(body).toMatchObject({ok:true,status:200,input:{workspaceType:"job",company:"示例公司"}});
+  expect(progress.mock.calls.map(c=>c[0])).toEqual(["reading","analyzing","checking"]);
+  expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+ });
+ test("unauthenticated streaming request stays HTTP401 and never calls a model",async()=>{
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
+  const response=await POST(new Request("https://example.com",{method:"POST",headers:{Accept:"application/x-ndjson"}}));
+  expect(response.status).toBe(401);expect(callLLM).not.toHaveBeenCalled();
  });
  test("unidentified mixed material is not silently reclassified on failure",async()=>{
   const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"这是一份未知材料"})}));

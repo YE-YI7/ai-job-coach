@@ -11,6 +11,7 @@ export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,
  return <div className={styles.profileWorkspace}>
   <header className={styles.profileHeading}><div><h1>我的简历与方向</h1><p>从你的经历出发，找到下一步。</p></div><Compass size={32} strokeWidth={1.4}/></header>
   {opportunity.resumeText&&<details className={styles.profileResume}><summary><FileText size={22}/><span><strong>基础简历 · 查看 / 更新</strong><small>用于找岗与分析，岗位定制稿单独保留</small></span><span className={styles.profileReady}><Check size={13}/>已收录</span></summary><pre>{opportunity.resumeText}</pre><div>{children}</div></details>}
+  {!opportunity.resumeText && opportunity.profileText && opportunity.recommendationLabel === "等待完成分析" && <section aria-label="待确认材料原文"><h2>原文已保存，尚未确认材料类型</h2><details className={styles.profileResume}><summary>查看原始材料</summary><pre>{opportunity.profileText}</pre></details><button className={styles.secondaryButton} onClick={onAddJob}>这是岗位 JD，用原文继续整理 <ArrowUpRight size={16}/></button></section>}
   <section className={styles.profileDirection}><h2>{opportunity.resumeText?"你想往哪个方向走？":"先给我一份简历"}</h2>
    <form className={styles.directionForm} onSubmit={async e=>{e.preventDefault();setBusy(true);setResult("");try{await onSaveDirection(role.trim(),location.trim());setResult("方向已保存");}catch(error){setResult(error instanceof Error?error.message:"保存失败，修改仍在");}finally{setBusy(false);}}}>
     <label>求职方向<input value={role} maxLength={160} disabled={busy} onChange={e=>{setRole(e.target.value);setResult("");}}/></label>

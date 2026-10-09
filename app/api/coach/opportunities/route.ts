@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = body.opportunity as Omit<Opportunity, "id">;
+    const intakeRequestId = typeof body.intakeRequestId === "string" && uuid.test(body.intakeRequestId) ? body.intakeRequestId : undefined;
+    if (body.intakeRequestId !== undefined && !intakeRequestId) return NextResponse.json({ ok: false, error: "材料任务编号无效" }, { status: 400 });
     const workspaceType = input?.workspaceType === "preparation" ? "preparation" : "job";
     const hasPreparationMaterial = Boolean(String(input?.resumeText || input?.profileText || "").trim());
     const hasJobDescription = Boolean(String(input?.jdText || "").trim());
@@ -28,8 +30,15 @@ export async function POST(request: Request) {
       || (workspaceType === "job" ? !hasJobDescription : !hasPreparationMaterial)) {
       return NextResponse.json({ ok: false, error: "岗位字段不完整" }, { status: 400 });
     }
+    // Recover an ordinary lost-response retry from the user's own saved metadata.
+    // This is not a database-atomic concurrent deduplication guarantee.
+    if (intakeRequestId) {
+      const existing = (await listCockpitOpportunities(user.id)).find(item => item.intakeRequestId === intakeRequestId);
+      if (existing) return NextResponse.json({ ok: true, opportunity: existing, replay: true });
+    }
     const opportunity = await createCockpitOpportunity(user.id, {
       ...input,
+      intakeRequestId,
       workspaceType,
       company: String(input.company).trim().slice(0, 120),
       role: String(input.role).trim().slice(0, 160),

@@ -158,6 +158,8 @@ export interface OfferComparison {
 
 export interface Opportunity {
   id: string;
+  /** Material intake retry correlation; not a model verdict or user fact. */
+  intakeRequestId?: string;
   workspaceType?: "job" | "preparation" | "offer";
   /** workspaceType === "offer" 时携带的对比快照（经 metadata jsonb 往返） */
   offerComparison?: OfferComparison;

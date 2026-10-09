@@ -14,6 +14,7 @@ import { mergeOpportunityMaterial } from "@/lib/opportunities/material-intake";
 import {intakeErrorMessage,isHostedIntakeQuotaFailure} from "@/lib/opportunities/intake-error";
 import {deferredIntake,preserveUnclassifiedIntake} from "@/lib/opportunities/deferred-intake";
 import type { EvidenceStrength, OpportunityRecommendation } from "@/lib/opportunities/types";
+import type { IntakePhase } from "@/lib/opportunities/intake-flow";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -210,16 +211,42 @@ async function readIntake(request: Request) {
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+  const supplied = request.headers.get("X-Intake-Request-Id") || "";
+  const supportId = /^[a-zA-Z0-9_-]{8,180}$/.test(supplied) ? supplied : crypto.randomUUID();
+  if (!request.headers.get("accept")?.includes("application/x-ndjson")) return analyzeRequest(request, user.id);
+  const encoder = new TextEncoder();
+  let disconnected = false;
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: unknown) => {
+        if (disconnected) return;
+        try { controller.enqueue(encoder.encode(JSON.stringify(event) + "\n")); } catch { disconnected = true; }
+      };
+      try {
+        const response = await analyzeRequest(request, user.id, phase => send({ type: "progress", phase, requestId: supportId }));
+        const data = await response.json();
+        send({ type: "result", data: { ...data, recoveryAction: response.headers.get("TokenDance-Recovery-Action") || data.recoveryAction, status: response.status, requestId: supportId } });
+      } catch {
+        send({ type: "result", data: { ok: false, status: 503, requestId: supportId, error: "整理暂时失败，材料仍在，请重试" } });
+      } finally { if (!disconnected) controller.close(); }
+    },
+    cancel() { disconnected = true; },
+  });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "private, no-store", "X-Accel-Buffering": "no", "X-Intake-Request-Id": supportId } });
+}
+
+async function analyzeRequest(request: Request, userId: string, report: (phase: IntakePhase) => void = () => {}) {
 
   let reservation: QuotaReservation | null = null;
   let extracted: Awaited<ReturnType<typeof readIntake>> | null = null;
   try {
+    report("reading");
     const intake = await readIntake(request);
     extracted = intake;
     const requestId = intake.requestId && /^[a-zA-Z0-9_-]{8,180}$/.test(intake.requestId)
       ? intake.requestId
       : crypto.randomUUID();
-    reservation = await reserveQuota(user.id, "chat", `opportunity-analysis:${requestId}`);
+    reservation = await reserveQuota(userId, "chat", `opportunity-analysis:${requestId}`);
     if (!reservation) {
       return NextResponse.json({ ok: false, error: "今日免费分析额度已用完", needUpgrade: true }, { status: 403 });
     }
@@ -230,8 +257,9 @@ export async function POST(request: Request) {
       query: [intake.company, intake.role, intake.jdText.slice(0, 240)].filter(Boolean).join(" "),
       limit: 5,
     });
+    report("analyzing");
     const result = await runWithGenerationContext({
-      userId: user.id,
+      userId,
       operation: "opportunity_analysis",
       requestId,
       knowledgeDocumentIds: knowledge.items.map((item) => item.id),
@@ -272,6 +300,7 @@ export async function POST(request: Request) {
       },
     ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 0 }));
 
+    report("checking");
     const parsed = asRecord(parseJson(result));
     const kindHint = intake.materialKindHint;
     const isSupplement = kindHint === "job" || kindHint === "resume" || kindHint === "experience";

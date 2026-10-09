@@ -6,12 +6,13 @@ import { reserveQuota, finalizeQuota, type QuotaReservation } from "@/lib/quota"
 import { LIVE_SOURCES, DOMESTIC_SOURCE_IDS, DOMESTIC_SEARCH_VERSION, searchLiveJobs, SOURCE_CREDIT, toDiscoveredJobs } from "@/lib/jobs/live-sources";
 import { domesticKeywords, outboundKeywords } from "@/lib/jobs/outbound-keywords";
 import { OPEN_SEARCH_SOURCE, OPEN_SEARCH_VERSION, openSearchQueries, searchOpenJobs } from "@/lib/jobs/open-search";
-import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls, RETRIEVAL_GATE_VERSION } from "@/lib/jobs/retrieval-gate";
+import { applyRetrievalGate, profileHardFields, splitSavedJobs, trackedJobUrls } from "@/lib/jobs/retrieval-gate";
+import { profileFingerprint } from '@/lib/jobs/profile-fingerprint';
 import { applyVerificationGate } from "@/lib/jobs/verification-gate";
 import { TIER_LABEL } from "@/lib/jobs/company-directory";
 import { TIER_ORDER } from "@/lib/jobs/tier-intent";
 import { unstable_cache } from "next/cache";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getDbClient } from "@/lib/db";
 import { compileContextBundle } from "@/lib/coach-harness/context";
 import { beginStep, completeStep, completeTask, failTask, getTaskLedger, intakeEvent, startExecution, startTask } from "@/lib/coach-harness/run-ledger";
@@ -21,8 +22,6 @@ export const maxDuration = 120;
 /** Two open searches + one batch read, plus one query per domestic source.
  * Cover all companies before spending the latency budget on a second keyword. */
 const MAX_SOURCE_CALLS = 3 + DOMESTIC_SOURCE_IDS.length;
-const profileFingerprint = (profile: { role: string; location?: string; resumeText?: string }, tiers: string[]) =>
-  createHash("sha256").update(JSON.stringify([OPEN_SEARCH_VERSION, DOMESTIC_SEARCH_VERSION, PERSONALIZATION_VERSION, RETRIEVAL_GATE_VERSION, profile.role, profile.location, profile.resumeText, [...tiers].sort()])).digest("hex");
 
 /** 回到基础档案时读上次任务，不自动重复执行。只恢复当前资料/偏好对应的结果。 */
 export async function GET(request: Request) {

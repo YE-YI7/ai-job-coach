@@ -31,13 +31,28 @@ it("requires an explicit live gate and matching key", () => {
 it("keeps stable buyer identity server-side and strips unexpected provider fields", async () => {
   configure(); fetchMock.mockResolvedValue(Response.json({ ...valid, secret: "must-not-return" }));
   const account = await getWatchaPayAccess("u1", "chat");
-  expect(account).toEqual({ configured: true, environment: "sandbox", channel: "alipay", result: valid });
+  expect(account).toMatchObject({ configured: true, environment: "sandbox", channel: "alipay", result: valid });
   const [url, options] = fetchMock.mock.calls[0];
   expect(url).toBe("https://pay.watcha.cn/v1/entitlements/access");
   expect(options.redirect).toBe("error");
   expect(options.cache).toBe("no-store");
   expect(JSON.parse(options.body)).toEqual({ entitlement_id: "ent_test", user_id: "u1" });
   expect(JSON.stringify(account)).not.toContain("wpay_test_");
+});
+it("generates a local PNG QR for a validated checkout when the provider omits it", async () => {
+  configure(); fetchMock.mockResolvedValue(Response.json({ ...valid, purchase: { url: "alipays://platformapi/startapp?appId=20000067&url=synthetic" } }));
+  const account = await getWatchaPayAccess("u1", "chat");
+  if (!account.configured || account.result.access === "unavailable") throw new Error("expected checkout");
+  expect(account.result.purchase.qrUrl).toMatch(/^data:image\/png;base64,/);
+  const png = Buffer.from(account.result.purchase.qrUrl!.split(',')[1], 'base64');
+  expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+it("keeps official QR images and never locally encodes an untrusted payment URL", async () => {
+  configure(); fetchMock.mockResolvedValue(Response.json({ ...valid, purchase: { ...valid.purchase, qr_url: "https://mobilecodec.alipay.com/show.htm?code=synthetic" } }));
+  expect(await getWatchaPayAccess("u1", "chat")).toMatchObject({ result: { purchase: { qrUrl: "https://mobilecodec.alipay.com/show.htm?code=synthetic" } } });
+  fetchMock.mockResolvedValue(Response.json({ ...valid, purchase: { url: "https://evil.example/pay" } }));
+  await expect(getWatchaPayAccess("u1", "chat")).rejects.toMatchObject({ code: "invalid_purchase_url" });
 });
 it("treats access as a classification, not proof of quota reservation", () => {
   expect(parseWatchaPayAccess({ ...valid, access: "purchase_required", entitlement: { type: "quota", remaining: 4 } })).toMatchObject({ entitlement: { type: "quota", remaining: 4 } });

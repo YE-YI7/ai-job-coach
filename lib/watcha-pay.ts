@@ -1,5 +1,6 @@
 /** Server-side only. Do not expose credentials or trust browser-supplied buyer IDs. */
 import { createHash } from "node:crypto";
+import QRCode from "qrcode";
 
 export type WatchaPayCapability = "chat" | "resume" | "interview";
 type Environment = "sandbox" | "live";
@@ -93,6 +94,15 @@ export async function getWatchaPayAccess(userId: string, capability: WatchaPayCa
   if (!config) return { configured: false as const, channel: "alipay" as const };
   if (!userId || userId.length > 200) throw new WatchaPayError("invalid_user", 400);
   const result = parseWatchaPayAccess(await request(config, "access", { user_id: userId }));
+  // Encode only the validated official checkout URL, locally. No third-party QR
+  // service receives the user-specific payment ticket; this does not mark it paid.
+  if (result.access !== "unavailable" && !result.purchase.qrUrl) {
+    try {
+      result.purchase.qrUrl = await QRCode.toDataURL(result.purchase.url, {
+        type: "image/png", errorCorrectionLevel: "M", margin: 4, width: 320,
+      });
+    } catch { throw new WatchaPayError("purchase_qr_unavailable"); }
+  }
   return { configured: true as const, environment: config.environment, channel: "alipay" as const, result };
 }
 

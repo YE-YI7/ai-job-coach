@@ -4,9 +4,17 @@
 
 已实现站内支付宝购买入口、当前登录账号绑定、渠道积分明确兑换、持久积分账本及 AI 预留/成功结算/失败退回。TokenPay 保留并优先使用；原有免费/付费次数先使用，耗尽后使用益职共享积分。正式商品已由用户完成签约并上架：`sku_01m4g5hhn652g8gj7j21gm9nwb`，权益 `ent_01m4g5hhn6bf9ey2b8mf6jesa9`，体验包 10 积分 / ¥9.90。
 
-Vercel 支付 Key 由用户自行保存为 Production Secret；非敏感映射与 live gate 已配置。但新部署实际请求返回 `environment_key_mismatch`，不能将该 Key 当作已核验可用的正式凭据；支付版尚未切换正式域名。没有替用户购买或扣减正式积分，没有挪用 `test_user_001` 的平台测试余额。
+Vercel 支付 Key 由用户自行保存为 Production Secret；非敏感映射与 live gate 已配置。最初新部署返回 `environment_key_mismatch`，用户安全替换后已通过实际正式查询；最终支付版已切换正式域名（见发布验收）。没有替用户购买或扣减正式积分，没有挪用 `test_user_001` 的平台测试余额。
 
-后续用户安全替换 Key 后，`dpl_9TxBubBTRpEqLVma2Yoowk8B2MgB` 正式配置只读验收通过：匿名 401、合成登录钱包 200、live configured、双端余额 0、未确认/身份注入 400、跨源 403。未扣款。真实响应只提供 `alipays:` 链接且无 QR，现补本地生成该已验证官方链接的 PNG 二维码（qrcode 1.5.4，https://github.com/soldair/node-qrcode）；不发给第三方二维码服务、不改支付目的地、不以生成图片视作付款成功。最终域名发布结果待下方追加。
+后续用户安全替换 Key 后，`dpl_9TxBubBTRpEqLVma2Yoowk8B2MgB` 正式配置只读验收通过：匿名 401、合成登录钱包 200、live configured、双端余额 0、未确认/身份注入 400、跨源 403。未扣款。真实响应只提供 `alipays:` 链接且无 QR，补本地生成该已验证官方链接的 PNG 二维码（qrcode 1.5.4，https://github.com/soldair/node-qrcode）；不发给第三方二维码服务、不改支付目的地、不以生成图片视作付款成功。
+
+## 2026-10-09 正式域名发布验收
+
+- 代码 `33f3805` 已推送开发分支和 backend；独立干净快照 187 套 / 1909 用例通过，4 既有跳过；scoped lint、类型、生产本地及云端构建通过。本轮补的是服务端 QR，无新增 UI 文件修改，不重复设计扫描。
+- 部署 `dpl_4xDYXvcbCeHpQtjedaAybNr9bUrq` 在 Production 环境暂存验收后 promote；`www.ai-job-coach.xin` 与 `ai-job-coach.xin` 实际 inspect 均指向该 Ready 部署。
+- 暂存与正式 www 都通过实际 HTTP 验收：匿名 401；独立随机合成会话钱包 200、live 配置有效、本地/渠道余额 0、无 pending、private/no-store；未确认和身份注入 400、跨源 403。官方唤起链接有效，生成 PNG QR 的签名及至少 320×320 分辨率校验通过。合成服务器会话不当作完整真人登录验收。
+- 新部署最近 10 分钟 error 日志查询无结果；项目 drains 查询为空，长期错误告警仍有缺口。MCP scope 403 后使用同 team/project 的已有 CLI 身份只读查询成功，没有修改保护设置。
+- Chrome 正式作战盘已打开，但后续观察被工具的当前 URL 访问限制终止，未再绕过或换工具操作。因此本轮不签收正式弹窗视觉、真人扫码购买、到账、AI 交付或现金退款；没有进行任何正式扣款。手机唤起和电脑 QR 入口代码上线，不等于真实资金端到端已实测。微信仍未接通。
 
 已通过 Chrome 原生 UI 创建沙箱商品与沙箱 Key，并完成官方控制台的真实模拟购买、API 查询、扣减、幂等重放和余额不足验证。内置浏览器及扩展控制接口仍超时；Chrome 原生应用控制可用。没有读取 Cookie 或冒用其他经营主体。
 

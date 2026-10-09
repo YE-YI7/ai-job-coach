@@ -16,6 +16,9 @@ export async function middleware(request: NextRequest) {
 
   // ========== 允许匿名访问的路径 ==========
 
+  // Privacy notice contains no account data and must be readable before sign-in.
+  if (pathname === "/privacy") return NextResponse.next();
+
   if (pathname === "/" || pathname === "/agent" || pathname.startsWith("/agent/")) {
     return NextResponse.next();
   }

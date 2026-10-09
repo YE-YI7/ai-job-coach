@@ -1183,6 +1183,7 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
     if (candidate.size > 4 * 1024 * 1024) return setError("文件不能超过 4MB，请压缩 PDF 或上传文字版");
     setFile(candidate);
     setError("");
+    setSaveFailed(false);
   };
 
   if (receipt) return <MaterialReceipt {...receipt} onContinue={onCancel}/>;

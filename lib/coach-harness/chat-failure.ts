@@ -24,6 +24,7 @@ export type ChatFailureClass =
   | "stream_interrupted"
   | "context_budget_exceeded"
   | "quote_verification_failed"
+  | "interview_contract_failed"
   | "persistence_failed"
   | "subagent_failed"
   | "compression_protection_lost"
@@ -58,6 +59,7 @@ export const CHAT_FAILURE_TABLE: readonly ChatFailureRow[] = [
   // 以下为 §5.7 表补的类：detection 只命中自家构造的话术，不透传上游负载。
   { failure: "context_budget_exceeded", userCopy: "这次材料较多，暂时没能完成回答。你的档案仍然保留，请先选一个具体问题继续。", retryable: "none", persists: false, detection: /装不进 .* token 预算/, wired: true },
   { failure: "quote_verification_failed", userCopy: "这轮没有抽取到可安全使用的经历；没有出处的内容不会写成你的事实。", retryable: "none", persists: false, detection: /简历事实复核未通过/, wired: true },
+  { failure: "interview_contract_failed", userCopy: "面试官没有按一次一题回应，本次反馈未保存。你的回答仍在输入框，可以重试。", retryable: "manual", persists: false, detection: /模拟面试.*(?:一次一题|提前给答案|反馈格式)/, wired: true },
   { failure: "persistence_failed", userCopy: "回答生成了，但未确认保存，请检查历史后重试。", retryable: "manual", persists: false, detection: /未确认保存/, wired: true },
   { failure: "subagent_failed", userCopy: "这块调研没跑成，先基于已有材料辅导，结果我稍后补。", retryable: "none", persists: false, wired: false },
   { failure: "compression_protection_lost", userCopy: "", retryable: "none", persists: true, wired: false },

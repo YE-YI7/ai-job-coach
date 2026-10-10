@@ -15,7 +15,8 @@ import {type GuardResult,type ProvidedMaterial} from "@/lib/coach-harness/insuff
 import {harnessFingerprint,TUTOR_RETRIEVAL_CONFIG} from "@/lib/coach-harness/version-fingerprint";
 import {resolveChatModel,coolDownChatModel} from "@/lib/coach-harness/chat-models";
 import {runWithGenerationContext,getGenerationContext} from "@/lib/generation-context";
-import {needsResumeGrounding,RESUME_GROUNDING_PROMPT,RESUME_GROUNDING_PROMPT_VERSION,type ResumeSource} from "@/lib/coach-harness/resume-grounding";
+import {needsResumeGrounding,resumeSources,RESUME_GROUNDING_PROMPT,RESUME_GROUNDING_PROMPT_VERSION} from "@/lib/coach-harness/resume-grounding";
+import {interviewMode,interviewSystem,renderInterview,INTERVIEW_CONTRACT_VERSION} from "@/lib/coach-harness/interaction-contract";
 import {
   GUARD_SLOTS,
   GROUNDING_VERIFICATION_GUARD_ID,
@@ -67,7 +68,7 @@ async function history(userId: string, opportunityId: string | null, sessionId:s
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return ((data || []) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:Record<string,unknown>|null}>)
-    .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{proactive?:boolean;responseLatencyMs?:number|null;teaching?:import("@/lib/coach-harness/teaching-frame").TeachingTurn["teaching"]}|null}>;
+    .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{interactionMode?:string;proactive?:boolean;responseLatencyMs?:number|null;teaching?:import("@/lib/coach-harness/teaching-frame").TeachingTurn["teaching"]}|null}>;
 }
 /** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
 async function interviewLedgerFor(db: Awaited<ReturnType<typeof getDbClient>>, userId: string, opportunityId: string | null): Promise<string> {
@@ -190,10 +191,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const savedEvents = await readInboundEvents({ userId: user.id, opportunityId: contextId, limit: 6 }).catch(() => []);
   const pageContext = [renderInboundEventsForAgent(savedEvents), typeof body?.pageContext === "string" ? body.pageContext : ""].filter(Boolean).join("\n\n");
-  // 简历底稿的全部事实边界：一条都不许多，也不许悄悄丢——超预算时由保护区判断报错。
-  const sources: ResumeSource[] = [{ id: "current", text: body.message }, ...turns.slice(-4).reverse().map(t => ({ id: t.id, text: t.question })), ...(context.claims || []).filter(c => c.status === "confirmed").map(c => ({ id: c.id, text: c.displayText }))];
-  const resumeSource = context.attachments.find(a => a.id === "resume-text");
-  if (resumeSource?.text.trim()) sources.push({ id: "resume-text", text: resumeSource.text });
+  const sources = resumeSources(context);
+  const priorMode=turns.at(-1)?.learning_trace?.interactionMode;
+  const interviewer=!groundedDraft&&interviewMode(body.message,priorMode);
+  const firstInterview=interviewer&&priorMode!=="mock_interview";
   // 每条料的预算与可信标注只在 TUTOR_MATERIALS 里声明一次，这里只负责供料。
   const materials: TutorMaterialInput[] = groundedDraft
     ? [
@@ -214,8 +215,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         recent ? { kind: "recent_turns", refId: turns.slice(-4).map(t => t.id).join(","), text: recent } : null,
         interviewLedger ? { kind: "interview_ledger", refId: contextId ?? undefined, text: interviewLedger } : null,
         market ? { kind: "market_evidence", text: market } : null,
-      ].filter((m): m is TutorMaterialInput => Boolean(m));
-  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:LEARNING_SYSTEM;
+      ].filter((m): m is TutorMaterialInput => Boolean(m))
+       .filter(m=>!interviewer||!["teaching_frame","coaching_strategy"].includes(m.kind));
+  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):LEARNING_SYSTEM;
   const compiled=compileTutorPrompt({system:actualSystem,question:body.message,materials});
   // 槽1 装配后准入：一次跑完「该不该问 / 该不该拒」，主链路不再内联任何容量判断。
   // 顺序就是注册顺序（装配容量 → 材料缺口 → grounding 分型 → 提示词保护区），
@@ -245,7 +247,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
     { role:"system",content:actualSystem },
     { role:"user",content:actualPrompt }
-  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:mode==="auto"?45000:60000,timeoutMs:mode==="auto"?45000:60000,firstTokenTimeoutMs:mode==="auto"?8000:35000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;streamText(text);if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在回答，已生成 ${generatedChars} 字符…`);}}:undefined}));
+  ], {model,maxTokens:groundedDraft?1800:2400,maxRetries:0,timeout:mode==="auto"?45000:60000,timeoutMs:mode==="auto"?45000:60000,firstTokenTimeoutMs:mode==="auto"?8000:35000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft||interviewer?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft&&!interviewer?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;streamText(text);if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在回答，已生成 ${generatedChars} 字符…`);}}:undefined}));
   };
   let rawAnswer:string;
   // 换档事实只有这里知道：`selection.model` 会被改写成应答模型，台账里的
@@ -262,6 +264,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     modelSwap={from:selection.model,to:retryTo};
     selection.model=retryTo;
     rawAnswer=await generate(retryTo);
+  }
+  if(interviewer){
+    try{rawAnswer=renderInterview(rawAnswer,firstInterview);}
+    catch{return NextResponse.json({error:chatFailureMessage(new Error("模拟面试未满足一次一题要求"))},{status:422,headers});}
   }
   // 槽3 落库前核验·第一道：简历复核链路的事实回指。回指不上就不落库、不出稿。
   // 只有真走了 grounding 链路才供这一份输入——取不到输入的守卫会 pass(input_absent)。
@@ -291,7 +297,8 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   });
   guardVerdicts.push(...replyChecks);
   const guarded = (replyChecks.find((d) => d.guardId === INSUFFICIENCY_GUARD_ID)!.data as unknown as { legacy: GuardResult }).legacy;
-  const {answer,suggestions}=finalizeTeachingReply(frame, guarded);
+  // 模拟也必须经过反幻觉守卫，不能因使用专门协议绕过事实核验。
+  const {answer,suggestions}=interviewer?{answer:guarded.answer,suggestions:[]}:finalizeTeachingReply(frame, guarded);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){if(visibleTextAt!==null&&onReplace)onReplace(answer);else{visibleTextAt=Date.now();onDelta(answer);}onStatus?.("回答已核对，正在保存…");}
   // 成果草稿在这里定稿：本轮 turn id 由调用方先生成，标签里的尝试证据才指得回自己。
@@ -316,10 +323,11 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     : outcomeTag.malformed ? "本轮的成果草稿没有通过校验，本次未形成可保存成果；正文与原回答仍然保留。" : null;
   // 版本联合指纹：这一轮的「哪个版本」必须可拆成五个组件（FR-34）。
   // 台账里只存哈希，不存提示词正文与知识正文。
-  const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:LEARNING_PROMPT_VERSION;
+  const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:interviewer?INTERVIEW_CONTRACT_VERSION:LEARNING_PROMPT_VERSION;
+  const interactionMode=interviewer?"mock_interview":"coaching";
   const harness=harnessFingerprint({promptVersion,systemPrompt:actualSystem,retrieval:{...TUTOR_RETRIEVAL_CONFIG,materials:tutorMaterialFingerprintPayload()}});
   // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
-  const trace={promptVersion,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
+  const trace={promptVersion,interactionMode,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
   const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
   const {data,error} = await db.from("coach_agent_turns").insert({id:turnId,user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});

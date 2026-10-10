@@ -25,6 +25,33 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test('模拟面试首轮仅一题并保存模式，非法两题不保存',async()=>{
+  const q=setupGeneration();
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({question:'你如何判断权限改版的效果？'}));
+  const ask=()=>POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({message:'请扮演面试官，模拟面试，每次只问一个问题',requestId:'11111111-1111-4111-8111-111111111111'})}));
+  const result=await (await ask()).json();expect(result).toMatchObject({ok:true,answer:'你如何判断权限改版的效果？'});
+  expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({learning_trace:expect.objectContaining({interactionMode:'mock_interview'})}));
+  q.insert.mockClear();(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({question:'你做了什么？结果如何？'}));
+  const invalid=await (await ask()).json();expect(invalid.ok).not.toBe(true);expect(invalid.error).toContain('一次一题');expect(q.insert).not.toHaveBeenCalled();
+ });
+ test('下一轮普通回答沿用面试模式，反馈后只有一条追问',async()=>{
+  const q=setupGeneration();q.limit.mockResolvedValue({data:[{id:'prior',question:'模拟面试',answer:'你如何判断改版效果？',learning_trace:{interactionMode:'mock_interview'}}]});
+  const jobs={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[]})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==='coach_opportunities'?jobs:q});
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({feedback:'你区分了团队结果与个人职责，还缺指标口径。',question:'你如何定义审批完成率？'}));
+  const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({message:'我参与权限灰度上线，团队留存提升7个百分点。没有独立AI项目。',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
+  expect(result.ok).toBe(true);expect(result.answer.match(/[？?]/g)).toHaveLength(1);expect(result.answer).toContain('本题反馈');
+  expect((callLLM as jest.Mock).mock.calls[0][0][0].content).toContain('用户刚提交的是面试回答');
+ });
+ test('改写请求不能成为可引用的简历来源',async()=>{
+  const q=setupGeneration();const resume='参与企业权限灰度上线。团队留存提升7个百分点。';
+  (getContextBundleForUser as jest.Mock).mockResolvedValue({knowledge:[],attachments:[{id:'resume-text',text:resume}],claims:[],usage:{truncated:false},selection:{included:[{kind:'attachment',refId:'resume-text'}],excluded:[]}});
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({resumeQuotes:[{sourceId:'resume-text',quote:'参与企业权限灰度上线。'}]}));
+  const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({message:'基于已确认的简历事实写两条bullet',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
+  expect(result).toMatchObject({ok:true,answer:expect.stringContaining('参与企业权限灰度上线')});
+  expect(result.answer).not.toContain('基于已确认');expect(q.insert).toHaveBeenCalled();
+  const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;expect(prompt).not.toContain('"id":"current"');
+ });
  test("明确结束时模型澄清不流出，保存的也是最终收尾而非假完成",async()=>{
   const q=setupGeneration();
   (callLLM as jest.Mock).mockImplementation(async(_m,o)=>{o.onDelta("<clarify level=\"blocking\">你已经完全掌握，继续做题？</clarify>");return '<clarify level="blocking">懂了是什么意思？</clarify>';});

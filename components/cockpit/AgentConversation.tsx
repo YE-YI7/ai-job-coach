@@ -10,6 +10,7 @@ import SelectMenu from "@/components/ui/SelectMenu";
 import {type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
+import {savePendingAnswer,readPendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
 import {STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from "./tutor-intervention";
@@ -93,7 +94,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    if(token!==generation.current)return;
    if(!b.ok)throw Error(b.error||"无法找回学习记录");
    setSessions(b.sessions);const active=b.sessions.find((s:Session)=>s.status==="active");
-   if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/api/coach/agent?"+scope+"&sessionId="+active.id,{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current)setTurns(h.turns);}
+if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/api/coach/agent?"+scope+"&sessionId="+active.id,{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current){setTurns(h.turns);const saved=readPendingAnswer(pendingAnswerStore(),active.id);if(saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}}
   }).catch(e=>{if(token===generation.current&&!controller.signal.aborted)setError(e.message||"网络异常，请刷新找回记录");}).finally(()=>{if(token===generation.current)setLoading(false);});
   return()=>{generation.current=token+1;controller.abort();};
  },[scope,enabled,setModelNotice]);
@@ -126,11 +127,12 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    }
    const requestId=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.requestId:crypto.randomUUID();
    retry.current={text,sessionId:selected!.id,requestId};
+   if(!proactive)savePendingAnswer(pendingAnswerStore(),retry.current);
    const responseLatencyMs=answerReceivedAt.current===null?undefined:performance.now()-answerReceivedAt.current;
    const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode,proactive:proactive||undefined,pageContext:chatContext||undefined,responseLatencyMs})});
    const b=await readChatResponse<Turn&{ok?:boolean;error?:string;stageSuggestion?:OpportunityStage|null}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});
    if(token!==generation.current)return;if(!b.ok)throw Error(b.error||"回答暂时不可用");
-   retry.current=null;
+   clearPendingAnswer(pendingAnswerStore(),selected!.id);retry.current=null;
    answerReceivedAt.current=performance.now();
    setDraft("");
    setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,learning_trace:b.learning_trace}]);setPending("");
@@ -150,7 +152,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  async function selectSession(id:string){
   if(lock.current)return;const target=sessions.find(s=>s.id===id);if(!target)return;
   const token=++generation.current;jumpToLatest.current=true;setLoading(true);setError("");setFailedLesson(null);setSession(target);setTurns([]);setMessage("");setDraft("");setPending("");setModelNotice(null);
-  try{const r=await fetch("/api/coach/agent?"+scope+(id==="legacy"?"":"&sessionId="+id),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);}
+  try{const r=await fetch("/api/coach/agent?"+scope+(id==="legacy"?"":"&sessionId="+id),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);const saved=readPendingAnswer(pendingAnswerStore(),target.id);if(saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
   catch(e){if(token===generation.current)setError(e instanceof Error?e.message:"读取失败");}finally{if(token===generation.current)setLoading(false);}
  }
  return <section className={styles.panel} aria-label="对话辅导">
@@ -171,7 +173,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    {index===turns.length-1&&turns.length>=3&&session?.status==="active"&&<button type="button" disabled={busy||loading} onClick={()=>void archive()}>整理这次练习进展（AI 额度）</button>}
    </div></div>)}
    {pending&&!pendingProactive&&<p className={styles.question}>{pending}</p>}
-   {pending&&<div ref={incoming} className={styles.answer} style={{minHeight:readingHeight}}>{draft&&<TutorMarkdown>{draft}</TutorMarkdown>}{busy?<p className={styles.streamStatus} role="status">{progress||"正在连接导师…"}</p>:<small>回答未完成，尚未确认保存，请重试。</small>}</div>}
+   {pending&&<div ref={incoming} className={styles.answer} style={{minHeight:readingHeight}}>{draft&&<TutorMarkdown>{draft}</TutorMarkdown>}{busy?<p className={styles.streamStatus} role="status">{progress||"正在连接导师…"}</p>:<><p role="status">导师反馈尚未确认保存，原回答已恢复到输入框。</p><button type="button" disabled={loading||!enabled} onClick={()=>void send(message.trim()||pending)}>继续这次回答</button></>}</div>}
    {busy&&!pending&&<p role="status">导师正在整理进展…</p>}
    {stageSuggestion&&!busy&&<div className={styles.stageConfirm} role="group" aria-label="确认岗位状态"><span>{`听起来你已经「${STAGE_STATUS_WORDS[stageSuggestion]||stageSuggestion}」了——只有你点头、且云端保存成功我才改岗位状态：`}</span><button type="button" disabled={savingStage} onClick={async()=>{setSavingStage(true);try{if(await onStageAdvanced?.(stageSuggestion)!==false)setStageSuggestion(null);}finally{setSavingStage(false);}}}>{savingStage?"正在保存…":"更新状态"}</button><button type="button" disabled={savingStage} onClick={()=>setStageSuggestion(null)}>先不</button></div>}
    {session&&session.id!=="legacy"&&(session.summary||(session.status==="active"&&turns.length>0))&&<details className={styles.summary}><summary>本轮收获</summary>{session.summary?<TutorMarkdown>{session.summary}</TutorMarkdown>:<p>对话里值得下次带走的收获、难点和练习，整理后会存在这里。</p>}

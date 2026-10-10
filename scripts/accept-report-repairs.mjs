@@ -38,9 +38,17 @@ try{
  const requestId=randomUUID(),text='基于已确认简历事实，输出两条可直接放进简历的经历bullet，保留团队结果归属。';
  assert.equal((await request('/api/coach/agent/pending','POST',{sessionId,requestId,text})).status,201);
  const recovered=await request(`/api/coach/agent/pending?sessionId=${sessionId}`);assert.equal(recovered.data.pending.text,text);observations.push({test:'cloud answer recovery without browser storage',passed:true});
- const turn=await request('/api/coach/agent','POST',{opportunityId,sessionId,requestId,message:text,modelMode:'auto'});
- assert.equal(turn.status,200,`Grounded coach failed (${turn.status})`);assert.match(turn.data.answer,/简历改写草稿/);assert.match(turn.data.answer,/第 2 条/);assert.doesNotMatch(turn.data.answer,/主导企业权限|交付大模型/);observations.push({test:'two grounded editable bullets',passed:true});
- const committed=await request(`/api/coach/agent/pending?sessionId=${sessionId}`);assert.equal(committed.data.pending,null);observations.push({test:'completed answer not restored when cleanup has not run',passed:true});
+ if(!process.argv.includes('--interview-only')){
+  const turn=await request('/api/coach/agent','POST',{opportunityId,sessionId,requestId,message:text,modelMode:'auto'});
+  assert.equal(turn.status,200,`Grounded coach failed (${turn.status}): ${turn.data.error||'no error details'}`);assert.match(turn.data.answer,/简历改写草稿/);assert.match(turn.data.answer,/第 2 条/);assert.doesNotMatch(turn.data.answer,/主导企业权限|交付大模型/);observations.push({test:'two grounded editable bullets',passed:true});
+  const committed=await request(`/api/coach/agent/pending?sessionId=${sessionId}`);assert.equal(committed.data.pending,null);observations.push({test:'completed answer not restored when cleanup has not run',passed:true});
+ }
+ const interviewSession=await request('/api/coach/agent/sessions','POST',{opportunityId,title:'Synthetic one-question interview'});assert.equal(interviewSession.status,201);
+ const interviewId=interviewSession.data.session.id;
+ const first=await request('/api/coach/agent','POST',{opportunityId,sessionId:interviewId,requestId:randomUUID(),message:'现在开始模拟面试，你扮演面试官，每次只问一个问题，不要先给答案或评价。第一题围绕审批流程的业务判断与个人贡献。',modelMode:'auto'});
+ assert.equal(first.status,200,'Hosted first interview question failed');assert.equal((first.data.answer.match(/[?？]/g)||[]).length,1);assert.doesNotMatch(first.data.answer,/范文|练习示例|参考答案|本题反馈/);observations.push({test:'hosted first interview question without pre-answer coaching',passed:true});
+ const follow=await request('/api/coach/agent','POST',{opportunityId,sessionId:interviewId,requestId:randomUUID(),message:'我负责审批流程需求梳理，参与企业权限灰度上线。审批完成率从68%到81%是团队共同成果。我没有AI或大模型项目交付经验。',modelMode:'auto'});
+ assert.equal(follow.status,200,'Hosted interview follow-up failed');assert.match(follow.data.answer,/本题反馈/);assert.match(follow.data.answer,/追问/);assert.equal((follow.data.answer.match(/[?？]/g)||[]).length,1);observations.push({test:'hosted interview feedback and exactly one follow-up',passed:true});
  console.log(JSON.stringify({target,synthetic:true,observations},null,2));
 }catch(error){console.log(JSON.stringify({target,synthetic:true,observations,failure:error.message},null,2));process.exitCode=1;}
 finally{

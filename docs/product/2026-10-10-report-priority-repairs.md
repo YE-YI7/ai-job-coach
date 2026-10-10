@@ -1,5 +1,7 @@
 # 10-10 两份用户测试报告择优修复
 
+续修与真实模型验收见 [report-full-flow-recovery](2026-10-10-report-full-flow-recovery.md)。下文保留首轮历史证据，不代表续修后的当前状态。
+
 依据：业务真源中文 outputs 下同日 resume-interview-coach-feature-test 与 updated-product-review。使用报告中的虚构履历做回归，不改真人材料或余额。
 
 ## 本轮完成

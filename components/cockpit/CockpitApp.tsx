@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import useQuotaLabel from "./useQuotaLabel";
+import {assertGenerationQuota} from "@/lib/quota-preflight";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
 import ResumeRecovery from "./ResumeRecovery";
@@ -1592,7 +1593,17 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     return running ? toSessionView(running) : null;
   });
   /** 当前题目的反馈：needs_more_input 时停在本题，assessed 时才允许推进。 */
-  const [lastFeedback, setLastFeedback] = useState<InterviewAssessmentView | null>(null);
+  const [lastFeedback, setLastFeedback] = useState<InterviewAssessmentView | null>(()=>roundtable?.turns[roundtable.currentIndex]?.assessment||null);
+  const activeDraftQuestion = roundtable?.turns[roundtable.currentIndex]?.questionId;
+  const activeDraftStatus = roundtable?.turns[roundtable.currentIndex]?.assessment?.status;
+  useEffect(() => {
+    if (dataMode !== "live" || !roundtable?.id || !activeDraftQuestion || activeDraftStatus==="assessed") return;
+    const controller = new AbortController();
+    void fetch(`/api/interview/draft?${new URLSearchParams({sessionId: roundtable.id, questionId: activeDraftQuestion})}`, {cache:"no-store",signal:controller.signal})
+      .then(async response=>{const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"恢复回答失败");if(controller.signal.aborted)return;if(body.assessment){const assessment=normalizeInterviewAssessment(body.assessment);if(assessment){setLastFeedback(assessment);setRoundtable(current=>current?{...current,turns:current.turns.map(turn=>turn.questionId===activeDraftQuestion?{...turn,answer:body.completedAnswer,assessment}:turn)}:current);}}else if(body.answer){setRoundtableAnswer(current=>current||body.answer);setRoundtableError("已恢复这道题的回答，可以继续分析。");}})
+      .catch(()=>{if(!controller.signal.aborted)setRoundtableError("暂时无法恢复已保存回答，请稍后重试。");});
+    return()=>controller.abort();
+  },[dataMode,roundtable?.id,activeDraftQuestion,activeDraftStatus]);
   const roundtableWorkspaceRef = useRef<HTMLElement>(null);
   const [practiceQuestionId, setPracticeQuestionId] = useState<string | null>(null);
   const currentQuestion = opportunity.interviewFocus.find((item) => item.id === practiceQuestionId) || opportunity.interviewFocus[0] || {id:"intro",question:"请介绍一个你真实做过的项目，说明你的职责和目前的进展。",rationale:"没有上线或结果也可以如实说明，先练清楚事实和职责。",readiness:"practice" as const};
@@ -1609,7 +1620,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     const running = opportunity.mockInterviews?.find((item) => item.status === "running") || null;
     setRoundtable(running ? toSessionView(running) : null);
     setRoundtableOpen(Boolean(running));
-    setLastFeedback(null);
+    const restoredRound=running?toSessionView(running):null;
+    setLastFeedback(restoredRound?.turns[restoredRound.currentIndex]?.assessment||null);
     const restoredPractice = opportunity.interviewPractices?.[0] || null;
     setPracticeFeedback(restoredPractice);
     setFeedbackFor(restoredPractice?.question || null);
@@ -1639,6 +1651,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         });
         session = { id: `demo-roundtable-${Date.now()}`, round: roundOrdinalLabel, status: "running", currentIndex: 0, turns, createdAt: new Date().toISOString() };
       } else {
+        await assertGenerationQuota("interview",fetch,{answerSaved:false});
         const response = await fetch("/api/interview/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1739,6 +1752,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         await new Promise((resolve) => window.setTimeout(resolve, 450));
         assessment = buildDemoAssessment(roundtableAnswer.trim());
       } else {
+        const saved = await fetch("/api/interview/draft", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:roundtable.id,questionId:currentTurn.questionId,answer:roundtableAnswer.trim()})});
+        const savedBody = await saved.json();
+        if(!saved.ok||!savedBody.ok)throw new Error(savedBody.error||"回答未保存，尚未开始分析，请重试");
         const response = await fetch("/api/interview/answer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1932,7 +1948,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
               ? <button className={styles.primaryButton} disabled={submittingRoundtable} onClick={() => void goNextQuestion()}>{submittingRoundtable ? "正在承接你的回答…" : isLastQuestion ? "完成本轮，先写自我复盘" : "下一题"}<ArrowRight size={15} /></button>
               : <button className={styles.primaryButton} disabled={!roundtableAnswer.trim() || submittingRoundtable} onClick={() => void submitRoundtableAnswer()}>{submittingRoundtable ? "圆桌分析中…" : isBlocked ? "重新提交补充回答" : "提交回答"}{!isBlocked && <ArrowRight size={15} />}</button>}
           </div>
-          {roundtableError && <div className={styles.retryBlock}><p className={styles.inlineError}>{roundtableError}</p><button className={styles.secondaryButton} disabled={submittingRoundtable} onClick={() => void submitRoundtableAnswer()}><RotateCcw size={15} />重试本题</button></div>}
+          {roundtableError && <div className={styles.retryBlock}><p className={styles.inlineError}>{roundtableError}</p><button className={styles.secondaryButton} disabled={submittingRoundtable||!roundtableAnswer.trim()} onClick={() => void submitRoundtableAnswer()}><RotateCcw size={15} />从这条回答继续</button></div>}
         </>}
       </section>
     );

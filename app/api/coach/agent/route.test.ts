@@ -25,6 +25,28 @@ function setupGeneration(saveError=false){
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
+ test('明确教练模式覆盖历史面试模式，允许讲解',async()=>{
+  const q=setupGeneration();q.limit.mockResolvedValue({data:[{id:'prior',question:'模拟面试',answer:'你如何衡量效果？',learning_trace:{interactionMode:'mock_interview'}}]});
+  const jobs={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[]})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==='coach_opportunities'?jobs:q});
+  (callLLM as jest.Mock).mockResolvedValue('<answer>我们先讲解指标口径，再用一个练习示例说明。</answer>');
+  const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({interactionMode:'coaching',message:'继续这个问题',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
+  expect(result).toMatchObject({ok:true,learning_trace:{interactionMode:'coaching'}});
+ });
+ test('明确面试官入口不依赖用户说出模拟面试关键词',async()=>{
+  setupGeneration();(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({question:'你如何衡量权限改版的效果？'}));
+  const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({interactionMode:'mock_interview',message:'开始吧',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
+  expect(result).toMatchObject({ok:true,learning_trace:{interactionMode:'mock_interview'}});
+  expect(result.answer.match(/[？?]/g)).toHaveLength(1);
+ });
+ test('改写读取目标 JD，但 JD 不进入事实来源清单',async()=>{
+  setupGeneration();const resume='参与企业权限灰度上线。';
+  (getContextBundleForUser as jest.Mock).mockResolvedValue({opportunity:{id:'job',company:'测试公司',role:'产品经理',jdText:'岗位要求：独立训练大模型'},knowledge:[],claims:[],attachments:[{id:'resume-text',text:resume}],usage:{truncated:false},selection:{included:[{kind:'attachment',refId:'resume-text'}],excluded:[]}});
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({resumeQuotes:[{sourceId:'resume-text',quote:resume}]}));
+  const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({message:'帮我改写简历两条 bullet',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
+  expect(result.ok).toBe(true);const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
+  expect(prompt).toContain('岗位要求：独立训练大模型');expect(prompt).toContain('禁止作为改写事实来源');expect(result.answer).not.toContain('独立训练大模型');
+ });
  test('模拟面试首轮仅一题并保存模式，非法两题不保存',async()=>{
   const q=setupGeneration();
   (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({question:'你如何判断权限改版的效果？'}));

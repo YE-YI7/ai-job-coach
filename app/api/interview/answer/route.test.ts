@@ -6,8 +6,11 @@ import { detectAnswerGap, buildNeedsMoreInputAssessment } from "@/lib/interview/
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { acquireInterviewGenerationClaim, completeInterviewGenerationClaim, releaseInterviewGenerationClaim } from "@/lib/interview-generation-claims";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
+import { saveInterviewDraft, finishInterviewDraft } from "@/lib/interview/answer-draft";
+jest.mock("@/lib/interview/answer-draft");
 
 jest.mock("@/lib/auth");
+jest.mock("@/lib/coach-harness/repository",()=>({getConfirmedInterviewClaims:jest.fn(async()=>[])}));
 jest.mock("@/lib/db");
 jest.mock("@/lib/interview/llm");
 jest.mock("@/lib/interview/low-info-detector");
@@ -43,6 +46,8 @@ describe("interview answer POST", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (saveInterviewDraft as jest.Mock).mockResolvedValue("draft-1");
+    (finishInterviewDraft as jest.Mock).mockResolvedValue(undefined);
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: userId });
     (buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({ items: [], contextText: "" });
     (acquireInterviewGenerationClaim as jest.Mock).mockResolvedValue({ state: "idle" });
@@ -158,6 +163,21 @@ describe("interview answer POST", () => {
     expect(body.assessment.status).toBe("assessed");
     expect(body.assessment.score).toBe(80);
     expect(evaluateAnswer).toHaveBeenCalled();
+    expect((saveInterviewDraft as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((evaluateAnswer as jest.Mock).mock.invocationCallOrder[0]);
+    expect(finishInterviewDraft).toHaveBeenCalledWith(expect.objectContaining({sessionId,questionId,userId}),"我负责了用户增长项目");
+  });
+
+  test.each(["storage", "model"])("%s failure preserves answer without completion",async failure=>{
+    const sessionQ=mockTableChain();sessionQ.single.mockResolvedValue({data:{id:sessionId,user_id:userId,round_type:"业务面",jd:"JD"},error:null});
+    const questionQ=mockTableChain();questionQ.single.mockResolvedValue({data:{id:questionId,question_text:questionText},error:null});
+    (getDbClient as jest.Mock).mockResolvedValue(mockDbClient({interview_sessions:sessionQ,interview_questions:questionQ}));
+    (detectAnswerGap as jest.Mock).mockReturnValue({isLowInfo:false});
+    if(failure==="storage") (saveInterviewDraft as jest.Mock).mockRejectedValueOnce(Error("save failed"));
+    else (evaluateAnswer as jest.Mock).mockRejectedValueOnce(Error("model unavailable"));
+    const response=await POST(new Request("http://localhost/api/interview/answer",{method:"POST",body:JSON.stringify({session_id:sessionId,question_id:questionId,answer:"我的真实项目回答"})}));
+    expect(response.status).toBe(500);expect(finishInterviewDraft).not.toHaveBeenCalled();
+    if(failure==="storage")expect(evaluateAnswer).not.toHaveBeenCalled();
+    else {expect(saveInterviewDraft).toHaveBeenCalled();expect(releaseInterviewGenerationClaim).toHaveBeenCalled();}
   });
 
   test("returns 401 for unauthenticated user", async () => {

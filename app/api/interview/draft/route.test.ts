@@ -1,0 +1,16 @@
+import {GET,POST} from "./route";
+import {getCurrentUserFromRequest} from "@/lib/auth";
+import {getDbClient} from "@/lib/db";
+import {saveInterviewDraft} from "@/lib/interview/answer-draft";
+jest.mock("@/lib/auth");jest.mock("@/lib/db");jest.mock("@/lib/interview/answer-draft");
+function chain(data:unknown){const q:any={};for(const method of ["select","eq","order","limit"])q[method]=jest.fn(()=>q);q.maybeSingle=jest.fn(async()=>({data,error:null}));return q;}
+const request=(method="GET",answer="我的原回答")=>new Request("http://localhost/api/interview/draft?sessionId=session&questionId=question",method==="GET"?undefined:{method,headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"session",questionId:"question",answer})});
+beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:"owner"});(saveInterviewDraft as jest.Mock).mockResolvedValue("saved");});
+function db(pending:unknown={content:"我的原回答",metadata:{status:"pending"}}){const sessions=chain({id:"session",opportunity_id:"job"}),questions=chain({id:"question"}),sources=chain(pending),answers=chain(null);(getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>({interview_sessions:sessions,interview_questions:questions,coach_sources:sources,interview_answers:answers}[table])});return {sessions,questions,sources,answers};}
+test("unauthenticated request cannot save or recover",async()=>{(getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);expect((await POST(request("POST"))).status).toBe(401);expect(saveInterviewDraft).not.toHaveBeenCalled();});
+test("free draft saves exact text only after owned session and question checks",async()=>{const {sessions,questions}=db();expect((await POST(request("POST"))).status).toBe(200);expect(sessions.eq).toHaveBeenCalledWith("user_id","owner");expect(questions.eq).toHaveBeenCalledWith("session_id","session");expect(saveInterviewDraft).toHaveBeenCalledWith({userId:"owner",sessionId:"session",questionId:"question",opportunityId:"job"},"我的原回答");});
+test("foreign session cannot read any answer",async()=>{const {sessions}=db();sessions.maybeSingle.mockResolvedValue({data:null,error:null});expect((await GET(request())).status).toBe(404);expect(saveInterviewDraft).not.toHaveBeenCalled();});
+test("refresh restores exact pending answer for this question",async()=>{const {sources}=db();expect(await (await GET(request())).json()).toEqual({ok:true,answer:"我的原回答"});expect(sources.eq).toHaveBeenCalledWith("metadata->>questionId","question");expect(sources.order).toHaveBeenCalledWith("captured_at",{ascending:false});});
+test("completed draft never reappears",async()=>{db({content:"旧回答",metadata:{status:"completed"}});expect(await (await GET(request())).json()).toEqual({ok:true,answer:null});});
+test("lost response restores saved assessment rather than calling AI again",async()=>{const {answers}=db();answers.maybeSingle.mockResolvedValue({data:{answer:"我的原回答",assessment:{status:"assessed"}},error:null});expect(await (await GET(request())).json()).toEqual({ok:true,answer:null,completedAnswer:"我的原回答",assessment:{status:"assessed"}});});
+test("save failure is visible and does not claim success",async()=>{db();(saveInterviewDraft as jest.Mock).mockRejectedValue(Error("write failed"));expect((await POST(request("POST"))).status).toBe(503);});

@@ -118,6 +118,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   try { body = await req.json(); } catch { return NextResponse.json({ error: "请求格式错误" }, { status: 400, headers }); }
   const id = body?.opportunityId ?? null;
   const mode=body?.modelMode??"auto";
+  if(body.interactionMode!==undefined&&!["coaching","mock_interview"].includes(body.interactionMode))return NextResponse.json({error:"辅导模式无效"},{status:400,headers});
   if(!isChatMode(mode))return NextResponse.json({error:"模型选项无效"},{status:400,headers});
   const sessionId=body?.sessionId??null;
   if(sessionId!==null&&(typeof sessionId!=="string"||!uuid.test(sessionId)))return NextResponse.json({error:"会话无效"},{status:400,headers});
@@ -137,7 +138,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
       learning_trace:publicTrace(existing.learning_trace)}:{error:"请求已用于其他会话"},{status:same?200:409,headers});
   }
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
-  const groundedDraft=needsResumeGrounding(body.message);
+  const groundedDraft=body.interactionMode!=="mock_interview"&&needsResumeGrounding(body.message);
   const reference = await resolveSavedJobReference(user.id, body.message);
   const contextId = reference.ambiguous.length ? null : reference.job?.id ?? id;
   if(id && contextId!==id){
@@ -193,12 +194,13 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const pageContext = [renderInboundEventsForAgent(savedEvents), typeof body?.pageContext === "string" ? body.pageContext : ""].filter(Boolean).join("\n\n");
   const sources = resumeSources(context);
   const priorMode=turns.at(-1)?.learning_trace?.interactionMode;
-  const interviewer=!groundedDraft&&interviewMode(body.message,priorMode);
+  const interviewer=!groundedDraft&&(body.interactionMode===undefined?interviewMode(body.message,priorMode):body.interactionMode==="mock_interview");
   const firstInterview=interviewer&&priorMode!=="mock_interview";
   // 每条料的预算与可信标注只在 TUTOR_MATERIALS 里声明一次，这里只负责供料。
   const materials: TutorMaterialInput[] = groundedDraft
     ? [
         { kind: "resume_sources", refId: "grounding-sources", text: JSON.stringify(sources) },
+        ...(context.opportunity ? [{ kind: "job_reference_note" as const, refId: context.opportunity.id, text: `目标岗位（仅用于选择表达重点，不是候选人经历，禁止作为改写事实来源）：\n${JSON.stringify(context.opportunity)}` }] : []),
         ...context.knowledge.map(k => ({ kind: "knowledge_reference" as const, refId: k.id, text: k.content || "" })),
       ]
     : [

@@ -34,6 +34,7 @@ import {
 } from "@/lib/coach-harness";
 import { v4 as uuidv4 } from "uuid";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { getConfirmedInterviewClaims } from "@/lib/coach-harness/repository";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import type {
@@ -124,10 +125,11 @@ export async function POST(request: Request) {
     }
 
     let effectiveJd = typeof jd === "string" ? jd.trim() : "";
+    let ownedResumeText = "";
     let companyResearch = "";
     if (opportunityId) {
       const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
-        .select("id, jd_text, company, role").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
+        .select("id, jd_text, company, role, metadata").eq("id", opportunityId).eq("user_id", userId).maybeSingle();
       if (opportunityError) throw opportunityError;
       if (!opportunity) return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
         status: 404, headers: { "Content-Type": "application/json" },
@@ -136,6 +138,7 @@ export async function POST(request: Request) {
       // 如实使用请求里的 JD，而不是报「缺 JD」却让用户对着页面上的 JD 快照发呆。
       const dbJd = String(opportunity.jd_text || "").trim();
       effectiveJd = dbJd || effectiveJd;
+      ownedResumeText = typeof opportunity.metadata?.resumeText === "string" ? opportunity.metadata.resumeText.trim() : "";
       companyResearch = renderCompanyResearch(await readCompanyResearch(userId, opportunity).catch(() => null));
     }
     if (!effectiveJd) {
@@ -154,7 +157,7 @@ export async function POST(request: Request) {
     }
 
     // 5. 查询用户简历数据（用于个性化出题）
-    let resumeText = useResume ? String(body.resumeText || "").trim().slice(0, 30_000) : "";
+    let resumeText = useResume ? ownedResumeText || String(body.resumeText || "").trim() : "";
     if (useResume) {
       try {
         if (resumeText) console.log(`已加载当前岗位简历 (${resumeText.length} 字符)`);
@@ -182,11 +185,12 @@ export async function POST(request: Request) {
     const context = compileContextBundle({
       task: "mock_interview",
       userId,
-      claims: [],
+      claims: await getConfirmedInterviewClaims(userId,opportunityId),
+      claimSelection: "all_required",
       knowledge: toKnowledgeItems(knowledge.items as unknown as Array<Record<string, unknown>>),
       attachments: [
         { id: "interview-jd", label: "岗位 JD", text: effectiveJd, required: true },
-        { id: "resume-text", label: "候选人简历", text: resumeText, required: false },
+        { id: "resume-text", label: "候选人简历", text: resumeText, required: Boolean(resumeText) },
         ...(companyResearch ? [{ id: "company-research", label: "公司公开调研（未交叉验证）", text: companyResearch, required: false }] : []),
       ],
       budget: { maxInputTokens: INTERVIEW_START_BUDGET },

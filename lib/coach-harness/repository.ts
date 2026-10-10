@@ -43,6 +43,17 @@ export function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
   return db;
 }
 
+/** Interview phases reuse owned confirmed facts; another job's facts never enter. */
+export async function getConfirmedInterviewClaims(userId: string, opportunityId?: string | null): Promise<CareerClaim[]> {
+  const db = requireDb(await getDbClient());
+  let query = db.from("coach_claims").select(CLAIM_COLUMNS).eq("user_id", userId).eq("status", "confirmed");
+  query = scopeToUserAndOpportunity(query, opportunityId || null, (q, expression)=>q.or(expression), q=>q.is("opportunity_id",null));
+  const {data,error} = await query.order("updated_at",{ascending:false}).limit(301);
+  if(error)throw error;
+  if((data||[]).length>300)throw new Error("已确认事实较多，本轮无法完整读取；请缩小练习范围，原材料仍已保存。");
+  return ((data||[]) as DbRow[]).map(mapClaim);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -293,7 +304,7 @@ export async function getContextBundleForUser(input: {
     // 简历刚上传、逐条事实还没沉淀时就会说出「你没上传实习经历」这种反问。
     const meta = (data.metadata ?? {}) as { resumeText?: unknown };
     if (input.task !== "resume_workshop" && typeof meta.resumeText === "string" && meta.resumeText.trim()) {
-      resumeAttachment = { id: "resume-text", label: "用户已上传的简历原文（其中已有的信息不得反问）", text: meta.resumeText.trim().slice(0, 6_000), required: false };
+      resumeAttachment = { id: "resume-text", label: "用户已上传的简历原文（其中已有的信息不得反问）", text: meta.resumeText.trim(), required: input.claimSelection === "all_required" };
     }
   }
 

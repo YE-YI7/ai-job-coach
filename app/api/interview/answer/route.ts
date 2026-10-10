@@ -30,6 +30,8 @@ import {
 import { detectAnswerGap, buildNeedsMoreInputAssessment } from "@/lib/interview/low-info-detector";
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "node:crypto";
+import { saveInterviewDraft, finishInterviewDraft } from "@/lib/interview/answer-draft";
+import { getConfirmedInterviewClaims } from "@/lib/coach-harness/repository";
 import type {
   AnswerQuestionRequest,
   AnswerQuestionResponse,
@@ -88,7 +90,7 @@ export async function POST(request: Request) {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
-    if (!answer || typeof answer !== "string" || answer.trim().length === 0) {
+    if (!answer || typeof answer !== "string" || answer.trim().length === 0 || answer.length > 30_000) {
       return new Response(
         JSON.stringify({ ok: false, error: "缺少或无效的 answer 字段" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -148,9 +150,10 @@ export async function POST(request: Request) {
     }
     const effectiveOpportunityId = session.opportunity_id || opportunityId;
     let urgent = false;
+    let ownedResumeText = "";
     if (effectiveOpportunityId) {
       const { data: opportunity, error: opportunityError } = await db.from("coach_opportunities")
-        .select("id, scheduled_interview_at").eq("id", effectiveOpportunityId).eq("user_id", userId).maybeSingle();
+        .select("id, scheduled_interview_at, metadata").eq("id", effectiveOpportunityId).eq("user_id", userId).maybeSingle();
       if (opportunityError) throw opportunityError;
       if (!opportunity) {
         return new Response(JSON.stringify({ ok: false, error: "岗位不存在" }), {
@@ -158,11 +161,15 @@ export async function POST(request: Request) {
         });
       }
       const scheduledAt = opportunity.scheduled_interview_at ? new Date(String(opportunity.scheduled_interview_at)).getTime() : null;
+      ownedResumeText = typeof opportunity.metadata?.resumeText === "string" ? opportunity.metadata.resumeText.trim() : "";
       if (scheduledAt !== null && Number.isFinite(scheduledAt)) {
         urgent = scheduledAt - Date.now() <= 48 * 60 * 60 * 1000;
       }
     }
 
+    const draftScope = { userId, sessionId: session_id, questionId: question_id, opportunityId: effectiveOpportunityId };
+    // Durable free write BEFORE claim/model: failures and exhausted quota cannot lose the answer.
+    await saveInterviewDraft(draftScope, answer.trim());
     const answerFingerprint = createHash("sha256")
       .update(answer.trim().replace(/\s+/g, " "))
       .digest("hex")
@@ -181,6 +188,7 @@ export async function POST(request: Request) {
       });
     }
     if (claim.state === "completed") {
+      await finishInterviewDraft(draftScope, answer.trim());
       return new Response(JSON.stringify({ question_id, assessment: claim.result }), {
         status: 200,
         headers: { "Content-Type": "application/json", "x-yi-zhi-idempotent-replay": "true" },
@@ -208,6 +216,7 @@ export async function POST(request: Request) {
           });
         if (insertError) throw insertError;
         await completeInterviewGenerationClaim(claimKey, userId, assessment);
+        await finishInterviewDraft(draftScope, answer.trim());
       } catch (insertErr) {
         await releaseInterviewGenerationClaim(claimKey, userId).catch((releaseError) => {
           console.error("Release low-info answer claim failed", releaseError);
@@ -227,8 +236,9 @@ export async function POST(request: Request) {
       });
     }
 
+    try {
     // 8. 查询用户简历数据
-    let resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
+    let resumeText = ownedResumeText || String(body.resumeText || "").trim();
     try {
       if (!resumeText) {
         const resume = await getLatestResumeByUserId(userId);
@@ -250,13 +260,14 @@ export async function POST(request: Request) {
     const context = compileContextBundle({
       task: "mock_interview",
       userId,
-      claims: [],
+      claims: await getConfirmedInterviewClaims(userId,effectiveOpportunityId),
+      claimSelection: "all_required",
       knowledge: toKnowledgeItems(knowledge.items as unknown as Array<Record<string, unknown>>),
       questionSource: { id: question_id, text: question.question_text },
       currentInput: answer.trim(),
       attachments: [
         { id: "interview-jd", label: "岗位 JD", text: String(session.jd || ""), required: true },
-        { id: "resume-text", label: "候选人简历", text: resumeText, required: false },
+        { id: "resume-text", label: "候选人简历", text: resumeText, required: Boolean(resumeText) },
       ],
       budget: { maxInputTokens: ANSWER_BUDGET },
     });
@@ -265,7 +276,6 @@ export async function POST(request: Request) {
       excludeKinds: ["question_source", "current_input"],
     });
 
-    try {
       // 10. 评估答案（LLM 失败时抛出错误，不静默降级）
       const assessment = await runWithGenerationContext({
         userId,
@@ -298,6 +308,7 @@ export async function POST(request: Request) {
 
       if (answerError) throw new Error(`保存答案失败：${answerError.message}`);
       await completeInterviewGenerationClaim(claimKey, userId, assessment);
+      await finishInterviewDraft(draftScope, answer.trim());
 
       // 12. 返回响应
       const response: AnswerQuestionResponse = {

@@ -1,4 +1,4 @@
-export type PendingAnswer={text:string;sessionId:string;requestId:string};
+export type PendingAnswer={text:string;sessionId:string;requestId:string;interactionMode?:"coaching"|"mock_interview"};
 type Store=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 const key=(id:string)=>`yi-zhi.pending-answer.v1:${id}`;
 export function pendingAnswerStore():Store {return {getItem:k=>{try{return sessionStorage.getItem(k);}catch{return null;}},setItem:(k,v)=>{try{sessionStorage.setItem(k,v);}catch{}},removeItem:k=>{try{sessionStorage.removeItem(k);}catch{}}};}

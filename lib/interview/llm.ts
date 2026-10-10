@@ -116,8 +116,8 @@ export function formatResumeForPrompt(parsed: ParsedResumeLike | null | undefine
 
   // 如果是纯文本简历（rawText）
   if (parts.length === 0 && parsed.rawText) {
-    // 截取前2000字符避免过长
-    return parsed.rawText.substring(0, 2000);
+    // The context compiler owns the token budget; never silently truncate twice.
+    return parsed.rawText;
   }
 
   return parts.join("\n\n");

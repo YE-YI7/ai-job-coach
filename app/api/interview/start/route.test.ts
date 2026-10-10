@@ -11,6 +11,7 @@ jest.mock("@/lib/db");
 jest.mock("@/lib/interview/llm");
 jest.mock("@/lib/knowledge/context");
 jest.mock("@/lib/quota");
+jest.mock("@/lib/coach-harness/repository",()=>({getConfirmedInterviewClaims:jest.fn(async()=>[])}));
 jest.mock("@/lib/tokenpay-recovery");
 jest.mock("@/lib/generation-context", () => ({
   runWithGenerationContext: jest.fn((_ctx: unknown, fn: () => unknown) => fn()),

@@ -17,5 +17,5 @@ test("resume filename identifies material, arbitrary PDF does not",()=>{
 });
 test("known job preserves original JD only with explicit kind and fields",()=>{
  expect(deferredIntake({...base,materialKindHint:"job",company:"测试公司",role:"产品经理"})).toMatchObject({workspaceType:"job",jdText:"原始文字"});
- expect(deferredIntake({...base,materialKindHint:"job"})).toBeNull();
+ expect(deferredIntake({...base,materialKindHint:"job"})).toMatchObject({workspaceType:"job",company:"公司待确认",role:"岗位待确认",jdText:"原始文字"});
 });

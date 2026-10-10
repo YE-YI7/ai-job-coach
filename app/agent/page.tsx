@@ -101,7 +101,7 @@ export default function AgentGuide() {
 
           <section id="mcp">
             <span className={styles.step}>03</span>
-            <h2>没有 MCP，就还没有“产品”</h2>
+            <h2>接通本地记录与作战盘</h2>
             <p>Skills 只规定求职方法；本地 MCP 才会保存岗位机会、产物和下一步，并启动可视化作战盘。除 Codex 完整 Plugin 与 WorkBuddy 自动配置外，请把下面的 stdio 服务注册进当前宿主。</p>
             <pre className={styles.config}><code>{`{
   "mcpServers": {
@@ -121,10 +121,10 @@ export default function AgentGuide() {
             <ol className={styles.checklist}>
               <li><CheckCircle2 size={18} /><span>确认出现 <code>yi_zhi_create_case</code>、<code>yi_zhi_get_cockpit_url</code> 等益职工具。</span></li>
               <li><CheckCircle2 size={18} /><span>创建或继续一个岗位机会；没有真实 JD 时，只做明确标注的验证事项。</span></li>
-              <li><CheckCircle2 size={18} /><span>调用作战盘链接工具，确认返回 <code>http://127.0.0.1:端口</code> 且页面可打开。</span></li>
+              <li><CheckCircle2 size={18} /><span>先运行 <code>yi_zhi_diagnose</code> 检查版本、存储和运行模式。电脑宿主可打开本地作战盘；远程或无浏览器宿主用工具读取与继续事项，不把打不开 localhost 当作安装失败。</span></li>
               <li><CheckCircle2 size={18} /><span>把验证事项删除或说明其为测试数据，再向用户报告结果。</span></li>
             </ol>
-            <div className={styles.failureBox}>如果宿主不支持 MCP，必须直说“求职方法已安装，但可视作战盘尚未接通”；不能把仅安装 Skills 描述成完整成功。</div>
+            <div className={styles.failureBox}>只支持 Skills 时，可以完成简历与面试辅导，但不会自动保存本地作战盘；支持 MCP 的无浏览器宿主，可以保存事项并通过工具继续。求助时只提供诊断状态、版本、时间和错误编号，不发送简历全文、密钥或验证码。</div>
           </section>
 
           <section id="update">

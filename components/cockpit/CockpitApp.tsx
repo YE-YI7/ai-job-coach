@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import useQuotaLabel from "./useQuotaLabel";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
 import ResumeRecovery from "./ResumeRecovery";
@@ -131,31 +132,6 @@ function compactAccountLabel(email?: string) {
 function coverageTotal(opportunity: Opportunity) {
   const { strong, weak, missing, unverified } = opportunity.evidenceCoverage;
   return strong + weak + missing + unverified;
-}
-
-function useQuotaLabel(type: "chat" | "resume" | "interview", busy = false) {
-  const [label, setLabel] = useState("1 次额度");
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    const refresh = () => setVersion(value => value + 1);
-    window.addEventListener("yizhi-quota-changed", refresh);
-    return () => window.removeEventListener("yizhi-quota-changed", refresh);
-  }, []);
-  useEffect(() => {
-    if (busy) return;
-    let active = true;
-    fetch("/api/quota/check").then((response) => response.json()).then((result) => {
-      const check = result?.checks?.[type];
-      if (!active || !check) return;
-      if (check.source === "tokenpay") {
-        setLabel("使用 TokenPay 余额");
-        return;
-      }
-      setLabel(check.source === "watcha" ? `1 积分 · 剩余 ${check.remaining}` : check.allowed ? `${check.source === "free" ? "免费" : "付费"}剩余 ${check.remaining} 次` : "额度不足");
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, [type, busy, version]);
-  return label;
 }
 
 export function CockpitApp({
@@ -486,6 +462,7 @@ export function CockpitApp({
     if (dataMode === "live") trackProductEvent("opportunity_material_started", { opportunity_id: active.id, material_kind: supplement.kind, input_type: supplement.file ? "file" : "text" });
     try {
       const form = new FormData();
+      if(supplement.saveOnly)form.set("mode","save_only");
       form.set("requestId", crypto.randomUUID());
       form.set("materialKindHint", supplement.kind);
       form.set("company", active.company);
@@ -523,7 +500,9 @@ export function CockpitApp({
         requirements: analysis.requirements ?? active.requirements,
         actions: analysis.actions ?? active.actions,
         interviewFocus: analysis.interviewFocus ?? active.interviewFocus,
-        resumeChanges: [],
+        resumeChanges: active.resumeChanges,
+        resumeCheckStale: true,
+        frozenStale: active.frozenStale || Boolean(active.snapshots?.some(snapshot=>snapshot.snapshotType==="submitted_resume")),
         applicationQuality: undefined,
         nextEventLabel: input.workspaceType === "job" ? "今天完成投递判断" : active.nextEventLabel,
         activities: [{
@@ -534,12 +513,16 @@ export function CockpitApp({
           timeLabel: "刚刚",
         }, ...active.activities],
       };
+      if(dataMode==="live"&&!localIds.includes(active.id))await saveOpportunity.current(active.id,async()=>{
+        const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});
+        const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"原文未保存到云端，请保留输入后重试");
+      });
       setOpportunities((current) => shareBaseResumeAcrossOpportunities(current.map((item) => item.id === active.id ? updated : item)));
       if (dataMode === "live") trackProductEvent("opportunity_material_completed", { opportunity_id: active.id, material_kind: supplement.kind });
-      announce(result.analysis
+      announce(result.savedOnly?"原文已保存 · 未调用 AI、未扣额度":result.analysis
         ? `已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`
         : `已收到${supplement.kind === "job" ? "岗位 JD" : supplement.kind === "resume" ? "简历" : "经历"}，分析未完成；请稍后主动继续辅导，不会自动发起收费分析`);
-      raiseGapCoaching(updated);
+      if(result.analysis)raiseGapCoaching(updated);
     } catch (error) {
       if (dataMode === "live") trackProductEvent("opportunity_material_failed", { opportunity_id: active.id, material_kind: supplement.kind });
       throw error;
@@ -1011,7 +994,7 @@ export function CockpitApp({
         <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry} initialSourceText={newEntry==="resume" && active?.workspaceType==="preparation" && !active.resumeText ? active.profileText || "" : ""} onCreate={createOpportunity} onBusyChange={setIntakeBusy} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
-          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
+          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
           {active.workspaceType !== "preparation" && <>
           <div className={styles.documentBody}>
             {activeTab==="resume"&&!active.resumeText&&<ContextMaterialAction kind="resume" title="上传简历开始修改" description="拖入文件或粘贴内容，不会覆盖已有岗位。" placeholder="粘贴简历内容" loading={supplementingMaterial} onSubmit={supplementOpportunity}/>}
@@ -1064,7 +1047,7 @@ export function CockpitApp({
 type NewOpportunityInput = { workspaceType?: "job" | "preparation"; company: string; role: string; location: string; jdText: string; resumeText: string; profileText?: string; sourceLabel?: string };
 type OpportunityIntake = { sourceText: string; file: File | null };
 type AnalyzeIntakeResult = { input: NewOpportunityInput; analysis: Partial<Opportunity> | null; analysisDeferred?: boolean; reasonCode?: string };
-type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null };
+type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null; saveOnly?:boolean };
 
 function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: (entry: "direction" | "resume" | "interview") => void; onLogout: () => void }) {
   return (
@@ -1275,13 +1258,14 @@ function CreationRail() {
   return <aside className={styles.actionRail}><div className={styles.railHeading}><div><h2>不用先整理</h2><p>原始材料就够了</p></div></div><ol className={styles.creationGuide}><li><strong>你提供</strong><span>一个公开链接、一段 JD 或一份文件。</span></li><li><strong>导师处理</strong><span>识别信息，拆要求，建立岗位档案。</span></li><li><strong>需要时再问</strong><span>只追问会改变投递判断的事实。</span></li></ol></aside>;
 }
 
-function ContextMaterialAction({ kind, title, description, placeholder, loading, onSubmit }: {
+function ContextMaterialAction({ kind, title, description, placeholder, loading, onSubmit,existingText }: {
   kind: OpportunitySupplement["kind"];
   title: string;
   description: string;
   placeholder: string;
   loading: boolean;
   onSubmit: (input: OpportunitySupplement) => Promise<void>;
+  existingText?:string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -1290,13 +1274,13 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
   const [error, setError] = useState("");
   const quotaLabel = useQuotaLabel("chat");
 
-  const submit = async (file: File | null = null) => {
+  const submit = async (file: File | null = null,saveOnly=kind==="resume") => {
     if (loading || (!file && !sourceText.trim())) return;
     if (file && !/\.(pdf|docx|txt|md)$/i.test(file.name)) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
     if (file && file.size > 4 * 1024 * 1024) return setError("文件不能超过 4MB，请压缩 PDF 或上传文字版");
     setError("");
     try {
-      await onSubmit({ kind, sourceText, file });
+      await onSubmit({ kind, sourceText, file,saveOnly });
       setSourceText("");
       setExpanded(false);
     } catch (submitError) {
@@ -1317,17 +1301,18 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
     >
       <div className={styles.contextActionLead}>
         <span className={styles.contextActionIcon}>{kind === "job" ? <Link2 size={18} /> : <UploadCloud size={18} />}</span>
-        <div><strong>{loading ? "正在读取并重新判断…" : title}</strong><p>{loading ? "我会保留已有材料，只更新受影响的判断。" : description}</p></div>
+        <div><strong>{loading ? "正在处理材料…" : title}</strong><p>{loading ? "已有改稿会保留，保存完成后会确认。" : description}</p></div>
       </div>
       <MaterialDataNotice/>
       {!loading && <div className={styles.contextActionButtons}>
-        <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />上传文件</button>
+        <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />{kind==="resume"?"上传文件 · 免费保存":"上传文件"}</button>
+        {kind==="resume"&&existingText?.trim()&&<button type="button" className={styles.contextSecondaryAction} onClick={()=>{setError("");void onSubmit({kind,sourceText:existingText,file:null,saveOnly:false}).catch(e=>setError(e instanceof Error?e.message:"分析未完成"));}}>AI 分析已存简历 · {quotaLabel}</button>}
         <button type="button" className={styles.contextSecondaryAction} onClick={() => setExpanded((value) => !value)}>{kind === "job" ? <Link2 size={15} /> : <FileText size={15} />}{expanded ? "收起输入" : kind === "job" ? "粘贴 JD / 链接" : "粘贴内容"}</button>
         <input ref={inputRef} className={styles.materialFileInput} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => void submit(event.target.files?.[0] || null)} />
       </div>}
       {expanded && !loading && <div className={styles.contextComposer}>
         <textarea value={sourceText} onChange={(event) => { setSourceText(event.target.value); setError(""); }} rows={4} placeholder={placeholder} autoFocus />
-        <div><span>也可把文件拖到这里 · {quotaLabel}</span><button type="button" onClick={() => void submit()} disabled={!sourceText.trim()}>补充并重新判断 <ArrowRight size={15} /></button></div>
+        <div><span>也可把文件拖到这里</span>{kind==="resume"&&<button type="button" onClick={()=>void submit(null,true)} disabled={!sourceText.trim()}>保存原文 · 免费</button>}<button type="button" onClick={() => void submit(null,false)} disabled={!sourceText.trim()}>AI 分析 · {quotaLabel} <ArrowRight size={15} /></button></div>
       </div>}
       {error && <p className={styles.contextActionError} role="alert">{error}</p>}
     </div>

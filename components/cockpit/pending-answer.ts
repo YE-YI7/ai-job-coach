@@ -8,3 +8,18 @@ export function clearPendingAnswer(store:Store,id:string){try{store.removeItem(k
 export function readPendingAnswer(store:Store,id:string):PendingAnswer|null{
  try{const v=JSON.parse(store.getItem(key(id))||'null');return v&&v.sessionId===id&&typeof v.text==='string'&&v.text.trim()&&v.text.length<=4000&&typeof v.requestId==='string'&&/^[a-f0-9-]{36}$/i.test(v.requestId)?v:null;}catch{return null;}
 }
+
+/** Completed requests must not be replayed, even if cleanup lost its connection. */
+export async function restorePendingAnswer(id:string,completedRequests:string[]=[],signal?:AbortSignal):Promise<PendingAnswer|null>{
+ if(id==="legacy")return null;
+ const r=await fetch(`/api/coach/agent/pending?sessionId=${encodeURIComponent(id)}`,{cache:"no-store",signal});
+ const body=await r.json();if(!r.ok||!body.ok)throw Error(body.error||"暂时无法恢复待分析回答");
+ const saved=body.pending||readPendingAnswer(pendingAnswerStore(),id);
+ if(saved&&[...completedRequests,...(body.completedRequestIds||[])].includes(saved.requestId)){clearPendingAnswer(pendingAnswerStore(),id);return null;}
+ return saved;
+}
+export async function persistPendingAnswer(value:PendingAnswer){
+ savePendingAnswer(pendingAnswerStore(),value);
+ const r=await fetch("/api/coach/agent/pending",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)});
+ const body=await r.json();if(!r.ok||!body.ok)throw Error(body.error||"回答暂未保存到云端，请保留原文后重试");
+}

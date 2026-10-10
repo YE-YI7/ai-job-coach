@@ -9,7 +9,7 @@ export function deferredIntake(input:{materialKindHint:string;sourceLabel:string
   if(!text.trim())return null;
   return {workspaceType:"preparation",company:"求职准备",role:input.role||"目标待确认",location:input.location,jdText:"",resumeText:text,profileText:text,sourceLabel:input.sourceLabel};
  }
- if(input.materialKindHint==="job"&&input.company&&input.role&&input.jdText.trim())return {...input,workspaceType:"job",profileText:""};
+ if(input.materialKindHint==="job"&&input.jdText.trim())return {...input,company:input.company||"公司待确认",role:input.role||"岗位待确认",workspaceType:"job",profileText:""};
  return null;
 }
 

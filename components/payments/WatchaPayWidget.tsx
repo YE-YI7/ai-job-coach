@@ -47,6 +47,7 @@ export default function WatchaPayWidget() {
     <dialog ref={dialog} className={styles.dialog} aria-labelledby="watcha-wallet-title" onClose={() => setConfirmed(false)} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
       <div className={styles.header}><h2 id="watcha-wallet-title">益职积分{sandbox ? ' · 沙箱' : ''}</h2><button type="button" autoFocus aria-label="关闭积分窗口" onClick={() => dialog.current?.close()}><X size={20} /></button></div>
       <div className={styles.balance}><span>益职可用积分</span><strong>{state?.balance ?? '—'}</strong><p>免费额度用完后，每次 AI 处理预留 1 积分；失败退回。已连接 TokenPay 时优先使用 TokenPay。</p></div>
+      <details><summary>哪些操作消耗额度？</summary><ul><li>保存原文、修改简历、保存笔记、预览和导出：免费。</li><li>材料 AI 分析、岗位搜索、导师每次回答：聊天额度。</li><li>简历编辑器生成改写：简历额度。</li><li>面试反馈：面试额度；免费面试使用聊天免费额度。</li><li>免费或已购次数用完后，每次 AI 处理用 1 积分；10 积分不是 10 场完整面试。</li><li>TokenPay 按实际模型用量计费；处理失败的用量保护以付款渠道规则为准。</li></ul></details>
       {available && <>
         <div className={styles.offer}><div><h3>{sandbox ? '沙箱测试商品' : '求职辅导体验包'}</h3><p>{sandbox ? '模拟购买，不收取真实资金' : '10 积分 · ¥9.90'}</p></div><a className={styles.primary} href={available.purchase.url} target="_blank" rel="noopener noreferrer">支付宝购买</a></div>
         {available.purchase.qrUrl && <div className={styles.qr}>

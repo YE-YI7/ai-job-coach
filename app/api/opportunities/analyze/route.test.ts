@@ -24,13 +24,24 @@ describe("material intake on model outage",()=>{
   expect(await response.json()).toMatchObject({ok:true,analysis:null,analysisDeferred:true,input:{jdText:"",resumeText:"本人真实经历原文"}});
   expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
  });
+ test("save-only extraction never reserves quota or invokes AI",async()=>{
+  (reserveQuota as jest.Mock).mockResolvedValue(null);
+  const response=await POST(new Request("https://example.com",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"save_only",materialKindHint:"resume",sourceText:"真实简历原文"})}));
+  expect(await response.json()).toMatchObject({ok:true,savedOnly:true,input:{resumeText:"真实简历原文"},analysis:null});
+  expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();
+ });
+ test("exhausted AI quota does not block retaining original material",async()=>{
+  (reserveQuota as jest.Mock).mockResolvedValue(null);
+  const response=await POST(new Request("https://example.com",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({materialKindHint:"resume",sourceText:"真实简历原文"})}));
+  expect(await response.json()).toMatchObject({ok:true,analysis:null,analysisDeferred:true,reasonCode:"user_quota_exhausted",input:{resumeText:"真实简历原文"}});expect(callLLM).not.toHaveBeenCalled();
+ });
  test("stream phases are emitted from actual processing and terminal failure remains visible",async()=>{
   const progress=jest.fn();
   const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/x-ndjson","X-Intake-Request-Id":"test-request-123"},body:JSON.stringify({sourceText:"未知材料",requestId:"test-request-123"})}));
   expect(response.headers.get("content-type")).toContain("application/x-ndjson");
   const body=await readIntakeResponse(response,progress);
   expect(progress.mock.calls).toEqual([["reading","test-request-123"],["analyzing","test-request-123"]]);
-  expect(body).toMatchObject({ok:false,status:503,requestId:"test-request-123"});
+  expect(body).toMatchObject({ok:true,status:200,analysis:null,analysisDeferred:true,reasonCode:"model_timeout",requestId:"test-request-123"});
   expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
  });
  test("streaming success retains JSON result and genuine checking phase",async()=>{
@@ -48,8 +59,8 @@ describe("material intake on model outage",()=>{
  });
  test("unidentified mixed material is not silently reclassified on failure",async()=>{
   const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"这是一份未知材料"})}));
-  expect(response.status).toBe(503);
-  expect((await response.json()).ok).toBe(false);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,analysis:null,input:{profileText:"这是一份未知材料",jdText:"",resumeText:""}});
  });
  test("new-user pasted JD survives hosted 402 as exact unclassified source, not fake AI analysis",async()=>{
   const text="示例公司招聘产品经理\n岗位职责：梳理需求并跟进交付。\n任职要求：本科，有产品实习经历。";

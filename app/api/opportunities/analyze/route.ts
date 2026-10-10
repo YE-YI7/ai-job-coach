@@ -149,10 +149,12 @@ async function readIntake(request: Request) {
   let sourceLabel = "粘贴内容";
   let requestId = "";
   let materialKindHint = "";
+  let saveOnly = false;
   let structured = { company: "", role: "", location: "", jdText: "", resumeText: "" };
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
+    saveOnly = form.get("mode") === "save_only";
     requestId = String(form.get("requestId") || "").trim();
     materialKindHint = String(form.get("materialKindHint") || "").trim();
     structured = {
@@ -173,6 +175,7 @@ async function readIntake(request: Request) {
     }
   } else {
     const body = await request.json();
+    saveOnly = body.mode === "save_only";
     requestId = String(body.requestId || "").trim();
     materialKindHint = String(body.materialKindHint || "").trim();
     sourceText = String(body.sourceText || "").trim();
@@ -185,8 +188,8 @@ async function readIntake(request: Request) {
     };
   }
 
-  if (!sourceText && structured.company && structured.role && structured.jdText) return { ...structured, requestId, materialKindHint, sourceLabel: "网页填写" };
-  if (!sourceText && structured.resumeText) return { ...structured, requestId, materialKindHint:materialKindHint || "preparation", sourceLabel:"网页填写" };
+  if (!sourceText && structured.company && structured.role && structured.jdText) return { ...structured, saveOnly, requestId, materialKindHint, sourceLabel: "网页填写" };
+  if (!sourceText && structured.resumeText) return { ...structured, saveOnly, requestId, materialKindHint:materialKindHint || "preparation", sourceLabel:"网页填写" };
   if (!sourceText) throw new Error("请粘贴岗位、简历或求职目标，或选择一份文件");
 
   if (/^https?:\/\/\S+$/i.test(sourceText.trim())) {
@@ -203,9 +206,9 @@ async function readIntake(request: Request) {
       maxLength: MAX_SOURCE_LENGTH,
     });
     sourceLabel = materialKindHint === "job" ? sourceLabel : materialKindHint === "resume" ? "补充简历" : "补充经历";
-    return { ...structured, ...merged, requestId, materialKindHint, sourceLabel };
+    return { ...structured, ...merged, saveOnly, requestId, materialKindHint, sourceLabel };
   }
-  return { ...structured, requestId, materialKindHint, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
+  return { ...structured, saveOnly, requestId, materialKindHint, jdText: sourceText.slice(0, MAX_SOURCE_LENGTH), sourceLabel };
 }
 
 export async function POST(request: Request) {
@@ -243,12 +246,18 @@ async function analyzeRequest(request: Request, userId: string, report: (phase: 
     report("reading");
     const intake = await readIntake(request);
     extracted = intake;
+    if(intake.saveOnly){
+      const input=preserveUnclassifiedIntake(intake);
+      return NextResponse.json(input?{ok:true,input,analysis:null,savedOnly:true}:{ok:false,error:"没有读到可保存的文字"},{status:input?200:422});
+    }
     const requestId = intake.requestId && /^[a-zA-Z0-9_-]{8,180}$/.test(intake.requestId)
       ? intake.requestId
       : crypto.randomUUID();
     reservation = await reserveQuota(userId, "chat", `opportunity-analysis:${requestId}`);
     if (!reservation) {
-      return NextResponse.json({ ok: false, error: "今日免费分析额度已用完", needUpgrade: true }, { status: 403 });
+      const input=preserveUnclassifiedIntake(intake);
+      if(input)return NextResponse.json({ok:true,input,analysis:null,analysisDeferred:true,reasonCode:"user_quota_exhausted",retryable:false,needUpgrade:true,error:"原文可先保存；聊天额度已用完，未调用 AI。补充额度后可继续分析。"});
+      return NextResponse.json({ ok: false, error: "聊天额度已用完", needUpgrade: true }, { status: 403 });
     }
     const knowledge = await buildAgentKnowledgeContext({
       task: "job_analysis",
@@ -298,7 +307,7 @@ async function analyzeRequest(request: Request, userId: string, report: (phase: 
         role: "user",
         content: `已有公司：${intake.company || "（待识别）"}\n已有职位：${intake.role || "（待识别）"}\n已有地点：${intake.location || "（待识别）"}\n本次补充：${intake.materialKindHint || "首次导入"}\n\n原始材料：\n${wrapExternalMaterial(intake.jdText)}\n\n另附用户简历或经历：\n${wrapExternalMaterial(intake.resumeText || "（未提供）")}${knowledge.contextText ? `\n\n${knowledge.contextText}` : ""}`,
       },
-    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxRetries: 0 }));
+    ], { provider: "deepseek", temperature: 0.2, maxTokens: 4000, reasoningBudgetTokens: 2048, responseFormat: "json_object", timeoutMs: 45_000, maxRetries: 0 }));
 
     report("checking");
     const parsed = asRecord(parseJson(result));
@@ -408,9 +417,10 @@ async function analyzeRequest(request: Request, userId: string, report: (phase: 
     // Only after successful text extraction and a transient/empty model response.
     // Original material is preserved; there is explicitly no reliable analysis.
     const detail=error instanceof Error?error.message:"";
-    if(extracted&&/timeout|timed out|gateway|empty response|未返回可解析|connection|fetch failed|502|503|504/i.test(detail)){
-      const input=deferredIntake(extracted);
-      if(input)return NextResponse.json({ok:true,input,analysis:null,analysisDeferred:true,error:"材料已读取，分析暂未完成；原文会保存，可以稍后继续辅导。"});
+    if(extracted&&(error instanceof SyntaxError||/timeout|timed out|gateway|empty response|未返回可解析|connection|fetch failed|502|503|504/i.test(detail))){
+      const input=preserveUnclassifiedIntake(extracted);
+      const reasonCode=/timeout|timed out/i.test(detail)?"model_timeout":error instanceof SyntaxError||/未返回可解析|empty response/i.test(detail)?"model_output_invalid":"model_unavailable";
+      if(input)return NextResponse.json({ok:true,input,analysis:null,analysisDeferred:true,reasonCode,retryable:true,error:"材料已读取，AI 分析未完成；先保存原文，稍后可以继续分析。本次未扣额度。"});
     }
     const message = intakeErrorMessage(error);
     return NextResponse.json({ ok: false, error: message }, { status: 503 });

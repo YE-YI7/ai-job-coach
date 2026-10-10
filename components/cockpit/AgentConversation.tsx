@@ -1,6 +1,7 @@
 "use client";
 import {useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import Image from "next/image";
+import useQuotaLabel from "./useQuotaLabel";
 import {ArrowUp,Copy,Plus,BookOpen} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
@@ -10,7 +11,7 @@ import SelectMenu from "@/components/ui/SelectMenu";
 import {type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
-import {savePendingAnswer,readPendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
+import {persistPendingAnswer,restorePendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
 import {STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from "./tutor-intervention";
@@ -33,6 +34,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const [turns,setTurns]=useState<Turn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[sessions,setSessions]=useState<Session[]>([]),[session,setSession]=useState<Session|null>(null);
  const [pending,setPending]=useState("");
+ const quotaLabel=useQuotaLabel("chat",busy);
  const [pendingProactive,setPendingProactive]=useState(false);
  const [draft,setDraft]=useState("");
  const [progress,setProgress]=useState("");
@@ -94,7 +96,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
    if(token!==generation.current)return;
    if(!b.ok)throw Error(b.error||"无法找回学习记录");
    setSessions(b.sessions);const active=b.sessions.find((s:Session)=>s.status==="active");
-if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/api/coach/agent?"+scope+"&sessionId="+active.id,{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current){setTurns(h.turns);const saved=readPendingAnswer(pendingAnswerStore(),active.id);if(saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}}
+if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/api/coach/agent?"+scope+"&sessionId="+active.id,{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current)setTurns(h.turns);const saved=await restorePendingAnswer(active.id,[],controller.signal);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
   }).catch(e=>{if(token===generation.current&&!controller.signal.aborted)setError(e.message||"网络异常，请刷新找回记录");}).finally(()=>{if(token===generation.current)setLoading(false);});
   return()=>{generation.current=token+1;controller.abort();};
  },[scope,enabled,setModelNotice]);
@@ -127,12 +129,21 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
    }
    const requestId=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.requestId:crypto.randomUUID();
    retry.current={text,sessionId:selected!.id,requestId};
-   if(!proactive)savePendingAnswer(pendingAnswerStore(),retry.current);
+   if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
    const responseLatencyMs=answerReceivedAt.current===null?undefined:performance.now()-answerReceivedAt.current;
    const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode,proactive:proactive||undefined,pageContext:chatContext||undefined,responseLatencyMs})});
    const b=await readChatResponse<Turn&{ok?:boolean;error?:string;stageSuggestion?:OpportunityStage|null}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});
-   if(token!==generation.current)return;if(!b.ok)throw Error(b.error||"回答暂时不可用");
+   if(token!==generation.current)return;
+   if(!b.ok){
+    // A confirmed failed attempt has a refunded/closed reservation. A new attempt
+    // needs a fresh billing key; an unknown network outcome retains the old key.
+    if(!proactive){retry.current={text,sessionId:selected!.id,requestId:crypto.randomUUID()};await persistPendingAnswer(retry.current);}
+    throw Error(b.error||"回答暂时不可用");
+   }
    clearPendingAnswer(pendingAnswerStore(),selected!.id);retry.current=null;
+   window.dispatchEvent(new Event("yizhi-quota-changed"));
+   // Failure to clean up must not turn a confirmed turn into a failed answer.
+   void fetch("/api/coach/agent/pending",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:selected!.id,requestId})}).catch(()=>{});
    answerReceivedAt.current=performance.now();
    setDraft("");
    setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,learning_trace:b.learning_trace}]);setPending("");
@@ -152,7 +163,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
  async function selectSession(id:string){
   if(lock.current)return;const target=sessions.find(s=>s.id===id);if(!target)return;
   const token=++generation.current;jumpToLatest.current=true;setLoading(true);setError("");setFailedLesson(null);setSession(target);setTurns([]);setMessage("");setDraft("");setPending("");setModelNotice(null);
-  try{const r=await fetch("/api/coach/agent?"+scope+(id==="legacy"?"":"&sessionId="+id),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);const saved=readPendingAnswer(pendingAnswerStore(),target.id);if(saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
+  try{const r=await fetch("/api/coach/agent?"+scope+(id==="legacy"?"":"&sessionId="+id),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);const saved=await restorePendingAnswer(target.id);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
   catch(e){if(token===generation.current)setError(e instanceof Error?e.message:"读取失败");}finally{if(token===generation.current)setLoading(false);}
  }
  return <section className={styles.panel} aria-label="对话辅导">
@@ -186,6 +197,6 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的回答，或直接说没听懂…" rows={2} maxLength={4000} disabled={!enabled} value={message} onChange={e=>{setMessage(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,112)+"px";}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
    <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><VoiceControls key={`${opportunityId||"general"}:${session?.id||"new"}`} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
-  <p className={styles.disclaimer}>AI 也会犯错，请核实重要信息。</p>
+  <p className={styles.disclaimer}>{quotaLabel} / 每条 AI 回答。保存回答和笔记免费；失败释放额度。AI 也会犯错，请核实重要信息。</p>
  </section>;
 }

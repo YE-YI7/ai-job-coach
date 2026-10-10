@@ -21,3 +21,11 @@
 - 不覆盖所有历史用户数据、完整语音/PDF/支付旅程。
 - Chrome 连接超时；不得将接口验收描述为完整浏览器点击验收。
 - 未混入协作者 auth/admin 改动，未操作真人资料、额度或充值。
+
+## 真实接口验收与发布
+
+- `b740995` 运行时代码，`211b63f` 验收脚本/schema/报告，已正常推送开发分支及 backend，未强推。
+- 独立合成账号真实候选 API 验收 8 项通过：免费保存/恢复；外会话拒绝；超预算 422 后原回答云端保留；已保存反馈找回；零额度拦新面试但保留首辅导；待回答面试模式恢复；真实模型首轮仅一题无预给答案；真实模型反馈加一个追问。账号和临时会话配置已清理。
+- 本地 prebuilt 发布因构建 trace 引用本机 node_modules 路径失败，没有切正式域名。改为隔离源代码云构建成功，再验收后 promote。
+- 正式部署 `dpl_HXe3ZL44E1scrht59XEBBKsj8u8X`，裸域/www inspect 同 ID、Ready。裸域按既有配置重定向 www，最终首页 200；私密新接口匿名访问须为 401。
+- 真实接口证据 `/tmp/yizhi-p0-acceptance.log`；全量 `/tmp/yizhi-p0-full-tests-confirmed.log`；发布 `/tmp/yizhi-p0-cloud-deploy.log`、`/tmp/yizhi-p0-promote.log`。运行日志是临时证据，本文保留结论，不保留凭据。

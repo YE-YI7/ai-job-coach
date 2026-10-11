@@ -15,6 +15,12 @@ test("long first paragraph is not inflated as a name, unsafe links cannot execut
  expect(html).not.toContain('class="resume-name"');
  expect(html).not.toContain('href="javascript:');
 });
+test("page breaks sit outside layout cells without dropping either side", () => {
+ const html = resumePrintHtml("## 自定义章节\n分页前\n<!-- PAGEBREAK -->\n分页后", "modern", "简历");
+ expect(html).toContain('分页前</p></div></section><div class="page-break"></div><section');
+ expect(html).toContain("分页后</p>");
+ expect(html).toContain("align-self:start");
+});
 test("preview creation does not imply print or PDF saved",()=>{
  let click:()=>void=()=>{};
  const onPrint=jest.fn(),print=jest.fn();

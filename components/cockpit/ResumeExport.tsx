@@ -14,7 +14,7 @@ const TEMPLATE_PREVIEWS: Record<PrintTemplate, {label:string; accent:string; ser
   warm: {label:printTemplates.warm.label, accent:printTemplates.warm.accent, serif:false, description:"暖纸底色 · 连续阅读"},
 };
 
-export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string}){
+export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason,compact=false}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string;compact?:boolean}){
  const [template,setTemplate]=useResumeTemplate(),[error,setError]=useState(""),[busy,setBusy]=useState(false);
  async function open(){
   if(disabledReason)return;
@@ -25,7 +25,8 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
   try{let text=baseText||"";if(artifactId){const r=await fetch(`/api/coach/application-pack/pdf?opportunityId=${encodeURIComponent(opportunityId)}&artifactId=${encodeURIComponent(artifactId)}`,{cache:"no-store"});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"读取简历失败");text=b.text;}if(!text.trim())throw Error("尚无可导出的简历正文");renderResumePrintWindow(preview,text,template,artifactId?"岗位简历":"基础简历",()=>track("resume_print_requested"));track("resume_preview_ready");}
   catch(e){track("resume_preview_failed");preview.close();setError(e instanceof Error?e.message:"导出失败，请重试");}finally{setBusy(false);}
  }
- return <div className={styles.exportControls}>
+ return <div className={`${styles.exportControls} ${compact?styles.exportCompact:""}`}>
+  {!compact&&<>
   <div className={styles.exportHeading}><strong>选好版式，带走这份简历</strong><span>只换呈现，不改内容</span></div>
   <div className={styles.templatePicker} role="radiogroup" aria-label="简历版式">
    {(Object.keys(TEMPLATE_PREVIEWS) as PrintTemplate[]).map((id)=>{const t=TEMPLATE_PREVIEWS[id];return (
@@ -42,8 +43,9 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
     </button>
    );})}
   </div>
+  </>}
   <button className={`${styles.secondaryButton} ${styles.exportAction}`} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>void open()}><FileDown size={17} aria-hidden="true"/>{busy?"正在准备…":"预览 / 保存 PDF"}</button>
-  <small>{disabledReason||"预览当前内容，在打印窗口选择「另存为 PDF」。不需要先通过 AI 检查。"}</small>
+  {(!compact||disabledReason)&&<small>{disabledReason||"在打印窗口选择「另存为 PDF」。"}</small>}
   {error&&<p role="alert">{error}</p>}
  </div>;
 }

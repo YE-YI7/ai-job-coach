@@ -6,7 +6,8 @@ import { resumeMotionKeys, resumeMoveTarget } from "./resume-motion";
 import type { Opportunity, ResumeChange } from "@/lib/opportunities/types";
 import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "@/lib/opportunities/resume-blocks";
-import { markdownSegments } from "@/lib/opportunities/resume-markdown";
+import { isResumePageBreak, markdownSegments } from "@/lib/opportunities/resume-markdown";
+import { selectedResumeBlocks } from "@/lib/opportunities/resume-display";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import styles from "./CockpitApp.module.css";
@@ -29,8 +30,8 @@ const TEMPLATE_ORDER: PrintTemplate[] = ["classic", "modern", "warm"];
 const TEMPLATE_CLASS: Record<PrintTemplate, string> = { classic: "sheetClassic", modern: "sheetModern", warm: "sheetWarm" };
 
 // Replace each change's `before` inside a line with a pen-highlighted `after`.
-// A change binds to the first line containing its `before`. Accepted / pending
-// render the AI text (pen); rejected keep the original without deletion marks.
+// A change binds to the first line containing its `before`. Only accepted
+// suggestions render on the paper; pending/rejected keep the original.
 function renderLine(line: string, pool: ResumeChange[], used: Set<string>): ReactNode {
   const applicable = pool.find((c) => !used.has(c.id) && c.before && line.includes(c.before));
   if (!applicable) return line;
@@ -38,7 +39,9 @@ function renderLine(line: string, pool: ResumeChange[], used: Set<string>): Reac
   const idx = line.indexOf(applicable.before);
   const head = line.slice(0, idx);
   const tail = line.slice(idx + applicable.before.length);
-  const showAfter = applicable.status !== "rejected";
+  // The sheet and PDF must show the same selected version. Pending AI text
+  // remains available in the modification panel, not silently in the paper.
+  const showAfter = applicable.status === "accepted";
   const text = showAfter ? applicable.after : applicable.before;
   return (
     <>
@@ -55,8 +58,10 @@ function renderLine(line: string, pool: ResumeChange[], used: Set<string>): Reac
 // display only; export/checks still see the original characters.
 function renderMarkdownLine(line: string, pool: ResumeChange[], used: Set<string>): ReactNode {
   const segments = markdownSegments(line);
-  if (segments.length === 1 && !segments[0].bold) return renderLine(segments[0].text, pool, used);
-  return segments.map((segment, index) => segment.bold
+  if (segments.length === 1 && !segments[0].bold && !segments[0].href) return renderLine(segments[0].text, pool, used);
+  return segments.map((segment, index) => segment.href
+    ? <a key={index} href={segment.href} target="_blank" rel="noopener noreferrer">{renderLine(segment.text, pool, used)}</a>
+    : segment.bold
     ? <strong key={index}>{renderLine(segment.text, pool, used)}</strong>
     : <span key={index}>{renderLine(segment.text, pool, used)}</span>);
 }
@@ -85,6 +90,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
   );
 
   const changeById = useMemo(() => new Map(opportunity.resumeChanges.map((c) => [c.id, c])), [opportunity.resumeChanges]);
+  const displayBlocks = useMemo(() => selectedResumeBlocks(opportunity.resumeText || "", blocks, opportunity.resumeChanges), [opportunity.resumeText, blocks, opportunity.resumeChanges]);
   const motionKeys = resumeMotionKeys(blocks);
   const usedIds = new Set<string>();
 
@@ -152,7 +158,7 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
         </button>
       )}
       <div className={styles.blockToolbar}>
-        <span><GripVertical size={16} className={styles.inlineGlyph} /> 按住每块左上角的点阵，上下拖动调整顺序；点开文字可选择修改。</span>
+        <span><GripVertical size={16} className={styles.inlineGlyph} /> 拖动调整顺序 · 点击区块查看修改</span>
         <div className={styles.sheetTemplates} role="group" aria-label="简历模板">
           {TEMPLATE_ORDER.map((id) => (
             <button key={id} type="button" className={`${styles.sheetTemplateBtn} ${template === id ? styles.sheetTemplateBtnActive : ""}`} onClick={() => chooseTemplate(id)}>
@@ -165,22 +171,21 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
       <div ref={sheet} className={`${styles.resumeSheet} ${styles[TEMPLATE_CLASS[template]]}`}>
         {blocks.map((block, blockIndex) => {
           const meta = KIND_META[block.kind];
+          const display = displayBlocks[blockIndex];
           const changes = block.changeIds.map((id) => changeById.get(id)).filter((c): c is ResumeChange => Boolean(c));
           const isExpanded = expanded.has(block.id);
           const pendingHere = changes.filter((c) => c.status === "pending").length;
           return (
             <section key={motionKeys[blockIndex]} data-motion-key={motionKeys[blockIndex]} data-kind={block.kind} draggable={!block.synthetic && !editingId}
-              onMouseEnter={() => { if (changes.length && !editingId && !dragId) setExpanded(new Set([block.id])); }}
-              onMouseLeave={(event) => { if (!editingId && !event.currentTarget.contains(document.activeElement)) setExpanded(new Set()); }}
               onBlur={(event) => { if (!editingId && !event.currentTarget.contains(event.relatedTarget)) setExpanded(new Set()); }}
               onKeyDown={(event) => { if (event.key === "Escape") { setEditingId(null); event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus(); setExpanded(new Set()); } }}
               onDragStart={() => { if (!block.synthetic) { setDragId(block.id); setExpanded(new Set()); } }} onDragOver={(e) => { if (!dragId || block.synthetic) return; e.preventDefault(); }} onDrop={() => reorder(block.id)} onDragEnd={() => setDragId(null)}
               className={`${styles.sheetSection} ${isExpanded ? styles.sectionPopoverOpen : ""} ${dragId === block.id ? styles.blockDragging : ""}`}>
               <div className={styles.sectionHeader}>
-              <button type="button" className={`${styles.blockHead} ${styles.blockTrigger}`} aria-expanded={isExpanded} aria-controls={`resume-options-${block.id}`} onClick={() => changes.length ? setExpanded(new Set([block.id])) : toggle(block.id)}>
+              <button type="button" className={`${styles.blockHead} ${styles.blockTrigger}`} data-heading={Boolean(block.heading)} aria-expanded={isExpanded} aria-controls={`resume-options-${block.id}`} onClick={() => changes.length ? setExpanded(new Set([block.id])) : toggle(block.id)}>
                 <GripVertical size={15} className={styles.blockGrip} aria-hidden="true" />
-                <span className={styles.blockKind}>{meta.label}</span>
-                <strong className={styles.blockTitle}>{block.title}</strong>
+                {!block.heading && meta.label !== block.title && <span className={styles.blockKind}>{meta.label}</span>}
+                <strong className={styles.blockTitle}>{display.heading ? renderMarkdownLine(display.heading, [], usedIds) : block.title}</strong>
                 {changes.length > 0 && <span className={styles.blockBadge}>{pendingHere ? `${pendingHere} 处待确认` : `${changes.length} 处改动`}</span>}
                 <ChevronDown size={16} className={`${styles.blockChevron} ${isExpanded ? styles.blockChevronOpen : ""}`} />
               </button>
@@ -194,8 +199,10 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
               </div>
               <div className={styles.blockBody}>
                 {block.synthetic
-                  ? changes.map(change => <p key={change.id}>{renderMarkdownLine(change.status === "rejected" ? change.before : change.after, [], usedIds)}</p>)
-                  : block.lines.map((line, index) => <p key={index}>{renderMarkdownLine(line, changes, usedIds)}</p>)}
+                  ? <p>未定位建议 · 不计入成稿，点击核对</p>
+                  : display.lines.map((line, index) => isResumePageBreak(line)
+                    ? <div key={index} className={styles.resumePageBreak} role="separator" aria-label="PDF 分页">分页</div>
+                    : <p key={index} data-name={block.kind === "header" && index === 0 && markdownSegments(line).map(s => s.text).join("").length <= 40} data-bullet={/^\s*[-*•]\s+/.test(line)}>{renderMarkdownLine(line, [], usedIds)}</p>)}
               </div>
               {isExpanded && (changes.length > 0 ? (
                 <div id={`resume-options-${block.id}`} className={styles.resumePopover} draggable={false} onDragStart={event => event.stopPropagation()} role="group" aria-label={`${block.title}的修改选项`}>

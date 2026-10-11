@@ -1,4 +1,20 @@
 import {resumePrintHtml,printTemplates,renderResumePrintWindow} from "./resume-print";
+test("Markdown headings, bullets, links and pagebreak render as document structure", () => {
+ const html = resumePrintHtml("# 测试人\n电话：138\n\n简介正文\n\n## 自定义章节\n### 项目 A\n- **负责**需求\n[作品](https://example.com)\n<!-- PAGEBREAK -->\n## 教育背景\n大学", "classic", "简历");
+ expect(html).toContain('<h2>自定义章节</h2>');
+ expect(html).toContain('<h3>项目 A</h3>');
+ expect(html).toContain('<strong>负责</strong>');
+ expect(html).toContain('href="https://example.com"');
+ expect(html).toContain('class="page-break"');
+ expect(html).not.toContain('<!-- PAGEBREAK -->');
+ expect(html).not.toContain('## 自定义');
+ expect(html).not.toContain('[作品]');
+});
+test("long first paragraph is not inflated as a name, unsafe links cannot execute", () => {
+ const html = resumePrintHtml('这是一个很长的介绍段落。'.repeat(12)+'\n\n## 教育背景\n[点击](javascript:alert)', "classic", "简历");
+ expect(html).not.toContain('class="resume-name"');
+ expect(html).not.toContain('href="javascript:');
+});
 test("preview creation does not imply print or PDF saved",()=>{
  let click:()=>void=()=>{};
  const onPrint=jest.fn(),print=jest.fn();

@@ -992,7 +992,7 @@ export function CockpitApp({
           onClose={() => setMobileRail(null)}
         />
 
-        <section className={styles.document} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
+        <section className={`${styles.document} ${!creating && activeTab === "resume" ? styles.resumeDocument : ""}`} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry} initialSourceText={newEntry==="resume" && active?.workspaceType==="preparation" && !active.resumeText ? active.profileText || "" : ""} onCreate={createOpportunity} onBusyChange={setIntakeBusy} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
           {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
@@ -1442,11 +1442,10 @@ function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpda
   if (opportunity.workspaceType === "preparation") {
     return (
       <section>
-        <div className={styles.pageIntro}><div><h2>基础简历</h2><p>这是后续所有岗位版本的事实底稿；拿到 JD 后再生成针对性版本。</p></div></div>
+        <div className={styles.pageIntro}><div><h2>基础简历</h2><p>各岗位共用的事实底稿</p></div><ResumeExport compact opportunityId={opportunity.id} baseText={opportunity.resumeText}/></div>
         {opportunity.resumeText ? (
           <>
             <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />
-            <div className={styles.resumeExportRow}><div><strong>底稿随时可导出；生成岗位版时会以它为事实来源。</strong></div><ResumeExport opportunityId={opportunity.id} baseText={opportunity.resumeText}/></div>
           </>
         ) : <EmptySection label="还没有识别到完整简历。继续添加经历材料，导师会合并到事实底稿。" />}
       </section>
@@ -1454,21 +1453,20 @@ function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpda
   }
   return (
     <section className={styles.resumeStudio}>
-      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><h2>把简历改到可以投</h2><p>逐块采用建议、自己修改或保留原文，随时预览并保存 PDF；需要时再请 AI 检查。</p></div><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "一键生成岗位版"} · ${quotaLabel}`}</button></div>
-      <div className={styles.resumeActionRow}>
-        <p>随时可在下方预览并保存 PDF。事实检查是可选辅助，不会拦住导出。</p>
+      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><h2>简历工作室</h2><p>{recovery ? "岗位版尚未生成，当前保留原文" : opportunity.resumeChanges.length ? "当前成稿 · 只包含已采用的修改" : "当前原文 · 可编辑、调整顺序和导出"}</p></div><div className={styles.resumePrimaryActions}><button className={styles.secondaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "生成岗位版"} · ${quotaLabel}`}</button><ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text}/></div></div>
+      <details className={styles.resumeCheckDetails}><summary>修改检查与投递版本</summary><div className={styles.resumeActionRow}>
         <div>
           {progress.action === "check" && <button className={styles.secondaryButton} disabled={validating} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "请 AI 帮我检查（可选）"}</button>}
           {progress.action === "freeze" && <button className={styles.primaryButton} disabled={freezing} onClick={onFreeze}>{freezing ? "正在保存…" : "保存投递版"}</button>}
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>
-      </div>
-      {recovery && <ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/>}
+      </div></details>
+      {recovery && <details className={styles.resumeCheckDetails}><summary>岗位版需要补充一个真实细节 · 原文可直接导出</summary><ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/></details>}
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
           <div id={`resume-current-${opportunity.id}`}><ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} /></div>
-          <div className={styles.resumeExportRow}><div><strong>保存与导出当前简历</strong><p>已采用的修改会进入导出；未决定的部分保留原文。检查建议不影响导出。</p>{currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}</div><ResumeExport opportunityId={opportunity.id} baseText={currentExport.text}/></div>
+          {currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}
     </section>

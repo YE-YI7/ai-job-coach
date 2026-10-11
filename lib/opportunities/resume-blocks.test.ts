@@ -122,6 +122,15 @@ describe("reorderResumeText", () => {
 
 const nonBlank = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 
+test("自定义 Markdown 章节不会吞入抬头，简介独立，重建不丢原文", () => {
+  const text = "# 测试求职者\n电话：138\n\n我希望探索人机协作。\n\n## 我提出的问题，和做出的产品\n### 协作协议 · 如何选择服务？\n- **责任**：主导协议设计\n[项目地址](https://example.com/project)\n\n<!-- PAGEBREAK -->\n\n## 在真实业务里检验判断\n### 某公司 · 产品经理\n真实成果\n\n## 教育背景\n某大学";
+  const blocks = splitResumeBlocks(text);
+  expect(blocks[0].lines).toEqual(["# 测试求职者", "电话：138"]);
+  expect(blocks.find(b => b.kind === "summary")?.lines).toContain("我希望探索人机协作。");
+  expect(blocks.some(b => b.heading === "### 协作协议 · 如何选择服务？")).toBe(true);
+  for (const line of nonBlank(text)) expect(reconstructResumeText(blocks)).toContain(line);
+});
+
 test.each(["字节跳动 · 产品实习生", "**字节跳动 · 产品实习生**"])("公司与日期同卡：%s", (company) => {
   const text = `实习经历\n${company}\n2023.01-2023.06\n负责需求分析`;
   const blocks = splitResumeBlocks(text);

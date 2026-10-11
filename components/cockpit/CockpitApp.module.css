@@ -1043,7 +1043,7 @@
 /* 6px kind dot — emphasis without pills (T-07); colour comes from the template accent */
 .blockKind::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;vertical-align:.5px;background:#b0aca5}
 /* the name line is the resume's name: bigger, upright, first thing on the page */
-.sheetSection[data-kind="header"] .blockBody>p:first-child{font-size:19px;font-weight:750;color:var(--ink);letter-spacing:.02em}
+.sheetSection[data-kind="header"] .blockBody>p[data-name="true"]{font-size:19px;font-weight:750;color:var(--ink);letter-spacing:.02em}
 /* templates mirror lib/resume-print.ts so the sheet shows exactly what exports */
 .sheetClassic{font-family:Georgia,'Songti SC','Noto Serif SC',serif;--sheet-accent:#242424}
 .sheetModern{--sheet-accent:#365571}
@@ -1070,7 +1070,25 @@
 .sheetWarm{--sheet-accent:#85502f;background:#fbf8f2}
 .sheetSection .blockKind{color:var(--muted)}
 .sheetSection .blockKind::before{background:var(--sheet-accent,#b0aca5)}
-.sheetSection[data-kind="header"] .blockBody>p:first-child{border-bottom:2px solid var(--sheet-accent,#b0aca5);display:inline-block;padding-bottom:2px}
+.sheetSection[data-kind="header"] .blockBody>p[data-name="true"]{border-bottom:2px solid var(--sheet-accent,#b0aca5);display:inline-block;padding-bottom:2px}
+.resumePrimaryActions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.resumeDocument .documentBody{padding-top:14px}
+.resumeDocument .pageIntro{margin-bottom:14px;padding-bottom:12px}
+.resumeDocument .blockToolbar{margin-top:12px}
+.exportControls.exportCompact{margin:0;padding:0;gap:6px}
+.exportCompact p[role="alert"]{max-width:32ch;font-size:13px;margin:0}
+.resumeStudioIntro{align-items:center;flex-wrap:wrap;gap:16px}
+.blockHead[data-heading="true"] .blockTitle{color:var(--sheet-accent,var(--ink));font-size:16px;font-weight:700;line-height:1.5;white-space:normal;overflow:visible}
+.blockBody a{color:inherit;text-underline-offset:3px;overflow-wrap:anywhere}
+.blockBody p[data-bullet="true"]{position:relative;padding-left:1em;text-align:left}
+.blockBody p[data-bullet="true"]::before{content:"•";position:absolute;left:0}
+.resumePageBreak{margin:18px 0;border-top:1px dashed var(--line-strong);padding-top:6px;color:var(--muted);font:12px/1.5 sans-serif;text-align:center}
+.sheetSection .blockHead{padding:8px 12px}
+.sheetSection .blockBody{padding:4px 14px 16px;text-align:left}
+.sheetClassic .sheetSection[data-kind="header"] .blockBody{text-align:center}
+.resumeCheckDetails{margin:12px 0;font-size:13px}
+.resumeCheckDetails summary{padding:8px 0;color:var(--ink)}
+@media(max-width:700px){.resumePrimaryActions{width:100%}.resumePrimaryActions>button,.resumePrimaryActions>.exportCompact{flex:1}.resumePrimaryActions .exportAction{width:100%}.blockHead[data-heading="true"] .blockTitle{font-size:15px}}
 .blockDragging{opacity:.5;border-style:dashed}
 .blockHead{display:flex;align-items:center;gap:9px;padding:12px 14px;cursor:pointer;user-select:none}
 .blockGrip{flex:0 0 auto;color:var(--line-strong);cursor:grab}

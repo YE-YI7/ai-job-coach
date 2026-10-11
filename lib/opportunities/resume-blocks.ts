@@ -23,7 +23,7 @@ const SECTION_PATTERNS: Array<{ kind: ResumeBlockKind; test: RegExp }> = [
   { kind: "project", test: /^(项目经历|项目经验|代表项目|主要项目|项目)/ },
   { kind: "experience", test: /^(工作经历|实习经历|职业经历|工作经验|相关经历|校园经历|社团经历|课外活动)/ },
   { kind: "skill", test: /^(专业技能|职业技能|技能|证书|荣誉|获奖)/ },
-  { kind: "summary", test: /^(自我评价|个人简介|个人总结|自我介绍|简介|总结)/ },
+  { kind: "summary", test: /^(自我评价|个人简介|个人总结|自我介绍|简介|总结)[:：\s]*$/ },
 ];
 
 // Display/classification view of a line: heading markers (##), bullets (- * •)
@@ -40,6 +40,12 @@ export function stripResumeMarkdown(line: string): string {
 
 function classifyHeader(line: string): { kind: ResumeBlockKind; title: string } | null {
   const trimmed = stripResumeMarkdown(line);
+  // Authored headings are structure regardless of wording or length. Never
+  // make a dictionary of every possible project/section name.
+  if (/^\s*#{2,6}\s+\S/.test(line)) {
+    const known = SECTION_PATTERNS.find(({ test }) => test.test(trimmed));
+    return { kind: known?.kind || "other", title: trimmed };
+  }
   if (!trimmed || trimmed.length > 16) return null;
   // A header labels a section; it carries no data itself. "技能：Python" is a
   // content line — treating it as a header would swallow the text after the
@@ -140,7 +146,12 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
       }
       return;
     }
-    if (isSplitKind(sectionKind) && sectionTitle) {
+    if (sectionKind === "header" && !sectionTitle) {
+      madeGroups.forEach((group, index) => {
+        const kind = index === 0 && stripResumeMarkdown(group[0]).length <= 40 ? "header" : "summary";
+        blocks.push({ id: `${kind}-${blocks.length}`, kind, title: kind === "header" ? entryTitle(group[0]) : "个人简介", lines: group, changeIds: [], heading: null });
+      });
+    } else if (isSplitKind(sectionKind) && sectionTitle) {
       // one card per blank-line group; additionally split inside a group when a
       // dated line follows a non-dated opener (entries usually start with dates).
       const entries: string[][] = [];

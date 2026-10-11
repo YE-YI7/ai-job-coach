@@ -52,6 +52,7 @@ describe("agent boundary",()=>{
   (callLLM as jest.Mock).mockResolvedValue('<answer>我们先讲解指标口径，再用一个练习示例说明。</answer>');
   const result=await (await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({interactionMode:'coaching',message:'继续这个问题',requestId:'11111111-1111-4111-8111-111111111111'})}))).json();
   expect(result).toMatchObject({ok:true,learning_trace:{interactionMode:'coaching'}});
+  expect((callLLM as jest.Mock).mock.calls[0][0][0].content).toContain('中文提问用自然中文回答');
  });
  test('明确面试官入口不依赖用户说出模拟面试关键词',async()=>{
   setupGeneration();(callLLM as jest.Mock).mockResolvedValue(JSON.stringify({question:'你如何衡量权限改版的效果？'}));

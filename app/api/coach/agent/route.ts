@@ -223,7 +223,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         market ? { kind: "market_evidence", text: market } : null,
       ].filter((m): m is TutorMaterialInput => Boolean(m))
        .filter(m=>!interviewer||!["teaching_frame","coaching_strategy"].includes(m.kind));
-  const actualSystem=groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):LEARNING_SYSTEM;
+  const actualSystem=(groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):LEARNING_SYSTEM)+"\n回复语言以本轮用户为准：中文提问用自然中文回答，专业术语可保留英文；只有用户明确要求英文练习或翻译时才切换语言。不要因换模型、换岗位或材料语言而切换回复语言。";
   const compiled=compileTutorPrompt({system:actualSystem,question:body.message,materials});
   // 槽1 装配后准入：一次跑完「该不该问 / 该不该拒」，主链路不再内联任何容量判断。
   // 顺序就是注册顺序（装配容量 → 材料缺口 → grounding 分型 → 提示词保护区），

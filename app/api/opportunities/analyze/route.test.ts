@@ -161,3 +161,128 @@ describe("supplement keeps the client's ground truth",()=>{
   expect(body.input.resumeText).toBe("本科 计算机 两年实习");
  });
 });
+
+describe("public JD URL intake",()=>{
+ beforeEach(()=>{
+  jest.resetAllMocks();
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:"owner"});
+  (reserveQuota as jest.Mock).mockResolvedValue({source:"free",remaining:3});
+  (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
+  (buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({items:[],contextText:""});
+  (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({materialKind:"job",company:"示例科技",role:"AI 产品经理",location:"上海",jdText:"岗位职责与任职要求",requirements:[],actions:[]}));
+ });
+ afterEach(()=>jest.restoreAllMocks());
+
+ test("fetches a JD URL wrapped in a short label and reads JobPosting JSON-LD",async()=>{
+  const url="https://8.8.8.8/jobs/pm?id=123";
+  const html=`<html><head><script type="application/ld+json">${JSON.stringify({
+   "@context":"https://schema.org","@type":"JobPosting",title:"AI 产品经理",
+   hiringOrganization:{name:"示例科技"},jobLocation:{address:{addressLocality:"上海"}},
+   description:"负责 AI 产品规划、需求分析、跨团队协作与项目交付。",
+   qualifications:"本科及以上学历，具备产品设计和数据分析经验。",
+  })}</script></head><body><div id="app"></div></body></html>`;
+  const fetchMock=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(html,{status:200,headers:{"content-type":"text/html; charset=utf-8"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:`JD 链接：\n${url}`})}));
+  expect(response.status).toBe(200);
+  expect((await response.json()).input).toMatchObject({workspaceType:"job",sourceLabel:"岗位链接导入"});
+  expect(fetchMock).toHaveBeenCalledWith(new URL(url),expect.objectContaining({redirect:"manual"}));
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("任职要求：本科及以上学历");
+ });
+
+ test("reads the exact Manus role from its public careers API when the page is a client-rendered shell",async()=>{
+  const jobs=[{id:"3b841ff5-ef2e-4ea7-92f0-d0fc3ef0cad6",title:"Agent 产品经理",type:"全职",locations:["北京"],summary:"负责智能体产品从需求定义到上线迭代。",descriptionHtml:"<p><strong>岗位职责</strong></p><ul><li>研究用户需求与实际工作流程。</li><li>完成产品原型并协调研发交付。</li></ul><p><strong>任职要求</strong></p><ul><li>具备 AI 产品设计或开发经验。</li><li>能够通过原型或技术实验验证产品想法。</li></ul>"}];
+  (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({materialKind:"job",company:"Manus",role:"Agent 产品经理",location:"北京",jdText:"岗位职责与任职要求",requirements:[],actions:[]}));
+  const fetchMock=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({result:{data:{json:jobs}}}),{status:200,headers:{"content-type":"application/json"}}));
+  const url="https://careers.manus.im/cn/job/3b841ff5-ef2e-4ea7-92f0-d0fc3ef0cad6";
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:url})}));
+  expect(response.status).toBe(200);
+  expect((await response.json()).input).toMatchObject({workspaceType:"job",company:"Manus",role:"Agent 产品经理",location:"北京",sourceLabel:"岗位链接导入"});
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(String(fetchMock.mock.calls[0][0])).toContain("/api/trpc/hr/applications.publicJobs");
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("职位：Agent 产品经理");
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("能够通过原型或技术实验验证产品想法");
+ });
+
+ test.each([
+  {provider:"Greenhouse",url:"https://boards.greenhouse.io/example/jobs/12345",api:"boards-api.greenhouse.io",title:"产品经理",payload:{id:12345,title:"产品经理",location:{name:"上海"},content:"<p>负责产品规划、用户研究、跨部门协作与上线迭代。要求具备复杂产品的端到端交付经验。</p>"}},
+  {provider:"Lever",url:"https://jobs.eu.lever.co/example/12345678-abcd-4321-abcd-123456789abc",api:"api.eu.lever.co",title:"AI 产品经理",payload:{id:"12345678-abcd-4321-abcd-123456789abc",text:"AI 产品经理",categories:{location:"上海"},descriptionPlain:"负责 AI 产品规划和智能体应用落地，推进研发协作与数据驱动迭代。要求有产品交付和技术实验经验。"}},
+  {provider:"Ashby",url:"https://jobs.ashbyhq.com/example/12345678-abcd-4321-abcd-123456789abc",api:"api.ashbyhq.com",title:"AI 产品经理",payload:{jobs:[{title:"AI 产品经理",location:"上海",jobUrl:"https://jobs.ashbyhq.com/example/12345678-abcd-4321-abcd-123456789abc",descriptionPlain:"负责 AI 产品规划和智能体应用落地，推进研发协作与数据驱动迭代。要求有产品交付和技术实验经验。"}]}},
+ ])("uses the $provider public job-posting endpoint rather than parsing its SPA shell",async({url,api,title,payload})=>{
+  const fetchMock=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify(payload),{status:200,headers:{"content-type":"application/json"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:url})}));
+  expect(response.status).toBe(200);
+  expect((await response.json()).input.sourceLabel).toBe("岗位链接导入");
+  expect(String(fetchMock.mock.calls[0][0])).toContain(api);
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain(title);
+ });
+
+ test("extracts generic JSON application state from common server-rendered SPA shells",async()=>{
+  const state={props:{pageProps:{job:{title:"数据产品经理",companyName:"示例公司",location:"杭州",descriptionHtml:"<p>负责数据产品规划、需求分析、跨团队协作及上线迭代。要求具备产品设计、数据分析和项目交付经验。</p>"}}}};
+  jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(`<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(state)}</script><div id="root"></div></html>`,{status:200,headers:{"content-type":"text/html"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/jobs/data-pm"})}));
+  expect(response.status).toBe(200);
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("数据产品经理");
+  expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("杭州");
+ });
+
+ test("extracts schema.org JobPosting microdata without a platform-specific adapter",async()=>{
+  const html=`<main itemscope itemtype="https://schema.org/JobPosting">
+   <h1 itemprop="title">供应链产品经理</h1>
+   <span itemprop="hiringOrganization">示例制造</span>
+   <div itemprop="jobLocation">苏州</div>
+   <div itemprop="description"><p>负责供应链系统规划、订单履约流程优化、需求分析、跨团队交付和上线后的持续运营。</p><p>要求具备企业软件产品经验，能够使用数据定位流程问题并推动方案落地。</p></div>
+  </main>`;
+  jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(html,{status:200,headers:{"content-type":"text/html"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/jobs/scm"})}));
+  expect(response.status).toBe(200);
+  const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
+  expect(prompt).toContain("供应链产品经理");
+  expect(prompt).toContain("示例制造");
+  expect(prompt).toContain("苏州");
+  expect(prompt).toContain("订单履约流程优化");
+ });
+
+ test("reads semantic job content and page metadata on a generic careers site",async()=>{
+  const html=`<html><head><title>数据分析师 - 示例集团</title><meta property="og:site_name" content="示例集团"><meta name="description" content="负责经营数据分析、指标体系建设、专题研究与业务决策支持；要求熟悉 SQL、统计分析和跨团队沟通。"></head><body><nav>首页 招聘 社会招聘</nav><main><h1>数据分析师</h1><p>负责经营数据分析、指标体系建设、专题研究与业务决策支持；要求熟悉 SQL、统计分析和跨团队沟通。</p></main></body></html>`;
+  jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(html,{status:200,headers:{"content-type":"text/html"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/careers/role"})}));
+  expect(response.status).toBe(200);
+  const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
+  expect(prompt).toContain("数据分析师");
+  expect(prompt).toContain("经营数据分析");
+  expect(prompt).not.toContain("首页 招聘 社会招聘");
+ });
+
+ test("validates each redirect destination before making the next request",async()=>{
+  const fetchMock=jest.spyOn(globalThis,"fetch")
+   .mockResolvedValueOnce(new Response(null,{status:302,headers:{location:"http://127.0.0.1/private"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/redirect"})}));
+  expect(response.status).toBe(503);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(await response.json()).toMatchObject({ok:false,error:expect.stringMatching(/内网|不能读取/)});
+ });
+
+ test("does not fetch an incidental URL embedded in long text",async()=>{
+  const fetchMock=jest.spyOn(globalThis,"fetch");
+  const sourceText=`这是简历内容，项目说明和经历非常完整，下面是多段工作记录和负责范围。参考链接：https://8.8.8.8/jobs/pm，后面还有更多项目补充说明、关键产出、协作对象和背景信息。`;
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText})}));
+  expect(response.status).toBe(200);
+  expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ test("explains when a public page requires login or client-side rendering",async()=>{
+  jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response("<html><div id=\"app\"></div><script>startApp()</script></html>",{status:200,headers:{"content-type":"text/html"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/jobs/private"})}));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({ok:false,error:expect.stringContaining("可能需要登录或由页面脚本加载")});
+  expect(finalizeQuota).not.toHaveBeenCalled();
+ });
+
+ test("turns common anti-bot and login HTTP responses into a safe manual-paste instruction",async()=>{
+  jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response("",{status:403,headers:{"content-type":"text/html"}}));
+  const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:"https://8.8.8.8/jobs/restricted"})}));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({ok:false,error:expect.stringContaining("拒绝了自动读取请求（403）")});
+  expect(reserveQuota).not.toHaveBeenCalled();
+ });
+});

@@ -102,8 +102,339 @@ function readableTextFromHtml(html: string) {
     .trim();
 }
 
+function htmlAttribute(tag: string, name: string) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = tag.match(new RegExp(`\\b${escaped}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, "i"));
+  return match ? decodeHtmlText(match[2]).trim() : "";
+}
+
+function jobPostingMicrodataText(html: string) {
+  const openings = html.matchAll(/<([a-z][\w:-]*)\b[^>]*\bitemtype\s*=\s*(["'])[^"']*schema\.org\/JobPosting[^"']*\2[^>]*>/gi);
+  for (const opening of openings) {
+    const tagName = opening[1];
+    const afterOpening = (opening.index || 0) + opening[0].length;
+    const sameTag = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi");
+    sameTag.lastIndex = afterOpening;
+    let depth = 1;
+    let end = html.length;
+    for (const tag of html.matchAll(sameTag)) {
+      if (/^<\//.test(tag[0])) depth -= 1;
+      else if (!/\/>$/.test(tag[0])) depth += 1;
+      if (depth === 0) { end = (tag.index || 0) + tag[0].length; break; }
+    }
+    const block = html.slice(opening.index || 0, end);
+    const fields = new Map<string, string[]>();
+    for (const match of block.matchAll(/<([a-z][\w:-]*)\b[^>]*\bitemprop\s*=\s*(["'])[^"']+\2[^>]*>/gi)) {
+      const tag = match[0];
+      const tagName = match[1];
+      const property = htmlAttribute(tag, "itemprop");
+      const content = htmlAttribute(tag, "content") || htmlAttribute(tag, "datetime");
+      let inner = "";
+      if (!content && !/\/>$/.test(tag)) {
+        const contentStart = (match.index || 0) + tag.length;
+        const sameTag = new RegExp(`<\\/?${tagName}\\b[^>]*>`, "gi");
+        sameTag.lastIndex = contentStart;
+        let depth = 1;
+        for (const nestedTag of block.matchAll(sameTag)) {
+          if (/^<\//.test(nestedTag[0])) depth -= 1;
+          else if (!/\/>$/.test(nestedTag[0])) depth += 1;
+          if (depth === 0) {
+            inner = block.slice(contentStart, nestedTag.index || contentStart);
+            break;
+          }
+        }
+      }
+      const value = content || readableTextFromHtml(inner);
+      if (value) fields.set(property, [...(fields.get(property) || []), value]);
+    }
+    const get = (...names: string[]) => names.flatMap((name) => fields.get(name) || []).join("；");
+    const text = [
+      get("title") && `职位：${get("title")}`,
+      get("hiringOrganization") && `公司：${get("hiringOrganization")}`,
+      get("jobLocation", "address") && `地点：${get("jobLocation", "address")}`,
+      get("employmentType") && `用工类型：${get("employmentType")}`,
+      get("description") && `岗位职责与要求：\n${get("description")}`,
+      get("qualifications") && `任职要求：\n${get("qualifications")}`,
+      get("responsibilities") && `岗位职责：\n${get("responsibilities")}`,
+    ].filter(Boolean).join("\n");
+    if (text.length >= 80) return text;
+  }
+  return "";
+}
+
+function genericPageText(html: string) {
+  // Job pages often expose readable content inside semantic landmarks even when
+  // they do not publish JSON-LD. Prefer these over the whole page's navigation.
+  const semantic = [...html.matchAll(/<(?:main|article)\b[^>]*>([\s\S]*?)<\/(?:main|article)>/gi)]
+    .map((match) => readableTextFromHtml(match[1]))
+    .filter((text) => text.length >= 80)
+    .sort((a, b) => b.length - a.length)[0];
+  if (semantic) return semantic;
+
+  const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+  const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map((match) => match[0]);
+  const metaValue = (names: string[]) => {
+    for (const meta of metas) {
+      const key = htmlAttribute(meta, "name") || htmlAttribute(meta, "property");
+      if (names.includes(key.toLowerCase())) {
+        const content = htmlAttribute(meta, "content");
+        if (content) return content;
+      }
+    }
+    return "";
+  };
+  const title = titleMatch ? readableTextFromHtml(titleMatch[1]) : "";
+  const description = metaValue(["description", "og:description", "twitter:description"]);
+  const site = metaValue(["og:site_name", "application-name"]);
+  const metadata = [site && `公司或网站：${site}`, title && `职位或页面标题：${title}`, description && `页面简介：${description}`]
+    .filter(Boolean).join("\n");
+  if (metadata.length >= 80) return metadata;
+
+  const withoutChrome = html
+    .replace(/<(header|nav|footer|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<(script|style|noscript|svg|template)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  return readableTextFromHtml(withoutChrome);
+}
+
+function decodeHtmlText(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'");
+}
+
+function jobPostingStructuredText(html: string) {
+  const scripts = html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const match of scripts) {
+    try {
+      const parsed: unknown = JSON.parse(decodeHtmlText(match[1]));
+      const pending = Array.isArray(parsed) ? [...parsed] : [parsed];
+      while (pending.length) {
+        const candidate = pending.shift();
+        if (Array.isArray(candidate)) { pending.push(...candidate); continue; }
+        const item = asRecord(candidate);
+        if (Array.isArray(item["@graph"])) pending.push(...item["@graph"] as unknown[]);
+        const type = item["@type"];
+        const types = Array.isArray(type) ? type : [type];
+        if (!types.some((entry) => String(entry).toLowerCase() === "jobposting")) continue;
+
+        const organization = asRecord(item.hiringOrganization);
+        const locations = Array.isArray(item.jobLocation) ? item.jobLocation : [item.jobLocation];
+        const locationText = locations.map((location) => {
+          const address = asRecord(asRecord(location).address);
+          return [address.addressLocality, address.addressRegion, address.addressCountry]
+            .map((part) => typeof part === "string" ? part : "")
+            .filter(Boolean).join("、");
+        }).filter(Boolean).join("；");
+        const fields: Array<[string, unknown]> = [
+          ["职位", item.title], ["公司", organization.name], ["地点", locationText],
+          ["用工类型", item.employmentType], ["岗位职责", item.description],
+          ["任职要求", item.qualifications], ["技能", item.skills],
+          ["经验要求", item.experienceRequirements], ["教育要求", item.educationRequirements],
+        ];
+        const text = fields.flatMap(([label, value]) => {
+          const values = Array.isArray(value) ? value : [value];
+          const content = values.map((entry) => typeof entry === "string" ? readableTextFromHtml(entry) : "")
+            .filter(Boolean).join("；");
+          return content ? [`${label}：${content}`] : [];
+        }).join("\n");
+        if (text.length >= 80) return text;
+      }
+    } catch {
+      // Ignore invalid third-party JSON-LD and continue with visible page text.
+    }
+  }
+  return "";
+}
+
+function embeddedJobStateText(html: string) {
+  const scripts = html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi);
+  for (const match of scripts) {
+    const attributes = match[1];
+    if (/application\/ld\+json/i.test(attributes)) continue;
+    if (!/application\/(?:ld\+)?json|__NEXT_DATA__|__NUXT_DATA__|INITIAL_STATE|JOB_DATA|JOB_DETAIL/i.test(attributes)) continue;
+    try {
+      const root: unknown = JSON.parse(match[2]);
+      const queue: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
+      let inspected = 0;
+      while (queue.length && inspected < 8_000) {
+        const { value, depth } = queue.shift()!;
+        if (!value || typeof value !== "object" || depth > 14) continue;
+        inspected += 1;
+        if (Array.isArray(value)) {
+          for (const entry of value) queue.push({ value: entry, depth: depth + 1 });
+          continue;
+        }
+        const record = asRecord(value);
+        const stringField = (keys: string[]) => {
+          for (const key of keys) if (typeof record[key] === "string" && String(record[key]).trim()) return String(record[key]).trim();
+          return "";
+        };
+        const title = stringField(["title", "jobTitle", "positionTitle", "postingTitle"]);
+        const description = stringField(["descriptionPlain", "descriptionHtml", "description", "jobDescription", "descriptionBody", "content", "body"]);
+        if (title && description.length >= 40) {
+          const location = stringField(["location", "locationName", "city", "workLocation"]);
+          const company = stringField(["companyName", "employerName", "organizationName"]);
+          const requirements = stringField(["qualifications", "requirements", "minimumQualifications"]);
+          const responsibilities = stringField(["responsibilities", "duties"]);
+          return [company && `公司：${company}`, `职位：${title}`, location && `地点：${location}`, `岗位职责与要求：\n${readableTextFromHtml(description)}`, responsibilities && `工作职责：\n${readableTextFromHtml(responsibilities)}`, requirements && `任职要求：\n${readableTextFromHtml(requirements)}`]
+            .filter(Boolean).join("\n");
+        }
+        for (const child of Object.values(record)) queue.push({ value: child, depth: depth + 1 });
+      }
+    } catch {
+      // Ignore non-JSON script payloads; only parse structured data, never execute page scripts.
+    }
+  }
+  return "";
+}
+
+function extractStandaloneJobUrl(sourceText: string) {
+  const matches = [...sourceText.matchAll(/https?:\/\/[^\s<>"'，。；、)）\]}]+/gi)];
+  if (matches.length !== 1) return null;
+  const match = matches[0];
+  const rawUrl = match[0].replace(/[.,，。；;:!?！？》】]+$/g, "");
+  const surroundingText = `${sourceText.slice(0, match.index)}${sourceText.slice((match.index || 0) + match[0].length)}`
+    .replace(/[\[\]{}()（）<>「」『』“”‘’`*_：: \t\r\n]/g, "")
+    .trim();
+  // Only fetch an unambiguous pasted link (optionally preceded by a short label).
+  // Do not fetch arbitrary URLs buried in a resume or a long note.
+  if (surroundingText.length > 40) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchManusPublicJob(url: URL) {
+  const match = url.pathname.match(/^\/(?:cn|en)\/job\/([0-9a-f-]{36})\/?$/i);
+  if (url.hostname.toLowerCase() !== "careers.manus.im" || !match) return null;
+  const locale = url.pathname.startsWith("/cn/") ? "zh" : "en";
+  const input = encodeURIComponent(JSON.stringify({ json: { locale } }));
+  const response = await fetch(new URL(`/api/trpc/hr/applications.publicJobs?input=${input}`, url.origin), {
+    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://ai-job-coach.xin)", Accept: "application/json" },
+    signal: AbortSignal.timeout(9_000),
+  });
+  if (!response.ok) return null;
+  const body = await readLimitedBody(response);
+  const payload = asRecord(JSON.parse(body));
+  const data = asRecord(asRecord(payload.result).data);
+  const jobs = Array.isArray(data.json) ? data.json : [];
+  const job = jobs.map(asRecord).find((candidate) => String(candidate.id).toLowerCase() === match[1].toLowerCase());
+  if (!job) return null;
+  const description = readableTextFromHtml(String(job.descriptionHtml || ""));
+  const locations = Array.isArray(job.locations) ? job.locations.filter((value): value is string => typeof value === "string") : [];
+  const lines = [
+    `职位：${String(job.title || "")}`,
+    `公司：Manus`,
+    locations.length ? `地点：${locations.join("、")}` : "",
+    job.type ? `用工类型：${String(job.type)}` : "",
+    job.summary ? `岗位概述：${String(job.summary)}` : "",
+    description ? `岗位职责与要求：\n${description}` : "",
+    `来源：${url.toString()}`,
+  ].filter(Boolean);
+  const text = lines.join("\n");
+  return text.length >= 80 ? { text: text.slice(0, MAX_SOURCE_LENGTH), finalUrl: url.toString() } : null;
+}
+
+async function fetchKnownPublicAtsJob(url: URL) {
+  const hostname = url.hostname.toLowerCase();
+  let endpoint: URL | null = null;
+  let provider = "";
+  let requestedId = "";
+
+  // These read-only endpoints are documented/public job-board APIs, not application APIs.
+  const greenhouse = ["boards.greenhouse.io", "job-boards.greenhouse.io"].includes(hostname)
+    ? url.pathname.match(/^\/([a-z0-9_-]+)\/jobs\/(\d+)(?:\/[^/]*)?\/?$/i)
+    : null;
+  if (greenhouse) {
+    provider = "greenhouse";
+    requestedId = greenhouse[2];
+    endpoint = new URL(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(greenhouse[1])}/jobs/${encodeURIComponent(requestedId)}?content=true`);
+  }
+
+  const lever = ["jobs.lever.co", "jobs.eu.lever.co"].includes(hostname)
+    ? url.pathname.match(/^\/([a-z0-9_-]+)\/([a-f0-9-]{12,})(?:\/[^/]*)?\/?$/i)
+    : null;
+  if (!endpoint && lever) {
+    provider = "lever";
+    requestedId = lever[2];
+    const apiHost = hostname === "jobs.eu.lever.co" ? "api.eu.lever.co" : "api.lever.co";
+    endpoint = new URL(`https://${apiHost}/v0/postings/${encodeURIComponent(lever[1])}/${encodeURIComponent(requestedId)}?mode=json`);
+  }
+
+  const ashby = hostname === "jobs.ashbyhq.com"
+    ? url.pathname.match(/^\/([a-z0-9_-]+)\/([a-f0-9-]{12,})(?:\/[^/]*)?\/?$/i)
+    : null;
+  if (!endpoint && ashby) {
+    provider = "ashby";
+    requestedId = ashby[2];
+    endpoint = new URL(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(ashby[1])}`);
+  }
+
+  if (!endpoint) return null;
+  const response = await fetch(endpoint, {
+    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://ai-job-coach.xin)", Accept: "application/json" },
+    signal: AbortSignal.timeout(9_000),
+  });
+  if (!response.ok) return null;
+  const body = await readLimitedBody(response);
+  const payload: unknown = JSON.parse(body);
+  let record: UnknownRecord | null = null;
+  if (provider === "greenhouse" || provider === "lever") {
+    const candidate = asRecord(payload);
+    const id = String(candidate.id || "");
+    if (id === requestedId) record = candidate;
+  } else {
+    const jobs = asRecord(payload).jobs;
+    if (Array.isArray(jobs)) {
+      const job = jobs.map(asRecord).find((candidate) => {
+        if (typeof candidate.jobUrl !== "string") return false;
+        try { return new URL(candidate.jobUrl).pathname.split("/").filter(Boolean).includes(requestedId); }
+        catch { return false; }
+      });
+      if (job) record = job;
+    }
+  }
+  if (!record) return null;
+
+  const location = asRecord(record.location);
+  const categories = asRecord(record.categories);
+  const description = provider === "greenhouse"
+    ? String(record.content || "")
+    : String(record.descriptionPlain || record.descriptionHtml || record.descriptionBodyPlain || record.descriptionBody || record.description || "");
+  const title = String(record.title || record.text || record.name || "");
+  const locationText = provider === "lever"
+    ? String(categories.location || categories.allLocations || "")
+    : String(location.name || record.location || record.workplaceType || "");
+  const text = [
+    `职位：${title}`,
+    provider === "greenhouse" && Array.isArray(record.departments) ? `部门：${record.departments.map((item) => String(asRecord(item).name || "")).filter(Boolean).join("、")}` : "",
+    locationText && `地点：${locationText}`,
+    record.summary && `岗位概述：${String(record.summary)}`,
+    description && `岗位职责与要求：\n${readableTextFromHtml(description)}`,
+    Array.isArray(record.lists) ? record.lists.map((item) => {
+      const list = asRecord(item);
+      const content = readableTextFromHtml(String(list.content || ""));
+      return content ? `${String(list.text || "岗位要求")}：\n${content}` : "";
+    }).filter(Boolean).join("\n") : "",
+    `来源：${url.toString()}`,
+  ].filter(Boolean).join("\n");
+  return text.length >= 80 ? { text: text.slice(0, MAX_SOURCE_LENGTH), finalUrl: url.toString() } : null;
+}
+
 async function fetchPublicPage(rawUrl: string) {
   let current = await assertPublicHttpUrl(rawUrl);
+  const manusJob = await fetchManusPublicJob(current);
+  if (manusJob) return manusJob;
+  const atsJob = await fetchKnownPublicAtsJob(current);
+  if (atsJob) return atsJob;
   for (let redirect = 0; redirect <= 3; redirect += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 9_000);
@@ -119,12 +450,18 @@ async function fetchPublicPage(rawUrl: string) {
         current = await assertPublicHttpUrl(new URL(location, current).toString());
         continue;
       }
+      if ([401, 403, 429].includes(response.status)) {
+        throw new Error(`招聘网站拒绝了自动读取请求（${response.status}）。请在官网打开岗位后复制岗位职责和任职要求粘贴；不会绕过登录或验证。`);
+      }
       if (!response.ok) throw new Error(`岗位页面暂时无法读取（${response.status}）`);
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("text/html") && !contentType.includes("text/plain")) throw new Error("这个链接不是可读取的网页，请粘贴 JD");
       const text = await readLimitedBody(response);
-      const readable = contentType.includes("text/html") ? readableTextFromHtml(text) : text.trim();
-      if (readable.length < 80) throw new Error("页面没有读到完整 JD，请直接粘贴内容");
+      const structuredJobText = contentType.includes("text/html")
+        ? jobPostingStructuredText(text) || jobPostingMicrodataText(text) || embeddedJobStateText(text)
+        : "";
+      const readable = structuredJobText || (contentType.includes("text/html") ? genericPageText(text) : text.trim());
+      if (readable.length < (structuredJobText ? 40 : 80)) throw new Error("招聘页未提供可直接读取的 JD（可能需要登录或由页面脚本加载）。请从招聘官网复制岗位职责和任职要求后粘贴；不会绕过登录或验证。");
       return { text: readable.slice(0, MAX_SOURCE_LENGTH), finalUrl: current.toString() };
     } finally {
       clearTimeout(timer);
@@ -192,8 +529,9 @@ async function readIntake(request: Request) {
   if (!sourceText && structured.resumeText) return { ...structured, saveOnly, requestId, materialKindHint:materialKindHint || "preparation", sourceLabel:"网页填写" };
   if (!sourceText) throw new Error("请粘贴岗位、简历或求职目标，或选择一份文件");
 
-  if (/^https?:\/\/\S+$/i.test(sourceText.trim())) {
-    const page = await fetchPublicPage(sourceText.trim());
+  const jobUrl = extractStandaloneJobUrl(sourceText);
+  if (jobUrl) {
+    const page = await fetchPublicPage(jobUrl);
     sourceText = `来源链接：${page.finalUrl}\n\n${page.text}`;
     sourceLabel = "岗位链接导入";
   }

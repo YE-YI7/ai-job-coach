@@ -33,7 +33,7 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string)
  .modern section{display:grid;grid-template-columns:30mm minmax(0,1fr);gap:6mm}.modern h2,.modern h3{background:#edf2f6;padding:8px;align-self:start}.modern section[data-kind="header"]{display:block;background:#edf2f6;padding:16px}.modern section:not(:has(h2,h3))>div{grid-column:1/-1}
  .warm main{display:block}.warm section{background:#fbf8f2;padding:12px;margin-bottom:5mm;border-bottom:1px solid #d9cbbb}.warm h2{background:#f1e9dc;padding:8px}
  @media screen and (max-width:600px){body{margin:16px}.modern section{display:block}}
- @media print{.toolbar{display:none}body{margin:0;max-width:none}h2,h3{break-after:avoid}section{break-inside:auto}*{print-color-adjust:exact}}
+ @media print{.toolbar{display:none}body{margin:0;max-width:none}h2,h3{break-after:avoid}section{break-inside:avoid-page}*{print-color-adjust:exact}}
  </style></head><body class="${template}"><div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div><main>${content}</main></body></html>`;
 }
 export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void){

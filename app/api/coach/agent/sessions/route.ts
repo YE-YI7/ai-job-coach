@@ -7,14 +7,23 @@ export async function GET(req:Request){
  const user=await getCurrentUserFromRequest();if(!user)return Response.json({error:"请先登录"},{status:401,headers});
  const id=new URL(req.url).searchParams.get("opportunityId");if(id&&!uuid.test(id))return Response.json({error:"岗位无效"},{status:400,headers});
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
- let q=db.from("coach_learning_sessions").select("id,title,status,summary,created_at,archived_at").eq("user_id",user.id);
+ let q=db.from("coach_learning_sessions").select("id,title,status,summary,opportunity_id,source_turn_id,created_at,archived_at").eq("user_id",user.id);
+ const all=new URL(req.url).searchParams.get("all")==="1";
  const notesOnly=new URL(req.url).searchParams.get("notes")==="1";
- q=notesOnly?q.not("summary","is",null).neq("summary",""):id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
- const {data,error}=await q.order("created_at",{ascending:false}).limit(30);
- let legacy=db.from("coach_agent_turns").select("id").eq("user_id",user.id).is("session_id",null);
- legacy=id?legacy.eq("opportunity_id",id):legacy.is("opportunity_id",null);
- const {data:old,error:legacyError}=await legacy.limit(1);
- return Response.json(error||legacyError?{error:"无法读取学习记录"}:{ok:true,sessions:[...(data||[]),...(old?.length?[{id:"legacy",title:"旧版对话",status:"archived",summary:null}]:[])]},{status:error||legacyError?503:200,headers});
+ q=notesOnly?q.not("summary","is",null).neq("summary",""):all?q.is("source_turn_id",null):id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
+ const {data,error}=await q.order("created_at",{ascending:false}).limit(all?200:30);
+ let legacy=db.from("coach_agent_turns").select("id,opportunity_id").eq("user_id",user.id).is("session_id",null);
+ if(!all)legacy=id?legacy.eq("opportunity_id",id):legacy.is("opportunity_id",null);
+ const {data:old,error:legacyError}=await legacy.limit(all?200:1);
+ const scopes=[...new Set((old||[]).map((t:{opportunity_id?:string|null})=>t.opportunity_id??null))];
+ if(all&&!error){
+  // Across devices resume the most recently used active conversation, not the
+  // last-created job. A browser's explicit selection still takes precedence.
+  const recent=await db.from("coach_agent_turns").select("session_id").eq("user_id",user.id).not("session_id","is",null).order("created_at",{ascending:false}).limit(1);
+  const activeIndex=(data||[]).findIndex((s:{id:string;status:string})=>s.id===recent.data?.[0]?.session_id&&s.status==="active");
+  if(activeIndex>0)data.unshift(...data.splice(activeIndex,1));
+ }
+ return Response.json(error||legacyError?{error:"无法读取学习记录"}:{ok:true,userId:user.id,sessions:[...(data||[]),...scopes.map(opportunity_id=>({id:all?`legacy:${opportunity_id||"general"}`:"legacy",opportunity_id,title:"旧版对话",status:"archived",summary:null}))]},{status:error||legacyError?503:200,headers});
 }
 export async function POST(req:Request){
  const user=await getCurrentUserFromRequest();if(!user)return Response.json({error:"请先登录"},{status:401,headers});
@@ -24,14 +33,19 @@ export async function POST(req:Request){
  const db=await getDbClient();if(!db)return Response.json({error:"数据库不可用"},{status:503,headers});
  if(id){const {data,error}=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();if(error||!data)return Response.json({error:"岗位无法访问"},{status:error?503:404,headers});}
  if(b.note===true&&(typeof b.summary!=="string"||!b.summary.trim()||b.summary.length>6000))return Response.json({error:"笔记需为1到6000字"},{status:400,headers});
- let sourceTurn: {id:string;request_id:string;learning_trace?:{harness?:{combined?:string}}}|null=null;
+ let sourceTurn: {id:string;request_id:string;learning_trace?:{outcome?:unknown;harness?:{combined?:string}}}|null=null;
  if(b.sourceTurnId!==undefined){
   if(!b.note||!uuid.test(b.sourceTurnId))return Response.json({error:"笔记来源无效"},{status:400,headers});
   let q=db.from("coach_agent_turns").select("id,request_id,learning_trace").eq("id",b.sourceTurnId).eq("user_id",user.id);
   q=id?q.eq("opportunity_id",id):q.is("opportunity_id",null);
   const r=await q.maybeSingle();if(r.error||!r.data)return Response.json({error:"笔记来源不可访问"},{status:r.error?503:404,headers});sourceTurn=r.data;
  }
- const {data,error}=await db.from("coach_learning_sessions").insert({user_id:user.id,opportunity_id:id,title:b.title.trim(),...(b.note===true?{summary:b.summary.trim(),status:"archived",archived_at:new Date().toISOString()}: {})}).select("id,title,status,summary").single();
+ if(sourceTurn&&!sourceTurn.learning_trace?.outcome){
+  const previous=await db.from("coach_learning_sessions").select("id,title,status,summary,opportunity_id,outcome").eq("user_id",user.id).eq("source_turn_id",sourceTurn.id).maybeSingle();
+  if(previous.error)return Response.json({error:"无法确认已有成果，请重试"},{status:503,headers});
+  if(previous.data)return Response.json(previous.data.summary===b.summary.trim()?{ok:true,session:previous.data}:{error:"这条成果已保存过，请重新打开后编辑；当前草稿仍保留"},{status:previous.data.summary===b.summary.trim()?200:409,headers});
+ }
+ const {data,error}=await db.from("coach_learning_sessions").insert({user_id:user.id,opportunity_id:id,title:b.title.trim(),...(b.note===true?{summary:b.summary.trim(),status:"archived",archived_at:new Date().toISOString(),...(sourceTurn&&!sourceTurn.learning_trace?.outcome?{source_turn_id:sourceTurn.id}:{})}: {})}).select("id,title,status,summary,opportunity_id").single();
  if(!error&&sourceTurn)await recordChatRequest(user.id,sourceTurn.request_id,"adopted",{opportunity_id:id,turn_id:sourceTurn.id,harness_version:sourceTurn.learning_trace?.harness?.combined});
  return Response.json(error?{error:"开课失败，请重试"}:{ok:true,session:data},{status:error?503:201,headers});
 }

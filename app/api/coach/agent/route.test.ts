@@ -23,6 +23,26 @@ function setupGeneration(saveError=false){
  return q;
 }
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
+test('长期导师会话读取跨岗位历史，仍必须属于当前账号',async()=>{
+ jest.resetAllMocks();const q=setupGeneration();const sid='22222222-2222-4222-8222-222222222222';
+ (readLearningSession as jest.Mock).mockResolvedValue({id:sid,status:'active',opportunity_id:null});
+ q.limit.mockResolvedValue({data:[{id:'turn',question:'原岗位',answer:'保留',opportunity_id:'old-job'}]});
+ const r=await GET(new Request(`https://example.com/api/coach/agent?sessionId=${sid}`));
+ expect(r.status).toBe(200);expect(q.eq).toHaveBeenCalledWith('user_id','owner');expect(q.eq).toHaveBeenCalledWith('session_id',sid);expect(q.is).not.toHaveBeenCalledWith('opportunity_id',null);
+ expect((await r.json()).turns[0].opportunity_id).toBe('old-job');
+ (readLearningSession as jest.Mock).mockResolvedValue(null);expect((await GET(new Request(`https://example.com/api/coach/agent?sessionId=${sid}`))).status).toBe(404);
+});
+test('切岗延续同一会话，但本轮检索与写入绑定新岗位',async()=>{
+ jest.resetAllMocks();const q=setupGeneration();const sid='22222222-2222-4222-8222-222222222222',job='33333333-3333-4333-8333-333333333333';
+ (readLearningSession as jest.Mock).mockResolvedValue({id:sid,status:'active',opportunity_id:'old-job'});
+ (readLearningMemory as jest.Mock).mockResolvedValue('');(refreshProfileMemory as jest.Mock).mockResolvedValue('');
+ const jobs={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValue({data:[]}),maybeSingle:jest.fn().mockResolvedValue({data:{id:job}})};
+ (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==='coach_opportunities'?jobs:q});
+ (callLLM as jest.Mock).mockResolvedValue('我们先确认当前岗位最重要的条件。');
+ const r=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({sessionId:sid,opportunityId:job,message:'我们接着看这个岗位',requestId:'11111111-1111-4111-8111-111111111111'})}));
+ expect((await r.json()).ok).toBe(true);expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({opportunityId:job,userId:'owner'}));expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({session_id:sid,opportunity_id:job,user_id:'owner'}));
+ jobs.maybeSingle.mockResolvedValue({data:null});expect((await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({sessionId:sid,opportunityId:job,message:'继续',requestId:'44444444-4444-4444-8444-444444444444'})}))).status).toBe(404);
+});
 describe("agent boundary",()=>{
  beforeEach(()=>jest.resetAllMocks());
  test('明确教练模式覆盖历史面试模式，允许讲解',async()=>{

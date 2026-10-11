@@ -1,4 +1,8 @@
 .panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:16px;color:#292b2d}
+.returnEntry{display:flex;align-items:center;gap:8px;padding:8px 0;flex-shrink:0;border-bottom:1px solid #e0dad1;color:#605c55;font-size:13px}
+.returnEntry span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.returnEntry button{min-height:44px;white-space:nowrap;color:#8d3a17;font-weight:600}
+.turnScope{margin:14px 0 5px;color:#605c55;font-size:12px;line-height:1.5}
 .panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel header strong{font-size:20px;letter-spacing:-.3px}
 .mentorIdentity{display:flex;align-items:center;gap:9px}.mentorIdentity img{border-radius:10px;flex-shrink:0}

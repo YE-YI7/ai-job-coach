@@ -1014,24 +1014,26 @@ export function CockpitApp({
           </div></>}</>}
         </section>
 
-        {creating ? <CreationRail /> : active && <ActionRail
+        {creating && <CreationRail />}
+        {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}
           onStartConsumed={()=>setCoachingStart(null)}
-          onStageAdvanced={async (stage)=>{
-            const stageLabel=STAGE_STATUS_WORDS[stage]||active.stageLabel;
+          onStageAdvanced={async (stage,targetId)=>{
+            const target=opportunities.find(o=>o.id===(targetId||active.id));if(!target)return false;
+            const stageLabel=STAGE_STATUS_WORDS[stage]||target.stageLabel;
             const result=await commitStage({
               opportunities,
-              activeId:active.id,
+              activeId:target.id,
               stage,
               stageLabel,
-              isCloud: dataMode==="live" && !localIds.includes(active.id),
+              isCloud: dataMode==="live" && !localIds.includes(target.id),
               patch:(opportunity)=>fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({stageUpdate:{id:opportunity.id,stage:opportunity.stage}})}).then(async(response)=>{const body=await response.json().catch(()=>({}));return {ok:response.ok&&Boolean(body.ok),error:typeof body.error==="string"?body.error:`岗位状态保存失败（${response.status}）`};}),
             });
-            setOpportunities((current)=>mergeStageResult(current, result, active.id));
+            setOpportunities((current)=>mergeStageResult(current, result, target.id));
             if(result.saved){logAction(`把岗位状态更新为「${stageLabel}」`);return true;}
-            announce(`状态没有保存：${result.error}——岗位仍是「${STAGE_STATUS_WORDS[active.stage]||active.stageLabel}」，确认条还在，请稍后重试`);
+            announce(`状态没有保存：${result.error}——岗位仍是「${STAGE_STATUS_WORDS[target.stage]||target.stageLabel}」，确认条还在，请稍后重试`);
             return false;
           }}
           chatContext={chatContext}
@@ -2087,10 +2089,10 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
   );
 }
 
-function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startRequest, onStartConsumed, onStageAdvanced, chatContext }: {
-  opportunity: Opportunity;
+function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startRequest, onStartConsumed, onStageAdvanced, chatContext, hidden, jobLabels }: {
+  opportunity: Opportunity; hidden?: boolean; jobLabels:Record<string,string>;
   startRequest?: CoachingStart|null; onStartConsumed?: (id:string)=>void;
-  onStageAdvanced?: (stage: OpportunityStage)=>void|Promise<boolean>;
+  onStageAdvanced?: (stage: OpportunityStage,targetId?:string)=>void|Promise<boolean>;
   chatContext?: string;
   storageMode: "cloud" | "local" | "demo"; mobileOpen: boolean; onClose: () => void;
 }) {
@@ -2103,9 +2105,9 @@ function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startReques
       ? "网络恢复后会自动重试云同步；暂时不要清除浏览器数据。"
       : "示例操作不会写入你的账号数据。";
   return (
-    <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="导师对话">
+    <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="导师对话" style={hidden?{display:"none"}:undefined}>
       <button className={styles.mobileClose} onClick={onClose} aria-label="关闭导师对话"><X size={19}/></button>
-      <AgentConversation invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} key={opportunity.id} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
+      <AgentConversation jobLabels={jobLabels} invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
       <details className={styles.privacyLine}><summary><ShieldCheck size={13} />{storageLabel}</summary><p>{storageDetail}</p></details>
     </aside>
   );

@@ -1,4 +1,4 @@
-import {PATCH,POST} from "./route";
+import {GET,PATCH,POST} from "./route";
 import {getCurrentUserFromRequest} from "@/lib/auth";
 import {getDbClient} from "@/lib/db";
 jest.mock("@/lib/auth");jest.mock("@/lib/db");
@@ -22,4 +22,16 @@ test("manual note is atomically created archived, owned by authenticated user",a
  (getDbClient as jest.Mock).mockResolvedValue({from:()=>q});
  const r=await POST(new Request("https://example.com",{method:"POST",body:JSON.stringify({note:true,title:"方法",summary:"关键收获",user_id:"attacker"})}));
  expect(r.status).toBe(201);expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({user_id:"owner",status:"archived",summary:"关键收获",opportunity_id:null}));
+});
+test('跨岗位历史默认恢复最近使用的会话，旧版记录仍可选择',async()=>{
+ (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});
+ const q={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),is:jest.fn().mockReturnThis(),not:jest.fn().mockReturnThis(),order:jest.fn().mockReturnThis(),limit:jest.fn().mockResolvedValueOnce({data:[{id:'new',status:'active'},{id:'recent',status:'active'}]}).mockResolvedValueOnce({data:[{opportunity_id:id}]}).mockResolvedValueOnce({data:[{session_id:'recent'}]})};
+ (getDbClient as jest.Mock).mockResolvedValue({from:()=>q});const r=await GET(new Request('https://example.com/api/coach/agent/sessions?all=1'));const b=await r.json();
+ expect(b.sessions.map((s:{id:string})=>s.id)).toEqual(['recent','new',`legacy:${id}`]);expect(q.eq).toHaveBeenCalledWith('user_id','owner');expect(q.is).not.toHaveBeenCalledWith('opportunity_id',null);
+});
+test('重复保存同一成果幂等，已有修改不能被旧 AI 文本覆盖',async()=>{
+ (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});
+ const q={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),is:jest.fn().mockReturnThis(),insert:jest.fn(),maybeSingle:jest.fn().mockResolvedValueOnce({data:{id,request_id:id}}).mockResolvedValueOnce({data:{id,summary:'已编辑成果'}})};
+ (getDbClient as jest.Mock).mockResolvedValue({from:()=>q});const body={note:true,title:'方法',summary:'旧 AI 文本',sourceTurnId:id};
+ expect((await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify(body)}))).status).toBe(409);expect(q.insert).not.toHaveBeenCalled();expect(q.eq).toHaveBeenCalledWith('source_turn_id',id);expect(q.eq).toHaveBeenCalledWith('user_id','owner');
 });

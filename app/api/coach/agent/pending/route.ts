@@ -5,7 +5,7 @@ import {readLearningSession} from "@/lib/coach-harness/learning-memory";
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const headers={"Cache-Control":"private, no-store"};
-type Draft={id:string;content:string;metadata:{kind:string;sessionId:string;requestId:string;status?:string;interactionMode?:"coaching"|"mock_interview"}};
+type Draft={id:string;content:string;opportunity_id?:string|null;metadata:{kind:string;sessionId:string;requestId:string;status?:string;interactionMode?:"coaching"|"mock_interview"}};
 
 /** Free source storage, not a completed AI turn or a confirmed resume claim. */
 async function handle(req:Request,method:"GET"|"POST"|"DELETE"){
@@ -21,7 +21,7 @@ async function handle(req:Request,method:"GET"|"POST"|"DELETE"){
   const session=await readLearningSession(user.id,body.sessionId);
   if(!session)return Response.json({error:"会话无法访问"},{status:404,headers});
   const db=await getDbClient();if(!db)throw Error("database unavailable");
-  const query=()=>db.from("coach_sources").select("id,content,metadata").eq("user_id",user.id).eq("source_type","user_answer").eq("metadata->>kind","pending_answer").eq("metadata->>sessionId",body.sessionId);
+  const query=()=>db.from("coach_sources").select("id,content,opportunity_id,metadata").eq("user_id",user.id).eq("source_type","user_answer").eq("metadata->>kind","pending_answer").eq("metadata->>sessionId",body.sessionId);
   if(method==="GET"){
    const {data,error}=await query().order("captured_at",{ascending:false}).limit(20);if(error)throw error;
    const drafts=(data||[]) as Draft[];
@@ -32,7 +32,7 @@ async function handle(req:Request,method:"GET"|"POST"|"DELETE"){
    // New submission supersedes the former retry; never resurrect an older failed draft.
    const latest=drafts[0];
    const draft=latest&&!completed.has(latest.id)&&latest.metadata.status!=="completed"?latest:null;
-   return Response.json({ok:true,completedRequestIds:[...completed],pending:draft?{text:draft.content,sessionId:body.sessionId,requestId:draft.id,...(draft.metadata.interactionMode?{interactionMode:draft.metadata.interactionMode}:{})}:null},{headers});
+   return Response.json({ok:true,completedRequestIds:[...completed],pending:draft?{text:draft.content,sessionId:body.sessionId,requestId:draft.id,opportunityId:draft.opportunity_id??session.opportunity_id,...(draft.metadata.interactionMode?{interactionMode:draft.metadata.interactionMode}:{})}:null},{headers});
   }
   if(method==="DELETE"){
    // Keep a completion marker so cleanup cannot expose an older superseded draft.
@@ -40,14 +40,17 @@ async function handle(req:Request,method:"GET"|"POST"|"DELETE"){
    if(error)throw error;return Response.json({ok:true},{headers});
   }
   if(session.status!=="active")return Response.json({error:"会话已归档，请新开辅导；原回答仍保留"},{status:409,headers});
+  const opportunityId=body.opportunityId===undefined?session.opportunity_id:body.opportunityId;
+  if(opportunityId!==null&&!uuid.test(opportunityId||""))return Response.json({error:"岗位无效"},{status:400,headers});
+  if(opportunityId){const owned=await db.from("coach_opportunities").select("id").eq("id",opportunityId).eq("user_id",user.id).maybeSingle();if(owned.error||!owned.data)return Response.json({error:"岗位无法访问"},{status:owned.error?503:404,headers});}
   const same=await query().eq("id",body.requestId).maybeSingle();if(same.error)throw same.error;
-  if(same.data)return Response.json(same.data.content===body.text?{ok:true}:{error:"这次请求已有不同回答，请保留原文后重新提交"},{status:same.data.content===body.text?200:409,headers});
+  if(same.data){const matches=same.data.content===body.text&&(body.opportunityId===undefined||same.data.opportunity_id===opportunityId);return Response.json(matches?{ok:true}:{error:"这次请求已有不同回答或岗位，请保留原文后重新提交"},{status:matches?200:409,headers});}
   // Insert only: a colliding UUID can never overwrite another user's source.
-  const {error}=await db.from("coach_sources").insert({id:body.requestId,user_id:user.id,opportunity_id:session.opportunity_id,source_type:"user_answer",title:"待分析回答",content:body.text,content_hash:createHash("sha256").update(`${body.sessionId}:${body.requestId}:${body.text}`).digest("hex"),metadata:{kind:"pending_answer",sessionId:body.sessionId,requestId:body.requestId,...(body.interactionMode?{interactionMode:body.interactionMode}:{})}});
+  const {error}=await db.from("coach_sources").insert({id:body.requestId,user_id:user.id,opportunity_id:opportunityId,source_type:"user_answer",title:"待分析回答",content:body.text,content_hash:createHash("sha256").update(`${body.sessionId}:${body.requestId}:${body.text}`).digest("hex"),metadata:{kind:"pending_answer",sessionId:body.sessionId,requestId:body.requestId,...(body.interactionMode?{interactionMode:body.interactionMode}:{})}});
   if(error){
    if(error.code==="23505"){
     const replay=await query().eq("id",body.requestId).maybeSingle();
-    if(!replay.error&&replay.data?.content===body.text)return Response.json({ok:true},{headers});
+    if(!replay.error&&replay.data?.content===body.text&&(body.opportunityId===undefined||replay.data.opportunity_id===opportunityId))return Response.json({ok:true},{headers});
     return Response.json({error:"请求标识冲突，请保留原文后重新提交"},{status:409,headers});
    }
    throw error;

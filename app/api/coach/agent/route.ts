@@ -62,12 +62,12 @@ function publicTrace(trace: Record<string, unknown> | null | undefined) {
 async function history(userId: string, opportunityId: string | null, sessionId:string|null=null, limit=12) {
   const db = await getDbClient();
   if (!db) throw new Error("数据库不可用");
-  let q = db.from("coach_agent_turns").select("id,question,answer,created_at,learning_trace").eq("user_id", userId);
-  q = opportunityId ? q.eq("opportunity_id", opportunityId) : q.is("opportunity_id", null);
+  let q = db.from("coach_agent_turns").select("id,question,answer,opportunity_id,created_at,learning_trace").eq("user_id", userId);
+  if(!sessionId)q = opportunityId ? q.eq("opportunity_id", opportunityId) : q.is("opportunity_id", null);
   q = sessionId ? q.eq("session_id",sessionId) : q.is("session_id",null);
   const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
-  return ((data || []) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:Record<string,unknown>|null}>)
+  return ((data || []) as Array<{id:string;question:string;answer:string;opportunity_id?:string|null;created_at:string;learning_trace?:Record<string,unknown>|null}>)
     .reverse().map(row => ({ ...row, learning_trace: publicTrace(row.learning_trace) })) as Array<{id:string;question:string;answer:string;created_at:string;learning_trace?:{interactionMode?:string;proactive?:boolean;responseLatencyMs?:number|null;teaching?:import("@/lib/coach-harness/teaching-frame").TeachingTurn["teaching"]}|null}>;
 }
 /** 岗位档案里已保存的真实复盘与模拟记录——导师必须看得到，不能反问时装不知道。 */
@@ -107,7 +107,10 @@ export async function GET(req: Request) {
   const sessionId=new URL(req.url).searchParams.get("sessionId");
   if(sessionId&&!uuid.test(sessionId))return NextResponse.json({error:"会话无效"},{status:400,headers});
   if (id && !uuid.test(id)) return NextResponse.json({ error: "岗位无效" }, { status: 400, headers });
-  try { return NextResponse.json({ ok: true, turns: await history(user.id, id,sessionId,200) }, { headers }); }
+  try {
+    if(sessionId&&!await readLearningSession(user.id,sessionId))return NextResponse.json({error:"会话无法访问"},{status:404,headers});
+    return NextResponse.json({ ok: true, turns: await history(user.id, id,sessionId,200) }, { headers });
+  }
   catch { return NextResponse.json({ error: "暂时无法读取对话" }, { status: 503, headers }); }
 }
 async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?: (message:string)=>void, onReplace?: (text:string)=>void) {
@@ -137,11 +140,11 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
       stageSuggestion:existing.learning_trace?.stageSuggestion??null,
       learning_trace:publicTrace(existing.learning_trace)}:{error:"请求已用于其他会话"},{status:same?200:409,headers});
   }
-  if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.opportunity_id!==id||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
+  if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
   const groundedDraft=body.interactionMode!=="mock_interview"&&needsResumeGrounding(body.message);
   const reference = await resolveSavedJobReference(user.id, body.message);
   const contextId = reference.ambiguous.length ? null : reference.job?.id ?? id;
-  if(id && contextId!==id){
+  if(id){
     const scope=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();
     if(scope.error)return NextResponse.json({error:"读取当前工作区失败，请重试"},{status:503,headers});
     if(!scope.data)return NextResponse.json({error:"当前工作区不可访问"},{status:404,headers});
@@ -176,16 +179,17 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const state = coachingStrategy(body.message, [...turns.slice(-7).map(t => t.learning_trace?.responseLatencyMs), responseTime(body.responseLatencyMs)], contextId || "general");
   // 本轮的目标、完成标准与终止判定先由服务端算好（来自用户原话 + 已落库轮次），
   // 再作为一条料交给模型：收不收口不取决于模型这一轮想不想继续讲。
+  const scopedTurns=turns.filter(t=>!("opportunity_id" in t)||t.opportunity_id===id);
   const frame = teachingFrame({
     message: body.message,
-    turns: turns.map((t) => ({ id: t.id, question: t.question, answer: t.answer, proactive: t.learning_trace?.proactive === true, teaching: t.learning_trace?.teaching })),
+    turns: scopedTurns.map((t) => ({ id: t.id, question: t.question, answer: t.answer, proactive: t.learning_trace?.proactive === true, teaching: t.learning_trace?.teaching })),
   });
   // Only restore owner/job-bound successful research. A chat never starts a network fan-out.
   const researchJob = context.opportunity || reference.job;
   const research = researchJob ? renderCompanyResearch(await readCompanyResearch(user.id, researchJob).catch(() => null)) : "";
   const interviewLedger = await interviewLedgerFor(db, user.id, contextId).catch(() => "");
   // Always recompile private facts; never share a cached answer across users or jobs.
-  const formatTurn = (t: (typeof turns)[number]) => `${t.learning_trace?.proactive?"辅导请求（系统事件，不是用户说过的话）":"用户"}：${t.question}\n导师（历史推断，非事实）：${t.answer}`;
+  const formatTurn = (t: (typeof turns)[number]) => `历史轮次范围：${"opportunity_id" in t?t.opportunity_id||"通用辅导":"旧记录"}；当前岗位：${id||"通用辅导"}。跨岗位内容只用于衔接讨论，不可作为当前 JD、经历或能力证据。\n${t.learning_trace?.proactive?"辅导请求（系统事件，不是用户说过的话）":"用户"}：${t.question}\n导师（历史推断，非事实）：${t.answer}`;
   const pendingExchange = turns.length ? formatTurn(turns[turns.length - 1]) : "";
   const recent = turns.slice(-4, -1).map(formatTurn).join("\n");
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
@@ -193,7 +197,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const savedEvents = await readInboundEvents({ userId: user.id, opportunityId: contextId, limit: 6 }).catch(() => []);
   const pageContext = [renderInboundEventsForAgent(savedEvents), typeof body?.pageContext === "string" ? body.pageContext : ""].filter(Boolean).join("\n\n");
   const sources = resumeSources(context);
-  const priorMode=turns.at(-1)?.learning_trace?.interactionMode;
+  const priorMode=scopedTurns.at(-1)?.learning_trace?.interactionMode;
   const interviewer=!groundedDraft&&(body.interactionMode===undefined?interviewMode(body.message,priorMode):body.interactionMode==="mock_interview");
   const firstInterview=interviewer&&priorMode!=="mock_interview";
   // 每条料的预算与可信标注只在 TUTOR_MATERIALS 里声明一次，这里只负责供料。
@@ -241,7 +245,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   let modelCalls = 0;
   const fingerprint=createHash("sha256").update(user.id+":"+id+":"+actualSystem+actualPrompt).digest("hex");
   const contextReadyMs=Date.now()-startedAt;
-  const userEvidence=`${body.message}\n${turns.slice(-4).map(t=>t.question).join("\n")}`;
+  const userEvidence=`${body.message}\n${scopedTurns.slice(-4).map(t=>t.question).join("\n")}`;
   const streamText=createTutorStream(userEvidence,text=>{if(onReplace && frame.stage!=="closing"){visibleTextAt??=Date.now();onReplace(text);}});
   const generate = async (model:string) => {
     modelCalls++;
@@ -295,7 +299,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     resumeTextInPrompt ? { kind: "resume", text: resumeTextInPrompt } : null,
   ].filter((x): x is ProvidedMaterial => Boolean(x));
   const replyChecks = runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, {
-    reply: { answer: parsed.answer, suggestions: parsed.suggestions, userText: `${body.message}\n${turns.slice(-4).map((t) => t.question).join("\n")}`, providedMaterials },
+    reply: { answer: parsed.answer, suggestions: parsed.suggestions, userText: `${body.message}\n${scopedTurns.slice(-4).map((t) => t.question).join("\n")}`, providedMaterials },
   });
   guardVerdicts.push(...replyChecks);
   const guarded = (replyChecks.find((d) => d.guardId === INSUFFICIENCY_GUARD_ID)!.data as unknown as { legacy: GuardResult }).legacy;

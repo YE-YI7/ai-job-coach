@@ -19,25 +19,30 @@ import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from ".
 import {modelTurnNotice,isAcknowledged,rememberAcknowledged,type ModelTurnNotice} from "./model-change";
 import TaskRunTray from "./TaskRunTray";
 import OutcomeCard from "./OutcomeCard";
+import MentorDeliverable from "./MentorDeliverable";
+import {readContinuation,writeContinuation} from "./mentor-continuation";
 import {canShowTutorInvitation} from "./tutor-invitation";
 import type {LearningOutcome} from "@/lib/coach-harness/learning-outcome";
 type Turn={id:string;question:string;answer:string;learning_trace?:{interactionMode?:"coaching"|"mock_interview";suggestions?:string[];model?:string;modelCalls?:number;proactive?:boolean;insufficiency?:InsufficiencyTrace|null;outcome?:LearningOutcome|null;outcomeNote?:string|null;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
-type Session={id:string;title:string;status:"active"|"archived";summary?:string};
+type ScopedTurn=Turn&{opportunity_id?:string|null};
+type Session={id:string;title:string;status:"active"|"archived";summary?:string;opportunity_id?:string|null};
 export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean};
 export type TutorInvitation={id:string;text:string;title:string;prompt:string};
 async function archiveRemote(sessionId:string){
  const r=await fetch("/api/coach/agent/archive",{method:"POST",headers:{"Content-Type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({sessionId})});
  const b=await r.json();if(!b.ok)throw Error(b.error||"保存进展失败");return b;
 }
-export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onArchived,onStageAdvanced,chatContext,opening,invitation}:{opportunityId?:string;label:string;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null}){
+export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onArchived,onStageAdvanced,chatContext,opening,invitation,jobLabels={}}:{opportunityId?:string;label:string;jobLabels?:Record<string,string>;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage,opportunityId?:string)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null}){
  const [dismissedInvitations,setDismissedInvitations]=useState<string[]>([]);
  const [outreach,setOutreach]=useState<TutorInvitation|null>(null);
- const [turns,setTurns]=useState<Turn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
+ const [turns,setTurns]=useState<ScopedTurn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
+ const [owner,setOwner]=useState<string|null>(null),[resumeEntry,setResumeEntry]=useState(false);
+ const stageTarget=useRef<string|undefined>(undefined);
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[sessions,setSessions]=useState<Session[]>([]),[session,setSession]=useState<Session|null>(null);
  const [pending,setPending]=useState("");
  const [interactionMode,setInteractionMode]=useState<"coaching"|"mock_interview">("coaching");
- // Restore the mode of the selected lesson rather than leaking it across jobs.
- useEffect(()=>{setInteractionMode(turns.at(-1)?.learning_trace?.interactionMode??"coaching");},[session?.id,turns.at(-1)?.id]);
+ const lastTurnMode=turns.at(-1)?.learning_trace?.interactionMode,lastTurnId=turns.at(-1)?.id;
+ useEffect(()=>{setInteractionMode(lastTurnMode??"coaching");},[session?.id,lastTurnId,lastTurnMode]);
  const quotaLabel=useQuotaLabel("chat",busy);
  const [pendingProactive,setPendingProactive]=useState(false);
  const [draft,setDraft]=useState("");
@@ -51,9 +56,9 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const ackStore=useCallback(():{getItem(k:string):string|null;setItem(k:string,v:string):void}=>({getItem:k=>{try{return localStorage.getItem(k);}catch{return null;}},setItem:(k,v)=>{try{localStorage.setItem(k,v);}catch{}}}),[]);
  const [savingStage,setSavingStage]=useState(false);
  const [savingNote,setSavingNote]=useState<string|null>(null),[savedNotes,setSavedNotes]=useState<Set<string>>(new Set());
- async function saveNote(turn:Turn){
+ async function saveNote(turn:ScopedTurn){
   if(savingNote)return;setSavingNote(turn.id);setError("");
-  try{const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:true,title:turn.question.slice(0,120)||"导师回答",summary:turn.answer,opportunityId,sourceTurnId:turn.id})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"笔记保存失败");setSavedNotes(s=>new Set(s).add(turn.id));}
+  try{const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:true,title:turn.question.slice(0,120)||"导师回答",summary:turn.answer.slice(0,6000),opportunityId:turn.opportunity_id??null,sourceTurnId:turn.id})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"笔记保存失败");setSavedNotes(s=>new Set(s).add(turn.id));}
   catch(e){setError(e instanceof Error?e.message:"笔记保存失败");}finally{setSavingNote(null);}
  }
  const [modelMode,setModelModeState]=useState<ChatMode>(()=>{try{return (localStorage.getItem("yi-zhi.chat-model") as ChatMode)||"auto";}catch{return "auto";}});
@@ -79,7 +84,10 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const incoming=useRef<HTMLDivElement>(null);
  const [readingHeight,setReadingHeight]=useState(300);
  const [sendSequence,setSendSequence]=useState(0);
- const scope=opportunityId?"opportunityId="+opportunityId:"";
+
+ const historyUrl=(s:Session)=>s.id.startsWith("legacy")?`/api/coach/agent?${s.opportunity_id?"opportunityId="+s.opportunity_id:""}`:`/api/coach/agent?sessionId=${s.id}`;
+ useEffect(()=>{setOutreach(null);},[opportunityId]);
+ useEffect(()=>{if(owner&&!loading){writeContinuation(ackStore(),owner,{sessionId:session?.id??null,draft:message});}},[owner,loading,session?.id,message,ackStore]);
  useEffect(()=>{
   if(!enabled||!opportunityId||busy||loading||message.trim()||!turns.length)return;
   const abort=new AbortController();
@@ -97,14 +105,16 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
   setTurns([]);setMessage("");setError("");setPending("");setPendingProactive(false);setDraft("");setStageSuggestion(null);setModelNotice(null);setBusy(false);setSession(null);setSessions([]);setLoading(true);
   if(!enabled){setLoading(false);return;}
   const controller=new AbortController();
-  fetch("/api/coach/agent/sessions?"+scope,{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then(async b=>{
+  fetch("/api/coach/agent/sessions?all=1",{cache:"no-store",signal:controller.signal}).then(r=>r.json()).then(async b=>{
    if(token!==generation.current)return;
    if(!b.ok)throw Error(b.error||"无法找回学习记录");
-   setSessions(b.sessions);const active=b.sessions.find((s:Session)=>s.status==="active");
-if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/api/coach/agent?"+scope+"&sessionId="+active.id,{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current)setTurns(h.turns);const saved=await restorePendingAnswer(active.id,[],controller.signal);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
+   setOwner(b.userId);setSessions(b.sessions);const continuation=readContinuation(ackStore(),b.userId,b.sessions.map((s:Session)=>s.id));const active=continuation?b.sessions.find((s:Session)=>s.id===continuation.sessionId):b.sessions.find((s:Session)=>s.status==="active");
+   if(continuation)setMessage(continuation.draft);
+if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(historyUrl(active),{cache:"no-store",signal:controller.signal});const h=await r.json();if(!h.ok)throw Error(h.error);if(token===generation.current){setTurns(h.turns);setResumeEntry(h.turns.length>0);}const saved=active.id.startsWith("legacy")?null:await restorePendingAnswer(active.id,[],controller.signal);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
   }).catch(e=>{if(token===generation.current&&!controller.signal.aborted)setError(e.message||"网络异常，请刷新找回记录");}).finally(()=>{if(token===generation.current)setLoading(false);});
   return()=>{generation.current=token+1;controller.abort();};
- },[scope,enabled,setModelNotice]);
+ // A job switch changes the next turn's materials, never the selected conversation.
+ },[enabled,setModelNotice,ackStore]);
  useEffect(()=>{const node=list.current;if(!node)return;const observer=new ResizeObserver(()=>setReadingHeight(node.clientHeight));observer.observe(node);return()=>observer.disconnect();},[]);
  // Anchor once per submitted message, not once per token. The reserved answer
  // area keeps this position stable as the stream grows and is committed.
@@ -132,19 +142,21 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
     if(!b.ok)throw Error(b.error||"开课失败");if(token!==generation.current)return;
     selected=b.session;setSession(b.session);setSessions(s=>[b.session,...s]);setTurns([]);
    }
-   const requestId=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.requestId:crypto.randomUUID();
-   const effectiveMode=retry.current?.text===text&&retry.current.sessionId===selected!.id?retry.current.interactionMode??interactionMode:interactionMode;
-   retry.current={text,sessionId:selected!.id,requestId,interactionMode:effectiveMode};
+   const retrying=retry.current?.text===text&&retry.current.sessionId===selected!.id;
+   const targetId=retrying&&retry.current?.opportunityId!==undefined?retry.current.opportunityId:opportunityId??null;
+   const requestId=retrying?retry.current!.requestId:crypto.randomUUID();
+   const effectiveMode=retrying?retry.current!.interactionMode??interactionMode:interactionMode;
+   retry.current={text,sessionId:selected!.id,requestId,opportunityId:targetId,interactionMode:effectiveMode};
    if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
    await assertGenerationQuota("chat",fetch,{sessionId:selected!.id});if(token!==generation.current)return;
    const responseLatencyMs=answerReceivedAt.current===null?undefined:performance.now()-answerReceivedAt.current;
-   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId,sessionId:selected!.id,message:text,requestId,modelMode,interactionMode:effectiveMode,proactive:proactive||undefined,pageContext:chatContext||undefined,responseLatencyMs})});
+   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId:targetId,sessionId:selected!.id,message:text,requestId,modelMode,interactionMode:effectiveMode,proactive:proactive||undefined,pageContext:targetId===opportunityId?chatContext||undefined:undefined,responseLatencyMs})});
    const b=await readChatResponse<Turn&{ok?:boolean;error?:string;stageSuggestion?:OpportunityStage|null}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});
    if(token!==generation.current)return;
    if(!b.ok){
     // A confirmed failed attempt has a refunded/closed reservation. A new attempt
     // needs a fresh billing key; an unknown network outcome retains the old key.
-    if(!proactive){retry.current={text,sessionId:selected!.id,requestId:crypto.randomUUID(),interactionMode:effectiveMode};await persistPendingAnswer(retry.current);}
+    if(!proactive){retry.current={text,sessionId:selected!.id,requestId:crypto.randomUUID(),opportunityId:targetId,interactionMode:effectiveMode};await persistPendingAnswer(retry.current);}
     throw Error(b.error||"回答暂时不可用");
    }
    clearPendingAnswer(pendingAnswerStore(),selected!.id);retry.current=null;
@@ -153,14 +165,14 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
    void fetch("/api/coach/agent/pending",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:selected!.id,requestId})}).catch(()=>{});
    answerReceivedAt.current=performance.now();
    setDraft("");
-   setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,learning_trace:b.learning_trace}]);setPending("");
-   if(b.stageSuggestion)setStageSuggestion(b.stageSuggestion);
+   setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,opportunity_id:targetId,learning_trace:b.learning_trace}]);setPending("");setResumeEntry(false);
+   if(b.stageSuggestion){stageTarget.current=targetId??undefined;setStageSuggestion(b.stageSuggestion);}
    const notice=modelTurnNotice({modelMode,trace:b.learning_trace});
    if(notice&&!isAcknowledged(ackStore(),notice))setModelNotice(notice);
   }catch(e){if(token===generation.current){setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||text);}}
   finally{if(token===generation.current){setBusy(false);lock.current=false;}}
  },[enabled,loading,opportunityId,session,modelMode,interactionMode,chatContext,ackStore,setModelNotice]);
- useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current){seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,true,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed]);
+ useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current){seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,false,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed]);
  async function archive(){
   if(!session||lock.current||!turns.length)return false;lock.current=true;setBusy(true);setError("");const token=generation.current;
   try{const b=await archiveRemote(session.id);if(token!==generation.current)return false;const closed={...session,status:"archived" as const,summary:b.summary};setSession(closed);setSessions(s=>s.map(x=>x.id===closed.id?closed:x));onArchived?.();return true;}
@@ -168,16 +180,19 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
   finally{if(token===generation.current){lock.current=false;setBusy(false);}}
  }
  async function selectSession(id:string){
-  if(lock.current)return;const target=sessions.find(s=>s.id===id);if(!target)return;
+  if(lock.current)return;if(!id){newConversation();return;}const target=sessions.find(s=>s.id===id);if(!target)return;
   const token=++generation.current;jumpToLatest.current=true;setLoading(true);setError("");setFailedLesson(null);setSession(target);setTurns([]);setMessage("");setDraft("");setPending("");setModelNotice(null);
-  try{const r=await fetch("/api/coach/agent?"+scope+(id==="legacy"?"":"&sessionId="+id),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);const saved=await restorePendingAnswer(target.id);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
+  retry.current=null;
+  try{const r=await fetch(historyUrl(target),{cache:"no-store"});const b=await r.json();if(token!==generation.current)return;if(!b.ok)throw Error(b.error);setTurns(b.turns);setResumeEntry(b.turns.length>0);const saved=id.startsWith("legacy")?null:await restorePendingAnswer(target.id);if(token===generation.current&&saved){retry.current=saved;setMessage(saved.text);setPending(saved.text);}}
   catch(e){if(token===generation.current)setError(e instanceof Error?e.message:"读取失败");}finally{if(token===generation.current)setLoading(false);}
  }
+ function newConversation(){if(lock.current)return;setSession(null);retry.current=null;setTurns([]);setMessage("");setDraft("");setPending("");setError("");setFailedLesson(null);setModelNotice(null);setStageSuggestion(null);setResumeEntry(false);input.current?.focus({preventScroll:true});}
  return <section className={styles.panel} aria-label="对话辅导">
-  <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>AI 求职导师</strong><button type="button" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={()=>{setSession(null);setTurns([]);setMessage("");setDraft("");setPending("");setError("");setFailedLesson(null);setModelNotice(null);input.current?.focus({preventScroll:true});}}><Plus size={16}/>新辅导</button></header>
+  <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>AI 求职导师</strong><button type="button" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={16}/>新辅导</button></header>
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
   {!!sessions.length&&<label className={styles.history}>学习记录<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label>}
   </div>
+  {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{turns.at(-1)?.question.slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
   <div className={styles.modeSwitch} role="group" aria-label="导师模式">
    <button type="button" aria-pressed={interactionMode==="coaching"} disabled={busy||loading||!!pending} onClick={()=>setInteractionMode("coaching")}>教练 · 讲解与反馈</button>
    <button type="button" aria-pressed={interactionMode==="mock_interview"} disabled={busy||loading||!!pending} onClick={()=>setInteractionMode("mock_interview")}>面试官 · 一次一题</button>
@@ -185,9 +200,10 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
   <TaskRunTray enabled={enabled}/>
   {researchNote&&<p className={styles.proactiveNote} role="status">{researchNote}</p>}
   <div ref={list} className={styles.messages} role="log" aria-label="辅导对话" aria-live="polite">
-  {activeInvitation&&!message.trim()&&!busy&&!dismissedInvitations.includes(activeInvitation.id)&&<section className={styles.teachingInvite} aria-label="导师的练习邀请"><p>{activeInvitation.text}</p><div><button disabled={!enabled||busy||loading} onClick={()=>{setDismissedInvitations(ids=>[...ids,activeInvitation.id]);void send(activeInvitation.prompt,true,activeInvitation.title,true);}}>好，带我练这题</button><button onClick={()=>setDismissedInvitations(ids=>[...ids,activeInvitation.id])}>稍后</button></div>{!enabled&&<small>预览邀请；登录后可开始真实带练。</small>}</section>}
-   {loading?<p>正在找回学习记录…</p>:!turns.length&&!pending&&(!invitation||dismissedInvitations.includes(invitation.id))?<div className={styles.welcome}><BookOpen size={26}/><h3>我们从这里开始</h3><p>{opening?.text||"告诉我你正在准备什么，我会带你完成下一步。"}</p><div className={styles.quickStarts}>{opening?.prompts.map(prompt=><button key={prompt} type="button" disabled={!enabled||busy} onClick={()=>void send(prompt)}>{prompt}</button>)}</div>{!enabled&&<p>当前为预览；登录后可以开始真实辅导。</p>}</div>:turns.map((t,index)=><div key={t.id} ref={index===turns.length-1?lastTurn:null}>{t.learning_trace?.proactive?<p className={styles.proactiveNote}>导师主动来问你了</p>:<p className={styles.question}>{t.question}</p>}<div className={styles.answer} style={index===turns.length-1&&!pending?{minHeight:readingHeight}:undefined}><TutorMarkdown>{t.answer}</TutorMarkdown>{(()=>{const note=turnIntervention(insufficiencyFromTrace(t.learning_trace));return note?<p className={styles.interventionNote}>{note.text}</p>:null;})()}<button type="button" aria-label="复制导师回答" onClick={()=>void navigator.clipboard.writeText(t.answer).catch(()=>setError("复制失败，请选中文字复制"))}><Copy size={14}/>复制</button>
-   {t.learning_trace?.outcome&&<OutcomeCard outcome={t.learning_trace.outcome} note={t.learning_trace.outcomeNote??null} turnId={t.id} opportunityId={opportunityId} disabled={!enabled}/>}
+  {activeInvitation&&!message.trim()&&!busy&&!dismissedInvitations.includes(activeInvitation.id)&&<section className={styles.teachingInvite} aria-label="导师的练习邀请"><p>{activeInvitation.text}</p><div><button disabled={!enabled||busy||loading} onClick={()=>{setDismissedInvitations(ids=>[...ids,activeInvitation.id]);void send(activeInvitation.prompt,false,activeInvitation.title,true);}}>好，带我练这题</button><button onClick={()=>setDismissedInvitations(ids=>[...ids,activeInvitation.id])}>稍后</button></div>{!enabled&&<small>预览邀请；登录后可开始真实带练。</small>}</section>}
+   {loading?<p>正在找回学习记录…</p>:!turns.length&&!pending&&(!invitation||dismissedInvitations.includes(invitation.id))?<div className={styles.welcome}><BookOpen size={26}/><h3>我们从这里开始</h3><p>{opening?.text||"告诉我你正在准备什么，我会带你完成下一步。"}</p><div className={styles.quickStarts}>{opening?.prompts.map(prompt=><button key={prompt} type="button" disabled={!enabled||busy} onClick={()=>void send(prompt)}>{prompt}</button>)}</div>{!enabled&&<p>当前为预览；登录后可以开始真实辅导。</p>}</div>:turns.map((t,index)=><div key={t.id} ref={index===turns.length-1?lastTurn:null}>{t.learning_trace?.proactive?<p className={styles.proactiveNote}>导师主动来问你了</p>:<><p className={styles.turnScope}>{t.opportunity_id===opportunityId?label:t.opportunity_id?jobLabels[t.opportunity_id]||"原岗位已移除":"通用辅导"}</p><p className={styles.question}>{t.question}</p></>}<div className={styles.answer} style={index===turns.length-1&&!pending?{minHeight:readingHeight}:undefined}><TutorMarkdown>{t.answer}</TutorMarkdown>{(()=>{const note=turnIntervention(insufficiencyFromTrace(t.learning_trace));return note?<p className={styles.interventionNote}>{note.text}</p>:null;})()}<button type="button" aria-label="复制导师回答" onClick={()=>void navigator.clipboard.writeText(t.answer).catch(()=>setError("复制失败，请选中文字复制"))}><Copy size={14}/>复制</button>
+   {t.learning_trace?.outcome&&<OutcomeCard outcome={t.learning_trace.outcome} note={t.learning_trace.outcomeNote??null} turnId={t.id} opportunityId={t.opportunity_id??undefined} disabled={!enabled}/>}
+   {!t.learning_trace?.outcome&&<MentorDeliverable turnId={t.id} question={t.question} answer={t.answer} opportunityId={t.opportunity_id} disabled={!enabled}/>}
    {!t.learning_trace?.outcome&&t.learning_trace?.outcomeNote&&<p className={styles.interventionNote}>{t.learning_trace.outcomeNote}</p>}
    {t.learning_trace?.model&&<details className={styles.usage}><summary>{t.learning_trace.modelUsage?.model||t.learning_trace.model}{t.learning_trace.modelUsage?` · ${t.learning_trace.modelUsage.inputTokens+t.learning_trace.modelUsage.outputTokens} tokens${t.learning_trace.modelUsage.averageTokensPerSecond!==null?` · ${t.learning_trace.modelUsage.averageTokensPerSecond} tokens/s`:""}`:" · 用量未返回"}</summary>{t.learning_trace.modelUsage&&<p>输入 {t.learning_trace.modelUsage.inputTokens} / 输出 {t.learning_trace.modelUsage.outputTokens} tokens。速率是输出 tokens ÷ 请求耗时，包含等待，不是扣费倍率。</p>}<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenPay 实时价格（以账单为准）</a></details>}
    {index===turns.length-1&&!busy&&!loading&&session?.status!=="archived"&&!!t.learning_trace?.suggestions?.length&&<div className={styles.quickStarts} aria-label="继续这个问题">{t.learning_trace.suggestions.filter(q=>!/^(你|您|说说|谈谈|试着|请你|请您)/.test(q.trim())).slice(0,2).map(q=><button key={q} type="button" disabled={!enabled} onClick={()=>void send(q)}>{q}</button>)}</div>}
@@ -197,8 +213,8 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
    {pending&&!pendingProactive&&<p className={styles.question}>{pending}</p>}
    {pending&&<div ref={incoming} className={styles.answer} style={{minHeight:readingHeight}}>{draft&&<TutorMarkdown>{draft}</TutorMarkdown>}{busy?<p className={styles.streamStatus} role="status">{progress||"正在连接导师…"}</p>:<><p role="status">导师反馈尚未确认保存，原回答已恢复到输入框。</p><button type="button" disabled={loading||!enabled} onClick={()=>void send(message.trim()||pending)}>继续这次回答</button></>}</div>}
    {busy&&!pending&&<p role="status">导师正在整理进展…</p>}
-   {stageSuggestion&&!busy&&<div className={styles.stageConfirm} role="group" aria-label="确认岗位状态"><span>{`听起来你已经「${STAGE_STATUS_WORDS[stageSuggestion]||stageSuggestion}」了——只有你点头、且云端保存成功我才改岗位状态：`}</span><button type="button" disabled={savingStage} onClick={async()=>{setSavingStage(true);try{if(await onStageAdvanced?.(stageSuggestion)!==false)setStageSuggestion(null);}finally{setSavingStage(false);}}}>{savingStage?"正在保存…":"更新状态"}</button><button type="button" disabled={savingStage} onClick={()=>setStageSuggestion(null)}>先不</button></div>}
-   {session&&session.id!=="legacy"&&(session.summary||(session.status==="active"&&turns.length>0))&&<details className={styles.summary}><summary>本轮收获</summary>{session.summary?<TutorMarkdown>{session.summary}</TutorMarkdown>:<p>对话里值得下次带走的收获、难点和练习，整理后会存在这里。</p>}
+   {stageSuggestion&&!busy&&<div className={styles.stageConfirm} role="group" aria-label="确认岗位状态"><span>{`听起来你已经「${STAGE_STATUS_WORDS[stageSuggestion]||stageSuggestion}」了——只有你点头、且云端保存成功我才改岗位状态：`}</span><button type="button" disabled={savingStage} onClick={async()=>{setSavingStage(true);try{if(await onStageAdvanced?.(stageSuggestion,stageTarget.current)!==false)setStageSuggestion(null);}finally{setSavingStage(false);}}}>{savingStage?"正在保存…":"更新状态"}</button><button type="button" disabled={savingStage} onClick={()=>setStageSuggestion(null)}>先不</button></div>}
+   {session&&!session.id.startsWith("legacy")&&(session.summary||(session.status==="active"&&turns.length>0))&&<details className={styles.summary}><summary>本轮收获</summary>{session.summary?<TutorMarkdown>{session.summary}</TutorMarkdown>:<p>对话里值得下次带走的收获、难点和练习，整理后会存在这里。</p>}
     {session.status==="active"&&turns.length>0&&<button disabled={busy} onClick={()=>void archive()}>整理本次进展（AI 额度）</button>}</details>}
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
@@ -206,7 +222,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch("/ap
   {modelNotice&&<div className={styles.modelConfirm} role="group" aria-label="模型档位说明"><span>{modelNotice.text}</span><button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelNotice(null);}}>{modelNotice.requiresConfirm?"知道了，继续":"知道了"}</button>{modelNotice.requiresConfirm&&modelMode!=="fast"&&<button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelMode("fast");setModelNotice(null);}}>换回实惠档</button>}</div>}
   <form onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的回答，或直接说没听懂…" rows={2} maxLength={4000} disabled={!enabled} value={message} onChange={e=>{setMessage(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,112)+"px";}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
-   <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><VoiceControls key={`${opportunityId||"general"}:${session?.id||"new"}`} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
+   <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
   <p className={styles.disclaimer}>{quotaLabel} / 每条 AI 回答。保存回答和笔记免费；失败释放额度。AI 也会犯错，请核实重要信息。</p>
  </section>;

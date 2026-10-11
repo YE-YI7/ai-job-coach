@@ -651,15 +651,18 @@ async function analyzeRequest(request: Request, userId: string, report: (phase: 
     const parsed = asRecord(parseJson(result));
     const kindHint = intake.materialKindHint;
     const isSupplement = kindHint === "job" || kindHint === "resume" || kindHint === "experience";
+    // Public job-link extraction is already the authoritative JD. A model may
+    // analyze it, but must not rewrite the original or drop its source URL.
+    const isLinkedJob = intake.sourceLabel === "岗位链接导入";
     const modelKind = ["job", "resume", "goal", "mixed"].includes(String(parsed.materialKind)) ? String(parsed.materialKind) : "job";
     // 补充材料时客户端提示与合并后的原文才是事实：模型只负责分析（要求拆解、
     // 证据强弱、行动项），不得改判档案类型、清空已有 JD、或用自己的转写替换简历原文。
-    const materialKind = kindHint === "preparation" ? "goal" : isSupplement ? (intake.jdText ? "mixed" : "resume") : modelKind;
+    const materialKind = kindHint === "preparation" ? "goal" : isSupplement ? (intake.jdText ? "mixed" : "resume") : isLinkedJob ? "job" : modelKind;
     const workspaceType = materialKind === "job" || materialKind === "mixed" ? "job" : "preparation";
     const company = String(parsed.company || intake.company || (workspaceType === "preparation" ? "求职准备" : "")).trim().slice(0, 120);
     const role = String(parsed.role || intake.role || (workspaceType === "preparation" ? "目标待确认" : "")).trim().slice(0, 160);
     const location = String(parsed.location || intake.location || "").trim().slice(0, 160);
-    const jdText = workspaceType === "job" ? String(isSupplement ? intake.jdText : (parsed.jdText || "")).trim().slice(0, MAX_SOURCE_LENGTH) : "";
+    const jdText = workspaceType === "job" ? String(isSupplement || isLinkedJob ? intake.jdText : (parsed.jdText || "")).trim().slice(0, MAX_SOURCE_LENGTH) : "";
     // A supplied base resume is factual source text, never an LLM rewrite.
     const resumeText = String(isSupplement ? intake.resumeText : (intake.resumeText || (materialKind === "resume" ? intake.jdText : parsed.resumeText || ""))).trim().slice(0, MAX_SOURCE_LENGTH);
     const profileText = workspaceType === "preparation" ? intake.jdText.trim().slice(0, MAX_SOURCE_LENGTH) : "";

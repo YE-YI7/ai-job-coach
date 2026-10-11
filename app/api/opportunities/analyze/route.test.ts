@@ -184,7 +184,11 @@ describe("public JD URL intake",()=>{
   const fetchMock=jest.spyOn(globalThis,"fetch").mockResolvedValue(new Response(html,{status:200,headers:{"content-type":"text/html; charset=utf-8"}}));
   const response=await POST(new Request("https://example.com/api/opportunities/analyze",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sourceText:`JD 链接：\n${url}`})}));
   expect(response.status).toBe(200);
-  expect((await response.json()).input).toMatchObject({workspaceType:"job",sourceLabel:"岗位链接导入"});
+  const input=(await response.json()).input;
+  expect(input).toMatchObject({workspaceType:"job",sourceLabel:"岗位链接导入"});
+  expect(input.jdText).toContain(`来源链接：${url}`);
+  expect(input.jdText).toContain("负责 AI 产品规划、需求分析、跨团队协作与项目交付。");
+  expect(input.jdText).not.toBe("岗位职责与任职要求");
   expect(fetchMock).toHaveBeenCalledWith(new URL(url),expect.objectContaining({redirect:"manual"}));
   expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("任职要求：本科及以上学历");
  });

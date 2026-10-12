@@ -40,10 +40,21 @@ export async function POST(request: Request) {
     const answerQuery = await db.from("interview_answers").select("id,answer,assessment").eq("session_id", session.id).eq("question_id", previous.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (answerQuery.error) throw answerQuery.error;
     const answer = answerQuery.data;
-    if (!answer?.answer?.trim() || answer.assessment?.status !== "assessed") return reply({ ok: false, error: "先完成这道题，再进入下一题" }, 409);
+    if (body.skip !== true && (!answer?.answer?.trim() || answer.assessment?.status !== "assessed")) return reply({ ok: false, error: "先完成这道题，或明确跳过，再进入下一题" }, 409);
     const answered = await db.from("interview_answers").select("id").eq("session_id", session.id).eq("question_id", target.id).limit(1).maybeSingle();
     if (answered.error) throw answered.error;
     if (answered.data) return reply({ ok: false, error: "下一题已经回答，不覆盖已有题目" }, 409);
+    if (body.skip === true) {
+      // Skipping is a user decision, not a scored answer or another paid call.
+      // Require the saved, owner-scoped decision before advancing to the
+      // already sourced question from the original round.
+      const skipped = await db.from("coach_sources").select("id").eq("user_id",auth.id)
+        .eq("metadata->>kind","interview_pending_answer").eq("metadata->>sessionId",session.id)
+        .eq("metadata->>questionId",previous.id).eq("metadata->>status","skipped").limit(1).maybeSingle();
+      if (skipped.error) throw skipped.error;
+      if (!skipped.data) return reply({ok:false,error:"跳过决定尚未保存，请重试"},409);
+      return reply({ok:true,question:{...target,session_id:session.id},skipped:true});
+    }
     if (target.tips?._harness?.previousAnswerId === answer.id) return reply({ ok: true, question: { ...target, session_id: session.id } });
     let resume = "", research = "";
     if (session.opportunity_id) {

@@ -31,6 +31,7 @@ import {
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {hasReviewMaterial} from "@/lib/interview/review-evidence";
 import {chatFailureMessage,resolveCooldownRetry} from "@/lib/coach-harness/chat-failure";
+import {chatAttemptBudget} from "@/lib/coach-harness/chat-deadline";
 import {resolveSavedJobReference} from "@/lib/coach-harness/job-reference";
 import {createTutorStream,unwrapTutorAnswer} from "@/lib/coach-harness/tutor-stream";
 import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
@@ -249,11 +250,12 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const streamText=createTutorStream(userEvidence,text=>{if(onReplace && frame.stage!=="closing"){visibleTextAt??=Date.now();onReplace(text);}});
   const generate = async (model:string) => {
     modelCalls++;
-    onStatus?.(`正在等待 ${model} 响应…`);
+    const budget=chatAttemptBudget(Date.now()-startedAt,mode==="auto",modelCalls);
+    onStatus?.(modelCalls > 1 ? "连接暂时不稳定，正在尝试备用模型…" : "导师正在思考…");
     return runWithGenerationContext({...getGenerationContext(),userId:user.id,operation:"cockpit_agent",requestId:body.requestId,knowledgeDocumentIds:context.knowledge.map(k=>k.id)},()=>callLLM([
     { role:"system",content:actualSystem },
     { role:"user",content:actualPrompt }
-  ], {model,maxTokens:groundedDraft?1800:2400,reasoningBudgetTokens:groundedDraft||interviewer?2048:undefined,maxRetries:0,timeout:mode==="auto"?45000:60000,timeoutMs:mode==="auto"?45000:60000,firstTokenTimeoutMs:mode==="auto"?8000:35000,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft||interviewer?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft&&!interviewer?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;streamText(text);if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在回答，已生成 ${generatedChars} 字符…`);}}:undefined}));
+  ], {model,maxTokens:groundedDraft?1800:2400,reasoningBudgetTokens:2048,maxRetries:0,timeout:budget.timeoutMs,timeoutMs:budget.timeoutMs,firstTokenTimeoutMs:budget.firstTokenTimeoutMs,temperature:groundedDraft?0:0.4,responseFormat:groundedDraft||interviewer?"json_object":undefined,onUsage:details=>{modelUsage=details;},onDelta:onDelta&&!groundedDraft&&!interviewer?(text)=>{received=true;firstTextAt??=Date.now();generatedChars+=text.length;streamText(text);if(Date.now()-lastProgressAt>=1000){lastProgressAt=Date.now();onStatus?.(`导师正在回答，已生成 ${generatedChars} 字符…`);}}:undefined}));
   };
   let rawAnswer:string;
   // 换档事实只有这里知道：`selection.model` 会被改写成应答模型，台账里的

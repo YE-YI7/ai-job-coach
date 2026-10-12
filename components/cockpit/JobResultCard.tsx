@@ -3,6 +3,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { MapPin, BriefcaseBusiness, ArrowUpRight, CheckCircle2, ArrowRight, CircleAlert } from "lucide-react";
 import { companyLogo } from "@/lib/jobs/company-logos";
+import { jobLocationLabel } from "@/lib/jobs/display";
 import type { ReviewedJob } from "@/lib/jobs/personalization";
 import type {Opportunity} from '@/lib/opportunities/types';
 import { JOB_DECISION_LABEL, JOB_DECISION_ORDER, JOB_DECISION_REASONS, type JobDecision, type JobDecisionKind } from "@/lib/jobs/job-decision";
@@ -31,7 +32,7 @@ export default function JobResultCard({ job, disabled, importing, degraded, onIm
   const { review } = job;
   const logo = companyLogo(job.company);
   const [failedLogo, setFailedLogo] = useState<string | null>(null);
-  const [editing, setEditing] = useState(!decision);
+  const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState<string | null>(decision?.reason ?? null);
   const siteOf = (url: string) => url.replace(/^https?:\/\//, "").split("/")[0];
   const decide = (kind: JobDecisionKind) => { setEditing(false); onDecide(kind, reason?.trim() || null); };
@@ -45,7 +46,7 @@ export default function JobResultCard({ job, disabled, importing, degraded, onIm
       </p>
     </div>
     <div className={styles.attributes}>
-      <span><MapPin size={15}/>{job.location || "地点待核实"}</span>
+      <span title={job.location}><MapPin size={15}/>{jobLocationLabel(job.location||"")}</span>
       {job.jdRequirements.length > 0 ? <span><BriefcaseBusiness size={15}/>{job.jdRequirements.map(r => r.label).join(" · ")}</span> : <span>门槛详见招聘原文</span>}
     </div>
     <p className={styles.match}><CheckCircle2 size={16}/>{review.fitReason}</p>
@@ -63,16 +64,17 @@ export default function JobResultCard({ job, disabled, importing, degraded, onIm
       <p>{job.freshness === "in_sale" ? "来源标注近30天内发布，是否仍在招聘请以原页为准。" : "首次发布时间未知或较早，是否仍在招聘请查看原页。"}</p>
       <p>官网列表可能只有职责摘要；完整任职要求以招聘原文为准。以上依据都取自本轮公开抓取，不代表录用概率。</p>
     </details>
-    <div className={styles.decision}>
+    <details className={styles.decision} open={editing} onToggle={event=>setEditing(event.currentTarget.open)}><summary>{decision?`你的打算：${JOB_DECISION_LABEL[decision.decision]}`:"记录我的打算"}</summary>
       {decision && !editing ? <p className={styles.decided}>
         <CheckCircle2 size={15}/>你的打算：{JOB_DECISION_LABEL[decision.decision]}{decision.reason ? `（${decision.reason}）` : ""}
         <button type="button" className={styles.decisionEdit} disabled={disabled || decisionBusy} onClick={() => { setReason(decision.reason); setEditing(true); }}>改主意</button>
         {staleMaterials && <small>这条决定是对上一份材料做的，当时的判断仍在。</small>}
       </p> : <fieldset className={styles.decisionGroup} disabled={disabled || decisionBusy}>
-        <legend>{decision ? "改成：" : "这条你的打算是？（可选，不选也能走）"}</legend>
+        <legend>{decision ? "改成：" : "我的打算"}</legend>
+        <small>推进只加入工作台，不会标成已投递。</small>
         <div className={styles.decisionChoices}>
           {JOB_DECISION_ORDER.map(kind => <button key={kind} type="button" className={styles.decisionChoice} onClick={() => decide(kind)}>
-            {JOB_DECISION_LABEL[kind]}{kind === "advance" ? "（进工作台，不会标成已投递）" : ""}
+            {JOB_DECISION_LABEL[kind]}
           </button>)}
         </div>
         <div className={styles.decisionReason}>
@@ -83,13 +85,13 @@ export default function JobResultCard({ job, disabled, importing, degraded, onIm
       </fieldset>}
       {decisionBusy && <p role="status">正在记下你的决定…</p>}
       {decisionError && <p role="status" className={styles.decisionFailed}>{decisionError}</p>}
-    </div>
+    </details>
     <div className={styles.footer}>
       <div className={styles.provenance}>
         <a href={job.url} target="_blank" rel="noopener noreferrer">查看招聘原文<ArrowUpRight size={14}/></a>
         <small>读取于 {new Date(job.checkedAt).toLocaleDateString("zh-CN")}</small>
       </div>
-      <button type="button" className={styles.import} disabled={disabled} onClick={onImport}>{importing ? "正在保存判断…" : assessment ? "判断已保存" : "看看是否值得投 · 不额外扣额度"}<ArrowRight size={16}/></button>
+      <button type="button" className={styles.import} title="复用搜岗评审，不额外扣额度" disabled={disabled} onClick={onImport}>{importing ? "正在保存…" : assessment ? "判断已保存" : "查看投递建议"}<ArrowRight size={16}/></button>
     </div>
     {assessment&&<section className={styles.assessment} aria-label="投递判断" role="status"><h5>{assessment.recommendationLabel}</h5><p>{assessment.recommendationReason}</p><button type="button" onClick={()=>onOpenJob(assessment.id)}>打开已保存的岗位 <ArrowRight size={16}/></button><small>已加入左侧机会列表 · 复用搜岗评审，不额外扣额度</small></section>}
   </article>;

@@ -1,5 +1,5 @@
 import {requestsTeaching,learningHandoff} from "./learning-handoff";
-test.each(["我没搞过这个 教我一下","不会啊","我不会啊","请带我学一下","不知道怎么答"])("recognizes teaching: %s",text=>{
+test.each(["我没搞过这个 教我一下","不会啊","我不会啊","请带我学一下","不知道怎么答","忘了","我想不起来","没学过"])("recognizes teaching: %s",text=>{
   // Bare colloquial '不会啊' is also a direct plea in this answer field.
   expect(requestsTeaching(text)).toBe(true);
 });

@@ -15,6 +15,12 @@ test("long first paragraph is not inflated as a name, unsafe links cannot execut
  expect(html).not.toContain('class="resume-name"');
  expect(html).not.toContain('href="javascript:');
 });
+test("short lead-in never centres all narrative or enlarges it as a name",()=>{
+ const html=resumePrintHtml("张三，探索人机协作\n我想做一个让人与 Agent 协作的系统。\n更多项目原文\n\n教育背景\n某大学","classic","回归");
+ expect(html).not.toContain('class="resume-name"');
+ expect(html).toContain('<section data-kind="summary">');
+ expect(html).toContain("更多项目原文");
+});
 test("page breaks sit outside layout cells without dropping either side", () => {
  const html = resumePrintHtml("## 自定义章节\n分页前\n<!-- PAGEBREAK -->\n分页后", "modern", "简历");
  expect(html).toContain('分页前</p></div></section><div class="page-break"></div><section');

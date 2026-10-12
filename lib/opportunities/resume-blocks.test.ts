@@ -6,6 +6,19 @@ function change(over: Partial<ResumeChange> & { id: string }): ResumeChange {
 }
 
 describe("splitResumeBlocks", () => {
+  it("does not centre unsectioned narrative just because the first line is short",()=>{
+    const text="张三\n手机：13800000000\n我想做一个让人和 Agent 共同工作的系统，让小团队能调动过去需要庞大组织才有的能力。\nASM 研究任务交给谁\n工具的价值取决于使用者，我负责产品定义、取舍与验收。\n\n## 教育背景\n2022-2026 某大学";
+    const blocks=splitResumeBlocks(text);
+    expect(blocks[0].kind).toBe("header");
+    expect(blocks[0].lines).toHaveLength(2);
+    expect(blocks[1].kind).toBe("summary");
+    expect(blocks[1].lines.join("\n")).toContain("ASM 研究");
+    expect(reconstructResumeText(blocks).replace(/\s/g,"")).toBe(text.replace(/\s/g,""));
+  });
+  it("short tagline does not become an oversized centred name",()=>{
+    const blocks=splitResumeBlocks("张三，探索下一代人机协作方式\n项目的价值取决于真实验证\n\n教育背景\n某大学");
+    expect(blocks[0].kind).toBe("summary");
+  });
   const resume = [
     "张三",
     "电话：138 | 邮箱：z@x.com",

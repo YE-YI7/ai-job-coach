@@ -2,6 +2,11 @@ import {saveInterviewDraft,finishInterviewDraft} from "./answer-draft";
 import {getDbClient} from "@/lib/db";
 jest.mock("@/lib/db");
 const scope={userId:"owner",sessionId:"session",questionId:"question",opportunityId:"job"};
+test("explicit skip saves original answer without claiming a score or mastery",async()=>{
+ const upsert=jest.fn().mockResolvedValue({error:null});(getDbClient as jest.Mock).mockResolvedValue({from:()=>({upsert})});
+ await saveInterviewDraft(scope,"忘了",true);
+ expect(upsert).toHaveBeenCalledWith(expect.objectContaining({content:"忘了",metadata:expect.objectContaining({status:"skipped"})}),{onConflict:"id"});
+});
 test("same answer has deterministic identity, different user/question/text are isolated",async()=>{
  const upsert=jest.fn().mockResolvedValue({error:null});(getDbClient as jest.Mock).mockResolvedValue({from:()=>({upsert})});
  const first=await saveInterviewDraft(scope,"原文");expect(await saveInterviewDraft(scope,"原文")).toBe(first);

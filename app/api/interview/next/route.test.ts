@@ -43,6 +43,20 @@ test("跨用户会话不可读写", async () => {
   expect((await POST(request())).status).toBe(404);
   expect(generateLinkedFollowUpQuestion).not.toHaveBeenCalled();
 });
+test("explicit saved skip advances to sourced question without AI, scoring, or rewriting",async()=>{
+  db.rows("interview_answers")[0].assessment={status:"needs_more_input"};
+  db.applyInsert("coach_sources",[{id:"skip-1",user_id:owner,metadata:{kind:"interview_pending_answer",sessionId:session,questionId:before,status:"skipped"}}]);
+  const result=await POST(new Request("http://localhost/api/interview/next",{method:"POST",body:JSON.stringify({sessionId:session,previousQuestionId:before,nextQuestionId:after,skip:true})}));
+  expect(result.status).toBe(200);
+  expect((await result.json()).question.question_text).toBe("旧题");
+  expect(generateLinkedFollowUpQuestion).not.toHaveBeenCalled();
+  expect(db.rows("interview_answers")[0].assessment).toEqual({status:"needs_more_input"});
+});
+test("skip cannot be forged before saving the owner-scoped decision",async()=>{
+  const result=await POST(new Request("http://localhost/api/interview/next",{method:"POST",body:JSON.stringify({sessionId:session,previousQuestionId:before,nextQuestionId:after,skip:true})}));
+  expect(result.status).toBe(409);
+  expect(generateLinkedFollowUpQuestion).not.toHaveBeenCalled();
+});
 test("模型失败保留原题和回答，显式重试可成功", async () => {
   (generateLinkedFollowUpQuestion as jest.Mock).mockRejectedValueOnce(Error("模型失败"));
   expect((await POST(request())).status).toBe(500);

@@ -13,7 +13,7 @@ test("值得投复用服务端评审，确认保存后原地展开并可恢复�
  expect(source).toContain('打开已保存的岗位');
 });
 test("卡片保留岗位、地点、出处；依据与风险各一条，主操作是判断是否值得投",()=>{
- expect(source).toContain("{job.title}");expect(source).toContain("{job.company}");expect(source).toContain("job.location");expect(source).toContain("job.url");expect(source).toContain("看看是否值得投");expect(source).toContain("查看招聘原文");expect(source).toContain("disabled={disabled}");expect(source).toContain("onClick={onImport}");expect(source).toContain("<details");expect(source).not.toMatch(/<details[^>]+\bopen\b/);expect(source).toContain("companyLogo(job.company)");expect(source).toContain("<Image");expect(source).not.toContain("Building2");
+ expect(source).toContain("{job.title}");expect(source).toContain("{job.company}");expect(source).toContain("job.location");expect(source).toContain("job.url");expect(source).toContain("查看投递建议");expect(source).toContain("查看招聘原文");expect(source).toContain("disabled={disabled}");expect(source).toContain("onClick={onImport}");expect(source).toContain("<details");expect(source).toContain("useState(false)");expect(source).toContain("open={editing}");expect(source).toContain("companyLogo(job.company)");expect(source).toContain("<Image");expect(source).not.toContain("Building2");
  // PRD A2/A3：两态、一条依据、一条最影响决定的风险，全部来自服务端契约而不是字符串前缀
  expect(source).toContain("值得进一步了解");expect(source).toContain("先核实条件");
  expect(source).toContain("review.fitReason");expect(source).toContain("review.decisionRisk");

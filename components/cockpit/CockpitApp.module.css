@@ -1233,3 +1233,20 @@
 /* W6-⑤ (D3)：分数旁边的浮动区间与依据——中性小字，随数字同行距落下，不做徽章。 */
 .scoreBandNote{margin:8px 0 0;font-size:11.5px;line-height:1.7;font-weight:400;color:var(--muted)}
 .assessmentCard>p.scoreBandNote{font-weight:400;font-size:11.5px;color:var(--muted)}
+
+/* Shared workbench controls: neutral ink, warm surfaces, sparse orange. */
+.shell{--ink:#29251f;--muted:#6d6861;--accent:#bc5428;--accent-deep:#984320;--line:#e8e4de;--line-strong:#d7d2c9;--paper:#faf9f6}
+.primaryButton,.secondaryButton{font-family:inherit;font-weight:500;font-size:14px;line-height:1.5;border-radius:10px;min-height:40px;padding:9px 15px;transition:background-color 160ms ease,border-color 160ms ease}
+.primaryButton{background:#29251f;border-color:#29251f;color:#fff;box-shadow:none}.primaryButton:hover:not(:disabled){background:#464038;border-color:#464038}
+.secondaryButton:hover:not(:disabled){background:#f3f0eb}
+.textButton{font-size:13px;font-weight:500}
+.roundtableHeader h2,.pageIntro h2{font-family:inherit;letter-spacing:0;font-size:24px;font-weight:650}
+.roundtableActions{flex-wrap:wrap;gap:10px}.roundtableActions>span{flex:1 1 100%;font-size:13px}
+.assessmentBlocked{border:1px solid #e8ddd0;background:#faf7f1;border-radius:12px;box-shadow:none}
+.salaryOverview{max-width:700px}.salaryOverview h2{font-size:24px;font-weight:650;margin-bottom:8px}.salaryOverview p{font-size:15px;color:var(--muted);margin:0 0 24px}
+.profileViewTabs{display:flex;gap:24px;margin:0 0 24px;border-bottom:1px solid var(--line)}
+.profileViewTabs button{border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-size:14px;padding:10px 0;cursor:pointer}
+.profileViewTabs button[aria-pressed="true"]{border-bottom-color:var(--accent);color:var(--ink);font-weight:600}
+.profileViewTabs button:focus-visible{outline:2px solid #984320;outline-offset:4px}
+.opportunityItem{transition:background-color 160ms ease,border-color 160ms ease}
+@media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.opportunityItem{transition:none}}

@@ -833,13 +833,17 @@ export function CockpitApp({
     return true;
   };
 
+  const startInterviewTeaching = (question: string, answer: string) => {
+    if(!active)return;
+    setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,...learningHandoff(question,answer)});
+    setMobileRail("actions");
+    announce(dataMode === "demo" ? "预览：登录后导师会围绕这道题带你学，不生成评分" : "导师正在右侧带你学这道题");
+  };
   const analyzeInterviewAnswer = async (question: string, answer: string) => {
     if (!active) throw new Error("请先选择岗位");
     const opportunityId = active.id;
     if (requestsTeaching(answer)) {
-      setCoachingStart({id:crypto.randomUUID(),opportunityId,proactive:true,...learningHandoff(question,answer)});
-      setMobileRail("actions");
-      announce(dataMode === "demo" ? "预览：登录后导师会围绕这道题带你学，不生成评分" : "导师收到求教了，正在右侧带你学这道题");
+      startInterviewTeaching(question,answer);
       return null;
     }
     if (dataMode === "live") trackProductEvent("interview_practice_started", { opportunity_id: opportunityId });
@@ -974,7 +978,7 @@ export function CockpitApp({
         </div>
       </header>
 
-      <div className={`${styles.workspace} ${!creating && activeTab === "salary" ? styles.salaryWorkspace : ""}`} data-chat-layout="workspace"><ChatResizeHandle/>
+      <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
           onOpenProfile={() => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
@@ -1007,10 +1011,10 @@ export function CockpitApp({
             {/* 面试台不再挂「概览+优先练题清单」：开练入口就在训练台上，
                 导师聊天保留在右栏，练面试时随时能就题问导师。 */}
             {activeTab === "interview" && <div className={styles.interviewWorkbench}>
-              <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={setActiveId} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onAnalyze={analyzeInterviewAnswer} onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
+              <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={setActiveId} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onAnalyze={analyzeInterviewAnswer} onTeach={startInterviewTeaching} onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
             </div>}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} onGuide={guideReview} analyzing={reviewingInterview} />}
-            {activeTab === "salary" && <>{active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}<section><h2>谈薪与 Offer</h2><p>先核对薪酬结构、截止时间与自己的取舍。不要求重新做简历或课程。</p><button className={styles.primaryButton} onClick={()=>{setEntryGateInitial({view:"offers",opportunityId:active.id});setEntryGateOpen(true);}}>管理 Offer 条款</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>请导师帮我准备沟通</button></section></>}
+            {activeTab === "salary" && <>{active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}<section className={styles.salaryOverview}><h2>谈薪与 Offer</h2><p>核对总包、薪酬结构与答复期限。</p><div className={styles.interviewActions}><button className={styles.primaryButton} onClick={()=>{setEntryGateInitial({view:"offers",opportunityId:active.id});setEntryGateOpen(true);}}>管理 Offer</button><button className={styles.secondaryButton} onClick={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"谈薪准备",prompt:"请帮我检查这个岗位谈薪前需要确认的条款，先问我一个最重要的问题，不要猜测市场薪资。"});setMobileRail("actions");}}>准备谈薪沟通</button></div></section></>}
           </div></>}</>}
         </section>
 
@@ -1547,13 +1551,14 @@ function buildDemoAssessment(answer: string): InterviewAssessmentView | null {
   }, "demo");
 }
 
-function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onSyncRoundtable, dataMode, exampleRecords = false }: {
+function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onTeach, onSyncRoundtable, dataMode, exampleRecords = false }: {
   opportunity: Opportunity;
   relatedJobs: Opportunity[];
   onSelectJob: (id: string) => void;
   onSupplement: (input: OpportunitySupplement) => Promise<void>;
   supplementing: boolean;
   onAnalyze: (question: string, answer: string) => Promise<InterviewPracticeFeedback | null>;
+  onTeach: (question:string,answer:string)=>void;
   onSyncRoundtable: (session: InterviewRoundtableSession, nextActions?: InterviewRoundNextActionView[]) => void;
   dataMode: "demo" | "live";
   // Built-in demo seed data is fabricated (see buildDemoAssessment / demo
@@ -1775,6 +1780,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       setLastFeedback(assessment);
       if (assessment.status === "assessed") setRoundtableAnswer("");
       onSyncRoundtable(toSessionRecord(updated));
+      if (requestsTeaching(roundtableAnswer) || assessment.status === "needs_more_input") {
+        onTeach(currentTurn.question,roundtableAnswer);
+      }
     } catch (error) {
       setLastFeedback(null);
       setRoundtableError(error instanceof Error ? error.message : "本题分析失败");
@@ -1807,6 +1815,28 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     // 最后一题答完不再直接让 AI 写整轮结论：先进入「你自己先复盘」这一步。
   };
 
+  const skipQuestion = async () => {
+    if (!roundtable || submittingRoundtable) return;
+    const current = roundtable.turns[roundtable.currentIndex];
+    if (!current) return;
+    setSubmittingRoundtable(true);setRoundtableError("");
+    const answer = roundtableAnswer.trim() || "本题跳过，留待之后练习";
+    try {
+      const step = resolveNextStep(roundtable.currentIndex,roundtable.turns.length,"assessed");
+      if (dataMode !== "demo") {
+        const saved = await fetch("/api/interview/draft",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:roundtable.id,questionId:current.questionId,answer,skip:true})});
+        const result = await saved.json();if(!saved.ok||!result.ok)throw Error(result.error||"跳过未保存");
+        if(!step.completed){
+          const next = await fetch("/api/interview/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:roundtable.id,previousQuestionId:current.questionId,nextQuestionId:roundtable.turns[step.currentIndex].questionId,skip:true})});
+          const result = await next.json();if(!next.ok||!result.ok)throw Error(result.error||"下一题暂未载入");
+        }
+      }
+      const updated:RoundtableSessionView={...roundtable,currentIndex:step.currentIndex,status:step.completed?"completed":"running",turns:roundtable.turns.map((turn,index)=>index===roundtable.currentIndex?{...turn,answer:`[已跳过，未评分] ${answer}`,assessment:undefined}:turn)};
+      setRoundtable(updated);setLastFeedback(null);setRoundtableAnswer("");onSyncRoundtable(toSessionRecord(updated));
+    } catch(error){setRoundtableError(error instanceof Error?error.message:"跳过未保存，原回答仍在");}
+    finally{setSubmittingRoundtable(false);}
+  };
+
   /** 收尾第一步：用户先写自己的复盘，提交之后 AI 才补点评（/api/interview/complete 会先回应这段判断）。 */
   const submitSelfReflection = () => {
     if (!roundtable) return;
@@ -1828,7 +1858,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     const isBlocked = lastFeedback?.status === "needs_more_input";
     const hints = lastFeedback ? needsMoreInputHints(lastFeedback) : [];
     const isLastQuestion = Boolean(roundtable && roundtable.currentIndex >= roundtable.turns.length - 1);
-    const answeredCount = roundtable?.turns.filter((item) => item.answer).length ?? 0;
+    const answeredCount = roundtable?.turns.filter((item) => item.answer&&!item.answer.startsWith("[已跳过，未评分]")).length ?? 0;
+    const skippedCount = roundtable?.turns.filter((item) => item.answer?.startsWith("[已跳过，未评分]")).length ?? 0;
     const completionPhase = resolveRoundCompletionPhase({
       roundCompleted: roundtable?.status === "completed",
       hasSelfReflection: Boolean(selfReflection),
@@ -1837,7 +1868,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     return (
       <section ref={roundtableWorkspaceRef} className={styles.roundtableWorkspace}>
         <header className={styles.roundtableHeader}>
-          <div><button type="button" className={styles.textButton} onClick={() => setRoundtableOpen(false)}>返回面试准备</button><h2>模拟面试圆桌</h2><p>{opportunity.company} · {opportunity.role} · {roundtable?.round || `${roundOrdinalLabel} · ${round}`}</p></div>
+          <div><button type="button" className={styles.textButton} onClick={() => setRoundtableOpen(false)}>返回面试准备</button><h2>整轮模拟面试</h2><p>{opportunity.company} · {opportunity.role} · {roundtable?.round || `${roundOrdinalLabel} · ${round}`}</p></div>
           {roundtable && <span className={styles.roundtableProgress}>{roundtable.status === "completed" ? "本轮完成" : `${roundtable.currentIndex + 1} / ${roundtable.turns.length}`}</span>}
         </header>
         {!roundtable ? <div className={styles.roundtableStart}>
@@ -1859,10 +1890,10 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           {!hasJd && <p className={styles.inlineError}>当前岗位还没有 JD，圆桌只能按真实 JD 出题，先回岗位档案补上再开始。</p>}
           {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
         </div> : roundtable.status === "completed" ? <div className={styles.roundtableComplete}>
-          {!roundtable.summary ? (completionPhase === "self_reflection" ? <>
+          {!roundtable.summary&&!roundtable.turns.some(item=>item.assessment?.status==="assessed")?<><h3>本轮练习记录已保留</h3><p>{skippedCount} 道题已跳过，未评分。没有可评分回答，不生成整轮分数；可以回到准备区继续练习。</p><button className={styles.secondaryButton} onClick={()=>setRoundtableOpen(false)}>回到面试准备</button></>:!roundtable.summary ? (completionPhase === "self_reflection" ? <>
             <Sparkles size={26} />
             <h3>这一轮答完了：先按你自己的感觉复盘</h3>
-            <p>{answeredCount} 条回答和逐题反馈已保存。在 AI 给整轮点评之前，先写下你自己的判断——接下来的点评会先回应这段，再补充它的观察。</p>
+            <p>{answeredCount} 条回答已保存{skippedCount?`，另有 ${skippedCount} 道题跳过、未评分`:""}。先回顾，再听导师反馈。</p>
             <section className={styles.selfReviewPanel} aria-label="自我复盘">
               {ROUND_REFLECTION_QUESTIONS.map((question, index) => (
                 <div key={question} className={styles.selfReviewQuestion}>
@@ -1942,11 +1973,12 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             {lastFeedback.followUp && <footer><b>面试官会继续问</b><p>{lastFeedback.followUp}</p></footer>}
           </section>}
           <div className={styles.roundtableActions}>
-            <span>{isAssessed ? (isLastQuestion ? "这一轮聊完了：收尾两步——你先复盘，AI 再回应。" : "看完反应，面试官接着往下问。") : isBlocked ? "补充后重新提交，本题不会跳过。" : "提交后会保存回答，信息不足则不评分、不推进。"}</span>
+            <span>{isAssessed ? (isLastQuestion ? "本轮结束后，先回顾，再看导师反馈。" : "回答已保存，可以继续。") : isBlocked ? "先跟导师学，或跳过这题；不会计为已掌握。" : "回答先保存，再给反馈。"}</span>
             {isAssessed&&<button className={styles.secondaryButton} onClick={()=>{setRoundtableAnswer(turn?.answer||"");setLastFeedback(null);}}>按反馈重新回答</button>}
+            {!isAssessed&&<><button type="button" className={styles.textButton} disabled={submittingRoundtable} onClick={()=>onTeach(turn?.question||"",roundtableAnswer.trim()||"教我这道题")}>请导师讲解</button><button type="button" className={styles.secondaryButton} disabled={submittingRoundtable} onClick={()=>void skipQuestion()}>跳过，稍后练</button></>}
             {isAssessed
               ? <button className={styles.primaryButton} disabled={submittingRoundtable} onClick={() => void goNextQuestion()}>{submittingRoundtable ? "正在承接你的回答…" : isLastQuestion ? "完成本轮，先写自我复盘" : "下一题"}<ArrowRight size={15} /></button>
-              : <button className={styles.primaryButton} disabled={!roundtableAnswer.trim() || submittingRoundtable} onClick={() => void submitRoundtableAnswer()}>{submittingRoundtable ? "圆桌分析中…" : isBlocked ? "重新提交补充回答" : "提交回答"}{!isBlocked && <ArrowRight size={15} />}</button>}
+              : <button className={styles.primaryButton} disabled={!roundtableAnswer.trim() || submittingRoundtable} onClick={() => void submitRoundtableAnswer()}>{submittingRoundtable ? "保存并反馈中…" : isBlocked ? "补充后重答" : "提交回答"}{!isBlocked && <ArrowRight size={15} />}</button>}
           </div>
           {roundtableError && <div className={styles.retryBlock}><p className={styles.inlineError}>{roundtableError}</p><button className={styles.secondaryButton} disabled={submittingRoundtable||!roundtableAnswer.trim()} onClick={() => void submitRoundtableAnswer()}><RotateCcw size={15} />从这条回答继续</button></div>}
         </>}
@@ -1956,7 +1988,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 
   return (
     <section>
-      <div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><span className={styles.eyebrow}>面试训练</span><h2>先练最可能被追问的题</h2><p>一条流程：选题开练 → 自己标第几面 → 逐题作答、逐题反馈 → 一轮结束你先写复盘，AI 再回应你的判断。题目来自{opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历，不会凭空引用你的经历）"}。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />单题速练</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `开始模拟面试 · ${quotaLabel}` : "模拟面试 · 需要 JD"}</button></div>
+      <div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><h2>先练最可能被追问的题</h2><p>单题练习：练一个重点，立即反馈。整轮面试：连续问答，结束后复盘。题目来自{opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历，不会凭空引用你的经历）"}。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />练一道题</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `整轮模拟面试 · ${quotaLabel}` : "模拟面试 · 需要 JD"}</button></div>
       {!hasJd && <p className={styles.ctaHint}>这个岗位还没有 JD。圆桌的每一题都必须能追溯到当前 JD，缺 JD 时不会用通用题顶上。</p>}
       </div>
       {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction

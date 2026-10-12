@@ -15,6 +15,18 @@ colors:
   paper: "#fbfaf8"
   rail: "#f7f5f1"
   surface: "#ffffff"
+  workbench-ink: "#29251f"
+  workbench-ink-hover: "#464038"
+  workbench-muted: "#686159"
+  workbench-disabled: "#77736c"
+  workbench-controls: "#f0eeea"
+  workbench-quote-line: "#cfc8bc"
+  workbench-warning-line: "#e8ddd0"
+  workbench-focus: "#984320"
+  workbench-evidence-text: "#383630"
+  workbench-warning-text: "#805626"
+  workbench-success: "#287a57"
+  workbench-meta: "#62635e"
 typography:
   display:
     fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
@@ -63,10 +75,33 @@ typography:
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.6
+  workbench-heading:
+    fontFamily: "Outfit, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "24px"
+    fontWeight: 650
+    lineHeight: 1.4
+  workbench-welcome:
+    fontFamily: "Outfit, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.4
+  workbench-job-title:
+    fontFamily: "Outfit, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "19px"
+    fontWeight: 600
+    lineHeight: 1.4
+  workbench-meta:
+    fontFamily: "Outfit, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.5
 rounded:
   control: "10px"
   card: "16px"
   pill: "999px"
+  workbench-card: "12px"
+  workbench-switch: "9px"
+  workbench-switch-item: "6px"
 spacing:
   xs: "8px"
   sm: "14px"
@@ -157,6 +192,8 @@ components:
 ### Cockpit Reading and Editing Scale
 
 作战盘的导师正文使用 16px / 1.85，分节标题使用 18px / 1.5；简历工作纸正文使用 14px / 1.8，工具栏使用 13px。这是长文阅读与编辑表面的局部尺度，不将密集元数据统一放大。对话输入区保持白色、圆角外容器；聚焦只改变外边界，不在文本框内部画矩形框。侧栏使用平整暖白表面，避免颗粒干扰正文。简历重排使用 240ms 的位置连续过渡，系统减少动态效果时立即更新位置，始终保留文字反馈。
+
+2026-10-12 作战盘精修：按用户新的 ChatCut 参考，采用暖白与深墨色主动作、橙色局部状态，控件 14px / 40px / 10px 圆角统一；不改变公开首页。导师正文按实际侧栏宽度在 14–17px 内变化，不按整屏宽度放大；历史、材料、用量和成果按需展开。谈薪保持与其他阶段相同的三栏结构。150–160ms 过渡只用于交互状态；减少动态效果时关闭。经典简历只有姓名和联系方式居中，个人简介、项目正文与 PDF 始终左对齐。
 
 ### Public Surface Scale
 

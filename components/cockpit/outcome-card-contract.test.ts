@@ -38,7 +38,7 @@ test("已保存要给出真实 ID 与找回入口；正文是可读文本，不�
 });
 
 test("卡片由本轮台账里的成果驱动：实时一轮与刷新回读走同一条路",()=>{
- expect(flat(conversation)).toContain("t.learning_trace?.outcome&&<OutcomeCard");
+ expect(flat(conversation)).toContain("t.learning_trace?.outcome&&<details");
  expect(conversation).toContain("outcome={t.learning_trace.outcome}");
  // 校验没过时正文仍在，话要说出来（不静默吞掉）
  expect(flat(conversation)).toContain("!t.learning_trace?.outcome&&t.learning_trace?.outcomeNote");

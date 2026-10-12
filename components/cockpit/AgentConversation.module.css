@@ -97,4 +97,30 @@
 .runGoal{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#292b2d}
 .runStatus{flex-shrink:0;font-size:11px;color:#8a857c}
 .runTray .runRow button{font-size:11px;color:#605c55;text-decoration:underline;text-underline-offset:3px;min-height:28px;padding:4px 6px}
+
+/* One reading scale follows the actual rail width, not the full viewport. */
+.panel{container:mentor / inline-size;--mentor-reading:clamp(14px,calc(12px + 1cqi),17px);font-family:"Outfit","PingFang SC","Microsoft YaHei",sans-serif}
+.messages,.question,.welcome p,.answer .markdown{font-size:var(--mentor-reading);line-height:1.8}
+.welcome h3{font-family:inherit;font-size:20px;font-weight:600;letter-spacing:0}
+.welcome{padding:20px 0}.welcome>svg{display:none}
+.welcome .quickStarts{gap:8px;padding-top:14px}
+.welcome .quickStarts button{font-size:14px;padding:10px 12px;line-height:1.6;background:#f5f3ef;border:0}
+.materialInfo{font-size:12px;line-height:1.6;color:#686159;margin:4px 0 12px}
+.materialInfo summary{cursor:pointer}.materialInfo p{margin:6px 0}
+.modeSwitch{gap:4px;padding:3px;background:#f0eeea;border-radius:9px;width:fit-content;margin:2px 0 10px}
+.modeSwitch button{border-radius:6px;font-size:12px;min-height:30px;padding:4px 12px}
+.modeSwitch button[aria-pressed="true"]{background:#fff;color:#292b2d;text-decoration:none}
+.answer .markdown h2,.answer .markdown h3{font-size:1.12em;border:0;padding:0}
+.answer .markdown p{line-height:1.8}.answer .markdown li{line-height:1.8}
+.summary{font-size:13px;padding:10px 0}.summary summary{font-weight:500;margin:0}
+.usage{margin:8px 0;font-size:12px}.usage summary{color:#686159}
+.disclaimer{text-align:left;font-size:11px;line-height:1.5;margin:6px 0 0}.disclaimer summary{cursor:pointer}.disclaimer p{margin:6px 0}
+.panel form{border-radius:12px;padding:10px 12px;background:#fff}
+.panel footer [type="submit"]{background:#292b2d;color:#fff}
+.panel button{transition:background-color 160ms ease,color 160ms ease}
+.panel button:disabled{cursor:not-allowed;background:transparent;color:#77736c}
+.panel footer [type="submit"]:disabled{background:#f1efeb;color:#77736c}
+.markdown blockquote{border-left:1px solid #cfc8bc}
+@container mentor (max-width:380px){.metadata{flex-wrap:wrap;gap:4px}.metadata .history{max-width:100%}.question{margin-left:16px}.welcome .quickStarts button{font-size:13px}.panel header strong{font-size:15px}}
+@media(prefers-reduced-motion:reduce){.panel button{transition:none}}
 @media(max-width:700px){.panel{height:100%;min-height:0}.panel header button{min-height:36px}.metadata .history{max-width:58%}}

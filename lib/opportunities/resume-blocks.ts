@@ -38,6 +38,11 @@ export function stripResumeMarkdown(line: string): string {
     .trim();
 }
 
+export function isResumeIdentityLine(line:string):boolean {
+  const text=stripResumeMarkdown(line);
+  return Boolean(text&&text.length<=40&&!/[，。；：！？!?@]/.test(text)&&!/^https?:/i.test(text));
+}
+
 function classifyHeader(line: string): { kind: ResumeBlockKind; title: string } | null {
   const trimmed = stripResumeMarkdown(line);
   // Authored headings are structure regardless of wording or length. Never
@@ -148,8 +153,17 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
     }
     if (sectionKind === "header" && !sectionTitle) {
       madeGroups.forEach((group, index) => {
-        const kind = index === 0 && stripResumeMarkdown(group[0]).length <= 40 ? "header" : "summary";
-        blocks.push({ id: `${kind}-${blocks.length}`, kind, title: kind === "header" ? entryTitle(group[0]) : "个人简介", lines: group, changeIds: [], heading: null });
+        // A short first line never makes the *whole* preamble a centred header.
+        // Only identity/contact lines belong there; narrative stays left aligned.
+        const identity = index === 0 && isResumeIdentityLine(group[0]);
+        let boundary = identity ? 1 : 0;
+        while (boundary > 0 && boundary < group.length) {
+          const line = stripResumeMarkdown(group[boundary]);
+          if (line.length > 160 || !/^(?:电话|手机|邮箱|邮件|Email|GitHub|作品集|个人网站|地址|求职意向)\s*[:：]|^[\w.+-]+@[\w.-]+\.[a-z]+$|^https?:\/\/\S+$|^\+?\d[\d\s()-]{6,}$/i.test(line)) break;
+          boundary++;
+        }
+        if (boundary) blocks.push({ id: `header-${blocks.length}`, kind: "header", title: entryTitle(group[0]), lines: group.slice(0,boundary), changeIds: [], heading: null });
+        if (boundary < group.length) blocks.push({ id: `summary-${blocks.length}`, kind: "summary", title: "个人简介", lines: group.slice(boundary), changeIds: [], heading: null });
       });
     } else if (isSplitKind(sectionKind) && sectionTitle) {
       // one card per blank-line group; additionally split inside a group when a
@@ -203,7 +217,7 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
   }
   flush();
   // No recognised headers at all: the lone preamble block is a plain block.
-  if (blocks.length === 1 && blocks[0].kind === "header") blocks[0].kind = "other";
+  if (blocks.length === 1 && (blocks[0].kind === "header" || blocks[0].kind === "summary") && !blocks[0].heading) blocks[0].kind = "other";
   return blocks;
 }
 

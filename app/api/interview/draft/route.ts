@@ -23,7 +23,7 @@ async function handle(request: Request) {
     if (!question) return NextResponse.json({ ok: false, error: "题目不可访问" }, { status: 404 });
     if (request.method === "POST") {
       if (typeof body.answer !== "string" || !body.answer.trim() || body.answer.length > 30_000) return NextResponse.json({ ok: false, error: "请填写 1–30000 字回答" }, { status: 400 });
-      await saveInterviewDraft({ userId: user.id, sessionId, questionId, opportunityId: session.opportunity_id }, body.answer.trim());
+      await saveInterviewDraft({ userId: user.id, sessionId, questionId, opportunityId: session.opportunity_id }, body.answer.trim(), body.skip === true);
       return NextResponse.json({ ok: true, saved: true });
     }
     const { data, error } = await db.from("coach_sources").select("content,metadata").eq("user_id", user.id).eq("source_type", "user_answer")

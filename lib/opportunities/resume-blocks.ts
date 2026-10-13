@@ -19,6 +19,7 @@ export interface ResumeBlock {
 // a header. Markdown-authored resumes ("## 教育经历"、"**实习经历**") must
 // classify the same as plain text, or the whole resume collapses into one block.
 const SECTION_PATTERNS: Array<{ kind: ResumeBlockKind; test: RegExp }> = [
+  { kind: "header", test: /^(基本信息|联系方式)[:：\s]*$/ },
   { kind: "education", test: /^(教育背景|教育经历|学历|教育)/ },
   { kind: "project", test: /^(项目经历|项目经验|代表项目|主要项目|项目)/ },
   { kind: "experience", test: /^(工作经历|实习经历|职业经历|工作经验|相关经历|校园经历|社团经历|课外活动)/ },
@@ -285,7 +286,16 @@ export function reorderResumeText(text: string, fromId: string, toId: string): s
   if (from < 0 || to < 0) return null;
   const next = [...blocks];
   next.splice(to, 0, ...next.splice(from, 1));
-  return reconstructResumeText(next);
+  // A headingless preamble only stays separate at the beginning. Moving it
+  // behind a heading used to make the parser absorb it into that section.
+  // If its prefix order changed, label the preamble blocks structurally;
+  // never change their facts or silently prohibit moving them.
+  const preamble = blocks.filter(block => !block.heading);
+  const keepsPreamble = preamble.every((block, index) => next[index]?.id === block.id);
+  const labels: Partial<Record<ResumeBlockKind, string>> = {header: "基本信息", summary: "个人简介"};
+  return reconstructResumeText(keepsPreamble ? next : next.map(block => block.heading ? block : {
+    ...block, heading: `## ${labels[block.kind] || block.title || "其他内容"}`,
+  }));
 }
 
 /**

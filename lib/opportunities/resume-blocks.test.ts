@@ -86,6 +86,19 @@ describe("assignChangesToBlocks", () => {
 });
 
 describe("reorderResumeText", () => {
+  it("keeps a headingless introduction separate when moved behind an empty section heading", () => {
+    const source = "测试求职者，只有虚构经历，不代表真实用户。\n\n## 我提出的问题\n\n### 校园项目\n访谈8名同学。";
+    const blocks = splitResumeBlocks(source);
+    const next = reorderResumeText(source, blocks[0].id, blocks[1].id)!;
+    const restored = splitResumeBlocks(next);
+    expect(restored.map(block => block.kind)).toContain("summary");
+    expect(restored.find(block => block.kind === "summary")?.lines).toEqual(blocks[0].lines);
+    expect(restored.find(block => block.title === "我提出的问题")?.lines).toEqual([]);
+    expect(restored.find(block => block.title === "校园项目")?.lines).toEqual(["访谈8名同学。"]);
+    const summary = restored.find(block => block.kind === "summary")!;
+    const reversed = reorderResumeText(next, summary.id, restored[0].id)!;
+    expect(splitResumeBlocks(reversed)[0].kind).toBe("summary");
+  });
   const resume = [
     "张三",
     "电话：138",

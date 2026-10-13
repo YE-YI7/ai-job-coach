@@ -26,4 +26,14 @@
 - 原件 API 回归覆盖逐字节一致、跨账号拒绝、匿名拒绝、公开桶拒绝和建桶竞态重新校验。
 - 新简历版本回归覆盖旧自动保存、并发替换、legacy升级。无 JD route 起草/独立复核/保存回归通过。
 - Impeccable 一次集中文件扫描及一次复核：3项历史primary（面试4px侧边提示2处、旧Georgia字体1处）不扩大；新 palette 的 advisory 是明确设计替换，不作为历史漂移全仓整改。
-- 正式部署、私有 Storage 与真实模型验收结果在发布后补充。Chrome交互、视觉、三模板 PDF、替换取消和刷新恢复尚待浏览器实测；不能用上述自动检查冒充签收。
+- Chrome交互、视觉、三模板 PDF、替换取消和刷新恢复尚待浏览器实测；不能用上述自动检查冒充签收。
+
+## 正式站补测（10-14）
+
+首轮运行时89c2f6a直接发布，dpl_6xRJ2aByJYKvqcjeRYzdUFhFNB4B双域READY、健康200、原件匿名401。独立虚构账号真实原PDF上传/私有读取SHA256一致，免费无JD保存与额度不变通过。
+
+真实改稿发现起草成功但独立复核空响应：Step3.7Flash起草17119ms/2675输出tokens，复核1800总预算在推理阶段耗尽，未产生最终JSON。不是上传失败。2f38a86修复独立复核4096有界推理allowance、55秒deadline/不重试、同用户生成与计费trace；失败仍退额度，给可重试中文提示。211套2090回归通过、类型通过；正式修复版与真实复测结果待追加。
+
+首轮虚构账号及2个私有PDF均已清理。旧41条面试作答整行MD5前后同为0881efbb0a4a159ba1e7b5460c6007d8。Chrome提醒已创建（id chrome），只做一次稍后检查后删除，不抢用户浏览器；当前不宣称视觉验收通过。
+
+修复版正式发布：运行时2f38a86，dpl_H3YGTCd5n8jaTpiPV6nwVyjCvunk / https://ai-job-coach-2k2tx1r3l-velmavalienteqejimu22-jpgs-projects.vercel.app，云构建READY，健康database ok、预览200。正式站独立虚构账号完整服务端补测通过：原件字节一致/匿名拒绝→无JD免费保存不扣额度→真实Step3.7Flash生成3条有来源建议→独立复核→保存与独立GET恢复→新原件与新正文覆盖→旧PATCH409→刷新读取无旧建议、无旧quality。起草20500ms/2768输出tokens，复核6687ms/862输出tokens，不是stub。脚本为 scripts/accept-original-resume.mjs；浏览器UI、最终PDF落盘、点击取消与断网交互另行验收。

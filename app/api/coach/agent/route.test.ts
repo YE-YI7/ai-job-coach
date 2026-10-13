@@ -6,6 +6,7 @@ import {resolveChatModel} from "@/lib/coach-harness/chat-models";
 import {getContextBundleForUser,recordTierIntentFromText} from "@/lib/coach-harness/repository";
 import {readLearningMemory,refreshProfileMemory,readLearningSession,LEARNING_PROMPT_VERSION} from "@/lib/coach-harness/learning-memory";
 import {decide,registerGuard} from "@/lib/coach-harness/guard-slots";
+import {learningHandoff} from '@/lib/interview/learning-handoff';
 jest.mock("@/lib/coach-harness/learning-memory",()=>({...jest.requireActual("@/lib/coach-harness/learning-memory"),readLearningMemory:jest.fn(),refreshProfileMemory:jest.fn(),readLearningSession:jest.fn()}));
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
@@ -23,6 +24,15 @@ function setupGeneration(saveError=false){
  return q;
 }
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
+test('真实教学接续中的题目引用不把路由工作集改成全量简历审查',async()=>{
+ jest.resetAllMocks();setupGeneration();
+ (callLLM as jest.Mock).mockResolvedValue('我们先用一个练习例子区分真实增量与内部转移。');
+ const prompt=learningHandoff('你在简历里写，早期实验正向但未复现。请讲分组与周期？','不会').prompt;
+ const r=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({message:prompt,proactive:true,interactionMode:'coaching',requestId:'11111111-1111-4111-8111-111111111111'})}));
+ expect((await r.json()).ok).toBe(true);
+ expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({claimSelection:'relevant'}));
+ expect(callLLM).toHaveBeenCalled();
+});
 test('长期导师会话读取跨岗位历史，仍必须属于当前账号',async()=>{
  jest.resetAllMocks();const q=setupGeneration();const sid='22222222-2222-4222-8222-222222222222';
  (readLearningSession as jest.Mock).mockResolvedValue({id:sid,status:'active',opportunity_id:null});

@@ -15,5 +15,5 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
   const initialTab = params.tab && allowedTabs.has(params.tab) ? params.tab as "overview" | "evidence" | "resume" | "interview" | "review" | "salary" : undefined;
   // A failed read is not an empty account. Let the recovery boundary render.
   const opportunities = await listCockpitOpportunities(user.id);
-  return <CockpitApp initialOpportunities={opportunities} userEmail={user.email} dataMode="live" initialTab={initialTab} />;
+  return <CockpitApp initialOpportunities={opportunities} userEmail={user.email} userId={user.id} dataMode="live" initialTab={initialTab} />;
 }

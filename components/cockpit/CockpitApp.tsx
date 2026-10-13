@@ -52,6 +52,7 @@ import ResumeBlockBoard from "./ResumeWorkbench";
 import VoiceControls from "./VoiceControls";
 import {currentJourneyStage, normalizeRoundLabel, phoneScreeningLabel, resumeProgress, stageStatusWord, STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import {reorderIds, sortOpportunitiesForRail, togglePin} from "@/lib/opportunities/rail-order";
+import {readWorkspaceView, saveWorkspaceView, workspaceViewKey} from "@/lib/opportunities/workspace-view";
 import {
   ROUND_REFLECTION_QUESTIONS,
   formatRoundReflection,
@@ -138,11 +139,13 @@ function coverageTotal(opportunity: Opportunity) {
 export function CockpitApp({
   initialOpportunities,
   userEmail,
+  userId,
   dataMode = "demo",
   initialTab,
 }: {
   initialOpportunities: Opportunity[];
   userEmail?: string;
+  userId?: string;
   dataMode?: "demo" | "live";
   initialTab?: CockpitTab;
 }) {
@@ -175,6 +178,9 @@ export function CockpitApp({
   const [reviewingInterview, setReviewingInterview] = useState(false);
   const [localIds, setLocalIds] = useState<string[]>([]);
   const [localLoaded, setLocalLoaded] = useState(false);
+  const viewStorageKey = dataMode === "live" ? workspaceViewKey(userId) : null;
+  const [viewReadyKey, setViewReadyKey] = useState<string | null>(null);
+  const restoredViewKey = useRef<string | null>(null);
   const [railOrder, setRailOrder] = useState<string[]>([]);
   const [railPins, setRailPins] = useState<string[]>([]);
   // 右栏对话的「实时上下文」：用户在中间面板做过的动作，导师据此主动追问。
@@ -215,6 +221,29 @@ export function CockpitApp({
       setLocalLoaded(true);
     }
   }, [dataMode]);
+
+  useEffect(() => {
+    if (!localLoaded || !viewStorageKey || restoredViewKey.current === viewStorageKey) return;
+    restoredViewKey.current = viewStorageKey;
+    // Validate against the server's owned list, not another account's local drafts.
+    try {
+      const saved = readWorkspaceView(window.localStorage, viewStorageKey, initialOpportunities.map((item) => item.id), initialTab);
+      if (saved) {
+        setActiveId(saved.opportunityId);
+        setActiveTab(saved.tab);
+      }
+    } catch { /* Some privacy modes reject even access to the storage object. */ }
+    setViewReadyKey(viewStorageKey);
+  }, [localLoaded, viewStorageKey, initialOpportunities, initialTab]);
+
+  useEffect(() => {
+    // Do not replace the saved view with initial defaults before restoration.
+    if (!viewStorageKey || viewReadyKey !== viewStorageKey) return;
+    try {
+      saveWorkspaceView(window.localStorage, viewStorageKey, { opportunityId: activeId, tab: activeTab },
+        opportunities.filter((item) => !localIds.includes(item.id)).map((item) => item.id));
+    } catch { /* Navigation remains usable without browser storage. */ }
+  }, [viewStorageKey, viewReadyKey, activeId, activeTab, opportunities, localIds]);
 
   useEffect(() => {
     try {

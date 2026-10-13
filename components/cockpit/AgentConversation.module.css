@@ -1,5 +1,7 @@
 .panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:16px;color:#292b2d}
 .returnEntry{display:flex;align-items:center;gap:8px;padding:8px 0;flex-shrink:0;border-bottom:1px solid #e0dad1;color:#605c55;font-size:13px}
+.historyDisclosure{position:relative;flex-shrink:0;font-size:12px;color:#605c55}.historyDisclosure summary{cursor:pointer;min-height:36px;display:flex;align-items:center;padding:6px 0}.metadata .historyDisclosure .history{position:absolute;right:0;top:100%;z-index:10;display:flex;min-width:240px;max-width:320px;margin:0;padding:12px;background:#fff;border:1px solid #d9d5ce;border-radius:8px;font-size:12px;box-shadow:none}
+.historyDisclosure summary:focus-visible{outline:2px solid #a64317;outline-offset:3px}
 .returnEntry span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .returnEntry button{min-height:44px;white-space:nowrap;color:#8d3a17;font-weight:600}
 .turnScope{margin:14px 0 5px;color:#605c55;font-size:12px;line-height:1.5}

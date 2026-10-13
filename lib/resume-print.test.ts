@@ -1,4 +1,10 @@
 import {resumePrintHtml,printTemplates,renderResumePrintWindow} from "./resume-print";
+test("inline final view and PDF use the same document body",()=>{
+ const final=resumePrintHtml("张三\n\n## 项目\n保留没有上线的限定。","classic","成稿",{toolbar:false});
+ const pdf=resumePrintHtml("张三\n\n## 项目\n保留没有上线的限定。","classic","成稿");
+ expect(final.match(/<main>[\s\S]*<\/main>/)?.[0]).toBe(pdf.match(/<main>[\s\S]*<\/main>/)?.[0]);
+ expect(final).not.toContain('<button id="print">');
+});
 test("Markdown headings, bullets, links and pagebreak render as document structure", () => {
  const html = resumePrintHtml("# 测试人\n电话：138\n\n简介正文\n\n## 自定义章节\n### 项目 A\n- **负责**需求\n[作品](https://example.com)\n<!-- PAGEBREAK -->\n## 教育背景\n大学", "classic", "简历");
  expect(html).toContain('<h2>自定义章节</h2>');

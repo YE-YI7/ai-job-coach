@@ -194,7 +194,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
  return <section className={styles.panel} aria-label="对话辅导">
   <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>AI 求职导师</strong><button type="button" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={16}/>新辅导</button></header>
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
-  {!!sessions.length&&<label className={styles.history}>学习记录<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label>}
+  {!!sessions.length&&<details className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
   </div>
   {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{turns.at(-1)?.question.slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
   <div className={styles.modeSwitch} role="group" aria-label="导师模式">

@@ -126,13 +126,13 @@ function fallbackCandidate(opportunity: Opportunity): MentorNextAction | null {
       dueLabel: "今天", priority: 76, actionType: "project_deep_dive", tab: opportunity.resumeText ? "evidence" : "resume", cost: "free", source: "system",
     };
   }
-  const missingCritical = opportunity.requirements.find((item) => item.importance === "critical" && item.strength === "missing");
+  const missingCritical = opportunity.requirements.find((item) => item.importance === "critical" && (item.strength === "missing" || item.strength === "unverified"));
   if (missingCritical) {
     return {
       id: `${opportunity.id}:critical-gap`, opportunityId: opportunity.id,
       company: opportunity.company, role: opportunity.role,
       title: "补一条会改变投递结论的经历证据",
-      reason: `“${missingCritical.requirement}”是硬要求，目前仍无证据。`, dueLabel: "今天", priority: 82,
+      reason: `“${missingCritical.requirement}”是硬要求，目前仍缺少已确认的证据。`, dueLabel: "今天", priority: 82,
       actionType: "job_decision", tab: "evidence", cost: "free", source: "evidence_gap",
     };
   }
@@ -164,10 +164,18 @@ export function planMentorActions(opportunities: Opportunity[], now = new Date()
   const candidates = opportunities.flatMap((opportunity) => {
     if (["won", "lost", "withdrawn", "archived"].includes(opportunity.stage)) return [];
     const interview = interviewCandidate(opportunity, now);
+    const pendingResume = opportunity.resumeChanges.filter(change => change.status === "pending");
+    const resumeDecision: MentorNextAction | null = pendingResume.length && opportunity.resumeText && opportunity.stage === "preparing_application" ? {
+      id: `${opportunity.id}:resume-decisions`, opportunityId: opportunity.id,
+      company: opportunity.company, role: opportunity.role,
+      title: `核对 ${pendingResume.length} 处简历修改`,
+      reason: "逐段查看原文与建议。未采用的修改不会进入成稿，也不算你的经历。",
+      dueLabel: "投递前", priority: 80, actionType: "resume_workshop", tab: "resume", cost: "free", source: "system",
+    } : null;
     const pending = opportunity.actions.filter((action) => action.status === "todo").map((action) => actionCandidate(opportunity, action));
     const fallback = pending.length || interview ? [] : [fallbackCandidate(opportunity)].filter(Boolean) as MentorNextAction[];
     const snoozed = new Map((opportunity.mentorSnoozes || []).map((item) => [item.actionId, item.until]));
-    return [...(interview ? [interview] : []), ...pending, ...fallback].filter((candidate) => {
+    return [...(interview ? [interview] : []), ...(resumeDecision ? [resumeDecision] : []), ...pending, ...fallback].filter((candidate) => {
       const until = snoozed.get(candidate.id);
       return !until || new Date(until).getTime() <= now.getTime();
     });

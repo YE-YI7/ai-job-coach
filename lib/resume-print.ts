@@ -4,7 +4,7 @@ import { stripResumeMarkdown } from "./opportunities/resume-blocks";
 export const printTemplates={classic:{label:"经典黑白",accent:"#242424",font:"serif"},modern:{label:"简洁蓝灰",accent:"#365571",font:"sans-serif"},warm:{label:"温润纸感",accent:"#85502f",font:"sans-serif"}} as const;
 export type PrintTemplate=keyof typeof printTemplates;
 export function escapeResumeHtml(value:string){return value.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));}
-export function resumePrintHtml(text:string,template:PrintTemplate,title:string){
+export function resumePrintHtml(text:string,template:PrintTemplate,title:string,options:{toolbar?:boolean}={}){
  const t=printTemplates[template];
  const blocks=splitResumeBlocks(text);
  const inline=(line:string)=>markdownSegments(line).map(segment=>{
@@ -34,7 +34,7 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string)
  .warm main{display:block}.warm section{background:#fbf8f2;padding:12px;margin-bottom:5mm;border-bottom:1px solid #d9cbbb}.warm h2{background:#f1e9dc;padding:8px}
  @media screen and (max-width:600px){body{margin:16px}.modern section{display:block}}
  @media print{.toolbar{display:none}body{margin:0;max-width:none}h2,h3{break-after:avoid}section{break-inside:avoid-page}*{print-color-adjust:exact}}
- </style></head><body class="${template}"><div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div><main>${content}</main></body></html>`;
+ </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
 }
 export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void){
  target.document.open();target.document.write(resumePrintHtml(text,template,title));target.document.close();

@@ -18,6 +18,11 @@ function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
 }
 
 describe("mentor next action planner", () => {
+  test("pending resume choices are free and never outrank an unresolved hard requirement", () => {
+    const draft = opportunity({stage: "preparing_application", resumeChanges: [{...demoOpportunities[0].resumeChanges[0],status:"pending"}]});
+    expect(planMentorActions([draft])[0]).toMatchObject({tab:"resume",cost:"free"});
+    expect(planMentorActions([{...draft,requirements:[{id:"hard",requirement:"毕业资格",importance:"critical",strength:"unverified",evidence:"待确认",source:null,verified:false}]}])[0]).toMatchObject({tab:"evidence",cost:"free"});
+  });
   test("starts from any raw material when the user has no opportunity", () => {
     expect(planMentorActions([])[0]).toMatchObject({ actionType: "onboarding", cost: "free" });
   });

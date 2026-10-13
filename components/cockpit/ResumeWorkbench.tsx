@@ -8,6 +8,7 @@ import { uncoverableGap } from "@/lib/opportunities/evidence-gaps";
 import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "@/lib/opportunities/resume-blocks";
 import { isResumePageBreak, markdownSegments } from "@/lib/opportunities/resume-markdown";
 import { selectedResumeBlocks } from "@/lib/opportunities/resume-display";
+import {resumeChangeComparison} from "@/lib/opportunities/resume-comparison";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import styles from "./CockpitApp.module.css";
@@ -206,13 +207,14 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
               </div>
               {isExpanded && (changes.length > 0 ? (
                 <div id={`resume-options-${block.id}`} className={styles.resumePopover} draggable={false} onDragStart={event => event.stopPropagation()} role="group" aria-label={`${block.title}的修改选项`}>
-                  {changes.map((change) => (
+                  {changes.map((change) => {const comparison=resumeChangeComparison(opportunity.resumeText||"",change);return (
                     <div key={change.id} className={styles.blockChange}>
                       <div className={styles.blockChangeHead}><span>{change.editedByUser ? "你的版本" : "AI 建议"}</span><em>{change.status === "accepted" ? "已选择此版本" : change.status === "rejected" ? "保留原文" : "待选择"}</em></div>
                       {editingId === change.id
                         ? <textarea aria-label={`修改 ${change.section}`} value={editValue} maxLength={2000} rows={4} autoFocus onChange={(e) => setEditValue(e.target.value)} />
-                        : <p className={styles.popoverPreview}>{change.status === "rejected" ? change.before : change.after}</p>}
-                      <details className={styles.popoverDetail}><summary>原文与修改说明</summary><p>原文：{change.before}</p><p>{change.reason}</p>{opportunity.applicationQuality?.reviews.flatMap(review => (review.findings || []).filter(finding => finding.changeId === change.id).map((finding, index) => <p key={`${review.reviewerType}-${index}`}>{finding.message}</p>))}</details>
+                        : <div className={styles.resumeComparison}><div><strong>完整原段落</strong>{comparison.before.split("\n").map((line,index)=><p key={index}>{renderMarkdownLine(line,[],new Set())}</p>)}</div><div><strong>修改后</strong>{comparison.after.split("\n").map((line,index)=><p key={index}>{renderMarkdownLine(line,[],new Set())}</p>)}</div></div>}
+                      {!comparison.canApply&&<p role="alert">{comparison.reason}</p>}
+                      <details className={styles.popoverDetail}><summary>修改依据与检查</summary><p>{change.reason}</p>{opportunity.applicationQuality?.reviews.flatMap(review => (review.findings || []).filter(finding => finding.changeId === change.id).map((finding, index) => <p key={`${review.reviewerType}-${index}`}>{finding.message}</p>))}</details>
                       {editingId === change.id ? (
                         <div className={styles.blockChangeActions}>
                           <button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={14} />保存我的修改</button>
@@ -220,13 +222,13 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
                         </div>
                       ) : (
                         <div className={styles.popoverChoices}>
-                          <button type="button" aria-pressed={change.status === "accepted"} onClick={() => onUpdate(change.id, "accepted")}>{change.status === "accepted" ? <Check size={16} /> : <Circle size={16} />}采用修改</button>
+                          <button type="button" disabled={!comparison.canApply} aria-pressed={change.status === "accepted"} onClick={() => onUpdate(change.id, "accepted")}>{change.status === "accepted" ? <Check size={16} /> : <Circle size={16} />}采用修改</button>
                           <button type="button" aria-pressed={change.status === "rejected"} onClick={() => onUpdate(change.id, "rejected")}>{change.status === "rejected" ? <Check size={16} /> : <Circle size={16} />}保留原文</button>
                           <button type="button" onClick={() => { setEditingId(change.id); setEditValue(change.after); }}>自己改</button>
                         </div>
                       )}
                     </div>
-                  ))}
+                  );})}
                 </div>
               ) : <p id={`resume-options-${block.id}`} className={styles.blockNoChange}>这一块没有改动，无需逐条确认。</p>)}
             </section>

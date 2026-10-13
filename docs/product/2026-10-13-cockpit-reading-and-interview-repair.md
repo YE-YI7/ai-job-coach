@@ -29,3 +29,5 @@
 ## 真实验收续接
 
 用户授权继续 Chrome 真实模型与保存刷新验收后，创建 staged production 候选，不替换正式域名。首候选 dpl_Eg9jYjNiBbXau8nS9y3mPsmrdqcq 被 Vercel 阻断：Git 作者使用机器默认无效邮箱。Chrome 控制台明确显示该原因；恢复本仓库原有已验证作者邮箱，通过新提交保留历史，不 force push、不降低发布安全门禁。正式站点仍是 dpl_Gf2ovGM5TyA1AHTDxLFYvursrvtW。
+
+修复身份后候选 8545041 / dpl_DosZ2NYeQdPZViEeDAXevbRNysDM 云构建 READY，未 promote。Chrome 已实际进入候选登录页、观猹同一应用授权页，随后要求账号重新验证；登录窗口为扫码/短信验证，等待用户自行完成。尚未发送真实模型测试请求，未充值/修改余额，不称超时及持久化已通过。候选 15 分钟 error 查询无日志，仅为观测结果，不代表真实流程成功。

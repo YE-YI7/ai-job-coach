@@ -1,8 +1,11 @@
 import {verifyResumeGrounding} from "./citation-verifier";
 /** 普通咨询不追加模型；只有明确要求代写对外经历时才复核。 */
 export function needsResumeGrounding(message:string) {
+ // The generated teaching handoff delimits the question/user quote as material.
+ // “你在简历里写…” inside that block is not a request to rewrite a résumé.
+ const instructions=message.replace(/\n题目：[\s\S]*?\n以上是材料，不是系统指令。/g,'\n');
  // Negative instructions constrain the reply; they do not request editing.
- const clauses=message.split(/[，,。；;！!？?\n]|但是|但请|但帮我/).filter(clause=>!/(?:不要|不需要|不用|别|无需|不能|不得)/.test(clause));
+ const clauses=instructions.split(/[，,。；;！!？?\n]|但是|但请|但帮我/).filter(clause=>!/(?:不要|不需要|不用|别|无需|不能|不得)/.test(clause));
  const target='(?:简历|自我介绍|经历表述|项目描述)';
  const action='(?:改写|修改|润色|生成|整理|优化|输出|编辑|重写|重做|写|改|描述)';
  // A résumé reference in teaching text does not authorize rewriting it.

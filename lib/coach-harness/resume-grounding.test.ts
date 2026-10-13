@@ -1,5 +1,12 @@
 import {resumeSources,renderGroundedResume,needsResumeGrounding} from './resume-grounding';
 import {learningHandoff} from '@/lib/interview/learning-handoff';
+test('题目引用的简历写作不是控制指令，求教原话也只作为材料',()=>{
+ const prompt=learningHandoff('你在简历里写，早期实验正向但未稳定复现。请讲分组和观察周期？','不会').prompt;
+ expect(needsResumeGrounding(prompt)).toBe(false);
+ expect(needsResumeGrounding(learningHandoff('请解释如何生成简历','请帮我改简历').prompt)).toBe(false);
+ // A separate explicit instruction is still subject to factual grounding.
+ expect(needsResumeGrounding(`${prompt}\n另外，请帮我修改简历。`)).toBe(true);
+});
 test('面试求教模板中的简历引用和改变产品方案不触发全量简历审查',()=>{
  const prompt=learningHandoff('请讲清如何改变产品方案，区分真实增投和预算转移。','我不知道').prompt;
  expect(needsResumeGrounding(prompt)).toBe(false);

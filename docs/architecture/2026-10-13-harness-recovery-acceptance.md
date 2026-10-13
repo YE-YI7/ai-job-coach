@@ -37,14 +37,22 @@
 
 ## 验证边界
 
-- 单测/回归与类型检查：最终完整回归 207 套/2076 项通过，4 套/6 项显式 live 检查跳过；类型检查通过。
+- 单测/回归与类型检查：最终完整回归 208 套/2078 项通过，4 套/6 项显式 live 检查跳过；类型检查与生产构建通过。
 - 显式本地 live Jest 因受保护配置是 `[SENSITIVE]` 占位而未运行；以上使用实际部署、正常测试账号登录、HTTP/数据库/上游台账代替，不把该 skipped test 记为通过。
-- Chrome 无痕窗口验收进行中；原用户 Chrome 登录和旧岗位记录保留。
-- Impeccable：仅对本次改动 AgentConversation.tsx 手动 detect 一次，exit 0 无 finding；自动钩子保持关闭。未改布局、字体或配色。
+- Chrome 无痕窗口通过正常邀请码登录：真实三条模型回复可见；0 额度下编辑成果→DevTools Offline 保存失败→草稿完整保留→No throttling 重试成功→刷新→重新打开成果，内容和已保存状态一致。后台复核笔记 1 条、AI 调用仍为 3 次、额度仍 0。原用户 Chrome 登录和旧岗位记录保留。
+- 浏览器实测发现成果保存显示原始 `Failed to fetch`，7e6dc16 增补中文恢复提示与“保存失败，重试”。新版已通过回归与正常刷新读取；该文案的再次断网触发被原生输入/滚动连接失效阻挡，未把它记成浏览器二次触发通过。首次断网保稿、同稿重试与刷新恢复是实际 Chrome 验收，不是模拟接口。
+- 浏览器额外诊断发现 DevTools 沿用 Offline 预设，最终已恢复 No throttling；Chrome 扩展连接仍不稳定，采用原生操作验收，未宣称扩展连接彻底修复。
+- Impeccable：对本次两处 TSX 集中 `detect --json`，返回 `[]`；自动钩子保持关闭。React 检查未发现本次引入的新 hook/权限/布局问题；未改字体或配色。
 - 数据库迁移 `20261013105338_coach_agent_request_claims.sql` 已在 AJC 执行；服务端专用表与 RPC，anon/authenticated 无权限。
 - 平台硬杀且无终态记录时不自动抢占旧 lease。保留 UNKNOWN 与原文，避免不确定上游再收费；耐久 worker/结算对账是另一个仍未实现的范围，不能宣称所有平台崩溃都可自动续跑。
 - 不把旧审查中的内容质量门、全部 E2E、招聘覆盖与耐久任务等未修项一起宣称完成。
 
 ## 旧作答保护与发布
 
-开始与真实模型验收后复核均为 interview_answers 41 条，全部行按 id 排序的 MD5 同为 `549a9d933b3608523de3ad148cf644c0`，旧作答未变。测试数据清理和正式发布编号待补。
+开始、真实模型验收后与测试清理后复核均为 interview_answers 41 条，全部行按 id 排序的 MD5 同为 `549a9d933b3608523de3ad148cf644c0`，旧作答未变。
+
+清理了本次两个随机 fixture 用户、临时测试邀请码及级联测试记录；用户、邀请码、turn 均回查为 0。测试会话凭据已丢弃；没有清理真人数据。
+
+正式运行时 commit：`7e6dc16c7b5699aec8430700c4f1de9a7ff4a0f3`；GitHub 发布分支 `codex/persistent-mentor` 已 push。最终部署 `dpl_9Suktwu8x3TdbLwcYg9hf8EQVTo3`，项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`。2026-10-13 12:03 UTC 分别查 www/裸域，均 READY 且 gitCommitSha 为上述 commit。双域 /api/health 200/database ok，匿名历史 401；上线后原编号仍可免费回读原 turn。
+
+Vercel promote 返回“already current production”409，不以此冒充域名已切换；随后显式分配裸域，并分别核对两个域名的实际部署 ID。Connector 403 后改用同项目、同 team 的既有 CLI 凭据核验，没有修改密钥或权限。

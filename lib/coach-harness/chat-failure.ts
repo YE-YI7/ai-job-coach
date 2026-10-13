@@ -53,7 +53,7 @@ export const CHAT_FAILURE_TABLE: readonly ChatFailureRow[] = [
   { failure: "hosted_provider_quota", userCopy: "站点的 AI 服务额度暂时用完了，问题和档案仍保留。请稍后再试，或连接你自己的 TokenPay。", retryable: "none", persists: false, detection: /insufficient.?balance|insufficient_quota|API 配额不足/i, wired: true },
   { failure: "repetition_abort", userCopy: "导师输出重复，已停止本次回答且未保存。请重试或更换模型。", retryable: "manual", persists: false, detection: /导师输出重复/, wired: true },
   { failure: "model_timeout", userCopy: "模型响应超时。问题仍保留在输入框，可重试或选择其他模型。", retryable: "auto_per_routing", persists: false, detection: /timeout|timed\s*out|abort/i, wired: true },
-  { failure: "rate_limited", userCopy: "模型当前请求较多，请稍后重试或选择其他模型。", retryable: "manual", persists: false, detection: /429|rate.?limit/i, wired: true },
+  { failure: "rate_limited", userCopy: "模型当前请求较多，请稍后重试或选择其他模型。", retryable: "auto_per_routing", persists: false, detection: /429|rate.?limit/i, wired: true },
   { failure: "model_unavailable", userCopy: "所选模型暂不可用，请选择其他模型后重试。", retryable: "auto_per_routing", persists: false, detection: /模型.*不可用|模型不存在|未替换模型/, wired: true },
   { failure: "stream_interrupted", userCopy: "模型未完成回答，请重试或选择其他模型。", retryable: "none", persists: false, detection: /empty response|输出中断/i, wired: true },
   // 以下为 §5.7 表补的类：detection 只命中自家构造的话术，不透传上游负载。
@@ -83,8 +83,8 @@ export function chatFailureMessage(error: unknown): string {
   return typeof row.userCopy === "function" ? row.userCopy(message) : row.userCopy;
 }
 
-/** 可冷却重试的失败：与迁移前 route 内联正则逐字相同。 */
-const COOLDOWN_RETRYABLE_PATTERN = /timed? ?out|timeout|abort|connection|502|503|504/i;
+/** Auto-only recoverable failures; quota and authorization guards take precedence. */
+const COOLDOWN_RETRYABLE_PATTERN = /timed? ?out|timeout|abort|connection|429|rate.?limit|502|503|504/i;
 
 export interface CooldownRetryContext {
   /** 只有 auto 档允许自动换档；用户点名的模型不许被静默替换。 */
@@ -105,6 +105,9 @@ export function resolveCooldownRetry(ctx: CooldownRetryContext): string | null {
   if (ctx.mode !== "auto") return null;
   if (ctx.receivedText) return null;
   if (ctx.currentModel === ECONOMY_MODEL_ID) return null;
+  if(/\b401\b|\b403\b|unauthori[sz]ed|forbidden/i.test(message))return null;
+  const failure=classifyChatFailure(ctx.error);
+  if(failure==="provider_quota"||failure==="hosted_provider_quota")return null;
   if (!COOLDOWN_RETRYABLE_PATTERN.test(message)) return null;
   return ECONOMY_MODEL_ID;
 }

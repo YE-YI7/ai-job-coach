@@ -3,6 +3,16 @@ import path from "node:path";
 import {chatFailureMessage,CHAT_FAILURE_TABLE,classifyChatFailure,resolveCooldownRetry,type ChatFailureClass} from "./chat-failure";
 import {classifyGenerationFailure} from "../llm-telemetry";
 import {ECONOMY_MODEL_ID} from "./model-catalog";
+test("automatic rate-limit fallback is bounded and never bypasses balance or explicit selection",()=>{
+ const base={mode:"auto",receivedText:false,currentModel:"kimi-k3",error:Error("429 rate limit")};
+ expect(resolveCooldownRetry(base)).toBe(ECONOMY_MODEL_ID);
+ expect(resolveCooldownRetry({...base,currentModel:ECONOMY_MODEL_ID})).toBeNull();
+ expect(resolveCooldownRetry({...base,mode:"kimi-k3"})).toBeNull();
+ expect(resolveCooldownRetry({...base,receivedText:true})).toBeNull();
+ expect(resolveCooldownRetry({...base,error:Error("TokenPay api_key_quota 429")})).toBeNull();
+ expect(resolveCooldownRetry({...base,error:Error("insufficient_quota 429")})).toBeNull();
+ expect(resolveCooldownRetry({...base,error:Error("403 forbidden rate_limit")})).toBeNull();
+});
 test.each(["Request timed out.","LLM_REQUEST_TIMEOUT","Request aborted"])("classifies %s without swallowing recovery",message=>{
  expect(chatFailureMessage(new Error(message))).toContain("超时");
  expect(classifyGenerationFailure(new Error(message))).toBe("timeout");

@@ -1,4 +1,25 @@
 import { compileContextBundle, contextIsStale, estimateTokens, replayContextSelection } from "./context";
+test('可选简历不能挤掉后装载的必需JD；不删原文也不截断',()=>{
+ const resume='可选简历'.repeat(180);
+ const jd='必需岗位职责'.repeat(65);
+ const bundle=compileContextBundle({task:'mock_interview',userId:'owner',claims:[],claimSelection:'relevant',currentInput:'教我这道题',
+  opportunity:{id:'job',company:'公司',role:'岗位',stage:'resume_editing',jdText:jd,jdVersion:1,scheduledInterviewAt:null},
+  attachments:[{id:'resume-text',label:'简历',text:resume,required:false}],budget:{maxInputTokens:1000}});
+ expect(()=>assertContextFits(bundle)).not.toThrow();
+ expect(bundle.selection.included).toContainEqual(expect.objectContaining({kind:'opportunity',refId:'job'}));
+ expect(bundle.selection.excluded).toContainEqual(expect.objectContaining({kind:'attachment',refId:'resume-text',required:false}));
+ expect(bundle.opportunity?.jdText).toBe(jd);
+ expect(resume).toBe('可选简历'.repeat(180));
+});
+test('可选材料也不能挤掉后续必需附件与已确认事实；严格审查仍阻断真实超载',()=>{
+ const common={task:'mock_interview' as const,userId:'owner',claimSelection:'all_required' as const,
+  claims:[claim({displayText:'参与产品验收。'})],attachments:[{id:'optional',label:'历史附件',text:'旧材料'.repeat(240),required:false},{id:'required',label:'当前原文',text:'必须保留原句'.repeat(25),required:true}],budget:{maxInputTokens:1000}};
+ const bundle=compileContextBundle(common);
+ expect(()=>assertContextFits(bundle)).not.toThrow();
+ expect(bundle.attachments.map(a=>a.id)).toEqual(['required']);
+ expect(bundle.allowedClaimIds).toEqual(['skill-1']);
+ expect(()=>assertContextFits(compileContextBundle({...common,claims:[claim({displayText:'必要事实'.repeat(1000)})]}))).toThrow();
+});
 
 test("同 ID 材料正文变化、新增/删除事实也使旧建议过期", () => {
   const base = { task: "mock_interview" as const, userId: "user-1", claims: [claim({ id: "one", displayText: "原始事实" })] };

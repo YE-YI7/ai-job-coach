@@ -33,7 +33,7 @@ const TASK_CLAIM_TYPES: Record<CoachActionType, Set<string>> = {
 
 /** 安全约束、任务规则和输出 Schema 的固定开销。这部分永远优先于业务内容。 */
 const BASE_OVERHEAD_TOKENS = 400;
-export const CONTEXT_COMPILER_VERSION = "context-content-bound-v3";
+export const CONTEXT_COMPILER_VERSION = "context-required-reservation-v4";
 
 function materialHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -214,6 +214,7 @@ export function compileContextBundle(input: {
   //    关键原句装不下时拆任务或请求选择，不能截断后继续作结论。
   let usedTokens = BASE_OVERHEAD_TOKENS;
   let truncated = false;
+  let remainingRequiredTokens = 0;
 
   const tryInclude = (
     entry: Omit<ContextSelectionEntry, "estimatedTokens" | "priority" | "rule" | "required">,
@@ -222,7 +223,8 @@ export function compileContextBundle(input: {
     rule: SelectionRule,
   ): boolean => {
     const priority = PRIORITY_ORDER[entry.kind];
-    if (usedTokens + tokens <= budget.maxInputTokens) {
+    if (required) remainingRequiredTokens = Math.max(0, remainingRequiredTokens - tokens);
+    if (usedTokens + tokens + (required ? 0 : remainingRequiredTokens) <= budget.maxInputTokens) {
       usedTokens += tokens;
       included.push({ ...entry, estimatedTokens: tokens, priority, rule, required });
       return true;
@@ -262,6 +264,13 @@ export function compileContextBundle(input: {
     }, estimateTokens(input.questionSource.text), true, "required:question_source");
   }
 
+  // Optional early attachments must not consume capacity reserved for later
+  // mandatory JD/facts. Keep the original selection order and audit entries.
+  const opportunityText=input.opportunity
+    ? [input.opportunity.company,input.opportunity.role,input.opportunity.jdText||''].join('\n') : '';
+  remainingRequiredTokens=(input.attachments||[]).filter(a=>a.required&&a.text.trim()).reduce((sum,a)=>sum+estimateTokens(a.text),0)
+    + (input.opportunity?estimateTokens(opportunityText):0)
+    + (input.claimSelection!=='relevant'?scopedClaims.filter(c=>c.status==='confirmed').reduce((sum,c)=>sum+estimateClaimTokens(c),0):0);
   const keptAttachments: ContextBundle["attachments"] = [];
   for (const attachment of input.attachments || []) {
     if (!attachment.text.trim()) continue;

@@ -1,4 +1,10 @@
 import {resumeSources,renderGroundedResume,needsResumeGrounding} from './resume-grounding';
+import {learningHandoff} from '@/lib/interview/learning-handoff';
+test('面试求教模板中的简历引用和改变产品方案不触发全量简历审查',()=>{
+ const prompt=learningHandoff('请讲清如何改变产品方案，区分真实增投和预算转移。','我不知道').prompt;
+ expect(needsResumeGrounding(prompt)).toBe(false);
+ expect(needsResumeGrounding('请描述增量评估流程，简历中的经历只用于待核实类比。')).toBe(false);
+});
 test.each(['请解释为什么先保存再给反馈，不要出新题或修改简历。','不要修改简历，只讲反馈保存。','不用生成自我介绍，解释指标口径。'])('否定编辑指令不触发全量简历事实编辑：%s',text=>expect(needsResumeGrounding(text)).toBe(false));
 test.each(['不要编造经历，但请润色简历。','别修改我的项目描述，帮我改简历自我介绍。','请基于简历写两条bullet，不要添加未确认经历。'])('保留独立肯定编辑请求：%s',text=>expect(needsResumeGrounding(text)).toBe(true));
 test('改写交付有可复制正文、行级依据、修改说明和确认，不替换原简历',()=>{

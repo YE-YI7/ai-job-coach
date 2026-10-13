@@ -2,8 +2,14 @@ import {verifyResumeGrounding} from "./citation-verifier";
 /** 普通咨询不追加模型；只有明确要求代写对外经历时才复核。 */
 export function needsResumeGrounding(message:string) {
  // Negative instructions constrain the reply; they do not request editing.
- const affirmative=message.split(/[，,。；;！!？?\n]|但是|但请|但帮我/).filter(clause=>!/(?:不要|不需要|不用|别|无需)/.test(clause)).join('，');
- return /简历|自我介绍|经历表述|项目描述/.test(affirmative)&&/写|改|润色|生成|整理|优化|描述|输出|bullet|一条|一版/i.test(affirmative);
+ const clauses=message.split(/[，,。；;！!？?\n]|但是|但请|但帮我/).filter(clause=>!/(?:不要|不需要|不用|别|无需|不能|不得)/.test(clause));
+ const target='(?:简历|自我介绍|经历表述|项目描述)';
+ const action='(?:改写|修改|润色|生成|整理|优化|输出|编辑|重写|重做|写|改|描述)';
+ // A résumé reference in teaching text does not authorize rewriting it.
+ // Require the editing verb and its document target in the same clause.
+ const edit=new RegExp(`${action}.{0,24}${target}|${target}.{0,24}${action}`,'i');
+ return clauses.some(clause=>edit.test(clause)) ||
+  (new RegExp(target).test(clauses.join('，'))&&clauses.some(clause=>/(?:写|输出|生成|整理).{0,24}(?:bullet|可直接替换|经历表述|项目描述)/i.test(clause)));
 }
 export const RESUME_GROUNDING_PROMPT = `你是简历事实编辑。只返回JSON：{"bullets":[{"sourceId":"来源ID","before":"用户原文中的完整连续事实片段","after":"可直接使用的精简表述","reason":"说明删掉哪些冗余或调整了什么结构","risks":["仍需用户确认的具体归属或数字口径"]}],"nextStep":"一个待确认问题；已有材料够用则为空"}。
 bullets最多5条，用户要求两条就给两条，每条before和after最多300字。before逐字引用来源完整句，after只能压缩、组合原文中的事实短语与中性连接词；不添加领域能力、背景、职责或因果。保留否定、计划、参与、团队结果等限定。数字与结果不能跨项目拼接。可以改善可读性，不得把团队贡献换成个人主导。reason只说明本次实际修改，risks无缺项则为空数组。

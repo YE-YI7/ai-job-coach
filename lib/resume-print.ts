@@ -27,13 +27,13 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
   }).join('<div class="page-break"></div>');
  }).join("");
  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeResumeHtml(title)}</title><style>
- @page{size:A4;margin:18mm}*{box-sizing:border-box}body{max-width:174mm;margin:24px auto;color:#242424;font:11pt/1.65 ${t.font};overflow-wrap:anywhere}
- section{padding:12px 0;border-bottom:1px solid #ddd}h2,h3{color:${t.accent};margin:0 0 10px;break-after:avoid}h2{font-size:12pt}h3{font-size:11pt}p{white-space:pre-wrap;margin:0 0 6px;orphans:3;widows:3}.resume-name{font-size:18pt;font-weight:700;color:${t.accent}}.resume-bullet{padding-left:1em;position:relative}.resume-bullet:before{content:"•";position:absolute;left:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px}.page-break{break-before:page;page-break-before:always}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
- .classic section[data-kind="header"]{text-align:center;border-bottom:2px solid #242424}.classic h2{letter-spacing:.08em}
- .modern section{display:grid;grid-template-columns:30mm minmax(0,1fr);gap:6mm}.modern h2,.modern h3{background:#edf2f6;padding:8px;align-self:start}.modern section[data-kind="header"]{display:block;background:#edf2f6;padding:16px}.modern section:not(:has(h2,h3))>div{grid-column:1/-1}
- .warm main{display:block}.warm section{background:#fbf8f2;padding:12px;margin-bottom:5mm;border-bottom:1px solid #d9cbbb}.warm h2{background:#f1e9dc;padding:8px}
+ @page{size:A4;margin:12mm}*{box-sizing:border-box}body{max-width:186mm;margin:20px auto;color:#242424;font:10.5pt/1.42 ${t.font};overflow-wrap:anywhere}
+ section{padding:7px 0;border-bottom:1px solid #ddd;text-align:left}h2,h3{color:${t.accent};margin:0 0 5px;break-after:avoid;word-break:normal}h2{font-size:11.5pt}h3{font-size:10.5pt}p{white-space:pre-wrap;margin:0 0 4px;orphans:2;widows:2}.resume-name{font-size:18pt;font-weight:700;color:${t.accent}}.resume-bullet{padding-left:1em;position:relative}.resume-bullet:before{content:"•";position:absolute;left:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px}.page-break{break-before:page;page-break-before:always}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
+ .classic section[data-kind="header"]{border-bottom:2px solid #242424}.classic section[data-kind="header"] .resume-name{text-align:center}
+ .modern section{display:block}.modern h2,.modern h3{padding:0;align-self:start}.modern section[data-kind="header"]{display:block;border-bottom:2px solid #365571}
+ .warm main{display:block}.warm section{padding:7px 0;border-bottom:1px solid #d9cbbb}.warm h2{padding:0}
  @media screen and (max-width:600px){body{margin:16px}.modern section{display:block}}
- @media print{.toolbar{display:none}body{margin:0;max-width:none}h2,h3{break-after:avoid}section{break-inside:avoid-page}*{print-color-adjust:exact}}
+ @media print{.toolbar{display:none}body{margin:0;max-width:none}h2,h3{break-after:avoid}section{break-inside:auto}*{print-color-adjust:exact}}
  </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
 }
 export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void){

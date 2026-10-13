@@ -3,6 +3,8 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { createCockpitOpportunity, deleteCockpitOpportunity, listCockpitOpportunities, recordTierIntentFromText, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
 import { STAGE_STATUS_WORDS } from "@/lib/opportunities/timeline";
 import type { Opportunity } from "@/lib/opportunities/types";
+import { ownsOriginalResumePath } from "@/lib/resume-original";
+import { ResumeRevisionConflict } from "@/lib/opportunities/resume-revision";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,6 +23,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = body.opportunity as Omit<Opportunity, "id">;
+    if(input?.resumeOriginal&&!ownsOriginalResumePath(user.id,input.resumeOriginal.path))return NextResponse.json({ok:false,error:"原文件不属于当前账号"},{status:400});
     const intakeRequestId = typeof body.intakeRequestId === "string" && uuid.test(body.intakeRequestId) ? body.intakeRequestId : undefined;
     if (body.intakeRequestId !== undefined && !intakeRequestId) return NextResponse.json({ ok: false, error: "材料任务编号无效" }, { status: 400 });
     const workspaceType = input?.workspaceType === "preparation" ? "preparation" : "job";
@@ -72,13 +75,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true });
     }
     const opportunity = body.opportunity as Opportunity;
+    if(opportunity?.resumeOriginal&&!ownsOriginalResumePath(user.id,opportunity.resumeOriginal.path))return NextResponse.json({ok:false,error:"原文件不属于当前账号"},{status:400});
     if (!opportunity?.id || !opportunity.company || !opportunity.role) return NextResponse.json({ ok: false, error: "岗位字段不完整" }, { status: 400 });
-    await updateCockpitOpportunity(user.id, opportunity, body.preserveStage === true);
+    const replacement=body.replaceResume===true?{expectedResumeRevision:typeof body.expectedResumeRevision==="string"?body.expectedResumeRevision:null}:undefined;
+    if(replacement)await updateCockpitOpportunity(user.id,opportunity,body.preserveStage===true,replacement);
+    else await updateCockpitOpportunity(user.id,opportunity,body.preserveStage===true);
     // 改方向时同样接住档位意向（只解析方向这句短句，正文材料不解析）
     try { await recordTierIntentFromText({ userId: user.id, text: opportunity.role, opportunityId: opportunity.id }); }
     catch (error) { console.error("Tier intent capture failed", error); }
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    if(error instanceof ResumeRevisionConflict)return NextResponse.json({ok:false,error:error.message},{status:409});
     return NextResponse.json({ ok: false, error: "岗位同步失败" }, { status: 500 });
   }
 }

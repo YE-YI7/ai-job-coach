@@ -23,4 +23,15 @@
 .compact .node{width:22px;height:22px;grid-row:1/3}
 .compact li:not(:last-child):after{display:none}
 .compact li small{grid-column:2}
+.timeline li:not(:last-child):after{display:none}
+.timeline li button,.compact li button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;min-height:44px;padding:8px 0;border-bottom:2px solid transparent}
+.timeline li strong{font-size:14px;font-weight:500}
+.timeline button[aria-current]{border-bottom-color:#a7441a}
+.compact ol{gap:20px}
+.timeline ol{margin:20px 0 8px;gap:20px}
+.timeline li{flex:0 0 auto;min-width:0}
 @media(max-width:700px){.timeline{padding:24px 20px 0}.identity h1{font-size:25px}.timeline ol{margin:24px 0 18px}.timeline li{min-width:88px}.current{align-items:flex-start;flex-wrap:wrap;gap:8px}.current button{min-height:44px}.statusTitle{flex-wrap:wrap}.timeline li button{min-height:88px}}
+.timeline{padding:26px 30px 0;color:#30362b}.identity h1{font-size:26px;line-height:1.4;font-weight:600;letter-spacing:-.025em}.identity>div{font-size:12px;color:#66725a}.stageLabel{background:#e8eddc;color:#526540;border-radius:6px;font-size:11px;padding:4px 8px}
+.timeline ol{gap:24px;margin:24px 0 0}.timeline li strong{font-size:13px;font-weight:500}.timeline li button{min-height:42px;padding:8px 0;border-bottom:2px solid transparent;color:#65705b}.timeline button[aria-current]{color:#405330;border-bottom-color:#8a9d72}.timeline button[aria-current] strong{font-weight:600}.timeline li small{font-size:10px;color:#6e795f}
+.current{margin-top:16px;background:#edf0e6;padding:11px 14px;border-radius:9px}.current button{background:#536b40;border-radius:8px;font-weight:500}.current .returnButton{color:#526b40;background:none}.compact .identity h1{font-size:22px;font-weight:550}.compact ol{gap:24px;margin-top:20px}
+@media(max-width:700px){.timeline{padding:22px 18px 0}.identity h1{font-size:23px}.timeline ol{gap:20px;margin-top:20px}.timeline li{min-width:0;flex:0 0 auto}.timeline li button{min-height:44px}.compact .identity h1{font-size:22px}}

@@ -1,6 +1,9 @@
 import { mergeOpportunityMaterial, shareBaseResumeAcrossOpportunities } from "./material-intake";
 
 describe("mergeOpportunityMaterial", () => {
+  test("a replacement resume does not append old content",()=>{
+    expect(mergeOpportunityMaterial({kind:"resume",sourceText:"新简历",resumeText:"旧简历",jdText:"原 JD"})).toEqual({jdText:"原 JD",resumeText:"新简历"});
+  });
   test("adds a resume without replacing the saved JD", () => {
     expect(mergeOpportunityMaterial({
       kind: "resume",

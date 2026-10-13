@@ -15,6 +15,6 @@ export default function ChatResizeHandle(){
   onPointerDown={e=>{e.preventDefault();e.currentTarget.focus();e.currentTarget.setPointerCapture(e.pointerId);}}
   onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId)){const box=e.currentTarget.parentElement!.getBoundingClientRect();resize(box.right-e.clientX);}}}
   onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
-  onDoubleClick={()=>resize(480)}
-  onKeyDown={e=>{if(!["ArrowLeft","ArrowRight","Home"].includes(e.key))return;e.preventDefault();resize(e.key==="Home"?480:Number(e.currentTarget.getAttribute("aria-valuenow"))+(e.key==="ArrowLeft"?32:-32));}} />;
+  onDoubleClick={()=>resize(384)}
+  onKeyDown={e=>{if(!["ArrowLeft","ArrowRight","Home"].includes(e.key))return;e.preventDefault();resize(e.key==="Home"?384:Number(e.currentTarget.getAttribute("aria-valuenow"))+(e.key==="ArrowLeft"?32:-32));}} />;
 }

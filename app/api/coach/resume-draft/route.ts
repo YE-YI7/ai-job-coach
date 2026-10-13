@@ -29,6 +29,7 @@ import {
 import type { GroundingSource } from "@/lib/coach-harness/citation-verifier";
 
 export const runtime = "nodejs";
+export const maxDuration = 180;
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
 
@@ -53,7 +54,8 @@ export async function POST(request: Request) {
     const resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     const jobDescription = String(body.jobDescription || "").trim().slice(0, 30_000);
     const opportunityId = String(body.opportunityId || "").trim();
-    if (!resumeText || !jobDescription) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
+    const generalResume = body.mode === "general_resume";
+    if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
     reservation = await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
     if (!reservation) return NextResponse.json({ ok: false, error: "简历生成额度不足", needUpgrade: true }, { status: 403 });
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
     // JD 走 questionSource 而不是直接拼进 user message：
     // 它是本次改写必须完整读到的原文，纳入 budget 后装不下会被 fail-loud 拦住，
     // 而不是像以前那样 3 万字 JD 无声地塞进 prompt。
-    const questionSource = { id: "job-description", text: jobDescription };
+    const questionSource = jobDescription ? { id: "job-description", text: jobDescription } : undefined;
 
     let context;
     if (opportunityId) {
@@ -125,6 +127,7 @@ export async function POST(request: Request) {
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只整理用户已经提供的事实，不补项目、职责、技能、数字或时间。用户没有目标岗位经历不等于原简历不能改善；可改善已有工作的表达，不能替他补齐JD门槛。优先把密集的真实动作拆成2至3条易读短句或列表，保留原词、否定和责任限定。没有新信息时不要同义换词，但段落拆成有意义的动作/交付列表属于有效结构整理。补充经历仍是用户自述，不代表已核实。每条建议必须引用完整支持它的 sourceIds（逐字复制下方编号，不要用示例编号）；before 必须是原文连续片段。不要强行写成产品经理、主导、分析洞察或推动优化。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"这处表达改善的具体价值及与JD的有限对应","sourceIds":["提供的真实编号"]}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
+      ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、否定、数字和时间，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
@@ -166,7 +169,7 @@ export async function POST(request: Request) {
     }
     const reviewerOutput = await callLLM([
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值；5. after 文字完整通顺——句子没有在词中间被截断（如「已上线腾」）、没有与 before 对不上的可疑错字换字（如「周活」写成「腾活」）、括号引号成对。第 5 条任一成立即 severity=error，并在 message 里写明断在哪。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
-      { role: "user", content: `目标 JD：\n${jobDescription}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes)}` },
+      { role: "user", content: `目标 JD：\n${jobDescription || "无目标 JD：只审表达、事实与精简，不要求岗位关键词匹配"}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n每条 bullet 应短且有具体动作或已有结果；不接受超过 100 字的长 bullet、无事实支撑的名词堆砌。\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes)}` },
     ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" });
     const reviewer = parseJson(reviewerOutput) as { status?: string; summary?: string; findings?: unknown[] };
     const reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
@@ -194,7 +197,7 @@ export async function POST(request: Request) {
     if (opportunityId) {
       const claimLinks = finalChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
       const artifact = await createArtifactWithClaims({
-        userId: user.id, opportunityId, artifactType: "target_resume", title: "岗位简历候选版本",
+        userId: user.id, opportunityId, artifactType: "target_resume", title: generalResume ? "简历修改候选版本" : "岗位简历候选版本",
         content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text, discardedSuggestions: rejected },
         status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
         createdBy: "hosted_ai", claimLinks,

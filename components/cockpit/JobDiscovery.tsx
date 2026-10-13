@@ -260,6 +260,7 @@ export default function JobDiscovery({profileId, ready, onImport, onAddJob, onOp
       {search.alreadyTracked.length > 3 ? ` 等 ${search.alreadyTracked.length} 条` : ""}。
     </p>}
     {batch && <p className={styles.tierHint}>这批结论对应的材料与条件版本：{batch.materialsVersion.slice(0, 8)}；你记下的决定都挂在这一批上，换材料后会重新评审。</p>}
+    {failedSources.length>0&&<p>暂未读取成功：{failedSources.join("、")}</p>}
     {decisionError && !decisionErrorFor && <p role="status">{decisionError}</p>}
     </details>
     {verification?.note && <p role="status">{verification.note}</p>}

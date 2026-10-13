@@ -41,6 +41,21 @@ describe("resume draft source mapping", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  test("general résumé can be rewritten and saved without a target JD",async()=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{section:"项目经历",before:"负责模型评测",after:"模型评测覆盖准确率口径",reason:"明确动作",sourceIds:["claim-1"]}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:"passed",summary:"事实与短句通过",findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:"模型评测覆盖准确率口径",findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:"general-art",version:1});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({reviewer_type:"facts",summary:"ok",findings:[]});
+    const response=await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({opportunityId:"opp-1",resumeText:"AI Job Coach：负责模型评测",jobDescription:"",mode:"general_resume"})}));
+    expect(response.status).toBe(200);
+    expect((await response.json()).changes).toHaveLength(1);
+    expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({title:"简历修改候选版本"}));
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain("没有目标 JD");
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+  });
+
   test("rejects suggestions whose before is a section label instead of exact resume text", async () => {
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({ changes: [{
       section: "项目经历", before: "项目经历 > AI Job Coach", after: "主导 AI Job Coach", reason: "岗位匹配", sourceIds: ["claim-1"],

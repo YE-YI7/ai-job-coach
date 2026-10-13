@@ -5,6 +5,9 @@ import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
+import OriginalResume from "./OriginalResume";
+import { uploadOriginalResume } from "@/lib/resume-original";
+import { companyLogo } from "@/lib/jobs/company-logos";
 import ResumeRecovery from "./ResumeRecovery";
 import { appendResumeSupplement, type ResumeRecovery as Recovery } from "@/lib/coach-harness/resume-recovery";
 import {tutorInvitation} from "@/lib/interview/tutor-invitation";
@@ -279,7 +282,7 @@ export function CockpitApp({
         if (savedPayloads.current.get(opportunity.id) === payload) continue;
         void saveOpportunity.current(opportunity.id, async () => {
           // Ignore a stale render queued behind an explicit material save.
-          if (resumeRequestBusy.current || !latestOpportunities.current.includes(opportunity)) return;
+          if (resumeRequestBusy.current || supplementingMaterial || !latestOpportunities.current.includes(opportunity)) return;
           setSaveReceipts(current => ({...current, [opportunity.id]: {payload, status: "saving"}}));
           const response = await fetch("/api/coach/opportunities", {
           method: "PATCH",
@@ -299,7 +302,7 @@ export function CockpitApp({
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [dataMode, localIds, localLoaded, opportunities, generatingResume, syncRetry]);
+  }, [dataMode, localIds, localLoaded, opportunities, generatingResume, supplementingMaterial, syncRetry]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const nextAction = active ? getTodayMentorPlan([active]).focus : undefined;
@@ -415,6 +418,13 @@ export function CockpitApp({
   const createOpportunity = async (intake: OpportunityIntake, entry: "direction" | "resume" | "interview" = "resume", onProgress: IntakeProgress = () => {}) => {
     const requestBody = intake.file ? new FormData() : null;
     const baseProfile = active?.workspaceType === "preparation" ? active : opportunities.find(item => item.workspaceType === "preparation" && item.resumeText?.trim());
+    if (entry === "direction" && baseProfile?.resumeText?.trim()) {
+      if (!window.confirm("更新简历会覆盖掉原简历，是否同意？")) throw Error("已取消，原简历未改变");
+      const updated = await supplementOpportunity({kind:"resume",sourceText:intake.sourceText,file:intake.file,saveOnly:true},baseProfile);
+      if (!updated) throw Error("简历仍在保存，请稍后重试");
+      setActiveId(updated.id); setActiveTab("overview");
+      return {opportunity:updated,deferred:false};
+    }
     const baseResume = entry !== "direction" ? baseProfile?.resumeText || "" : "";
     onProgress("reading");
     const fileDigest = intake.file ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await intake.file.arrayBuffer()))).map(byte => byte.toString(16).padStart(2, "0")).join("") : null;
@@ -424,7 +434,7 @@ export function CockpitApp({
     onProgress("reading", requestId);
     if (requestBody) {
       requestBody.set("requestId", requestId);
-      if (entry === "direction") requestBody.set("materialKindHint", "preparation");
+      if (entry === "direction") { requestBody.set("materialKindHint", "resume"); requestBody.set("mode", "save_only"); }
       requestBody.set("file", intake.file as File);
       if (baseResume) requestBody.set("resumeText", baseResume);
       if (intake.sourceText.trim()) requestBody.set("sourceText", intake.sourceText.trim());
@@ -433,7 +443,7 @@ export function CockpitApp({
     const response = await fetch("/api/opportunities/analyze", {
       method: "POST",
       headers: { ...(requestBody ? {} : { "Content-Type": "application/json" }), Accept: "application/x-ndjson", "X-Intake-Request-Id": requestId },
-      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume, materialKindHint: entry === "direction" ? "preparation" : undefined }),
+      body: requestBody ?? JSON.stringify({ sourceText: intake.sourceText, requestId, resumeText: baseResume, mode:entry === "direction"?"save_only":undefined, materialKindHint: entry === "direction" ? "resume" : undefined }),
     }).catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"network_error"});throw error;});
     const result = await readIntakeResponse(response, onProgress).catch(error=>{if(dataMode==="live")trackProductEvent("material_intake_failed",{request_id:requestId,reason_code:"invalid_response",status:response.status});throw error;});
     if (!response.ok || !result.ok || !result.input) {
@@ -460,6 +470,8 @@ export function CockpitApp({
       capturedAtLabel: "刚刚",
       jdText: input.jdText.trim(),
       resumeText: input.resumeText.trim(),
+      resumeOriginal: input.workspaceType === "preparation" ? intake.file && input.resumeText.trim() ? await uploadOriginalResume(intake.file) : undefined : baseProfile?.resumeOriginal,
+      resumeRevision: crypto.randomUUID(),
       profileText: input.profileText?.trim(),
       nextEventLabel: input.workspaceType === "preparation" ? "今天完成第一步" : "今天完成投递判断",
       recommendation: analysis?.recommendation ?? "prepare_then_apply",
@@ -496,11 +508,12 @@ export function CockpitApp({
     setActiveId(opportunity.id);
     setActiveTab(entry === "interview" ? "interview" : entry === "resume" && opportunity.resumeText && opportunity.jdText ? "resume" : "overview");
     if (dataMode === "live") trackProductEvent("material_intake_completed", { request_id:requestId, analysis_deferred:Boolean(result.analysisDeferred), opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
-    announce(analysis ? "材料已同步并完成初步分析" : "原文已同步，分析暂未完成");
-    return { opportunity, deferred: Boolean(result.analysisDeferred || !result.analysis) };
+    announce(result.savedOnly ? "简历已保存，可开始修改" : analysis ? "材料已同步并完成初步分析" : "原文已同步，分析暂未完成");
+    return { opportunity, deferred: Boolean(result.analysisDeferred || (!result.savedOnly && !result.analysis)) };
   };
 
-  const supplementOpportunity = async (supplement: OpportunitySupplement) => {
+  const supplementOpportunity = async (supplement: OpportunitySupplement, target = active) => {
+    const active = target;
     if (!active || supplementingMaterial) return;
     setSupplementingMaterial(true);
     if (dataMode === "live") trackProductEvent("opportunity_material_started", { opportunity_id: active.id, material_kind: supplement.kind, input_type: supplement.file ? "file" : "text" });
@@ -525,6 +538,8 @@ export function CockpitApp({
       // error, so users saw "总是服务失败" even though their resume was saved.
       if (!response.ok || !result.ok || !result.input) throw apiResponseError(response, result, "材料暂时读不了，请重试");
       const input = result.input as NewOpportunityInput;
+      const replacesResume = supplement.kind === "resume" && Boolean(supplement.file || supplement.sourceText.trim()) && supplement.saveOnly !== false;
+      const original = replacesResume && supplement.file ? await uploadOriginalResume(supplement.file) : undefined;
       const analysis = (result.analysis || {}) as Partial<Opportunity>;
       const updated: Opportunity = {
         ...active,
@@ -536,6 +551,8 @@ export function CockpitApp({
         stageLabel: input.workspaceType === "job" && active.workspaceType === "preparation" ? "评估中" : active.stageLabel,
         jdText: input.jdText,
         resumeText: input.resumeText,
+        resumeOriginal: replacesResume ? original : active.resumeOriginal,
+        resumeRevision: replacesResume ? crypto.randomUUID() : active.resumeRevision,
         profileText: input.profileText || active.profileText,
         recommendation: analysis.recommendation ?? active.recommendation,
         recommendationLabel: analysis.recommendationLabel ?? active.recommendationLabel,
@@ -544,7 +561,7 @@ export function CockpitApp({
         requirements: analysis.requirements ?? active.requirements,
         actions: analysis.actions ?? active.actions,
         interviewFocus: analysis.interviewFocus ?? active.interviewFocus,
-        resumeChanges: active.resumeChanges,
+        resumeChanges: replacesResume ? [] : active.resumeChanges,
         resumeCheckStale: true,
         frozenStale: active.frozenStale || Boolean(active.snapshots?.some(snapshot=>snapshot.snapshotType==="submitted_resume")),
         applicationQuality: undefined,
@@ -558,15 +575,17 @@ export function CockpitApp({
         }, ...active.activities],
       };
       if(dataMode==="live"&&!localIds.includes(active.id))await saveOpportunity.current(active.id,async()=>{
-        const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});
+        const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true,...(replacesResume?{replaceResume:true,expectedResumeRevision:active.resumeRevision??null}:{})})});
         const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||"原文未保存到云端，请保留输入后重试");
       });
+      savedPayloads.current.set(updated.id,JSON.stringify(updated));
       setOpportunities((current) => shareBaseResumeAcrossOpportunities(current.map((item) => item.id === active.id ? updated : item)));
       if (dataMode === "live") trackProductEvent("opportunity_material_completed", { opportunity_id: active.id, material_kind: supplement.kind });
       announce(result.savedOnly?"原文已保存 · 未调用 AI、未扣额度":result.analysis
         ? `已补充${supplement.kind === "job" ? " JD" : supplement.kind === "resume" ? "简历" : "经历"}并重新判断`
         : `已收到${supplement.kind === "job" ? "岗位 JD" : supplement.kind === "resume" ? "简历" : "经历"}，分析未完成；请稍后主动继续辅导，不会自动发起收费分析`);
       if(result.analysis)raiseGapCoaching(updated);
+      return updated;
     } catch (error) {
       if (dataMode === "live") trackProductEvent("opportunity_material_failed", { opportunity_id: active.id, material_kind: supplement.kind });
       throw error;
@@ -668,8 +687,8 @@ export function CockpitApp({
   const generateResumeDraft = async (target = active) => {
     // Use the just-saved material, not a stale React render after supplementation.
     const active = target;
-    if (!active?.resumeText || !active.jdText) {
-      announce("请先补充简历和 JD");
+    if (!active?.resumeText || (!active.jdText && active.workspaceType !== "preparation")) {
+      announce("请先上传简历");
       return;
     }
     if (resumeRequestBusy.current) return;
@@ -680,7 +699,7 @@ export function CockpitApp({
       const response = await fetch("/api/coach/resume-draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, requestId: `${active.id}:${Date.now()}` }),
+        body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText || "", mode: active.workspaceType === "preparation" ? "general_resume" : "target_resume", requestId: `${active.id}:${Date.now()}` }),
       });
       const result = await response.json();
       if (response.status === 422 && result.recovery && typeof result.recovery.question === "string" && typeof result.recovery.sourceExcerpt === "string") {
@@ -688,11 +707,11 @@ export function CockpitApp({
       }
       if (!response.ok || !result.ok) throw apiResponseError(response, result, "生成失败");
       setResumeRecovery(current => current?.opportunityId === active.id ? null : current);
-      setOpportunities((current) => current.map((item) => item.id === active.id ? {
+      setOpportunities((current) => current.map((item) => item.id === active.id && item.resumeText===active.resumeText && item.resumeRevision===active.resumeRevision ? {
         ...item,
         resumeChanges: result.changes,
         applicationQuality: result.applicationQuality,
-        activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成岗位简历建议", detail: `${result.changes.length} 处修改已完成事实、独立复核与 ATS 检查。`, timeLabel: "刚刚" }, ...item.activities],
+        activities: [{ id: `${item.id}-resume-${Date.now()}`, actor: "analysis" as const, title: "生成简历修改建议", detail: `${result.changes.length} 处修改已完成核对，等待确认。`, timeLabel: "刚刚" }, ...item.activities],
       } : item));
       if (dataMode === "live") trackProductEvent("resume_generation_completed", { opportunity_id: active.id, change_count: result.changes.length });
       logAction(`生成了 ${result.changes.length} 处岗位简历建议，等待逐条确认`);
@@ -1041,15 +1060,15 @@ export function CockpitApp({
 
         <section className={`${styles.document} ${!creating && activeTab === "resume" ? styles.resumeDocument : ""}`} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
           {!creating && activeTab === "overview" && nextAction?.tab === "resume" && nextAction.cost === "free" && <section className={styles.nextFocus} aria-label="建议下一步"><span>下一步</span><h2>{nextAction.title}</h2><p>{nextAction.reason}</p><button type="button" className={styles.secondaryButton} onClick={() => setActiveTab("resume")}>去核对 · 免费<ArrowRight size={16}/></button></section>}
-          {!creating && active && activeTab === "resume" && dataMode === "live" && <div className={styles.saveReceipt} role="status">{savedPayloads.current.get(active.id) === JSON.stringify(active) ? "已保存到工作区" : saveReceipts[active.id]?.payload === JSON.stringify(active) && saveReceipts[active.id]?.status === "failed" ? <>云端保存失败，当前草稿仍在页面中。<button type="button" onClick={() => setSyncRetry(value => value + 1)}>重试保存</button></> : "正在保存草稿…"}</div>}
+          {!creating && active && (activeTab === "resume" || active.workspaceType === "preparation") && dataMode === "live" && <div className={styles.saveReceipt} role="status">{savedPayloads.current.get(active.id) === JSON.stringify(active) ? "已保存到工作区" : saveReceipts[active.id]?.payload === JSON.stringify(active) && saveReceipts[active.id]?.status === "failed" ? <>云端保存失败，当前草稿仍在页面中。<button type="button" onClick={() => setSyncRetry(value => value + 1)}>重试保存</button></> : "正在保存草稿…"}</div>}
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry} initialSourceText={newEntry==="resume" && active?.workspaceType==="preparation" && !active.resumeText ? active.profileText || "" : ""} onCreate={createOpportunity} onBusyChange={setIntakeBusy} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
-          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="保存到个人档案；已有岗位的定制版本不会被替换。" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
+          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} editor={<ResumeTab opportunity={active} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补充真实经历",prompt:"帮我把当前简历缺少具体动作与结果的一处讲清楚，一次问一个问题，不补编经历。"})} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={() => {}}/>} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction compact kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
           {active.workspaceType !== "preparation" && <>
           <div className={styles.documentBody}>
             {activeTab==="resume"&&!active.resumeText&&<ContextMaterialAction kind="resume" title="上传简历开始修改" description="拖入文件或粘贴内容，不会覆盖已有岗位。" placeholder="粘贴简历内容" loading={supplementingMaterial} onSubmit={supplementOpportunity}/>}
             {activeTab==="resume"&&active.resumeText&&!resumeUploadOpen&&<p className={styles.ctaHint} style={{margin:"0 0 12px"}}>已有简历。要换一份或补充经历？<button type="button" onClick={()=>setResumeUploadOpen(true)} style={{marginLeft:6,padding:0,border:"none",background:"none",color:"var(--accent,#c2410c)",font:"inherit",cursor:"pointer",textDecoration:"underline"}}>上传 / 替换简历</button></p>}
-            {activeTab==="resume"&&active.resumeText&&resumeUploadOpen&&<ContextMaterialAction kind="resume" title="上传 / 替换简历" description="拖入文件或粘贴内容，会更新当前岗位的简历文本。" placeholder="粘贴新的简历内容" loading={supplementingMaterial} onSubmit={async (s)=>{try{await supplementOpportunity(s);setResumeUploadOpen(false);}finally{}}}/>}
+            {activeTab==="resume"&&active.resumeText&&resumeUploadOpen&&<ContextMaterialAction compact kind="resume" existingText={active.resumeText} title="替换简历" description="" placeholder="粘贴新的简历内容" loading={supplementingMaterial} onSubmit={async (s)=>{await supplementOpportunity(s);setResumeUploadOpen(false);}}/>}
             {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); }} onSupplement={supplementOpportunity} onConfirmEvidence={(requirement)=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补齐关键经历",prompt:`请带我梳理能证明「${requirement}」的真实经历，先问一个具体问题，不要替我编造。`});setMobileRail("actions");}} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
             {activeTab === "resume" && <ResumeTab opportunity={active} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
@@ -1098,7 +1117,7 @@ export function CockpitApp({
 
 type NewOpportunityInput = { workspaceType?: "job" | "preparation"; company: string; role: string; location: string; jdText: string; resumeText: string; profileText?: string; sourceLabel?: string };
 type OpportunityIntake = { sourceText: string; file: File | null };
-type AnalyzeIntakeResult = { input: NewOpportunityInput; analysis: Partial<Opportunity> | null; analysisDeferred?: boolean; reasonCode?: string };
+type AnalyzeIntakeResult = { input: NewOpportunityInput; analysis: Partial<Opportunity> | null; analysisDeferred?: boolean; savedOnly?:boolean; reasonCode?: string };
 type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null; saveOnly?:boolean };
 
 function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: (entry: "direction" | "resume" | "interview") => void; onLogout: () => void }) {
@@ -1155,8 +1174,7 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
         <button className={styles.mobileClose} onClick={onClose} aria-label="关闭机会列表"><X size={19} /></button>
       </div>
       <label className={styles.searchBox}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索公司或岗位</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索公司或岗位" /></label>
-      <button className={styles.profileEntry} onClick={onOpenProfile}><FileText size={17}/><span><strong>我的简历与方向</strong><small>基础档案 · 多个岗位共用</small></span></button>
-      {opportunities.filter(item=>item.workspaceType==="preparation").length>1&&<details><summary>其他基础档案</summary>{opportunities.filter(item=>item.workspaceType==="preparation").map(item=><button key={item.id} onClick={()=>onSelect(item.id)}>{item.role}</button>)}</details>}
+      <button className={styles.profileEntry} onClick={onOpenProfile}><FileText size={17}/><span><strong>我的简历</strong></span></button>
       <div className={styles.opportunityList} role="list">
         {opportunities.filter(item=>item.workspaceType!=="preparation").map((opportunity) => {
           const pinned = pinSet.has(opportunity.id);
@@ -1175,7 +1193,7 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
             >
               {canReorder && <span className={styles.rowGrip} aria-hidden="true" title="拖动排序"><GripVertical size={14} /></span>}
               <button type="button" className={styles.opportunityItem} onClick={() => onSelect(opportunity.id)} aria-current={activeId === opportunity.id ? "true" : undefined}>
-                <span className={styles.opportunityCompany}>{pinned && <Pin size={11} aria-hidden="true" className={styles.rowPinIcon} />}{opportunity.company}</span>
+                <span className={styles.opportunityCompany}><RailCompanyMark company={opportunity.company}/>{pinned && <Pin size={11} aria-hidden="true" className={styles.rowPinIcon} />}{opportunity.company}</span>
                 <strong>{opportunity.role}</strong>
                 <span className={styles.opportunityMeta}><span>{stageStatusWord(opportunity)}</span></span>
                 <small className={styles.matchEvidence} title="已有强证据支持的要求数 / 岗位要求总数，不是录用概率">{!opportunity.resumeText ? "补简历后查看匹配" : !opportunity.jdText ? "补岗位后查看匹配" : opportunity.requirements.length ? `匹配证据 ${opportunity.requirements.filter((item) => item.strength === "strong").length}/${opportunity.requirements.length}` : "匹配待评估"}</small>
@@ -1195,10 +1213,15 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
           );
         })}
         {opportunities.length === 0 && <div className={styles.emptySearch}><Search size={18} /><span>没有匹配的岗位</span><button onClick={() => onQueryChange("")}>清除搜索</button></div>}
-        <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>添加岗位</strong><small>粘贴招聘链接、JD，也可先传简历</small></span></button>
+        <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>添加岗位</strong></span></button>
       </div>
     </aside>
   );
+}
+
+function RailCompanyMark({company}:{company:string}) {
+  const logo=companyLogo(company),[failed,setFailed]=useState(false);
+  return logo&&!failed?<Image className={styles.railCompanyMark} src={logo} alt="" width={24} height={24} onError={()=>setFailed(true)}/>:null;
 }
 
 function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "resume", initialSourceText = "" }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview", progress: IntakeProgress) => Promise<{ opportunity: Opportunity; deferred: boolean }>; onCancel: () => void; onBusyChange: (busy: boolean) => void; initialEntry?: "direction" | "resume" | "interview"; initialSourceText?: string }) {
@@ -1229,7 +1252,7 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
     setSaveFailed(false);
   };
 
-  if (receipt) return <MaterialReceipt {...receipt} onContinue={onCancel}/>;
+  if (receipt) return <MaterialReceipt {...receipt} savedOnly={entry==="direction"} onContinue={onCancel}/>;
 
   return (
     <div className={styles.createPage}>
@@ -1297,10 +1320,10 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
           <ShieldCheck size={18} />
           <p><strong>我会先替你判断：</strong>这是岗位、简历还是求职目标，再建对应档案，只追问会影响下一步的内容。</p>
         </div>
-        <MaterialDataNotice/>
-        {submitting && <MaterialTaskProgress phase={phase} startedAt={startedAt} requestId={requestId}/>}
+        <MaterialDataNotice saveOnly={entry==="direction"}/>
+        {submitting && <MaterialTaskProgress phase={phase} startedAt={startedAt} requestId={requestId} saveOnly={entry==="direction"}/>}
         {error && <div role="alert"><p className={styles.intakeError}>{error}</p>{requestId && <small>任务编号：{requestId}</small>}</div>}
-        <div className={styles.formActions}><button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在处理…" : saveFailed ? "重试保存 · 不消耗模型额度" : `${error ? "重试整理" : "让导师整理"} · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
+        <div className={styles.formActions}><button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在处理…" : saveFailed ? "重试保存 · 不消耗模型额度" : entry === "direction" ? "保存简历 · 免费" : `${error ? "重试整理" : "让导师整理"} · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
       </form>
     </div>
   );
@@ -1310,14 +1333,15 @@ function CreationRail() {
   return <aside className={styles.actionRail}><div className={styles.railHeading}><div><h2>不用先整理</h2><p>原始材料就够了</p></div></div><ol className={styles.creationGuide}><li><strong>你提供</strong><span>一个公开链接、一段 JD 或一份文件。</span></li><li><strong>导师处理</strong><span>识别信息，拆要求，建立岗位档案。</span></li><li><strong>需要时再问</strong><span>只追问会改变投递判断的事实。</span></li></ol></aside>;
 }
 
-function ContextMaterialAction({ kind, title, description, placeholder, loading, onSubmit,existingText }: {
+function ContextMaterialAction({ kind, title, description, placeholder, loading, onSubmit,existingText,compact=false }: {
   kind: OpportunitySupplement["kind"];
   title: string;
   description: string;
   placeholder: string;
   loading: boolean;
-  onSubmit: (input: OpportunitySupplement) => Promise<void>;
+  onSubmit: (input: OpportunitySupplement) => Promise<unknown>;
   existingText?:string;
+  compact?:boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -1330,6 +1354,7 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
     if (loading || (!file && !sourceText.trim())) return;
     if (file && !/\.(pdf|docx|txt|md)$/i.test(file.name)) return setError("支持 PDF、DOCX、TXT 或 Markdown 文件");
     if (file && file.size > 4 * 1024 * 1024) return setError("文件不能超过 4MB，请压缩 PDF 或上传文字版");
+    if (kind === "resume" && existingText?.trim() && saveOnly && !window.confirm("更新简历会覆盖掉原简历，是否同意？")) return;
     setError("");
     try {
       await onSubmit({ kind, sourceText, file,saveOnly });
@@ -1344,7 +1369,7 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
 
   return (
     <div
-      className={`${styles.contextAction} ${dragging ? styles.contextActionDragging : ""}`}
+      className={`${styles.contextAction} ${compact ? styles.contextActionCompact : ""} ${dragging ? styles.contextActionDragging : ""}`}
       aria-busy={loading}
       onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
       onDragOver={(event) => event.preventDefault()}
@@ -1353,18 +1378,18 @@ function ContextMaterialAction({ kind, title, description, placeholder, loading,
     >
       <div className={styles.contextActionLead}>
         <span className={styles.contextActionIcon}>{kind === "job" ? <Link2 size={18} /> : <UploadCloud size={18} />}</span>
-        <div><strong>{loading ? "正在处理材料…" : title}</strong><p>{loading ? "已有改稿会保留，保存完成后会确认。" : description}</p></div>
+        <div><strong>{loading ? "正在更新简历…" : title}</strong>{!loading&&description&&<p>{description}</p>}</div>
       </div>
-      <MaterialDataNotice/>
+      <MaterialDataNotice saveOnly={kind==="resume"&&compact}/>
       {!loading && <div className={styles.contextActionButtons}>
-        <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />{kind==="resume"?"上传文件 · 免费保存":"上传文件"}</button>
-        {kind==="resume"&&existingText?.trim()&&<button type="button" className={styles.contextSecondaryAction} onClick={()=>{setError("");void onSubmit({kind,sourceText:existingText,file:null,saveOnly:false}).catch(e=>setError(e instanceof Error?e.message:"分析未完成"));}}>AI 分析已存简历 · {quotaLabel}</button>}
+        <button type="button" className={styles.contextPrimaryAction} onClick={() => inputRef.current?.click()}><UploadCloud size={15} />{kind==="resume"?(existingText?"替换文件":"上传文件"):"上传文件"}</button>
+        {!compact&&kind==="resume"&&existingText?.trim()&&<button type="button" className={styles.contextSecondaryAction} onClick={()=>{setError("");void onSubmit({kind,sourceText:existingText,file:null,saveOnly:false}).catch(e=>setError(e instanceof Error?e.message:"分析未完成"));}}>AI 分析已存简历 · {quotaLabel}</button>}
         <button type="button" className={styles.contextSecondaryAction} onClick={() => setExpanded((value) => !value)}>{kind === "job" ? <Link2 size={15} /> : <FileText size={15} />}{expanded ? "收起输入" : kind === "job" ? "粘贴 JD / 链接" : "粘贴内容"}</button>
         <input ref={inputRef} className={styles.materialFileInput} type="file" accept=".pdf,.docx,.txt,.md" onChange={(event) => void submit(event.target.files?.[0] || null)} />
       </div>}
       {expanded && !loading && <div className={styles.contextComposer}>
         <textarea value={sourceText} onChange={(event) => { setSourceText(event.target.value); setError(""); }} rows={4} placeholder={placeholder} autoFocus />
-        <div><span>也可把文件拖到这里</span>{kind==="resume"&&<button type="button" onClick={()=>void submit(null,true)} disabled={!sourceText.trim()}>保存原文 · 免费</button>}<button type="button" onClick={() => void submit(null,false)} disabled={!sourceText.trim()}>AI 分析 · {quotaLabel} <ArrowRight size={15} /></button></div>
+        <div><span>也可把文件拖到这里</span>{kind==="resume"&&<button type="button" onClick={()=>void submit(null,true)} disabled={!sourceText.trim()}>保存原文 · 免费</button>}{!compact&&<button type="button" onClick={() => void submit(null,false)} disabled={!sourceText.trim()}>AI 分析 · {quotaLabel} <ArrowRight size={15} /></button>}</div>
       </div>}
       {error && <p className={styles.contextActionError} role="alert">{error}</p>}
     </div>
@@ -1393,7 +1418,7 @@ function OverviewTab({ opportunity, relatedJobs, onOpenEvidence, onSelectJob, on
   relatedJobs: Opportunity[];
   onOpenEvidence: () => void;
   onSelectJob: (id: string) => void;
-  onSupplement: (input: OpportunitySupplement) => Promise<void>;
+  onSupplement: (input: OpportunitySupplement) => Promise<unknown>;
   onConfirmEvidence: (answer: string) => void;
   supplementing: boolean;
 }) {
@@ -1471,8 +1496,10 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
 function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; recovery: Recovery | null; onSupplement: (answer: string) => Promise<void>; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
   const quotaLabel = useQuotaLabel("resume", generating || validating || freezing);
   const [checkingPdf, setCheckingPdf] = useState(false);
-  const [documentView, setDocumentView] = useState<"edit" | "final">("edit");
-  useEffect(() => setDocumentView("edit"), [opportunity.id]);
+  const [documentView, setDocumentView] = useState<"original" | "edit" | "final">("original");
+  useEffect(() => setDocumentView("original"), [opportunity.id,opportunity.resumeRevision]);
+  const previousChangeCount = useRef(opportunity.resumeChanges.length);
+  useEffect(()=>{if(generating){previousChangeCount.current=-1;return;}if(previousChangeCount.current===-1&&opportunity.resumeChanges.length)setDocumentView("edit");previousChangeCount.current=opportunity.resumeChanges.length;},[generating,opportunity.resumeChanges.length]);
   const progress = resumeProgress(opportunity);
   const currentExport = applyResumeChanges(opportunity.resumeText || "", opportunity.resumeChanges.filter(change => change.status === "accepted"));
   const failedReviews = opportunity.applicationQuality?.reviews.filter((review) => review.status === "failed") || [];
@@ -1490,34 +1517,22 @@ function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpda
     } catch (error) { onPdfResult("failed", error instanceof Error ? error.message : "PDF 校验失败"); }
     finally { setCheckingPdf(false); }
   };
-  if (opportunity.workspaceType === "preparation") {
-    return (
-      <section>
-        <div className={styles.pageIntro}><div><h2>基础简历</h2><p>各岗位共用的事实底稿</p></div><ResumeExport compact opportunityId={opportunity.id} baseText={opportunity.resumeText}/></div>
-        {opportunity.resumeText ? (
-          <>
-            <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />
-          </>
-        ) : <EmptySection label="还没有识别到完整简历。继续添加经历材料，导师会合并到事实底稿。" />}
-      </section>
-    );
-  }
   return (
     <section className={styles.resumeStudio}>
-      <div className={`${styles.pageIntro} ${styles.resumeStudioIntro}`}><div><h2>简历工作室</h2><p>{recovery ? "岗位版尚未生成，当前保留原文" : documentView === "final" ? "当前成稿 · 只包含已采用的修改" : `${opportunity.resumeChanges.filter(change => change.status === "pending").length} 处待确认 · 核对完整段落后再采用`}</p></div><div className={styles.resumePrimaryActions}><button className={styles.secondaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || !opportunity.jdText}><Sparkles size={16} />{generating ? "正在生成…" : `${opportunity.resumeChanges.length ? "重新生成建议" : "生成岗位版"} · ${quotaLabel}`}</button><ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text}/></div></div>
-      <details className={styles.resumeCheckDetails}><summary>修改检查与投递版本</summary><div className={styles.resumeActionRow}>
+      <div className={styles.resumeEditorActions}><button className={styles.primaryButton} onClick={onGenerate} disabled={generating || !opportunity.resumeText || (!opportunity.jdText&&opportunity.workspaceType!=="preparation")}><Sparkles size={16} />{generating ? "正在修改…" : `${opportunity.resumeChanges.length ? "重新修改" : "开始修改"} · ${quotaLabel}`}</button>{documentView!=="original"&&<ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text}/>}<span role="status">{opportunity.resumeChanges.some(c=>c.status==="pending")?`${opportunity.resumeChanges.filter(c=>c.status==="pending").length} 处建议待确认`:""}</span></div>
+      {opportunity.applicationQuality&&opportunity.workspaceType!=="preparation"&&<details className={styles.resumeCheckDetails}><summary>检查与投递版</summary><div className={styles.resumeActionRow}>
         <div>
           {progress.action === "check" && <button className={styles.secondaryButton} disabled={validating} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "请 AI 帮我检查（可选）"}</button>}
           {progress.action === "freeze" && <button className={styles.primaryButton} disabled={freezing} onClick={onFreeze}>{freezing ? "正在保存…" : "保存投递版"}</button>}
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>
-      </div></details>
+      </div></details>}
       {recovery && <details className={styles.resumeCheckDetails}><summary>岗位版需要补充一个真实细节 · 原文可直接导出</summary><ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/></details>}
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
-          <div className={styles.documentViews} role="group" aria-label="简历视图"><button type="button" aria-pressed={documentView === "edit"} onClick={() => setDocumentView("edit")}>编辑与核对</button><button type="button" aria-pressed={documentView === "final"} onClick={() => setDocumentView("final")}>查看成稿</button></div>
-          <div id={`resume-current-${opportunity.id}`}>{documentView === "final" ? <ResumeDocument text={currentExport.text}/> : <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />}</div>
+          <div className={styles.documentViews} role="group" aria-label="简历视图"><button type="button" aria-pressed={documentView === "original"} onClick={() => setDocumentView("original")}>原简历</button><button type="button" aria-pressed={documentView === "edit"} onClick={() => setDocumentView("edit")}>修改建议</button><button type="button" aria-pressed={documentView === "final"} onClick={() => setDocumentView("final")}>新成稿</button></div>
+          <div id={`resume-current-${opportunity.id}`}>{documentView === "original" ? <OriginalResume opportunity={opportunity}/> : documentView === "final" ? <ResumeDocument text={currentExport.text}/> : <ResumeBlockBoard opportunity={opportunity} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder} />}</div>
           {currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}
@@ -1603,7 +1618,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   opportunity: Opportunity;
   relatedJobs: Opportunity[];
   onSelectJob: (id: string) => void;
-  onSupplement: (input: OpportunitySupplement) => Promise<void>;
+  onSupplement: (input: OpportunitySupplement) => Promise<unknown>;
   supplementing: boolean;
   onAnalyze: (question: string, answer: string) => Promise<InterviewPracticeFeedback | null>;
   onTeach: (question:string,answer:string)=>void;

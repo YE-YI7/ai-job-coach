@@ -1254,6 +1254,32 @@
 .documentViews button[aria-pressed="true"],.documentTemplates button[aria-pressed="true"]{border-bottom-color:var(--accent);color:var(--ink);font-weight:600}
 .documentViews button:focus-visible,.documentTemplates button:focus-visible,.saveReceipt button:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 .finalDocument{background:white;min-width:0}.finalDocument iframe{width:100%;border:0;display:block;background:white}
+.originalResume{min-width:0;background:#fff}
+.originalResumeToolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;font-size:13px;color:#686159}
+.originalResumeToolbar span,.originalResumeToolbar a{display:flex;align-items:center;gap:7px;min-width:0;overflow-wrap:anywhere}
+.originalResumeToolbar a{color:#383630;text-underline-offset:4px;flex-shrink:0}
+.originalResume iframe{display:block;width:100%;height:76dvh;min-height:560px;border:0;background:#fff}
+.originalResumeMissing{padding:32px 0;color:#686159;line-height:1.7}
+.originalResumeMissing pre{white-space:pre-wrap;max-height:50dvh;overflow:auto;font:14px/1.7 inherit;color:#383630}
+.profileResumeTools{margin:8px 0 20px}
+.contextActionCompact{display:flex;align-items:center;flex-wrap:wrap;gap:8px 20px;border:0!important;padding:0!important;background:none!important;margin:0!important}
+.contextActionCompact .contextActionLead{display:none}
+.contextActionCompact .contextActionButtons{margin:0}
+.contextActionCompact .contextPrimaryAction,.contextActionCompact .contextSecondaryAction{background:none;border:0;padding:8px 0;color:#686159}
+.contextActionCompact>p,.contextActionCompact>details,.contextActionCompact .contextComposer{width:100%}
+.resumeEditorActions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.resumeEditorActions>span{font-size:13px;color:#686159}
+.resumeEditorActions .exportCompact{margin:0}
+.resumeSheet{box-shadow:none;border:0;padding:12px 0;gap:16px}
+.sheetSection,.sheetClassic .sheetSection{border:0!important}
+.sheetSection .blockHead{padding:8px 0}
+.sheetSection .blockBody{padding:0 0 14px}
+.sheetClassic .sheetSection[data-kind="header"] .blockBody{text-align:left}
+.blockToolbar{margin:4px 0 12px}
+.blockToolbar>span{font-size:12px}
+.documentViews,.documentTemplates,.profileViewTabs{border-bottom:0;gap:24px;margin-bottom:20px}
+.profileHeading h1{font-size:24px;font-weight:650;margin:0 0 16px}
+@media(max-width:700px){.originalResume iframe{height:64dvh;min-height:420px}.resumeEditorActions>.primaryButton{flex:1}.originalResumeToolbar{align-items:flex-start;flex-wrap:wrap}}
 .saveReceipt{font-size:13px;line-height:1.6;color:var(--muted);padding:0 0 16px}.saveReceipt button{margin-left:12px;min-height:44px;padding:8px 12px;background:white;border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;cursor:pointer}
 @media(max-width:700px){.resumeComparison{grid-template-columns:1fr;gap:12px}}
 .profileViewTabs button{border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font:inherit;font-size:14px;padding:10px 0;cursor:pointer}
@@ -1261,3 +1287,46 @@
 .profileViewTabs button:focus-visible{outline:2px solid #984320;outline-offset:4px}
 .opportunityItem{transition:background-color 160ms ease,border-color 160ms ease}
 @media(prefers-reduced-motion:reduce){.primaryButton,.secondaryButton,.opportunityItem{transition:none}}
+
+/* A document studio, not a collection of dashboards. */
+.shell{--ink:#292823;--muted:#66675f;--line:#e4e3da;--line-strong:#d8d8ce;--paper:#f1f2ec;--surface:#fdfdf9;--accent:#c45e3a;--accent-deep:#9b4429;--accent-soft:#f7e9e1;--grain:none;font-family:"Outfit","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;background:var(--paper)}
+.shell ::selection{background:#e5bfae;color:#292823}.shell input,.shell textarea{caret-color:var(--accent-deep)}
+.topbar{background:#fdfdf9;border-bottom-color:#e4e5dd;padding-inline:22px}.brand{font-size:17px;font-weight:650;gap:9px}.brandLogo{width:30px;height:30px;border-radius:9px;box-shadow:none}.topbarContext{gap:14px;font-size:12px}.liveState{background:transparent;color:#536a55;font-size:11px;font-weight:500}
+.workspace{grid-template-columns:208px minmax(0,1fr) var(--chat-width,min(384px,30vw));background:var(--paper)}
+.chatResize{right:var(--chat-width,min(384px,30vw));width:6px;transform:translateX(3px)}.chatResize:hover,.chatResize:focus-visible{background:#dbd9ce;outline:1px solid #adada0;outline-offset:-1px}
+.opportunityRail{background:#f0f1eb;border-right:0;padding:0 10px 12px;scrollbar-width:thin;scrollbar-color:#d3d5c9 transparent}
+.railHeading{padding:25px 10px 18px;align-items:center}.railHeading h2{font-size:14px;font-weight:600;letter-spacing:0}.railHeading p{font-size:11px;line-height:1.5;color:var(--muted)}
+.searchBox{height:36px;margin:0 4px 18px;padding:0 9px;background:#e7e9e0;border:1px solid transparent;border-radius:8px}.searchBox input{font-size:12px}
+.profileEntry{min-height:44px;margin:0 0 22px;padding:10px 12px;border:0;border-radius:8px;background:#e3e6da;color:#3e4b37;gap:10px;box-shadow:none;transition:background-color 160ms ease}.profileEntry strong{font-size:13px;font-weight:600}.profileEntry::after{content:none}.profileEntry:hover{background:#dce1d0;transform:none}
+.opportunityList{padding:0;overflow-y:auto}.opportunityRow{border:0;border-radius:10px;margin:3px 0 8px;background:transparent;position:relative;box-shadow:none}
+.opportunityItem{padding:12px;min-height:104px;margin:0;border:0;border-radius:10px}.opportunityItem:hover{background:#e7e9e1;border:0}.opportunityActive{background:#fdfdf9;border:0;box-shadow:0 3px 10px rgba(39,44,30,.045)}.opportunityActive .opportunityItem:hover{background:#fdfdf9}
+.opportunityCompany{display:flex;align-items:center;gap:7px;font-size:11px;color:#676a60;margin-bottom:7px;line-height:1.4}.railCompanyMark{width:22px;height:22px;object-fit:contain;border-radius:5px}
+.opportunityItem strong{font-size:13px;line-height:1.55;font-weight:550;letter-spacing:0;padding-right:3px}.opportunityMeta{margin-top:8px;font-size:11px;color:#666b5e}.matchEvidence{font-size:11px;margin-top:4px;color:#6a6e62}
+.rowGrip{opacity:0}.rowActions{opacity:0;transition:opacity 160ms ease}.opportunityRow:hover .rowGrip,.opportunityRow:hover .rowActions,.opportunityRow:focus-within .rowActions{opacity:1}
+.addOpportunity{width:100%;padding:11px 12px;margin:14px 0 0;background:transparent;border:0;border-radius:8px;color:#536148}.addOpportunity:hover{background:#e3e6da;border:0}.addOpportunity svg{color:inherit}.addOpportunity strong{font-size:13px;font-weight:500}
+.document{background:#f8f9f4;border-radius:14px 14px 0 0;margin-top:10px;scrollbar-width:thin;scrollbar-color:#d6d8cd transparent}
+.documentBody{padding:24px 30px 48px;max-width:1100px}.profileWorkspace{padding:26px 30px 48px;max-width:1100px}
+.profileHeading{padding:0;gap:16px;position:relative;min-height:36px;margin-bottom:10px}.profileHeading h1{font-size:26px;font-weight:600;letter-spacing:-.025em;line-height:1.3;margin:0}
+.profileFileMenu{margin:0!important;font-size:12px;position:relative;flex-shrink:0}.profileFileMenu>summary{padding:8px 11px;background:#e9ece1;border-radius:8px;color:#4a5640;list-style:none}.profileFileMenu>summary::-webkit-details-marker{display:none}.profileFileMenu>summary:focus-visible{outline:2px solid #68745c;outline-offset:3px}
+.profileFileMenu>div{position:absolute;right:0;top:calc(100% + 8px);width:min(340px,72vw);z-index:25;padding:16px;background:#fff;border-radius:12px;box-shadow:0 12px 36px rgba(38,46,28,.14)}
+.profileViewTabs{gap:6px;margin:0 0 24px;padding:0;background:transparent;border:0;display:flex;flex-wrap:wrap}.profileViewTabs button{font-size:12px;min-height:34px;padding:7px 12px;border:0;border-radius:7px;background:transparent;color:#696e61}.profileViewTabs button[aria-pressed="true"]{background:#e5e9dc;color:#3d4e32;border:0;font-weight:550;text-decoration:none}.profileViewTabs button:hover{background:#e9ece1}
+.profileResumeTools{margin:0 0 18px}.profileWorkspace section{border:0;margin-top:0;padding:0}.profileWorkspace .profileDirection{padding:22px 0;margin:0}.profileDirection h2{font-size:21px;font-weight:550}
+.directionForm{max-width:680px;gap:18px;margin-top:22px}.directionForm input{border:1px solid #d6d9cb;border-radius:8px;background:#fff;padding:11px 12px;font-size:14px;min-height:44px}
+.resumeStudio{margin:0}.resumeEditorActions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 20px}.resumeEditorActions>span{font-size:12px;line-height:1.5;color:#67705e;margin-left:auto}
+.primaryButton,.secondaryButton,.contextPrimaryAction,.contextSecondaryAction{min-height:40px;border-radius:8px;font-size:13px;line-height:1.4;font-weight:500;padding:9px 14px;box-shadow:none;transition:background-color 150ms ease,border-color 150ms ease}
+.primaryButton{background:#30362b;color:#fff;border-color:transparent}.primaryButton:hover{background:#47503d}.secondaryButton{background:#fdfdf9;border-color:#d8ddcc;color:#414a37}.secondaryButton:hover{background:#edf0e5}.primaryButton:disabled{background:#e4e7dd;color:#6b7063;border-color:transparent;opacity:1}
+.documentViews{gap:20px;display:flex;border:0;padding:0;margin:0 0 16px;overflow:auto}.documentViews button{min-height:34px;padding:6px 1px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-size:13px;color:#686d61;white-space:nowrap}.documentViews button[aria-pressed="true"]{color:#38452e;border-bottom-color:#8d9b7a;font-weight:600}
+.originalResume{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 5px 22px rgba(51,61,37,.06);border:0}.originalResumeToolbar{min-height:42px;padding:12px 16px;margin-bottom:0;background:#fff;border-bottom:1px solid #eeeee7;font-size:12px;color:#62675b;gap:12px}
+.originalResumeToolbar>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.originalResumeToolbar a{font-size:12px;color:#526346;white-space:nowrap;text-decoration:none}.originalResumeToolbar a:hover{text-decoration:underline;text-underline-offset:3px}
+.originalResume iframe{display:block;width:100%;height:76dvh;min-height:560px;border:0;background:#f4f4ef}.originalResumeMissing{min-height:300px;padding:40px 28px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;background:#fdfdf9}.originalResumeMissing>svg{display:none}.originalResumeMissing p{font-size:14px;color:#5d6455;max-width:30ch}.originalResumeMissing details{width:100%;max-width:640px;text-align:left;font-size:13px;margin-top:20px}.originalResumeMissing pre{max-height:320px;overflow:auto;padding:16px;background:#f3f5ee;font-size:13px;line-height:1.8}
+.contextActionCompact{padding:0;border:0;margin:0;background:none}.contextActionCompact .contextActionLead{display:none}.contextActionCompact .contextActionButtons{gap:8px;margin:12px 0 0}.contextActionCompact .contextPrimaryAction{background:#e9ece1;border:0;color:#48583c}.contextActionCompact .contextSecondaryAction{background:transparent;border:0;color:#5f6755}.contextActionCompact .contextComposer{margin-top:14px;background:#f5f7ef;border:0;border-radius:8px;padding:12px}.contextComposer textarea{line-height:1.7;font-size:14px}.contextActionError{font-size:13px;line-height:1.6;color:#9a3e28}
+.saveReceipt{font-size:11px;color:#657b58;text-align:right;background:transparent;padding:9px 30px 0;min-height:25px;border:0}.saveReceipt button{color:#a14b32;text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.resumeCheckDetails{margin:0 0 16px;border:0;font-size:12px;color:#666d5e;padding:0}.resumeCheckDetails summary{min-height:32px;padding:6px 0;font-weight:500}
+.resumeSheet{background:#fff;border:0;border-radius:10px;padding:26px;box-shadow:0 5px 22px rgba(51,61,37,.06)}.resumeSheet .sheetSection{padding:16px 0;border-bottom:1px solid #edf0e6;border-top:0}.resumeSheet .sheetSection:last-child{border-bottom:0}.resumeSheet .blockHead{font-size:13px;font-weight:500;color:#69725e}
+.finalDocument{background:#fff;box-shadow:0 5px 22px rgba(51,61,37,.06);border-radius:10px;overflow:hidden}.documentTemplates{display:flex;gap:8px;padding:12px 16px;background:#fdfdf9;border:0;overflow-x:auto}.documentTemplates button{min-height:32px;padding:6px 10px;border:0;border-radius:6px;color:#656b5c;background:transparent;font-size:12px;white-space:nowrap}.documentTemplates button[aria-pressed="true"]{background:#e8ecde;color:#445337;border:0;font-weight:500}
+.actionRail:has(>section[aria-label="对话辅导"]){padding:24px 22px 14px;background:#fdfdf9;border-left:0}.privacyLine{font-size:10px;border:0;color:#74796c}.privacyLine svg{width:12px;height:12px}
+.salaryOverview{padding:24px 0 60px}.salaryOverview h2{font-size:23px;font-weight:550}.salaryOverview p{font-size:14px;line-height:1.7;color:#69705f}
+@media(min-width:981px) and (max-width:1180px){.workspace{grid-template-columns:184px minmax(0,1fr) var(--chat-width,340px)}.profileWorkspace,.documentBody{padding-inline:22px}.actionRail:has(>section[aria-label="对话辅导"]){padding-inline:18px}}
+@media(max-width:980px){.workspace{display:block}.opportunityRail{border-radius:0;padding:0 12px 18px}.actionRail:has(>section[aria-label="对话辅导"]){padding:20px;max-width:440px}.document{margin:0;border-radius:0;min-height:calc(100dvh - 62px)}.rowActions{opacity:1}.profileWorkspace,.documentBody{padding-inline:24px}}
+@media(max-width:700px){.topbar{padding-inline:16px}.profileWorkspace,.documentBody{padding:22px 18px 36px}.profileHeading h1{font-size:23px}.profileViewTabs{margin-bottom:20px}.resumeEditorActions{gap:8px}.resumeEditorActions>span{width:100%;margin-left:0}.primaryButton,.secondaryButton{min-height:44px}.originalResume iframe{height:70dvh;min-height:450px}.originalResumeToolbar{padding:11px 12px}.originalResumeToolbar>span{max-width:58%}.profileFileMenu>div{width:min(340px,80vw)}.saveReceipt{padding-inline:18px}.documentTemplates{padding-inline:10px}.resumeSheet{padding:20px}}
+@media(prefers-reduced-motion:reduce){.shell button,.rowActions{transition:none}}

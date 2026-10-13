@@ -7,6 +7,8 @@ type ResumeShareCandidate = {
   workspaceType?: Opportunity["workspaceType"];
   resumeText?: string;
   profileText?: string;
+  resumeOriginal?: Opportunity["resumeOriginal"];
+  resumeRevision?: string;
 };
 
 function joinMaterial(current: string, incoming: string, maxLength: number) {
@@ -24,7 +26,7 @@ export function mergeOpportunityMaterial(input: {
   if (input.kind === "resume" || input.kind === "experience") {
     return {
       jdText: input.jdText.trim().slice(0, maxLength),
-      resumeText: joinMaterial(input.resumeText, input.sourceText, maxLength),
+      resumeText: input.kind === "resume" ? input.sourceText.trim().slice(0, maxLength) : joinMaterial(input.resumeText, input.sourceText, maxLength),
     };
   }
   if (input.kind === "job") {
@@ -49,6 +51,8 @@ export function shareBaseResumeAcrossOpportunities<T extends ResumeShareCandidat
     return {
       ...item,
       resumeText: base.resumeText,
+      resumeOriginal: base.resumeOriginal,
+      resumeRevision: base.resumeRevision,
       profileText: item.profileText || base.profileText,
     };
   });

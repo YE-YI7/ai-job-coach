@@ -4,6 +4,10 @@
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
+      "studio-canvas": { "role": "neutral", "displayName": "文档工作区", "canonical": "#f1f2ec", "tonalRamp": ["#fdfdf9", "#f8f9f4", "#f0f1eb", "#e5e9dc", "#e7e9e0", "#e3e6da", "#dce1d0"] },
+      "studio-ink": { "role": "neutral", "displayName": "工作区墨色", "canonical": "#292823", "tonalRamp": ["#292823", "#30362b", "#47503d", "#66675f", "#686e61"] },
+      "studio-mentor": { "role": "secondary", "displayName": "导师苔色", "canonical": "#536a40", "tonalRamp": ["#edf0e7", "#e8edde", "#536a40", "#405331"] },
+      "studio-clay": { "role": "primary", "displayName": "品牌陶色", "canonical": "#c45e3a", "tonalRamp": ["#f7e9e1", "#c45e3a", "#9b4429"] },
       "action-orange": { "role": "primary", "displayName": "行动橙", "canonical": "#eb6b2b", "tonalRamp": ["#fff0e7", "#eb6b2b", "#c94f17"] },
       "guidance-blue": { "role": "secondary", "displayName": "引导蓝", "canonical": "#536fe8", "tonalRamp": ["#eef1ff", "#536fe8", "#4057b7"] },
       "evidence-green": { "role": "tertiary", "displayName": "证据绿", "canonical": "#2d8a61", "tonalRamp": ["#eaf6ef", "#2d8a61", "#1f6848"] },

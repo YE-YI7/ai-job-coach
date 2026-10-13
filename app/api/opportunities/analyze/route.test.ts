@@ -130,7 +130,7 @@ describe("supplement keeps the client's ground truth",()=>{
   expect(response.status).toBe(200);
   expect((await response.json()).input).toMatchObject({workspaceType:"preparation",resumeText:"原始实习经历",jdText:"",role:"产品经理"});
  });
- test("resume supplement onto a job keeps the stored JD and raw resume even when the model reclassifies to resume-only",async()=>{
+ test("replacing a job resume keeps its JD and uses only the new original, not the model rewrite",async()=>{
   // 复现用户报的路径：先传 JD 建成岗位，再传简历。模型把整包材料误判成 materialKind=resume
   // 且按要求返回空 jdText、转写版 resumeText——旧逻辑据此清空 JD、翻成准备档案。
   (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({
@@ -147,7 +147,7 @@ describe("supplement keeps the client's ground truth",()=>{
   expect(body.input).toMatchObject({
    workspaceType:"job",
    jdText:"负责 Agent 产品规划，本科及以上学历",
-   resumeText:"教育经历：硕士\n\n实习经历：某大厂产品组",
+   resumeText:"实习经历：某大厂产品组",
   });
  });
  test("resume supplement onto a preparation workspace stays preparation",async()=>{

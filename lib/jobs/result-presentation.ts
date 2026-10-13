@@ -31,19 +31,19 @@ export function zeroCandidateState(input: ZeroCandidateInput): ZeroCandidateStat
   if (input.failedSources.length) {
     return {
       cause: "source_failure",
-      copy: `这一批没有岗位，是因为来源没读到：${input.failedSources.join("、")} 暂时没响应。不是市场上没有合适的，也不是你的条件把它们筛掉了。`,
+      copy: "招聘来源暂时不可用。",
       action: "search_again", actionLabel: "重新查找一次",
     };
   }
   if (input.filteredCount) {
     return input.tierFilterActive
-      ? { cause: "constraint", copy: `${input.filteredCount} 个岗位都因为公司档位被移到下面了，所以首屏没有候选。`, action: "relax_tiers", actionLabel: "先不设公司档位，重新找一次" }
-      : { cause: "constraint", copy: `${input.filteredCount} 个岗位都因为已知条件被移到下面了，所以首屏没有候选。`, action: "show_filtered", actionLabel: "看它们分别卡在哪一条" };
+      ? { cause: "constraint", copy: "本轮没有符合公司偏好的岗位。", action: "relax_tiers", actionLabel: "放宽公司偏好" }
+      : { cause: "constraint", copy: "本轮没有符合已知条件的岗位。", action: "show_filtered", actionLabel: "查看筛选原因" };
   }
   return {
     cause: "supply",
-    copy: `这轮公开的招聘来源里没读到你当前方向能对得上的在招岗位${input.trackedCount ? `（读到的 ${input.trackedCount} 条你已经在跟踪，不再占候选位）` : ""}。这是供给有限，不是条件把它们排除了。`,
-    action: "import_own_jd", actionLabel: "把你手上的 JD 交给益职看看",
+    copy: input.trackedCount ? "找到的岗位已在你的机会列表中。" : "本轮暂未找到合适岗位。",
+    action: "import_own_jd", actionLabel: "添加已有岗位",
   };
 }
 

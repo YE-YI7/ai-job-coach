@@ -61,5 +61,7 @@ test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])("%s ha
  const html=resumePrintHtml(lines.join("\n"),template,"简历");
  expect(html).toContain(`class="${template}"`);
  for(const line of lines)expect(html).toContain(line);
- expect(html).toContain("grid-template-columns:30mm");
+ expect(html).toContain(".modern section{display:block}");
+ expect(html).not.toContain("grid-template-columns:30mm");
+ expect(html).toContain("margin:12mm");
 });

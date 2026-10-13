@@ -2,6 +2,12 @@
 name: 益职 AI
 description: 温暖、清醒、可靠的求职作战工作台
 colors:
+  studio-canvas: "#f1f2ec"
+  studio-paper: "#fdfdf9"
+  studio-ink: "#292823"
+  studio-mentor: "#536a40"
+  studio-control: "#e5e9dc"
+  studio-clay: "#c45e3a"
   action-orange: "#eb6b2b"
   action-orange-deep: "#c94f17"
   action-orange-soft: "#fff0e7"
@@ -28,6 +34,16 @@ colors:
   workbench-success: "#287a57"
   workbench-meta: "#62635e"
 typography:
+  studio-heading:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "26px"
+    fontWeight: 600
+    lineHeight: 1.3
+  studio-welcome:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "22px"
+    fontWeight: 500
+    lineHeight: 1.4
   display:
     fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, system-ui, sans-serif"
     fontSize: "clamp(28px, 3vw, 42px)"

@@ -61,16 +61,16 @@ export async function readIntakeResponse(response: Response, onProgress: IntakeP
   return result;
 }
 
-export function intakeReceipt(opportunity: Opportunity, deferred: boolean) {
+export function intakeReceipt(opportunity: Opportunity, deferred: boolean, savedOnly=false) {
   const preparation = opportunity.workspaceType === "preparation";
   const unidentified = preparation && !opportunity.resumeText && deferred;
   return {
-    title: unidentified ? "原文已保存，材料类型还需确认" : preparation ? "基础档案已建立" : "目标岗位已建立",
+    title: savedOnly ? "简历已保存" : unidentified ? "原文已保存，材料类型还需确认" : preparation ? "基础档案已建立" : "目标岗位已建立",
     kind: unidentified ? "待确认材料" : preparation ? "简历 / 求职方向" : "岗位 JD",
-    savedAt: preparation ? "左侧「我的简历与方向」" : `左侧机会列表 · ${opportunity.company} · ${opportunity.role}`,
-    reason: deferred ? "AI 分析未完成，不能据此判断匹配度。原文已经保留，无需重复上传。" : opportunity.recommendationReason,
-    next: unidentified ? "查看原文，确认材料类型与目标" : preparation ? "确认求职方向与城市" : !opportunity.resumeText ? "补充简历，判断是否值得投" : "查看岗位判断与证据",
+    savedAt: preparation ? "左侧「我的简历」" : `左侧机会列表 · ${opportunity.company} · ${opportunity.role}`,
+    reason: savedOnly ? "可以直接修改简历，目标岗位之后再选。" : deferred ? "AI 分析未完成，不能据此判断匹配度。原文已经保留，无需重复上传。" : opportunity.recommendationReason,
+    next: savedOnly ? "打开简历，开始修改" : unidentified ? "查看原文，确认材料类型与目标" : preparation ? "确认求职方向与城市" : !opportunity.resumeText ? "补充简历，判断是否值得投" : "查看岗位判断与证据",
     requirements: preparation || deferred ? [] : opportunity.requirements.slice(0, 3).map(r => r.requirement),
-    missing: [(!opportunity.location || /待确认/.test(opportunity.location)) && "地点", /待确认/.test(opportunity.role) && "求职方向", !preparation && !opportunity.resumeText && "简历"].filter(Boolean) as string[],
+    missing: savedOnly?[]:[(!opportunity.location || /待确认/.test(opportunity.location)) && "地点", /待确认/.test(opportunity.role) && "求职方向", !preparation && !opportunity.resumeText && "简历"].filter(Boolean) as string[],
   };
 }

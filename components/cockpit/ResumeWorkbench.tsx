@@ -9,8 +9,6 @@ import { splitResumeBlocks, assignChangesToBlocks, type ResumeBlockKind } from "
 import { isResumePageBreak, markdownSegments } from "@/lib/opportunities/resume-markdown";
 import { selectedResumeBlocks } from "@/lib/opportunities/resume-display";
 import {resumeChangeComparison} from "@/lib/opportunities/resume-comparison";
-import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
-import { useResumeTemplate } from "@/lib/resume-template-preference";
 import styles from "./CockpitApp.module.css";
 
 // One resume = one sheet. Blocks are sections on that sheet, marked only by a
@@ -27,8 +25,6 @@ const KIND_META: Record<ResumeBlockKind, { label: string }> = {
 };
 
 // 模板 = 导出的三套打印版式（经典黑白/简洁蓝灰/温润纸感），选完直接渲染在纸上。
-const TEMPLATE_ORDER: PrintTemplate[] = ["classic", "modern", "warm"];
-const TEMPLATE_CLASS: Record<PrintTemplate, string> = { classic: "sheetClassic", modern: "sheetModern", warm: "sheetWarm" };
 
 // Replace each change's `before` inside a line with a pen-highlighted `after`.
 // A change binds to the first line containing its `before`. Only accepted
@@ -78,7 +74,6 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
-  const [template, chooseTemplate] = useResumeTemplate();
   const sheet = useRef<HTMLDivElement>(null);
   const positions = useRef<Map<string, number> | null>(null);
   const moveFocus = useRef<{ key: string; label: string } | null>(null);
@@ -160,16 +155,9 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
       )}
       <div className={styles.blockToolbar}>
         <span><GripVertical size={16} className={styles.inlineGlyph} /> 拖动调整顺序 · 点击区块查看修改</span>
-        <div className={styles.sheetTemplates} role="group" aria-label="简历模板">
-          {TEMPLATE_ORDER.map((id) => (
-            <button key={id} type="button" className={`${styles.sheetTemplateBtn} ${template === id ? styles.sheetTemplateBtnActive : ""}`} onClick={() => chooseTemplate(id)}>
-              {printTemplates[id].label}
-            </button>
-          ))}
-        </div>
       </div>
       <p className={styles.blockMoveNotice} role="status">{moveNotice}</p>
-      <div ref={sheet} className={`${styles.resumeSheet} ${styles[TEMPLATE_CLASS[template]]}`}>
+      <div ref={sheet} className={`${styles.resumeSheet} ${styles.sheetClassic}`}>
         {blocks.map((block, blockIndex) => {
           const meta = KIND_META[block.kind];
           const display = displayBlocks[blockIndex];

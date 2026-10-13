@@ -290,6 +290,7 @@ export async function getContextBundleForUser(input: {
   const db = requireDb(await getDbClient());
   let opportunity: OpportunityContext | null = null;
   let resumeAttachment: ContextAttachment | null = null;
+  let currentResume = "";
   const materialInventory:NonNullable<ContextBundle['materialInventory']>=[];
 
   if (input.opportunityId) {
@@ -306,6 +307,7 @@ export async function getContextBundleForUser(input: {
     // 岗位档案里已上传的简历原文必须直达导师：以前导师只能看到 claims 摘要，
     // 简历刚上传、逐条事实还没沉淀时就会说出「你没上传实习经历」这种反问。
     const meta = (data.metadata ?? {}) as { resumeText?: unknown };
+    currentResume = typeof meta.resumeText === "string" ? meta.resumeText : "";
     if (input.task !== "resume_workshop" && typeof meta.resumeText === "string" && meta.resumeText.trim()) {
       const original=meta.resumeText.trim(),strict=input.claimSelection==='all_required';
       const available=Math.max(0,Math.min(1100,(input.budget?.maxInputTokens??4000)-estimateTokens(opportunity.jdText||'')-estimateTokens(input.currentInput||'')-650));
@@ -379,7 +381,7 @@ export async function getContextBundleForUser(input: {
     task: input.task,
     userId: input.userId,
     opportunity,
-    claims: ((claimRows || []) as DbRow[]).map(mapClaim),
+    claims: ((claimRows || []) as DbRow[]).filter(row => row.claim_type !== "resume_source" || !currentResume || currentResume.includes(String(row.source_excerpt || row.display_text || ""))).map(mapClaim),
     claimSelection: input.claimSelection,
     artifacts,
     knowledge: knowledge.items.map((item) => ({
@@ -728,7 +730,9 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
   return rows.map((row) => {
     const metadata = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Partial<Opportunity>;
     const opportunityId = String(row.id);
-    const artifact = latestArtifacts.get(opportunityId);
+    const candidate = latestArtifacts.get(opportunityId);
+    const candidateBase = candidate?.content && typeof candidate.content === "object" ? (candidate.content as {baseResumeText?:string}).baseResumeText : undefined;
+    const artifact = candidateBase !== undefined && candidateBase !== metadata.resumeText ? undefined : candidate;
     const reviews = ((reviewRows || []) as DbRow[]).filter((review) => String(review.artifact_id) === String(artifact?.id));
     const retainedOriginal = Boolean(artifact?.content && typeof artifact.content === "object" && (artifact.content as { retainedOriginal?: boolean }).retainedOriginal === true);
     return {
@@ -825,10 +829,10 @@ export async function updateCockpitOpportunityStage(userId: string, id: string, 
   await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId: id, clientEventId: `stage_${id}_${Date.now()}`, kind: "stage_changed", properties: { stage }, occurredAt: now })).catch(() => console.error("Stage saved but intake unavailable"));
 }
 
-export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity, preserveStage = false) {
+export async function updateCockpitOpportunity(userId: string, opportunity: Opportunity, preserveStage = false, replacement?: {expectedResumeRevision:string|null}) {
   const db = requireDb(await getDbClient());
   const { id, jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
-  const { data: current, error: currentError } = await db.from("coach_opportunities").select("stage, jd_text, jd_version, metadata")
+  const { data: current, error: currentError } = await db.from("coach_opportunities").select("stage, jd_text, jd_version, metadata, updated_at")
     .eq("id", id).eq("user_id", userId).maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw new Error("岗位不存在");
@@ -841,6 +845,8 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const nextJd = incomingJd || currentJd;
 
   const currentMetadata = current.metadata && typeof current.metadata === "object" ? current.metadata as Record<string, unknown> : {};
+  const {assertResumeRevision,ResumeRevisionConflict} = await import("@/lib/opportunities/resume-revision");
+  assertResumeRevision(currentMetadata,opportunity,replacement);
   const prevResume = typeof currentMetadata.resumeText === "string" ? currentMetadata.resumeText : "";
   const incomingResume = typeof opportunity.resumeText === "string" ? opportunity.resumeText.trim() : "";
   const nextResume = incomingResume || prevResume;
@@ -852,11 +858,14 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
 
   const jdChanged = Boolean(nextJd && nextJd !== current.jd_text);
   const resumeChanged = Boolean(nextResume && nextResume !== prevResume);
-  const { error } = await db.from("coach_opportunities").update({
+  let write = db.from("coach_opportunities").update({
     company, role, ...(preserveStage ? {} : { stage }), jd_text: nextJd || null, scheduled_interview_at: scheduledInterviewAt || null,
     jd_version: jdChanged ? Number(current.jd_version) + 1 : Number(current.jd_version), metadata: mergedMetadata, updated_at: new Date().toISOString(),
   }).eq("id", id).eq("user_id", userId);
+  if(current.updated_at)write=write.eq("updated_at",current.updated_at);
+  const {data:written,error}=await write.select("id").maybeSingle();
   if (error) throw error;
+  if(!written)throw new ResumeRevisionConflict();
   if (jdChanged && nextJd) {
     const source = await recordSource({ userId, opportunityId: id, sourceType: "jd", title: `${company} · ${role} JD`, content: nextJd });
     await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "jd", title: `${company} · ${role} JD`, content: { text: nextJd }, sourceId: source.id, createdBy: "user" });

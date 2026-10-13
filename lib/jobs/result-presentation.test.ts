@@ -9,27 +9,27 @@ const base: ZeroCandidateInput = { failedSources: [], filteredCount: 0, trackedC
 test("来源挂了不说成条件问题，动作是再查一次", () => {
   const state = zeroCandidateState({ ...base, failedSources: ["BOSS 直聘", "猎聘"] });
   expect(state).toMatchObject({ cause: "source_failure", action: "search_again", actionLabel: "重新查找一次" });
-  expect(state.copy).toContain("BOSS 直聘、猎聘 暂时没响应");
-  expect(state.copy).toContain("不是你的条件把它们筛掉了");
+  expect(state.copy).toBe("招聘来源暂时不可用。");
+  expect(state.copy).not.toContain("不是你的条件");
 });
 
 test("条件筛光了就说是条件，默认动作是看清卡在哪一条", () => {
   const state = zeroCandidateState({ ...base, filteredCount: 7 });
   expect(state.cause).toBe("constraint");
-  expect([state.action, state.actionLabel]).toEqual(["show_filtered", "看它们分别卡在哪一条"]);
-  expect(state.copy).toContain("7 个岗位");
+  expect([state.action, state.actionLabel]).toEqual(["show_filtered", "查看筛选原因"]);
+  expect(state.copy).toContain("已知条件");
 });
 
 test("设了公司档位时，先给更能立刻走通的那一步", () => {
   expect(zeroCandidateState({ ...base, filteredCount: 2, tierFilterActive: true })).toMatchObject({
-    cause: "constraint", action: "relax_tiers", actionLabel: "先不设公司档位，重新找一次",
+    cause: "constraint", action: "relax_tiers", actionLabel: "放宽公司偏好",
   });
 });
 
 test("真的是没货才说供给有限，并把已跟踪的条数说进去", () => {
   const plain = zeroCandidateState({ ...base, trackedCount: 3 });
   expect(plain).toMatchObject({ cause: "supply", action: "import_own_jd" });
-  expect(plain.copy).toContain("读到的 3 条你已经在跟踪");
+  expect(plain.copy).toBe("找到的岗位已在你的机会列表中。");
   expect(zeroCandidateState(base).copy).not.toContain("已经在跟踪");
 });
 

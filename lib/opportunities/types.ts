@@ -173,6 +173,9 @@ export interface Opportunity {
   capturedAtLabel: string;
   jdText?: string;
   resumeText?: string;
+  /** Byte-preserved private source, distinct from the editable draft. */
+  resumeOriginal?: { path: string; name: string; mime: string; size: number };
+  resumeRevision?: string;
   profileText?: string;
   nextEventLabel: string | null;
   scheduledInterviewAt?: string | null;

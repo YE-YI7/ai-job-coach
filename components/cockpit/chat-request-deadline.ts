@@ -1,4 +1,7 @@
 /** A missing response header or stalled stream must not lock the composer forever. */
+export function chatRequestSignal(overall:AbortSignal,inner?:AbortSignal|null){
+  return inner?AbortSignal.any([overall,inner]):overall;
+}
 export async function withChatRequestDeadline<T>(work:(signal:AbortSignal)=>Promise<T>,timeoutMs=150_000):Promise<T>{
   const controller=new AbortController();
   let timer:ReturnType<typeof setTimeout>|undefined;

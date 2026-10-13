@@ -13,7 +13,7 @@ import {type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 import {persistPendingAnswer,restorePendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
-import {withChatRequestDeadline} from "./chat-request-deadline";
+import {chatRequestSignal,withChatRequestDeadline} from "./chat-request-deadline";
 import {STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from "./tutor-intervention";
@@ -152,7 +152,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    const effectiveMode=proactive?"coaching":retrying?retry.current!.interactionMode??interactionMode:interactionMode;
    retry.current={text,sessionId:selected!.id,requestId,opportunityId:targetId,interactionMode:effectiveMode};
    if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current,signal);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
-   await assertGenerationQuota("chat",(url,options)=>fetch(url,{...options,signal}),{sessionId:selected!.id});if(token!==generation.current)return;
+   await assertGenerationQuota("chat",(url,options)=>fetch(url,{...options,signal:chatRequestSignal(signal,options?.signal)}),{sessionId:selected!.id});if(token!==generation.current)return;
    const responseLatencyMs=answerReceivedAt.current===null?undefined:performance.now()-answerReceivedAt.current;
    const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId:targetId,sessionId:selected!.id,message:text,requestId,modelMode,interactionMode:effectiveMode,proactive:proactive||undefined,pageContext:targetId===opportunityId?chatContext||undefined:undefined,responseLatencyMs}),signal});
    const b=await readChatResponse<Turn&{ok?:boolean;error?:string;stageSuggestion?:OpportunityStage|null}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});

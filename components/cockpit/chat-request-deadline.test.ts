@@ -1,4 +1,8 @@
-import {withChatRequestDeadline} from "./chat-request-deadline";
+import {chatRequestSignal,withChatRequestDeadline} from "./chat-request-deadline";
+test.each(["overall","inner"])("preserves %s deadline rather than replacing the quota check's timeout",name=>{
+ const overall=new AbortController(),inner=new AbortController();const signal=chatRequestSignal(overall.signal,inner.signal);
+ (name==="overall"?overall:inner).abort();expect(signal.aborted).toBe(true);
+});
 afterEach(()=>jest.useRealTimers());
 test("missing headers cannot leave the composer pending forever",async()=>{
  jest.useFakeTimers();let signal:AbortSignal|undefined;

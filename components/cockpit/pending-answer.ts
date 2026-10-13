@@ -18,8 +18,8 @@ export async function restorePendingAnswer(id:string,completedRequests:string[]=
  if(saved&&[...completedRequests,...(body.completedRequestIds||[])].includes(saved.requestId)){clearPendingAnswer(pendingAnswerStore(),id);return null;}
  return saved;
 }
-export async function persistPendingAnswer(value:PendingAnswer){
+export async function persistPendingAnswer(value:PendingAnswer,signal?:AbortSignal){
  savePendingAnswer(pendingAnswerStore(),value);
- const r=await fetch("/api/coach/agent/pending",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)});
+ const r=await fetch("/api/coach/agent/pending",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value),signal});
  const body=await r.json();if(!r.ok||!body.ok)throw Error(body.error||"回答暂未保存到云端，请保留原文后重试");
 }

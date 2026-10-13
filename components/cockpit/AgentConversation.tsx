@@ -13,6 +13,7 @@ import {type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 import {persistPendingAnswer,restorePendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
+import {withChatRequestDeadline} from "./chat-request-deadline";
 import {STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import type {OpportunityStage} from "@/lib/opportunities/types";
 import {turnIntervention,insufficiencyFromTrace,type InsufficiencyTrace} from "./tutor-intervention";
@@ -20,7 +21,7 @@ import {modelTurnNotice,isAcknowledged,rememberAcknowledged,type ModelTurnNotice
 import TaskRunTray from "./TaskRunTray";
 import OutcomeCard from "./OutcomeCard";
 import MentorDeliverable from "./MentorDeliverable";
-import {readContinuation,writeContinuation} from "./mentor-continuation";
+import {continuationDraft,readContinuation,writeContinuation} from "./mentor-continuation";
 import {canShowTutorInvitation} from "./tutor-invitation";
 import type {LearningOutcome} from "@/lib/coach-harness/learning-outcome";
 type Turn={id:string;question:string;answer:string;learning_trace?:{interactionMode?:"coaching"|"mock_interview";suggestions?:string[];model?:string;modelCalls?:number;proactive?:boolean;insufficiency?:InsufficiencyTrace|null;outcome?:LearningOutcome|null;outcomeNote?:string|null;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
@@ -88,7 +89,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
 
  const historyUrl=(s:Session)=>s.id.startsWith("legacy")?`/api/coach/agent?${s.opportunity_id?"opportunityId="+s.opportunity_id:""}`:`/api/coach/agent?sessionId=${s.id}`;
  useEffect(()=>{setOutreach(null);},[opportunityId]);
- useEffect(()=>{if(owner&&!loading){writeContinuation(ackStore(),owner,{sessionId:session?.id??null,draft:message});}},[owner,loading,session?.id,message,ackStore]);
+ useEffect(()=>{if(owner&&!loading){writeContinuation(ackStore(),owner,{sessionId:session?.id??null,draft:continuationDraft(message,pending,pendingProactive)});}},[owner,loading,session?.id,message,pending,pendingProactive,ackStore]);
  useEffect(()=>{
   if(!enabled||!opportunityId||busy||loading||message.trim()||!turns.length)return;
   const abort=new AbortController();
@@ -133,14 +134,15 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   if(lock.current||!text.trim()||!enabled||loading)return;
   // 上一轮被检测到升档且还没确认：先确认再继续，不做静默计费。
   if(confirmGate.current)return;
+  if(owner&&!proactive)writeContinuation(ackStore(),owner,{sessionId:session?.id??null,draft:text});
   pendingTarget.current=retry.current?.text===text&&retry.current.opportunityId!==undefined?retry.current.opportunityId:opportunityId??null;
   lock.current=true;const token=generation.current;jumpToLatest.current=false;setBusy(true);setError("");setFailedLesson(null);setPending(text);setPendingProactive(proactive);setDraft("");setProgress("正在连接导师…");setMessage(m=>m.trim()===text.trim()?"":m);setSendSequence(n=>n+1);
-  try{
+  try{await withChatRequestDeadline(async signal=>{
    let selected=session;
    // Starting a separate lesson must not depend on a paid AI archive succeeding.
    // The earlier session remains accessible in learning history.
    if(newLesson||!selected||selected.status==="archived"){
-    const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId,title:title||text.slice(0,80)})});const b=await r.json();
+    const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId,title:title||text.slice(0,80)}),signal});const b=await r.json();
     if(!b.ok)throw Error(b.error||"开课失败");if(token!==generation.current)return;
     selected=b.session;setSession(b.session);setSessions(s=>[b.session,...s]);setTurns([]);
    }
@@ -149,16 +151,16 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    const requestId=retrying?retry.current!.requestId:crypto.randomUUID();
    const effectiveMode=proactive?"coaching":retrying?retry.current!.interactionMode??interactionMode:interactionMode;
    retry.current={text,sessionId:selected!.id,requestId,opportunityId:targetId,interactionMode:effectiveMode};
-   if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
-   await assertGenerationQuota("chat",fetch,{sessionId:selected!.id});if(token!==generation.current)return;
+   if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current,signal);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
+   await assertGenerationQuota("chat",(url,options)=>fetch(url,{...options,signal}),{sessionId:selected!.id});if(token!==generation.current)return;
    const responseLatencyMs=answerReceivedAt.current===null?undefined:performance.now()-answerReceivedAt.current;
-   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId:targetId,sessionId:selected!.id,message:text,requestId,modelMode,interactionMode:effectiveMode,proactive:proactive||undefined,pageContext:targetId===opportunityId?chatContext||undefined:undefined,responseLatencyMs})});
+   const r=await fetch("/api/coach/agent",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/x-ndjson","x-idempotency-key":requestId},body:JSON.stringify({opportunityId:targetId,sessionId:selected!.id,message:text,requestId,modelMode,interactionMode:effectiveMode,proactive:proactive||undefined,pageContext:targetId===opportunityId?chatContext||undefined:undefined,responseLatencyMs}),signal});
    const b=await readChatResponse<Turn&{ok?:boolean;error?:string;stageSuggestion?:OpportunityStage|null}>(r,value=>{if(token===generation.current)setDraft(value);},value=>{if(token===generation.current)setProgress(value);});
    if(token!==generation.current)return;
    if(!b.ok){
     // A confirmed failed attempt has a refunded/closed reservation. A new attempt
     // needs a fresh billing key; an unknown network outcome retains the old key.
-    if(!proactive){retry.current={text,sessionId:selected!.id,requestId:crypto.randomUUID(),opportunityId:targetId,interactionMode:effectiveMode};await persistPendingAnswer(retry.current);}
+    if(!proactive){retry.current={text,sessionId:selected!.id,requestId:crypto.randomUUID(),opportunityId:targetId,interactionMode:effectiveMode};await persistPendingAnswer(retry.current,signal);}
     throw Error(b.error||"回答暂时不可用");
    }
    clearPendingAnswer(pendingAnswerStore(),selected!.id);retry.current=null;
@@ -171,9 +173,9 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    if(b.stageSuggestion){stageTarget.current=targetId??undefined;setStageSuggestion(b.stageSuggestion);}
    const notice=modelTurnNotice({modelMode,trace:b.learning_trace});
    if(notice&&!isAcknowledged(ackStore(),notice))setModelNotice(notice);
-  }catch(e){if(token===generation.current){setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||text);}}
+  });}catch(e){if(token===generation.current){setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||text);}}
   finally{if(token===generation.current){setBusy(false);lock.current=false;}}
- },[enabled,loading,opportunityId,session,modelMode,interactionMode,chatContext,ackStore,setModelNotice]);
+ },[enabled,loading,opportunityId,session,modelMode,interactionMode,chatContext,ackStore,setModelNotice,owner]);
  useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current&&!confirmGate.current){seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,false,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed,modelNotice]);
  async function archive(){
   if(!session||lock.current||!turns.length)return false;lock.current=true;setBusy(true);setError("");const token=generation.current;

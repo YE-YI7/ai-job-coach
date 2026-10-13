@@ -1,4 +1,5 @@
 export type MentorContinuation={sessionId:string|null;draft:string};
+export function continuationDraft(message:string,pending:string,proactive:boolean){return message||(!proactive?pending:"");}
 const key=(userId:string)=>`yizhi.mentor-continuation.v1:${userId}`;
 export function readContinuation(store:Pick<Storage,"getItem">,userId:string,ownedIds:string[]):MentorContinuation|null{
  try{const v=JSON.parse(store.getItem(key(userId))||"null");

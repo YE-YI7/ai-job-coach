@@ -39,6 +39,8 @@ import { coachingStrategy, responseTime } from "@/lib/coach-harness/coaching-str
 import { finalizeTeachingReply, renderTeachingFrame, teachingFrame } from "@/lib/coach-harness/teaching-frame";
 import { LEARNING_OUTCOME_VERSION, extractOutcomeTag, outcomeFromModel } from "@/lib/coach-harness/learning-outcome";
 import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
+import {withAgentRequest} from '@/lib/coach-harness/agent-request';
+import {recallLearningHistory,EVIDENCE_RETRIEVAL_VERSION} from '@/lib/coach-harness/evidence-retrieval';
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -168,7 +170,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     }),
     // Optional compaction/cache must not prevent a reply. The authoritative
     // context and session ownership checks above still fail closed.
-    sessionId&&!groundedDraft?readLearningMemory(user.id,contextId).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?readLearningMemory(user.id,contextId,body.message).catch(()=>""):Promise.resolve(""),
     sessionId&&!groundedDraft?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
@@ -193,6 +195,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const formatTurn = (t: (typeof turns)[number]) => `历史轮次范围：${"opportunity_id" in t?t.opportunity_id||"通用辅导":"旧记录"}；当前岗位：${id||"通用辅导"}。跨岗位内容只用于衔接讨论，不可作为当前 JD、经历或能力证据。\n${t.learning_trace?.proactive?"辅导请求（系统事件，不是用户说过的话）":"用户"}：${t.question}\n导师（历史推断，非事实）：${t.answer}`;
   const pendingExchange = turns.length ? formatTurn(turns[turns.length - 1]) : "";
   const recent = turns.slice(-4, -1).map(formatTurn).join("\n");
+  const recalled=sessionId&&!groundedDraft?await recallLearningHistory(user.id,sessionId,body.message,turns.slice(-4).map(t=>t.id)).catch(()=>({text:'本轮旧原话检索暂不可用，不能假称已看过更早对话；仍可依据眼前材料回答。',ids:[]})):{text:'',ids:[]};
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const savedEvents = await readInboundEvents({ userId: user.id, opportunityId: contextId, limit: 6 }).catch(() => []);
@@ -220,6 +223,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         profileMemory ? { kind: "profile_summary", text: profileMemory } : null,
         learningMemory ? { kind: "learning_progress", text: learningMemory } : null,
         recent ? { kind: "recent_turns", refId: turns.slice(-4).map(t => t.id).join(","), text: recent } : null,
+        recalled.text?{kind:'history_retrieval',refId:recalled.ids.join(','),text:recalled.text}:null,
         interviewLedger ? { kind: "interview_ledger", refId: contextId ?? undefined, text: interviewLedger } : null,
         market ? { kind: "market_evidence", text: market } : null,
       ].filter((m): m is TutorMaterialInput => Boolean(m))
@@ -336,6 +340,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const harness=harnessFingerprint({promptVersion,systemPrompt:actualSystem,retrieval:{...TUTOR_RETRIEVAL_CONFIG,materials:tutorMaterialFingerprintPayload()}});
   // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
   const trace={promptVersion,interactionMode,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
+  Object.assign(trace,{historyRetrieval:{version:EVIDENCE_RETRIEVAL_VERSION,turnIds:recalled.ids},materialInventory:context.materialInventory});
   const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
   const {data,error} = await db.from("coach_agent_turns").insert({id:turnId,user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
@@ -367,6 +372,17 @@ export async function POST(req:Request) {
   const user=await getCurrentUserFromRequest();
   const requestBody=await req.clone().json().catch(()=>null);
   const requestId=typeof requestBody?.requestId==="string"?requestBody.requestId:"";
+  const early=(error:string,status:number)=>req.headers.get('accept')?.includes('application/x-ndjson')
+    ?new Response(JSON.stringify({type:'done',ok:false,error})+'\n',{status,headers:{...headers,'Content-Type':'application/x-ndjson; charset=utf-8'}})
+    :NextResponse.json({ok:false,error},{status,headers});
+  if(!user)return early('请先登录',401);
+  if(!uuid.test(requestId)||typeof requestBody?.message!=='string'||!requestBody.message.trim()||requestBody.message.length>4000||
+   (requestBody.sessionId!=null&&!uuid.test(requestBody.sessionId))||(requestBody.opportunityId!=null&&!uuid.test(requestBody.opportunityId)))return early('回答或会话格式无效',400);
+  const suppliedKey=req.headers.get('x-idempotency-key')?.trim();
+  if(suppliedKey&&suppliedKey!==requestId)return early('回答编号不一致，未开始生成',400);
+  // 状态锁、计费与遥测必须用同一个编号，旧客户端没带 header 时也不随机预扣。
+  const canonicalHeaders=new Headers(req.headers);canonicalHeaders.set('x-idempotency-key',requestId);
+  req=new Request(req,{headers:canonicalHeaders});
   const record=(event:"started"|"completed"|"failed"|"interrupted", trace?:{harness?:{combined?:string};timing?:{firstTextMs?:number|null}})=>user
     ? recordChatRequest(user.id,requestId,event,{opportunity_id:requestBody?.opportunityId||null,harness_version:trace?.harness?.combined,
         first_text_ms:trace?.timing?.firstTextMs,duration_ms:Date.now()-requestStart}) : Promise.resolve();
@@ -374,7 +390,7 @@ export async function POST(req:Request) {
   const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void,onReplace?: (text:string)=>void)=>{
     const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat",firstCoaching:true});
     return async(request:Request)=>{
-      try { const response=await run(request);const body=await response.clone().json().catch(()=>null);
+      try { const response=await withAgentRequest(user.id,requestBody,()=>run(request));const body=await response.clone().json().catch(()=>null);
         await record(body?.ok?"completed":"failed",body?.learning_trace);return response;
       }catch(error){await record("failed");throw error;}
     };

@@ -16,7 +16,7 @@ import type { TrustType } from "./types";
  *
  * 新增一类料 = 在这里加一条注册 + 传一个 material，主链路不动。
  */
-export const TUTOR_MATERIAL_VERSION = "materials-v3";
+export const TUTOR_MATERIAL_VERSION = "materials-v4-recall";
 
 export type TutorMaterialKind =
   | "job_reference_note"
@@ -25,6 +25,7 @@ export type TutorMaterialKind =
   | "profile_summary"
   | "learning_progress"
   | "recent_turns"
+  | "history_retrieval"
   | "pending_exchange"
   | "interview_ledger"
   | "market_evidence"
@@ -69,6 +70,7 @@ export const TUTOR_MATERIALS: Record<TutorMaterialKind, TutorMaterialSpec> = {
   profile_summary: { kind: "profile_summary", label: "个人背景摘要", trust: "ai_derived", priority: 40, required: false, maxTokens: 1200, caveat: "抽取式摘要，不是完整经历" },
   learning_progress: { kind: "learning_progress", label: "以往学习进展", trust: "ai_derived", priority: 50, required: false, maxTokens: 1200, caveat: "学习笔记，可由用户编辑，不等于能力认证" },
   recent_turns: { kind: "recent_turns", label: "本次近期对话", trust: "ai_derived", priority: 60, required: false, maxTokens: 1600, caveat: "导师历史回答是推断，不是事实；可能讨论其他岗位" },
+  history_retrieval:{kind:'history_retrieval',label:'按本题取回的旧原话',trust:'ai_derived',priority:35,required:false,maxTokens:1600,caveat:'本轮用户纠正优先，历史导师的话不是用户事实；来源 turn 可回指'},
   interview_ledger: { kind: "interview_ledger", label: "该岗位已保存的面试与复盘记录", trust: "user_material", priority: 70, required: false, maxTokens: 1200 },
   market_evidence: { kind: "market_evidence", label: "市场证据", trust: "externally_verified", priority: 80, required: false, maxTokens: 1200, caveat: "抓取时间不是发布日期" },
   // 简历改写轮专用：来源清单是这一轮的全部事实边界，装不下就别答。
@@ -245,7 +247,7 @@ export function compileTutorPrompt(input: {
       }
       const cap = Math.min(spec.maxTokens ?? Number.MAX_SAFE_INTEGER, remaining);
       // 工作流知识是完整语义单元，不能把步骤尾部砍掉后当作完整指导。
-      if (material.kind === "knowledge_reference" && estimateTokens(text) > cap) {
+      if (["knowledge_reference","history_retrieval"].includes(material.kind) && estimateTokens(text) > cap) {
         excluded.push({ kind: material.kind, refId, reason: "budget_exhausted", tokens: estimateTokens(text) });
         continue;
       }

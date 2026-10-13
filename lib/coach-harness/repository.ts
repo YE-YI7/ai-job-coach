@@ -1,5 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
+import {selectResumeEvidence} from './evidence-retrieval';
+import {estimateTokens} from './context';
 import { compileContextBundle } from "./context";
 import { resumeSourceLines } from "./resume-recovery";
 import { readReviewFindings, resumeQualityStatus } from "./resume-quality-state";
@@ -288,6 +290,7 @@ export async function getContextBundleForUser(input: {
   const db = requireDb(await getDbClient());
   let opportunity: OpportunityContext | null = null;
   let resumeAttachment: ContextAttachment | null = null;
+  const materialInventory:NonNullable<ContextBundle['materialInventory']>=[];
 
   if (input.opportunityId) {
     const { data, error } = await db.from("coach_opportunities")
@@ -304,7 +307,11 @@ export async function getContextBundleForUser(input: {
     // 简历刚上传、逐条事实还没沉淀时就会说出「你没上传实习经历」这种反问。
     const meta = (data.metadata ?? {}) as { resumeText?: unknown };
     if (input.task !== "resume_workshop" && typeof meta.resumeText === "string" && meta.resumeText.trim()) {
-      resumeAttachment = { id: "resume-text", label: "用户已上传的简历原文（其中已有的信息不得反问）", text: meta.resumeText.trim(), required: input.claimSelection === "all_required" };
+      const original=meta.resumeText.trim(),strict=input.claimSelection==='all_required';
+      const available=Math.max(0,Math.min(1100,(input.budget?.maxInputTokens??4000)-estimateTokens(opportunity.jdText||'')-estimateTokens(input.currentInput||'')-650));
+      const chosen=strict?{text:original,partial:false}:selectResumeEvidence(original,input.retrievalQuery||input.currentInput||'',available);
+      materialInventory.push({id:'resume-text',label:'已上传简历',partial:chosen.partial});
+      resumeAttachment = { id: "resume-text", label: chosen.partial?'已上传简历的相关完整原句（不是全量审稿，未见部分不能推断不存在）':"用户已上传的简历原文（其中已有的信息不得反问）", text: chosen.text, required: strict };
     }
   }
 
@@ -390,6 +397,7 @@ export async function getContextBundleForUser(input: {
     questionSource: input.questionSource,
     attachments: resumeAttachment ? [resumeAttachment, ...(input.attachments || [])] : input.attachments,
     historySummary: input.historySummary,
+    materialInventory,
     intent: input.intent,
     planVersion: input.planVersion,
     selectedOpportunityIds: input.selectedOpportunityIds,

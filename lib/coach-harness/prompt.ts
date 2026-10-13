@@ -170,7 +170,12 @@ export function renderContextForPrompt(
 
   const body = sections.map(renderSection).join("\n\n");
   const header = options.header?.trim();
-  const text = header ? `${header}\n\n${body}` : body;
+  const inventory=(bundle.materialInventory||[]).map(item=>{
+    const present=bundle.selection.included.some(e=>e.kind==='attachment'&&e.refId===item.id);
+    return `${item.label}已保存；本轮${present?(item.partial?'只读相关原句，不是全量':'已读取'):'未装入（预算不足）'}。未读不等于未上传，不得要求重复上传；需要时请用户指定已保存段落。`;
+  }).join('\n');
+  const text = [header,body,inventory?`材料可见性：\n${inventory}`:''].filter(Boolean).join('\n\n');
+  usedTokens+=estimateTokens(inventory);
 
   if (bundle.usage.truncated) {
     warnings.push(

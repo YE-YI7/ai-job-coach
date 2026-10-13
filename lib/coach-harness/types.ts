@@ -294,6 +294,7 @@ export interface ContextBundle {
   historySummary: { id: string; text: string } | null;
   /** 本次运行附带的原文材料，只有被 selection 装下的才会留在这里。 */
   attachments: Array<{ id: string; label: string; text: string; required: boolean }>;
+  materialInventory?: Array<{id:string;label:string;partial:boolean}>;
   /** 可写进对外材料：来源可引用且状态可用。 */
   allowedClaimIds: string[];
   /** 未逐条确认：可以用但要提醒，不阻止推进。 */

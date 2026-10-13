@@ -1,6 +1,7 @@
 import { getDbClient } from "@/lib/db";
 import {createHash} from "node:crypto";
 import type {AgentKnowledgeTask} from "@/lib/knowledge/types";
+import {evidenceTerms} from './evidence-retrieval';
 
 export function learningKnowledgeTask(query:string):AgentKnowledgeTask{
  if(/评测|指标|实验|模拟|面试|追问|练习|示范|回答|举例|例子/.test(query))return "mock_interview";
@@ -37,7 +38,7 @@ non-blocking（没有该信息也能给出可用答案）：正常回答、适�
 在回复末尾附 <followups>["用户可直接发送的相关追问"]</followups>。仅0到2个，每个不超过40字，必须紧接本轮具体问题、用户困惑或练习。按钮是用户发给导师的话，例如「请带我拆解这个指标」，不能是导师问用户的「你能举个例子吗」「说说你的理解」。优先以「请帮我」「我想」「请带我」开头。无必要时空数组，blocking 澄清轮最多给 1 个，不使用固定通用按钮，不替用户编造经历或回答。`;
 
 /** 导师提示词版本：改了上面正文必须升版，版本联合指纹的 prompt 段靠它和正文一起哈希。 */
-export const LEARNING_PROMPT_VERSION = "learning-v10-cited-criteria";
+export const LEARNING_PROMPT_VERSION = "learning-v11-owned-recall";
 
 export async function readLearningSession(userId:string, id:string) {
  const db=await getDbClient();if(!db)throw Error("数据库不可用");
@@ -46,11 +47,9 @@ export async function readLearningSession(userId:string, id:string) {
 }
 
 /** 只读同岗位和通用学习摘要；不把其他岗位上下文混入，也不加载全部旧聊天。 */
-export async function readLearningMemory(userId:string, opportunityId:string|null) {
+export async function readLearningMemory(userId:string, opportunityId:string|null,query='') {
  const db=await getDbClient();if(!db)throw Error("数据库不可用");
- let q=db.from("coach_learning_sessions").select("id,title,summary,archived_at").eq("user_id",userId).not("summary","is",null).neq("summary","");
- q=opportunityId?q.or(`opportunity_id.eq.${opportunityId},opportunity_id.is.null`):q.is("opportunity_id",null);
- const {data,error}=await q.order("created_at",{ascending:false}).limit(3);
+ const {data,error}=await db.rpc('search_coach_learning_notes',{p_user_id:userId,p_opportunity_id:opportunityId,p_terms:evidenceTerms(query)});
  if(error)throw error;
  // 总预算由材料编译器统一决定，禁止取出后再静默按 1500 字砍第二刀。
  return (data||[]).map((row:{id:string;title:string;summary:string})=>`档案 learning/${row.id}.md（学习笔记，可由用户编辑，不等于能力认证）\n${row.title}\n${String(row.summary||"")}`).join("\n\n");

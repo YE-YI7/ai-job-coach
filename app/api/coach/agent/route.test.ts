@@ -12,6 +12,7 @@ jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/metered-ai-route",()=>({withMeteredAiRoute:(handler:unknown)=>handler}));
+jest.mock('@/lib/coach-harness/agent-request',()=>({withAgentRequest:(_owner:unknown,_input:unknown,run:()=>unknown)=>run()}));
 jest.mock("@/lib/coach-harness/repository");
 jest.mock("@/lib/coach-harness/chat-models");
 jest.mock("@/lib/coach-harness",()=>({assertContextFits:jest.fn(),renderContextForPrompt:()=>({text:"context"})}));
@@ -24,6 +25,11 @@ function setupGeneration(saveError=false){
  return q;
 }
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
+test('请求编号和计费header不一致时在模型与写入前拒绝',async()=>{
+ jest.resetAllMocks();const q=setupGeneration();
+ const r=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',headers:{'x-idempotency-key':'22222222-2222-4222-8222-222222222222'},body:JSON.stringify({message:'原回答',requestId:'11111111-1111-4111-8111-111111111111'})}));
+ expect(r.status).toBe(400);expect(callLLM).not.toHaveBeenCalled();expect(q.insert).not.toHaveBeenCalled();
+});
 test('真实教学接续中的题目引用不把路由工作集改成全量简历审查',async()=>{
  jest.resetAllMocks();setupGeneration();
  (callLLM as jest.Mock).mockResolvedValue('我们先用一个练习例子区分真实增量与内部转移。');
@@ -278,7 +284,7 @@ describe("agent boundary",()=>{
   const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
   expect(prompt).toContain("【当前界面与最近操作·派生·不可当事实】");
   expect(prompt).toContain("仅见部分内容");
-  expect(events.learning_trace.materials).toMatchObject({version:"materials-v3",budgetTokens:8000});
+  expect(events.learning_trace.materials).toMatchObject({version:"materials-v4-recall",budgetTokens:8000});
   expect(events.learning_trace.materials.partialNotices).toEqual(["当前界面与最近操作仅见部分内容"]);
   const injected=events.learning_trace.materials.injected as Array<{kind:string;truncated:boolean;required:boolean}>;
   expect(injected.find((i)=>i.kind==="page_activity")).toMatchObject({truncated:true,required:false});

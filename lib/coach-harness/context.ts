@@ -150,6 +150,7 @@ export function compileContextBundle(input: {
   /** 本次运行附带的其他原文材料。每份独立计价，被舍弃时说得出是哪一份。 */
   attachments?: ContextAttachment[];
   historySummary?: { id: string; text: string } | null;
+  materialInventory?: ContextBundle['materialInventory'];
   intent?: string | null;
   planVersion?: number | null;
   selectedOpportunityIds?: string[];
@@ -424,6 +425,7 @@ export function compileContextBundle(input: {
       ? { id: input.historySummary.id, text: input.historySummary.text }
       : null,
     attachments: keptAttachments,
+    materialInventory: input.materialInventory,
     allowedClaimIds,
     unverifiedClaimIds,
     blockedClaimIds,

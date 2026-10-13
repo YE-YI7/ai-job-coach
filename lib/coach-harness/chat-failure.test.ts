@@ -22,6 +22,12 @@ test("does not leak upstream details and preserves TokenPay recovery",()=>{
  expect(chatFailureMessage(new Error("TokenPay 余额不足，请充值后重试"))).toContain("充值");
 });
 
+test('材料ID和token数量中的429不冒充HTTP限流',()=>{
+ const error=new Error('关键内容装不进 4000 token 预算：confirmed_fact [c429a150-a123-4567-8901-abcdef123456] 需要 1429 token');
+ expect(classifyChatFailure(error)).toBe('context_budget_exceeded');
+ expect(chatFailureMessage(error)).not.toContain('请求较多');
+ expect(resolveCooldownRetry({mode:'auto',receivedText:false,currentModel:'glm-5.3',error})).toBeNull();
+});
 describe("失败语义表（§5.7 逐行可测）",()=>{
  test("每行都写全四列：失败类 / 用户看到什么 / 是否重试 / 是否落库",()=>{
   for(const row of CHAT_FAILURE_TABLE){

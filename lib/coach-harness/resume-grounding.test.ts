@@ -1,4 +1,6 @@
 import {resumeSources,renderGroundedResume,needsResumeGrounding} from './resume-grounding';
+test.each(['请解释为什么先保存再给反馈，不要出新题或修改简历。','不要修改简历，只讲反馈保存。','不用生成自我介绍，解释指标口径。'])('否定编辑指令不触发全量简历事实编辑：%s',text=>expect(needsResumeGrounding(text)).toBe(false));
+test.each(['不要编造经历，但请润色简历。','别修改我的项目描述，帮我改简历自我介绍。','请基于简历写两条bullet，不要添加未确认经历。'])('保留独立肯定编辑请求：%s',text=>expect(needsResumeGrounding(text)).toBe(true));
 test('改写交付有可复制正文、行级依据、修改说明和确认，不替换原简历',()=>{
  const before='参与企业权限灰度上线。团队留存提升7个百分点。';
  const output=renderGroundedResume(JSON.stringify({bullets:[{sourceId:'resume-text',before,after:before,reason:'保留参与职责与团队结果',risks:['确认留存统计口径']}]}),[{id:'resume-text',text:before}]);

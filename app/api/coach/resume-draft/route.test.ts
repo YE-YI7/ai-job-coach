@@ -5,11 +5,12 @@ import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { applyResumeChanges, reviewAtsText } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
+import {runWithGenerationContext} from "@/lib/generation-context";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
-jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: (_context: unknown, run: () => unknown) => run() }));
+jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: jest.fn((_context: unknown, run: () => unknown) => run()) }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
 jest.mock("@/lib/coach-harness/repository", () => ({
   createArtifactWithClaims: jest.fn(),
@@ -54,6 +55,15 @@ describe("resume draft source mapping", () => {
     expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({title:"简历修改候选版本"}));
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain("没有目标 JD");
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    expect(runWithGenerationContext).toHaveBeenCalledWith(expect.objectContaining({userId:"user-1",operation:"resume_review"}),expect.any(Function));
+    expect((callLLM as jest.Mock).mock.calls[1][1]).toMatchObject({maxTokens:1800,reasoningBudgetTokens:4096,maxRetries:0});
+  });
+
+  test("model exhaustion preserves source and refunds with an actionable message",async()=>{
+    (callLLM as jest.Mock).mockRejectedValue(new Error("Empty response from LLM (finish_reason=length)"));
+    const response=await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({opportunityId:"opp-1",resumeText:"负责模型评测",mode:"general_resume"})}));
+    expect(response.status).toBe(503);expect(await response.json()).toMatchObject({reasonCode:"model_response_incomplete",retryable:true,error:expect.stringContaining("未扣额度")});
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
 
   test("rejects suggestions whose before is a section label instead of exact resume text", async () => {

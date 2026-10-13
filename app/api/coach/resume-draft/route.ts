@@ -167,10 +167,13 @@ export async function POST(request: Request) {
       reservation = null;
       return NextResponse.json({ ok: false, error: "没有生成通过事实校验的修改，原文已保留，本次未扣额度", recovery: resumeRecovery(resumeText) }, { status: 422 });
     }
-    const reviewerOutput = await callLLM([
+    // Review is a separate bounded model call in the same user's billing context.
+    // Step completion caps include private reasoning; 1800 alone can end with
+    // finish_reason=length and no final JSON even after a successful draft.
+    const reviewerOutput = await runWithGenerationContext({userId:user.id,operation:"resume_review",requestId:`${requestId}:review`},()=>callLLM([
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值；5. after 文字完整通顺——句子没有在词中间被截断（如「已上线腾」）、没有与 before 对不上的可疑错字换字（如「周活」写成「腾活」）、括号引号成对。第 5 条任一成立即 severity=error，并在 message 里写明断在哪。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription || "无目标 JD：只审表达、事实与精简，不要求岗位关键词匹配"}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n每条 bullet 应短且有具体动作或已有结果；不接受超过 100 字的长 bullet、无事实支撑的名词堆砌。\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes)}` },
-    ], { provider: "deepseek", temperature: 0, maxTokens: 1800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" });
+    ], { provider: "deepseek", temperature: 0, maxTokens: 1800, reasoningBudgetTokens:4096, timeoutMs: 55_000, maxRetries: 0, responseFormat: "json_object" }));
     const reviewer = parseJson(reviewerOutput) as { status?: string; summary?: string; findings?: unknown[] };
     const reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
     const reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
@@ -248,6 +251,9 @@ export async function POST(request: Request) {
     }
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
+    if(error instanceof Error && /Empty response from LLM|LLM_REQUEST_TIMEOUT|timed out/i.test(error.message)) {
+      return NextResponse.json({ok:false,error:"简历修改暂时未完成，本次未扣额度。原简历已保留，可以重试。",reasonCode:"model_response_incomplete",retryable:true},{status:503});
+    }
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "简历生成失败" }, { status: 500 });
   }
 }

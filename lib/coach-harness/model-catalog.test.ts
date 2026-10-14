@@ -11,21 +11,24 @@ import {
   speedFraction,
 } from "./model-catalog";
 import {CHAT_MODELS,chooseChatModel,isChatMode,type ChatMode} from "./chat-options";
+import {existsSync} from "node:fs";
+import {join} from "node:path";
 
 // Ids confirmed present on the live gateway at the time the catalog was authored.
 // A catalog entry that is not in this set means we would offer a model the gateway
 // does not actually host, so the picker could never enable it.
 const REAL_GATEWAY_IDS = new Set([
   "hy4-preview","step-3.7-flash",
+  "step-5-preview","glm-5.3-flash","glm-5.3-flashx","qwen3.8-flash","mimo-v2.6-flash",
   "qwen3.8-max-0902","kimi-k3","glm-5.3",
   "deepseek-v4-flash","deepseek-v4.1-flash","deepseek-v3.2","deepseek-v4-pro",
   "deepseek-v4-flash-0731","deepseek-v4-pro-0813","deepseek-chat-v3-0324",
 ]);
 
-test("speed baseline anchors on glm-5.3 = 0.8", () => {
-  expect(SPEED_BASELINE_ID).toBe("glm-5.3");
-  expect(SPEED_BASELINE_VALUE).toBe(0.8);
-  expect(findModel("glm-5.3")?.speedIndex).toBe(0.8);
+test("estimated speed anchors on Qwen3.8 Max = 0.7", () => {
+  expect(SPEED_BASELINE_ID).toBe("qwen3.8-max-0902");
+  expect(SPEED_BASELINE_VALUE).toBe(0.7);
+  expect(findModel(SPEED_BASELINE_ID)?.speedIndex).toBe(0.7);
 });
 test("picker offers exactly two DeepSeek models and verified StepFun/HY4",()=>{
  expect(MODEL_CATALOG.filter(m=>m.vendor==="DeepSeek").map(m=>m.id)).toEqual(["deepseek-v4.1-flash","deepseek-v4-pro"]);
@@ -35,12 +38,30 @@ test("picker offers exactly two DeepSeek models and verified StepFun/HY4",()=>{
 
 test("catalog is bounded and never promises free usage without prices", () => {
   expect(MODEL_CATALOG.length).toBeGreaterThanOrEqual(6);
-  expect(MODEL_CATALOG.length).toBeLessThanOrEqual(9);
+  expect(MODEL_CATALOG.length).toBeLessThanOrEqual(12);
   const ids = MODEL_CATALOG.map((m) => m.id);
   expect(new Set(ids).size).toBe(ids.length);
   for (const id of ids) expect(REAL_GATEWAY_IDS.has(id)).toBe(true);
   const tiers = new Set(MODEL_CATALOG.map((m) => m.tier));
   expect(tiers).toEqual(new Set(["cheap", "expensive"]));
+});
+
+test("all models have local brand assets, explicit reference prices and valid one-decimal estimates",()=>{
+  for(const model of catalogWithAvailability([...SELECTABLE_MODEL_IDS])){
+    expect(model.logo).toMatch(/^\/models\//);
+    expect(existsSync(join(process.cwd(),"public",model.logo))).toBe(true);
+    expect(model.referencePrice.sourceUrl).toBe(`https://tokendance.space/models/${model.id}`);
+    expect(model.referencePrice.input.min).toBeGreaterThanOrEqual(0);
+    expect(model.referencePrice.cachedInput).not.toBeNull();
+    expect(Number(model.speedIndex.toFixed(1))).toBe(model.speedIndex);
+  }
+});
+
+test.each(["step-5-preview","glm-5.3-flash","glm-5.3-flashx","qwen3.8-flash","mimo-v2.6-flash"])("new model %s can be selected without changing auto choices",id=>{
+  expect(isChatMode(id)).toBe(true);
+  expect(intersectSelectable([{id,supported_protocols:["openai:chat-completions"]}])).toEqual([id]);
+  expect(chooseChatModel(id as ChatMode,"",[id])).toBe(id);
+  expect(chooseChatModel(id as ChatMode,"",[])).toBeNull();
 });
 
 test("premium pool matches CHAT_MODELS and stays in sync with the auto fallback", () => {

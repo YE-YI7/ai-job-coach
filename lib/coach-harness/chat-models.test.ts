@@ -94,6 +94,11 @@ describe("chatModelAccess", () => {
 });
 
 describe("resolveTokenDanceModel（答题/出题请求落到网关前的最后一步）", () => {
+  test.each(["step-5-preview","glm-5.3-flash","glm-5.3-flashx","qwen3.8-flash","mimo-v2.6-flash"])("new explicit selection %s resolves exactly, never a paid silent substitution",async id=>{
+    mockFetchCatalog(true,chat(id,"glm-5.3"));
+    const mod=await freshChatModels();
+    await expect(mod.resolveTokenDanceModel("u-1",id)).resolves.toBe(id);
+  });
   test("目录不可达时保持请求模型，绝不臆造替换", async () => {
     mockFetchCatalog(false);
     const mod = await freshChatModels();

@@ -66,8 +66,8 @@ describe("pickEconomySubstitute (economy fallback never bills high tier)", () =>
     expect(pickEconomySubstitute(["deepseek-v4-pro", "kimi-k3", "qwen3.8-max-0902"])).toBeNull();
   });
 
-  it("accepts any cheap-tier substitute when no flash is available", () => {
-    expect(pickEconomySubstitute(["hy4-preview", "glm-5.3"])).toBe("hy4-preview");
+  it("does not treat HY4 as economy after its public output price is known", () => {
+    expect(pickEconomySubstitute(["hy4-preview", "glm-5.3"])).toBeNull();
   });
 });
 
@@ -81,7 +81,8 @@ describe("pickSystemDefaultSubstitute (env defaults degrade within cheap tier, s
   });
 
   it("crosses vendor family only when the family has no cheap model at all", () => {
-    expect(pickSystemDefaultSubstitute("llama-3-chat", ["deepseek-v4-pro", "hy4-preview", "glm-5.3"])).toBe("hy4-preview");
+    expect(pickSystemDefaultSubstitute("llama-3-chat", ["deepseek-v4-pro", "hy4-preview", "glm-5.3", "glm-5.3-flash"])).toBe("glm-5.3-flash");
+    expect(pickSystemDefaultSubstitute("llama-3-chat", ["hy4-preview", "glm-5.3"])).toBeNull();
     expect(pickSystemDefaultSubstitute("llama-3-chat", ["glm-5.3"])).toBeNull();
   });
 

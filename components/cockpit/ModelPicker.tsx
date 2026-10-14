@@ -1,22 +1,20 @@
 "use client";
-import {useCallback,useEffect,useMemo,useRef,useState} from "react";
-import {CaretDown,Check} from "@phosphor-icons/react";
+import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from "react";
+import {CaretDown,Check,Sparkle} from "@phosphor-icons/react";
 import type {ChatMode} from "@/lib/coach-harness/chat-options";
-import {TIER_LABEL,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
+import type {CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
+import {formatPriceRange,type ModelReferencePrice} from "@/lib/coach-harness/model-pricing";
 import styles from "./ModelPicker.module.css";
 
 interface ModelOption {
   mode: ChatMode;
   name: string;
   vendor: string;
-  monogram: string;
-  color: string;
-  // Official brand logo path; empty for the synthetic "auto" preset, which
-  // falls back to the monogram chip.
+  // Vendor logo; the synthetic auto preset uses a neutral Sparkle icon.
   logo: string;
-  tier: keyof typeof TIER_LABEL;
   speedIndex: number | null;
   available: boolean;
+  referencePrice?: ModelReferencePrice;
 }
 
 interface ModelPickerProps {
@@ -31,28 +29,42 @@ interface ModelPickerProps {
 
 export default function ModelPicker({value,onChange,catalog,connected,disabled=false}:ModelPickerProps){
   const [open,setOpen]=useState(false);
+  const [panelOffset,setPanelOffset]=useState(0);
   const triggerRef=useRef<HTMLButtonElement>(null);
   const panelRef=useRef<HTMLDivElement>(null);
   const optionRefs=useRef<(HTMLButtonElement|null)[]>([]);
 
   const options=useMemo<ModelOption[]>(()=>{
     const presets:ModelOption[]=[
-      // "auto" is synthetic (a pool, not one vendor) so it keeps the monogram chip.
-      {mode:"auto",name:"自动 · 优选模型",vendor:connected?"按问题挑选 · 可能调用高阶模型":"未连接 TokenPay · 托管经济模型",monogram:"A",color:"#8a8277",logo:"",tier:"auto",speedIndex:null,available:true},
+      {mode:"auto",name:"自动 · 优选模型",vendor:connected?"按问题选择，可能使用高阶模型":"使用站点模型与益职额度",logo:"",speedIndex:null,available:true},
     ];
-    const cards:ModelOption[]=catalog.map(m=>({mode:m.id,name:m.name,vendor:m.vendor,monogram:m.monogram,color:m.color,logo:m.logo,tier:m.tier,speedIndex:m.speedIndex,available:m.available}));
+    const cards:ModelOption[]=catalog.map(m=>({mode:m.id,name:m.name,vendor:m.vendor,logo:m.logo,speedIndex:m.speedIndex,available:m.available,referencePrice:m.referencePrice}));
     return [...presets,...cards];
   },[catalog,connected]);
 
   const selectedIndex=Math.max(0,options.findIndex(o=>o.mode===value));
   const current=options[selectedIndex];
+  const pricingDate=options.flatMap(o=>o.referencePrice?[o.referencePrice.asOf.slice(0,10)]:[]).sort()[0];
 
   const close=useCallback((refocus:boolean)=>{setOpen(false);if(refocus)triggerRef.current?.focus();},[]);
+
+  // The mentor column can be narrower than the menu. Keep the layer inside the
+  // viewport without changing the column width or squeezing prices into labels.
+  useLayoutEffect(()=>{
+    if(!open)return;
+    const position=()=>{
+      const left=triggerRef.current?.getBoundingClientRect().left??0;
+      const width=panelRef.current?.offsetWidth??0;
+      setPanelOffset(Math.max(16-left,Math.min(0,window.innerWidth-16-left-width)));
+    };
+    position();window.addEventListener("resize",position);
+    return()=>window.removeEventListener("resize",position);
+  },[open]);
 
   // Focus the active card when the layer opens; keep it inside on Tab.
   useEffect(()=>{
     if(!open)return;
-    const raf=requestAnimationFrame(()=>optionRefs.current[selectedIndex]?.focus());
+    const raf=requestAnimationFrame(()=>optionRefs.current[options[selectedIndex]?.available?selectedIndex:0]?.focus());
     return()=>cancelAnimationFrame(raf);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[open]);
@@ -90,13 +102,14 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
     <button ref={triggerRef} type="button" className={styles.trigger} disabled={disabled} aria-haspopup="dialog" aria-expanded={open} aria-controls="model-picker-panel" onClick={()=>setOpen(o=>!o)} title="选择导师模型">
       {current.logo
         ? <span className={styles.markBox} aria-hidden="true"><img src={current.logo} alt="" className={styles.triggerLogo}/></span>
-        : <span className={styles.triggerMark} style={{background:current.color}} aria-hidden="true">{current.monogram}</span>}
+        : <span className={styles.triggerMark} aria-hidden="true"><Sparkle size={20}/></span>}
       <span className={styles.triggerText}><span className={styles.triggerName}>{current.name}</span></span>
       <CaretDown size={14} className={styles.caret} aria-hidden="true"/>
     </button>
 
-    {open&&<div ref={panelRef} id="model-picker-panel" role="dialog" aria-label="选择导师模型" className={styles.panel}>
-      <p className={styles.panelTitle}>选择导师模型</p>
+    {open&&<div ref={panelRef} id="model-picker-panel" role="dialog" aria-label="选择导师模型" className={styles.panel} style={{marginLeft:panelOffset}}>
+      <div className={styles.panelHeader}><p className={styles.panelTitle}>选择导师模型</p><span>¥ / 百万 tokens</span></div>
+      {!connected&&<p className={styles.connectionNote}>连接 TokenPay 后可选具体模型</p>}
       <ul className={styles.list} role="listbox" aria-label="可选导师模型">
         {options.map((o,i)=>{
           const selected=o.mode===value;
@@ -104,17 +117,21 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
             <button ref={el=>{optionRefs.current[i]=el;}} type="button" role="option" aria-selected={selected} disabled={!o.available} className={`${styles.card} ${selected?styles.cardActive:""}`} onClick={()=>pick(o.mode)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pick(o.mode);}}}>
               {o.logo
                 ? <span className={`${styles.markBox} ${styles.cardMarkBox}`} aria-hidden="true"><img src={o.logo} alt="" className={styles.logo}/></span>
-                : <span className={styles.mark} style={{background:o.color}} aria-hidden="true">{o.monogram}</span>}
+                : <span className={styles.mark} aria-hidden="true"><Sparkle size={22}/></span>}
               <span className={styles.cardMain}>
                 <span className={styles.cardName}>{o.name}</span>
+                <span className={styles.cardDetail}>{o.referencePrice?`输入 ${formatPriceRange(o.referencePrice.input)} / 输出 ${formatPriceRange(o.referencePrice.output)}`:o.vendor}</span>
               </span>
-              <span className={styles.rate}>{!o.available?"不可用":o.mode==="auto"?"按模型":o.mode==="fast"?"经济档":"价格待核实"}</span>
+              <span className={styles.rate} title={o.referencePrice?`TokenDance 公开参考价，读取于 ${o.referencePrice.asOf.slice(0,10)}；缓存输入只适用于命中部分；实际以账单为准。`:undefined}>
+                <span>{o.referencePrice?o.referencePrice.cachedInput?`缓存 ${formatPriceRange(o.referencePrice.cachedInput)}`:"无单独缓存价":"按所用模型"}</span>
+                <span className={styles.speed}>{!o.available?connected?"暂不可用":"需连接":o.speedIndex!==null?`约 ${o.speedIndex.toFixed(1)}×` : "自动选择"}</span>
+              </span>
               <span className={styles.check}>{selected&&<Check size={16} aria-hidden="true"/>}</span>
             </button>
           </li>;
         })}
       </ul>
-      <p className={styles.disclaimer}>扣费倍率尚未接通，暂不显示估算数字。<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">查看 TokenPay 价格</a></p>
+      <details className={styles.disclaimer}><summary>价格与速度说明</summary><p>价格为 TokenDance 公开参考价，缓存价仅用于命中部分，实际以账单为准。速度是相对估算，千问 3.8 Max 锚定 0.7，数值越大越快；不是实测或扣费倍率。</p><p>参考价更新：{pricingDate}。<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenDance 价格</a> · <a href="https://huggingface.co/inference/models" target="_blank" rel="noreferrer">Hugging Face 参考</a></p></details>
     </div>}
   </div>;
 }

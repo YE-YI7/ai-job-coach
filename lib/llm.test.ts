@@ -6,6 +6,9 @@ describe("DeepSeek completion request", () => {
     expect(buildChatCompletionRequest(messages,"tokendance","glm-5.3")).toMatchObject({thinking:{type:"enabled"},reasoning_effort:"low"});
     expect(buildChatCompletionRequest(messages,"openai","gpt-4").reasoning_effort).toBeUndefined();
   });
+  test.each(["glm-5.3-flash","glm-5.3-flashx"])("new lightweight %s preserves the GLM low-effort budget without increasing paid output cap",model=>{
+    expect(buildChatCompletionRequest(messages,"tokendance",model,{maxTokens:1400})).toMatchObject({model,thinking:{type:"enabled"},reasoning_effort:"low",max_tokens:1400});
+  });
 
   test("disables V4 thinking by default for bounded product responses", () => {
     expect(buildChatCompletionRequest(messages, "deepseek", "deepseek-v4-flash")).toMatchObject({

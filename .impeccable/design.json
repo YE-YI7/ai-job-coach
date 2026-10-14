@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-14T14:03:29+08:00",
+  "generatedAt": "2026-10-14T23:49:44+08:00",
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
@@ -28,7 +28,21 @@
       "paper-rule": { "role": "neutral", "displayName": "成稿细分隔" },
       "paper-contact": { "role": "neutral", "displayName": "成稿联系方式" },
       "paper-date": { "role": "neutral", "displayName": "成稿右侧日期" },
-      "paper-highlight": { "role": "tertiary", "displayName": "演示修订定位" }
+      "paper-highlight": { "role": "tertiary", "displayName": "演示修订定位" },
+      "cockpit-studio-canvas": { "role": "neutral", "displayName": "工作室石灰底" },
+      "cockpit-studio-surface": { "role": "neutral", "displayName": "工作室近白任务面" },
+      "cockpit-studio-ink": { "role": "neutral", "displayName": "工作室主文字" },
+      "cockpit-studio-muted": { "role": "neutral", "displayName": "工作室辅助文字" },
+      "cockpit-studio-line": { "role": "neutral", "displayName": "工作室细边界" },
+      "cockpit-studio-line-strong": { "role": "neutral", "displayName": "工作室控件边界" },
+      "cockpit-studio-action": { "role": "primary", "displayName": "工作室铜色动作" },
+      "cockpit-studio-action-deep": { "role": "primary", "displayName": "工作室动作深色" },
+      "cockpit-studio-action-soft": { "role": "neutral", "displayName": "工作室动作浅底" },
+      "cockpit-studio-nav": { "role": "neutral", "displayName": "工作室导航文字" },
+      "cockpit-studio-selected": { "role": "neutral", "displayName": "当前岗位表面" },
+      "cockpit-studio-composer": { "role": "neutral", "displayName": "导师输入近白底" },
+      "cockpit-studio-composer-line": { "role": "neutral", "displayName": "导师输入边界" },
+      "cockpit-studio-composer-focus": { "role": "neutral", "displayName": "导师聚焦边界" }
     },
     "typographyMeta": {
       "display": { "displayName": "岗位标题", "purpose": "当前机会的唯一一级标题。" },
@@ -41,17 +55,29 @@
       "resume-paper-name": { "displayName": "成稿姓名", "purpose": "完整身份区的首要文字。" },
       "resume-paper-role": { "displayName": "成稿求职方向", "purpose": "姓名后的明确方向。" },
       "resume-paper-section": { "displayName": "成稿分节", "purpose": "带细分隔线的章节标题。" },
-      "resume-paper-contact": { "displayName": "成稿联系与日期", "purpose": "联系方式和条目右侧日期。" }
+      "resume-paper-contact": { "displayName": "成稿联系与日期", "purpose": "联系方式和条目右侧日期。" },
+      "cockpit-studio-heading": { "displayName": "工作室岗位标题", "purpose": "当前岗位身份，不扩散到首页或纸张。" },
+      "cockpit-studio-section": { "displayName": "工作室分节", "purpose": "任务说明与区域标题。" },
+      "cockpit-studio-question": { "displayName": "工作室单题", "purpose": "单题练习的当前问题。" },
+      "cockpit-studio-body": { "displayName": "工作室解释正文", "purpose": "当前任务的说明与理由。" },
+      "cockpit-studio-control": { "displayName": "工作室控件", "purpose": "紧凑动作与提交。" },
+      "cockpit-studio-nav": { "displayName": "工作室全局导航", "purpose": "工作台、简历、笔记入口。" },
+      "cockpit-studio-mentor-reading": { "displayName": "工作室导师阅读", "purpose": "按导师自身容器宽度变化的正文，不按整屏宽度变化。" }
     },
     "shadows": [
       { "name": "mobile-drawer", "value": "18px 0 45px rgba(36, 39, 47, 0.14)", "purpose": "只用于移动端抽屉与内容层分离。" },
       { "name": "home-stage", "value": "0 20px 55px -34px rgba(41,40,35,.24)", "purpose": "首页产品表面的低强度环境层次。" },
       { "name": "resume-paper-frame", "value": "0 8px 28px rgba(41,40,35,.07)", "purpose": "固定纸张外框与屏幕环境分离。" },
-      { "name": "resume-paper-screen", "value": "0 8px 28px rgba(41,40,35,.06)", "purpose": "共用文档 HTML 的屏幕阴影；打印关闭。" }
+      { "name": "resume-paper-screen", "value": "0 8px 28px rgba(41,40,35,.06)", "purpose": "共用文档 HTML 的屏幕阴影；打印关闭。" },
+      { "name": "cockpit-studio-account", "value": "0 12px 40px rgba(33,37,31,.16)", "purpose": "工作室账户展开浮层，不用于常规内容面。" },
+      { "name": "cockpit-studio-mode", "value": "0 9px 28px rgba(37,43,31,.15)", "purpose": "导师输入附近的模式菜单。" }
     ],
     "motion": [
       { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" },
-      { "name": "home-action", "value": "background-color 150ms ease", "purpose": "首页墨色主动作的悬停反馈；减少动态效果时关闭。" }
+      { "name": "home-action", "value": "background-color 150ms ease", "purpose": "首页墨色主动作的悬停反馈；减少动态效果时关闭。" },
+      { "name": "cockpit-studio-action", "value": "background-color 150ms ease,border-color 150ms ease", "purpose": "当前壳紧凑动作的状态反馈，减少动态效果时关闭。" },
+      { "name": "cockpit-studio-mentor", "value": "background-color 160ms ease,color 160ms ease", "purpose": "导师控件状态反馈，减少动态效果时关闭。" },
+      { "name": "cockpit-studio-composer", "value": "border-color 160ms ease", "purpose": "导师输入框只改变既有外边界，不加内部焦点矩形。" }
     ],
     "breakpoints": [
       { "name": "mobile", "value": "640px" },
@@ -59,7 +85,10 @@
       { "name": "compact-desktop", "value": "1120px" },
       { "name": "home-mobile", "value": "760px" },
       { "name": "home-compact", "value": "1100px" },
-      { "name": "paper-touch-controls", "value": "700px" }
+      { "name": "paper-touch-controls", "value": "700px" },
+      { "name": "cockpit-studio-compact", "value": "1180px" },
+      { "name": "cockpit-studio-drawer", "value": "980px" },
+      { "name": "cockpit-studio-mobile", "value": "700px" }
     ]
   },
   "components": [
@@ -124,18 +153,41 @@
       "description": "实际文档的整页与 100% 阅读选择；定位按钮只在演示高亮存在时出现。",
       "html": "<div class=\"ds-paper-zoom\" role=\"group\" aria-label=\"简历阅读大小\"><button aria-pressed=\"true\">适合整页</button><button aria-pressed=\"false\">放大阅读 · 100%</button><button>定位这处修改</button></div>",
       "css": ".ds-paper-zoom { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 10px; margin: 10px 0; font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; } .ds-paper-zoom button { min-height: 36px; border: 0; background: transparent; color: #64675e; font: inherit; font-size: 12px; padding: 6px 8px; cursor: pointer; border-radius: 6px; } .ds-paper-zoom button[aria-pressed=true] { background: #e8ecde; color: #38452e; } .ds-paper-zoom button:focus-visible { outline: 2px solid #984320; outline-offset: 3px; } @media(max-width:700px) { .ds-paper-zoom button { min-height: 44px; } }"
+    },
+    {
+      "name": "Cockpit Studio Navigation and Action",
+      "kind": "nav",
+      "refersTo": "cockpit-studio-button-primary",
+      "description": "仅用于 cockpit 新壳：轻量全局导航与铜色当前动作；旧首页和纸面样本不变。",
+      "html": "<div class=\"ds-studio-navigation\"><nav aria-label=\"工作区导航\"><button aria-current=\"page\">工作台</button><button>我的简历</button><button>我的笔记</button></nav><div class=\"ds-studio-stages\" aria-label=\"岗位时间线\"><button>项目准备</button><button>简历修改</button><button aria-current=\"step\">模拟面试</button><button>面试复盘</button></div><button class=\"ds-studio-primary\">提交回答</button></div>",
+      "css": ".ds-studio-navigation { color: #272b27; font-family: 'Outfit','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; } .ds-studio-navigation nav { display: grid; gap: 2px; margin-bottom: 28px; } .ds-studio-navigation nav button { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 9px 11px; background: none; border: 0; border-radius: 7px; color: #50564e; text-align: left; cursor: pointer; font: 400 14px 'Outfit','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; } .ds-studio-navigation nav button:hover:not(:disabled) { background: #dedfd7; color: #272b27; } .ds-studio-navigation nav button[aria-current] { color: #272b27; font-weight: 600; } .ds-studio-navigation nav button:disabled { color: #6c7068; opacity: 1; } .ds-studio-navigation nav button:focus-visible { outline: 2px solid #944429; outline-offset: 2px; } .ds-studio-stages { display: flex; align-items: center; gap: 25px; overflow-x: auto; } .ds-studio-stages button { position: relative; display: flex; align-items: center; min-height: 40px; padding: 8px 0 11px; border: 0; background: none; color: #65705b; font: 400 13px 'Outfit','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; white-space: nowrap; cursor: pointer; } .ds-studio-stages button[aria-current] { color: #944429; font-weight: 600; } .ds-studio-stages button[aria-current]::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; border-radius: 2px; background: #aa4f2e; } .ds-studio-stages button:hover { color: #944429; } .ds-studio-stages button:focus-visible { outline: 2px solid #944429; outline-offset: 3px; border-radius: 3px; } .ds-studio-primary { min-height: 38px; padding: 8px 13px; border: 1px solid transparent; border-radius: 7px; background: #aa4f2e; color: #fff; font: 500 13px/1.4 'Outfit','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; cursor: pointer; transition: background-color 150ms ease,border-color 150ms ease; } .ds-studio-primary:hover:not(:disabled) { background: #944429; } .ds-studio-primary:focus-visible { outline: 2px solid #777d78; outline-offset: 2px; } @media(max-width:700px) { .ds-studio-navigation nav button,.ds-studio-stages button,.ds-studio-primary { min-height: 44px; } } @media(prefers-reduced-motion:reduce) { .ds-studio-primary { transition: none; } }"
+    },
+    {
+      "name": "Cockpit Studio Mentor Composer",
+      "kind": "input",
+      "refersTo": "cockpit-studio-composer",
+      "description": "仅用于 cockpit 导师：模式靠近输入，模型和费用说明保留；本片段不连接模型。",
+      "html": "<section class=\"ds-studio-mentor\"><form><textarea aria-label=\"给导师的消息\" placeholder=\"写下你的回答，或直接说没听懂…\" rows=\"2\"></textarea><footer><details class=\"ds-studio-mode\"><summary>辅导</summary><div><button type=\"button\" aria-pressed=\"true\">教练辅导</button><button type=\"button\" aria-pressed=\"false\">面试官 · 一次一题</button></div></details><span class=\"ds-studio-model\">自动·优选模型</span><button type=\"button\" class=\"ds-studio-send\" aria-label=\"发送消息\" disabled>↑</button></footer></form><details class=\"ds-studio-fee\"><summary>费用待确认</summary><p>发送消息会调用 AI。保存回答和笔记免费；失败释放额度。重要信息请核实。</p></details></section>",
+      "css": ".ds-studio-mentor { container: mentor / inline-size; color: #30362c; font: 400 clamp(14px,calc(12px + .85cqi),16px)/1.8 'Outfit','PingFang SC','Microsoft YaHei',sans-serif; } .ds-studio-mentor form { padding: 13px 14px; border: 1px solid #d2d6ca; background: #fdfefb; border-radius: 12px; box-shadow: none; transition: border-color 160ms ease; } .ds-studio-mentor form:focus-within { border-color: #8d9a7c; } .ds-studio-mentor textarea { display: block; width: 100%; min-height: 68px; max-height: 112px; padding: 2px 0; resize: none; border: 0; outline: none; box-shadow: none; background: none; font: inherit; line-height: 1.65; color: #313b29; caret-color: #944429; } .ds-studio-mentor textarea::placeholder { color: #666f5c; } .ds-studio-mentor footer { display: flex; align-items: center; gap: 5px; padding-top: 7px; } .ds-studio-mode { position: relative; flex: none; font-size: 11px; color: #626d56; } .ds-studio-mode > summary { display: flex; align-items: center; gap: 6px; min-height: 32px; list-style: none; cursor: pointer; padding: 5px 3px; } .ds-studio-mode > summary::-webkit-details-marker { display: none; } .ds-studio-mode > summary:focus-visible { outline: 2px solid #944429; outline-offset: 3px; border-radius: 4px; } .ds-studio-mode > div { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 20; display: grid; gap: 3px; min-width: 190px; padding: 7px; background: #fff; border-radius: 9px; box-shadow: 0 9px 28px rgba(37,43,31,.15); } .ds-studio-mode button { min-height: 36px; padding: 8px 10px; border: 0; border-radius: 5px; background: none; color: #4f5c44; font: 12px 'Outfit','PingFang SC','Microsoft YaHei',sans-serif; text-align: left; white-space: nowrap; cursor: pointer; } .ds-studio-mode button[aria-pressed=true] { background: #edf0e6; color: #273220; } .ds-studio-mode button:hover:not(:disabled) { background: #f0f1eb; } .ds-studio-mode button:focus-visible { outline: 2px solid #944429; outline-offset: 3px; } .ds-studio-model { flex: 1; font-size: 11px; color: #626d56; } .ds-studio-send { min-width: 34px; min-height: 34px; border: 0; border-radius: 50%; background: #aa4f2e; color: #fff; cursor: pointer; } .ds-studio-send:hover:not(:disabled) { background: #944429; } .ds-studio-send:disabled { background: #e9ece2; color: #68745a; cursor: not-allowed; } .ds-studio-send:focus-visible { outline: 2px solid #944429; outline-offset: 3px; } .ds-studio-fee { font-size: 10px; line-height: 1.6; color: #647058; margin-top: 8px; } .ds-studio-fee p { margin: 6px 0; } @media(max-width:700px) { .ds-studio-mode > summary,.ds-studio-mode button,.ds-studio-send { min-height: 44px; } .ds-studio-send { min-width: 44px; } .ds-studio-mentor textarea { font-size: 16px; } } @media(prefers-reduced-motion:reduce) { .ds-studio-mentor form { transition: none; } }"
+    },
+    {
+      "name": "Cockpit Studio Account Disclosure",
+      "kind": "custom",
+      "description": "仅用于 cockpit 顶栏的账户展开；原有余额、支付组件继续在真实产品中执行，此片段不提供支付会话。",
+      "html": "<details class=\"ds-studio-account\"><summary aria-label=\"打开账户与额度\"><span class=\"ds-studio-avatar\" aria-hidden=\"true\">C</span><span class=\"ds-studio-name\">cockpit-prev</span><span aria-hidden=\"true\">⌄</span></summary><div class=\"ds-studio-account-menu\"><div><strong>cockpit-prev</strong><span>示例工作区</span></div><button type=\"button\">退出登录</button></div></details>",
+      "css": ".ds-studio-account { position: relative; font: 13px 'Outfit','PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; color: #343732; } .ds-studio-account > summary { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 4px; list-style: none; cursor: pointer; border-radius: 8px; } .ds-studio-account > summary::-webkit-details-marker { display: none; } .ds-studio-account > summary:hover { background: #e3e2dd; } .ds-studio-account > summary:focus-visible { outline: 2px solid #9c4a30; outline-offset: 3px; } .ds-studio-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #3e4440; color: #fff; font-size: 13px; } .ds-studio-name { max-width: 128px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-studio-account-menu { position: absolute; top: calc(100% + 8px); right: 0; width: min(320px,calc(100vw - 32px)); padding: 18px; background: #fff; border-radius: 12px; box-shadow: 0 12px 40px rgba(33,37,31,.16); z-index: 90; } .ds-studio-account-menu > div { display: grid; gap: 4px; padding-bottom: 16px; } .ds-studio-account-menu strong { font-size: 14px; font-weight: 600; } .ds-studio-account-menu > div > span { color: #666a62; font-size: 12px; } .ds-studio-account-menu > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 2px; background: none; border: 0; color: #5d615b; cursor: pointer; text-align: left; font: inherit; } .ds-studio-account-menu > button:hover { color: #91462e; } .ds-studio-account-menu > button:focus-visible { outline: 2px solid #9c4a30; outline-offset: 2px; } @media(max-width:700px) { .ds-studio-name { display: none; } .ds-studio-account > summary,.ds-studio-account-menu > button { min-height: 44px; } .ds-studio-account-menu { position: fixed; top: 60px; right: 16px; left: auto; } }"
     }
   ],
   "narrative": {
     "northStar": "温暖的求职作战桌",
-    "overview": "益职的工作区像一张整理有序、持续更新的求职作战桌，而不是游戏化闯关：暖白环境降低压力，橙色只推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。\n\n界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。\n\n2026-10-14 的局部更新覆盖公开首页和简历成稿纸张：近白环境、墨色主动作、克制橙色与真实文档几何。下方 `home-*`、`paper-*` 与 `resume-paper-*` 是当前实现的局部令牌；既有工作台与 Agent 手册规范继续保留。首页构图和选图记录只归对应 surface brief 管理。",
+    "overview": "益职的工作区像一张整理有序、持续更新的求职作战桌，而不是游戏化闯关：暖白环境降低压力，橙色只推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。\n\n界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。\n\n2026-10-14 的局部更新覆盖公开首页和简历成稿纸张：近白环境、墨色主动作、克制橙色与真实文档几何。下方 `home-*`、`paper-*` 与 `resume-paper-*` 是当前实现的局部令牌；既有工作台与 Agent 手册规范继续保留。首页构图和选图记录只归对应 surface brief 管理。\n\n同日后续的工作台重建新增 `cockpit-studio-*`：石灰工作底、近白任务面、铜色当前动作和直立无衬线操作尺度，仅用于当前 cockpit 工作室壳，不覆盖上述首页、简历纸面或其他旧令牌。它记录已实现代码，不代表用户已认可整站审美或所有状态均已验收。方向与证据边界见 `docs/product/2026-10-14-studio-ui-rebuild.md`。",
     "keyCharacteristics": ["暖白底、白色工作表面、深色正文。", "橙色负责行动，蓝绿负责信息和证据语义。", "中等圆角、细边界、克制阴影。", "岗位机会是所有页面和状态的主线。", "公开首页与执行手册可以扩大字号、拉开明暗对比，但不得改变颜色语义或工作台的证据优先级。", "简历成稿保持真实纸张的字宽、行高与留白，缩放不触发正文重排。"],
     "rules": [
       { "name": "Sparse Accent", "body": "橙色只服务当前行动和关键结论，不铺满页面。", "section": "colors" },
       { "name": "Semantic Continuity", "body": "公开路由可以调节同一色族的明度与对比，但橙、蓝、绿仍分别只表达行动、引导与证据。", "section": "colors" },
       { "name": "Route Intent", "body": "大字号只属于需要先说服或建立执行上下文的公开路由；进入作战盘后回到紧凑、可扫描的信息尺度。", "section": "typography" }
     ],
-    "dos": ["让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。", "用暖白表面、细边界和稳定留白组织高密度信息。", "为演示数据、待确认事实和真实用户数据提供清晰标签。", "在版本说明中清楚交代模型提供方、益职费用、材料位置和作战盘位置。", "让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。", "让文字成稿与 PDF 共用文档渲染器，完整保留正文和尾部。"],
-    "donts": ["使用大面积彩色渐变、光斑或营销式玻璃效果。", "用游戏关卡、虚假精确分数或夸张成功率制造激励。", "把每个信息块都做成带阴影的卡片，也不要嵌套卡片。", "把公开首页的大标题或局部产品表面无条件带入高密度作战盘。", "把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。", "重新排版上传原件、把演示状态说成云端已保存，或用窄栏重新折行代替缩放成稿。"]
+    "dos": ["让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。", "用暖白表面、细边界和稳定留白组织高密度信息。", "为演示数据、待确认事实和真实用户数据提供清晰标签。", "在版本说明中清楚交代模型提供方、益职费用、材料位置和作战盘位置。", "让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。", "让文字成稿与 PDF 共用文档渲染器，完整保留正文和尾部。", "把工作室壳的导航、当前阶段、任务正文与持续导师分层，低频设置就近展开而非删掉。"],
+    "donts": ["使用大面积彩色渐变、光斑或营销式玻璃效果。", "用游戏关卡、虚假精确分数或夸张成功率制造激励。", "把每个信息块都做成带阴影的卡片，也不要嵌套卡片。", "把公开首页的大标题或局部产品表面无条件带入高密度作战盘。", "把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。", "重新排版上传原件、把演示状态说成云端已保存，或用窄栏重新折行代替缩放成稿。", "把本轮自定参考图或代码完成写成用户审美批准，也不要把工作室壳令牌扩散到首页与简历纸面。"]
   }
 }

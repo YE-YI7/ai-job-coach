@@ -50,6 +50,20 @@ colors:
   paper-contact: "#555750"
   paper-date: "#61635c"
   paper-highlight: "#e7f3e8"
+  cockpit-studio-canvas: "#eae9e4"
+  cockpit-studio-surface: "#fdfdfb"
+  cockpit-studio-ink: "#272b27"
+  cockpit-studio-muted: "#636861"
+  cockpit-studio-line: "#e5e6e0"
+  cockpit-studio-line-strong: "#d4d6ce"
+  cockpit-studio-action: "#aa4f2e"
+  cockpit-studio-action-deep: "#944429"
+  cockpit-studio-action-soft: "#f3e6de"
+  cockpit-studio-nav: "#50564e"
+  cockpit-studio-selected: "#dddfd6"
+  cockpit-studio-composer: "#fdfefb"
+  cockpit-studio-composer-line: "#d2d6ca"
+  cockpit-studio-composer-focus: "#8d9a7c"
 typography:
   studio-heading:
     fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
@@ -171,6 +185,42 @@ typography:
     fontFamily: "Noto Sans SC, PingFang SC, Microsoft YaHei, sans-serif"
     fontSize: "9.5pt"
     fontWeight: 400
+  cockpit-studio-heading:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "24px"
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "0"
+  cockpit-studio-section:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "22px"
+    fontWeight: 600
+    lineHeight: 1.45
+  cockpit-studio-question:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "22px"
+    fontWeight: 600
+    lineHeight: 1.5
+    letterSpacing: "0"
+  cockpit-studio-body:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.7
+  cockpit-studio-control:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.4
+  cockpit-studio-nav:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+  cockpit-studio-mentor-reading:
+    fontFamily: "Outfit, PingFang SC, Microsoft YaHei, sans-serif"
+    fontSize: "clamp(14px, calc(12px + .85cqi), 16px)"
+    fontWeight: 400
+    lineHeight: 1.8
 rounded:
   control: "10px"
   card: "16px"
@@ -181,6 +231,9 @@ rounded:
   home-action: "9px"
   home-stage: "12px"
   home-revision: "4px"
+  cockpit-studio-surface: "14px"
+  cockpit-studio-control: "7px"
+  cockpit-studio-composer: "12px"
 spacing:
   xs: "8px"
   sm: "14px"
@@ -188,6 +241,9 @@ spacing:
   lg: "32px"
   home-suggestion: "22px"
   paper-inset: "12mm"
+  cockpit-studio-gap: "12px"
+  cockpit-studio-inset: "32px"
+  cockpit-studio-mobile-inset: "20px"
 components:
   button-primary:
     backgroundColor: "{colors.action-orange}"
@@ -225,6 +281,23 @@ components:
     typography: "{typography.resume-paper-body}"
     padding: "{spacing.paper-inset}"
     width: "210mm"
+  cockpit-studio-button-primary:
+    backgroundColor: "{colors.cockpit-studio-action}"
+    textColor: "{colors.surface}"
+    typography: "{typography.cockpit-studio-control}"
+    rounded: "{rounded.cockpit-studio-control}"
+    padding: "8px 13px"
+  cockpit-studio-button-primary-hover:
+    backgroundColor: "{colors.cockpit-studio-action-deep}"
+  cockpit-studio-work-surface:
+    backgroundColor: "{colors.cockpit-studio-surface}"
+    textColor: "{colors.cockpit-studio-ink}"
+    rounded: "{rounded.cockpit-studio-surface}"
+    padding: "24px 32px 48px"
+  cockpit-studio-composer:
+    backgroundColor: "{colors.cockpit-studio-composer}"
+    rounded: "{rounded.cockpit-studio-composer}"
+    padding: "13px 14px"
 ---
 
 # Design System: 益职 AI
@@ -238,6 +311,8 @@ components:
 界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。
 
 2026-10-14 的局部更新覆盖公开首页和简历成稿纸张：近白环境、墨色主动作、克制橙色与真实文档几何。下方 `home-*`、`paper-*` 与 `resume-paper-*` 是当前实现的局部令牌；既有工作台与 Agent 手册规范继续保留。首页构图和选图记录只归对应 surface brief 管理。
+
+同日后续的工作台重建新增 `cockpit-studio-*`：石灰工作底、近白任务面、铜色当前动作和直立无衬线操作尺度，仅用于当前 cockpit 工作室壳，不覆盖上述首页、简历纸面或其他旧令牌。它记录已实现代码，不代表用户已认可整站审美或所有状态均已验收。方向与证据边界见 `docs/product/2026-10-14-studio-ui-rebuild.md`。
 
 **Key Characteristics:**
 
@@ -281,13 +356,17 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 **The Semantic Continuity Rule.** 公开路由可以调节同一色族的明度与对比，但橙、蓝、绿仍分别只表达行动、引导与证据。
 
+### Cockpit Studio Palette
+
+当前工作室壳以 `cockpit-studio-canvas` 连续连接导航与导师，`cockpit-studio-surface` 承载中心任务；`cockpit-studio-ink` 与 `cockpit-studio-muted` 建立主次。`cockpit-studio-action` 只用于提交、当前阶段与少量当前动作，悬停和焦点使用深一档；阶段、示例和费用信息仍保留文字，不能只以铜色区分。岗位选中面使用 `cockpit-studio-selected`，不是每个导航项都铺一张卡。导师输入框用独立近白底、细边界和聚焦边界，不向其他 surface 推广这组颜色。
+
 ## Typography
 
 **Display Font:** Noto Sans SC（PingFang SC / Microsoft YaHei / system sans 回退）
 **Editorial Font:** Songti SC（Noto Serif SC / STSong / serif 回退）
 **Body Font:** Noto Sans SC（同回退）
 
-**Character:** 中文标题紧凑、坚定；正文清晰克制。宋体只用于当天最重要任务和导师建议，用编辑感拉开“判断”与“控件”的语气；导航、数据、按钮和普通区域标题继续使用无衬线字体。
+**Character:** 中文标题紧凑、坚定；正文清晰克制。既有 Editorial 令牌保留作历史组件兼容，不是新工作室壳的默认标题。当前新壳的导航、岗位标题、单题练习和持续导师使用直立无衬线；未触及的旧组件不能据此被宣称已全部改为同一字体。简历纸面保持独立字体规则。
 
 ### Hierarchy
 
@@ -299,9 +378,13 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 ### Cockpit Reading and Editing Scale
 
-作战盘的导师正文使用 16px / 1.85，分节标题使用 18px / 1.5；旧编辑模块的正文尺度为 14px / 1.8，工具栏使用 13px。编辑模块不是当前成稿纸张的排版依据。对话输入区保持白色、圆角外容器；聚焦只改变外边界，不在文本框内部画矩形框。侧栏使用平整暖白表面，避免颗粒干扰正文。编辑模块重排使用 240ms 的位置连续过渡，系统减少动态效果时立即更新位置，始终保留文字反馈。
+早期作战盘的导师正文尺度为 16px / 1.85，分节标题为 18px / 1.5；旧编辑模块的正文尺度为 14px / 1.8，工具栏为 13px。这些旧令牌保留，不是当前工作室导师或成稿纸张的排版依据。对话输入区保持圆角外容器；聚焦改变外边界，不在文本框内部画矩形框。编辑模块重排使用 240ms 的位置连续过渡，系统减少动态效果时立即更新位置，始终保留文字反馈。
 
 2026-10-12 作战盘精修采用暖白与深墨色主动作、橙色局部状态，控件 14px / 40px / 10px 圆角统一；该次修改范围仅为作战盘。导师正文按实际侧栏宽度在 14–17px 内变化，不按整屏宽度放大；历史、材料、用量和成果按需展开。谈薪保持与其他阶段相同的三栏结构。150–160ms 过渡只用于交互状态；减少动态效果时关闭。经典成稿仅姓名居中，联系信息与其余正文左对齐。
+
+### Cockpit Studio Scale
+
+当前岗位标题使用 `cockpit-studio-heading`，简历紧凑态与手机降为 22px；导航为 14px，普通控件为 13px，岗位来源和状态在 10–12px 分档。单题问题使用 `cockpit-studio-question`，手机为 21px；回答输入为 15px / 1.75，手机为 16px，避免输入时缩放。导师正文按自身容器使用 `cockpit-studio-mentor-reading`，而非按整屏放大；导师标题为 17px / 600，在 350px 以内容器为 16px。元数据、历史、模式与费用说明保持更小的辅助层级。
 
 ### Resume Paper Scale
 
@@ -315,7 +398,9 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 ## Layout
 
-桌面端采用“机会列表 / 岗位档案 / 今日行动”三栏，中心档案获得主要宽度。左右栏独立滚动，中心内容以 32px 垂直节奏推进。900px 以下左右栏改为抽屉；640px 以下压缩标题和内容内边距，并把表格式证据、简历差异改为单列。
+当前 cockpit 工作室壳采用全局导航与岗位 / 中心任务 / 持续导师三栏。顶栏为 60px，桌面导航为 192px，中心弹性扩展，导师初始宽度为 `min(372px, 29vw)` 并沿原句柄调宽；栏间距为 `cockpit-studio-gap`。中心任务面最大内容宽度为 1120px，内边距由 `cockpit-studio-inset` 管理，不把整站做成卡片墙。981–1180px 下导航为 170px、导师默认 320px、栏间距 8px；980px 及以下延续抽屉，中心保持内部滚动。700px 及以下保留 60px 顶栏，中心外侧留 6px、内容使用 `cockpit-studio-mobile-inset`，关键控件触达高度为 44px。更早的 900px / 640px 令牌保留作旧组件兼容，不替代本轮实际断点。
+
+工作台、我的简历与我的笔记是统一左导航；岗位内阶段呈轻量横向标签，当前项用字重与细下划线表达。导师的模式、模型与语音操作靠近输入区；账户、余额与支付入口在顶栏账户展开，不删除原有费用说明。具体操作和验证状态归本轮实现报告，不把布局记录等同于云保存或真实模型验收。
 
 成稿纸张固定为 A4 宽度，最小高度为 297mm；屏幕内边距和打印页边距使用 `paper-inset`。窄容器以整页等比缩放适配，不按侧栏宽度重新折行；100% 阅读保持原字宽并允许横向滚动。长内容保留并继续分页，不通过裁切尾部强制单页。上传文件原件不进入这套重排规则。
 
@@ -325,11 +410,15 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 首页的产品表面与纸张使用低强度环境阴影分层，具体值见 sidecar；纸张本身保持白底，打印时关闭屏幕阴影。不把这一局部文档层次扩展为全站卡片阴影。
 
+工作室壳的中心面、岗位选中面、单题练习与导师输入框默认不带阴影；连续底色与近白工作面建立层次。阴影仅保留给账户、模式等真正浮层和既有移动抽屉，具体值见 sidecar；不为移除历史 advisory 扩大改动范围。
+
 ## Shapes
 
 内容容器使用 14–16px 圆角，搜索和按钮使用 8–11px 圆角。胶囊只用于短状态和数量，不能包裹长句或普通卡片。边界始终细而克制。
 
 首页控件与产品表面的圆角分别由 `home-action` 和 `home-stage` 管理，单句修订使用更小的 `home-revision` 圆角；A4 纸张保持直角。Agent 执行手册的规则框、边界摘要和折叠列表保持直角或极小圆角，以维持“执行规范”而非“营销卡片”的语气。这些是局部扩展，不上调工作台默认圆角。
+
+当前工作室壳使用 `cockpit-studio-surface` 的大工作面圆角、`cockpit-studio-control` 的紧凑按钮圆角与 `cockpit-studio-composer` 的输入容器圆角；手机中心面降为 10px。阶段标签没有胶囊底；圆形只用于账户头像与发送按钮，不把长费用说明塞进圆角按钮。
 
 ## Components
 
@@ -339,6 +428,7 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 - **Secondary:** 白底、暖灰边界、深色文字。
 - **Focus:** 3px 半透明橙色焦点环，不能只改变颜色。
 - **Homepage variant:** 墨色主按钮、白字；悬停切换为 `home-ink-hover`，使用 150ms 背景色过渡。公开首页使用 2px 实线外焦点（#984320），偏移 5px；减少动态效果时关闭过渡。导航开始动作保留橙色。
+- **Cockpit studio variant:** 铜色主动作与透明次动作使用独立 `cockpit-studio-*` 令牌，桌面最小高度 38px、手机 44px。原有 150–160ms 背景/边界状态反馈保留，减少动态效果时关闭；不沿用早期橙色按钮的尺寸作为新壳默认。
 
 ### Chips
 
@@ -358,7 +448,15 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 ### Navigation
 
-岗位机会是左侧主导航。当前项以白色表面和暖橙边界识别；岗位内部用水平标签导航，当前标签使用细橙色下划线。移动端通过顶部两个图标按钮打开机会和行动抽屉。
+工作室壳左侧提供工作台、我的简历、我的笔记，随后是正在准备的岗位与添加动作。全局当前项以字重和铜色图标识别，岗位当前项用安静的选中底色，不叠加阴影；阶段标签使用 2px 铜色下划线、当前字重 600，记录数保留在辅助文本与标题信息中。移动端沿用顶部图标入口打开机会和导师抽屉；未登录示例的笔记入口保持禁用并说明原因。
+
+### Cockpit Studio Contextual Controls
+
+导师标题、岗位上下文、历史对话、阅读区与底部输入保持稳定顺序。模式从常驻切换条收进输入附近的原生 disclosure，保留辅导与面试官两个动作、选中态和 Escape 关闭后焦点返回；模型、语音、发送与费用说明仍可达。输入框聚焦只改变既有外边界，正文不加内矩形框。
+
+账户使用原生 disclosure，展开现有 TokenPay 与账户退出；正式用户继续获得原有购买入口。点击外部或 Escape 关闭，Escape 返回 summary；手机浮层固定在 60px 顶栏下、右侧 16px，宽度不超出视口。这里记录组件代码行为，不宣称真人支付已验收。
+
+单题练习展开后隐藏重复介绍和旧题目列表，换题放入原生选择器；题目、回答、提交与反馈保留。示例说明折叠但不删除；用量与保存边界在操作附近保持可见，不把清爽理解为去掉付费或保存说明。
 
 ### Resume Paper and Reading Controls
 
@@ -376,6 +474,7 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 - **Do** 在版本说明中清楚交代模型提供方、益职费用、材料位置和作战盘位置。
 - **Do** 让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。
 - **Do** 让文字成稿与 PDF 共用文档渲染器，完整保留正文和尾部。
+- **Do** 把工作室壳的导航、当前阶段、任务正文与持续导师分层，低频设置就近展开而非删掉。
 
 ### Don't:
 
@@ -385,3 +484,4 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 - **Don't** 把公开首页的大标题或局部产品表面无条件带入高密度作战盘。
 - **Don't** 把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。
 - **Don't** 重新排版上传原件、把演示状态说成云端已保存，或用窄栏重新折行代替缩放成稿。
+- **Don't** 把本轮自定参考图或代码完成写成用户审美批准，也不要把工作室壳令牌扩散到首页与简历纸面。

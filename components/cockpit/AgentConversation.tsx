@@ -3,7 +3,7 @@ import {useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import Image from "next/image";
 import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
-import {ArrowUp,Copy,Plus,BookOpen} from "@phosphor-icons/react";
+import {ArrowUp,Copy,Plus,BookOpen,CaretDown} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
 import VoiceControls from "./VoiceControls";
@@ -193,15 +193,11 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
  }
  function newConversation(){if(lock.current)return;setSession(null);retry.current=null;setTurns([]);setMessage("");setDraft("");setPending("");setError("");setFailedLesson(null);setModelNotice(null);setStageSuggestion(null);setResumeEntry(false);input.current?.focus({preventScroll:true});}
  return <section className={styles.panel} aria-label="对话辅导">
-  <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>AI 求职导师</strong><button type="button" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={16}/>新辅导</button></header>
+  <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>导师</strong><button type="button" aria-label="新辅导" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={18}/></button></header>
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
   {!!sessions.length&&<details className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
   </div>
   {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{turns.at(-1)?.question.slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
-  <div className={styles.modeSwitch} role="group" aria-label="导师模式">
-   <button type="button" title="讲解、练习与反馈" aria-pressed={interactionMode==="coaching"} disabled={busy||loading||!!pending} onClick={()=>setInteractionMode("coaching")}>教练辅导</button>
-   <button type="button" title="一次一题，答完再追问，不提前给答案" aria-pressed={interactionMode==="mock_interview"} disabled={busy||loading||!!pending} onClick={()=>setInteractionMode("mock_interview")}>面试官</button>
-  </div>
   <TaskRunTray enabled={enabled}/>
   <div ref={list} className={styles.messages} role="log" aria-label="辅导对话" aria-live="polite">
   {researchNote&&<details className={styles.materialInfo}><summary>当前材料</summary><p>{researchNote}</p></details>}
@@ -226,7 +222,10 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   {modelNotice&&<div className={styles.modelConfirm} role="group" aria-label="模型档位说明"><span>{modelNotice.text}</span><button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelNotice(null);}}>{modelNotice.requiresConfirm?"知道了，继续":"知道了"}</button>{modelNotice.requiresConfirm&&modelMode!=="fast"&&<button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelMode("fast");setModelNotice(null);}}>换回实惠档</button>}</div>}
   <form onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的回答，或直接说没听懂…" rows={2} maxLength={4000} disabled={!enabled} value={message} onChange={e=>{setMessage(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,112)+"px";}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
-   <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
+   <footer><div className={styles.composerOptions}><details className={styles.modeDisclosure} onKeyDown={event=>{if(event.key==="Escape"){event.currentTarget.open=false;event.currentTarget.querySelector("summary")?.focus();}}}><summary aria-label="选择导师模式">{interactionMode==="coaching"?"辅导":"面试官"}<CaretDown size={12} aria-hidden="true" /></summary><div className={styles.modeSwitch} role="group" aria-label="导师模式">
+    <button type="button" title="讲解、练习与反馈" aria-pressed={interactionMode==="coaching"} disabled={busy||loading||!!pending} onClick={event=>{setInteractionMode("coaching");const menu=event.currentTarget.closest("details");if(menu)menu.open=false;}}>教练辅导</button>
+    <button type="button" title="一次一题，答完再追问，不提前给答案" aria-pressed={interactionMode==="mock_interview"} disabled={busy||loading||!!pending} onClick={event=>{setInteractionMode("mock_interview");const menu=event.currentTarget.closest("details");if(menu)menu.open=false;}}>面试官 · 一次一题</button>
+   </div></details><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/></div><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
   <details className={styles.disclaimer}><summary>{quotaLabel}</summary><p>发送消息会调用 AI。保存回答和笔记免费；失败释放额度。重要信息请核实。</p></details>
  </section>;

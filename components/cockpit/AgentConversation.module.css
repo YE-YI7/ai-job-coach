@@ -142,3 +142,29 @@
 .error{font-size:13px;line-height:1.7;background:#fbede7;border-radius:8px;padding:10px 12px;color:#98472e;margin:8px 0}.panel button:hover{background:#e8eddc}.panel button:focus-visible,.panel select:focus-visible{outline-color:#6a8352}.metadata .historyDisclosure .history{border:0;border-radius:10px;box-shadow:0 10px 30px rgba(51,68,29,.12);padding:14px}
 @container mentor (max-width:350px){.panel header strong{font-size:15px}.mentorIdentity img{display:none}.modeSwitch button{padding-inline:10px}.question{margin-left:14px}.welcome h3{font-size:20px}}
 @media(prefers-reduced-motion:reduce){.panel form{transition:none}}
+
+/* Conversation shares the workspace; controls live beside the composer. */
+.panel{--mentor-reading:clamp(14px,calc(12px + .85cqi),16px);color:#30362c}
+.panel header{padding-bottom:14px}.panel header strong{font-size:17px;font-weight:600;letter-spacing:0}
+.mentorIdentity img{width:25px;height:25px;border-radius:8px}.panel header button{width:32px;min-height:32px;padding:5px;background:none;color:#626c58}
+.metadata{padding-bottom:18px}.metadata .context{font-size:11px;color:#646f5c}.historyDisclosure{font-size:11px}
+.question{background:none;color:#3b4433;border-radius:0;padding:0 0 0 16px;margin:24px 0 16px;border-left:1px solid #c2c8b8;font-size:var(--mentor-reading)}
+.turnScope{margin-top:24px;font-size:11px;color:#65705a}
+.answer .markdown{color:#30372a}.answer .markdown strong{color:#273020}.answer .markdown p{line-height:1.8}
+.messages{padding-inline:2px;padding-bottom:20px}.welcome{padding:20px 0}.welcome h3{font-size:20px;color:#2b3524;line-height:1.5;margin-bottom:12px}
+.welcome .quickStarts{gap:4px;padding-top:16px}.welcome .quickStarts button{justify-content:flex-start;padding:8px 0;min-height:40px;background:none;border:0;border-radius:0;font-size:13px;line-height:1.65;color:#5b6751;text-align:left}
+.welcome .quickStarts button:hover:not(:disabled){background:none;color:#91462c;text-decoration:underline;text-underline-offset:4px}
+.panel form{padding:13px 14px;border-color:#d2d6ca;background:#fdfefb;border-radius:12px;box-shadow:none}.panel form:focus-within{border-color:#8d9a7c;box-shadow:none}
+.panel textarea{min-height:68px;line-height:1.65;color:#313b29;caret-color:#944429}.panel textarea::placeholder{color:#666f5c}
+.panel footer{gap:5px;align-items:center}.composerOptions{display:flex;align-items:center;gap:5px;flex:1;min-width:0;flex-wrap:wrap}
+.modeDisclosure{position:relative;flex:none;font-size:11px;color:#626d56}.modeDisclosure>summary{display:flex;align-items:center;gap:6px;min-height:32px;list-style:none;cursor:pointer;padding:5px 3px}.modeDisclosure>summary::-webkit-details-marker{display:none}.modeDisclosure>summary:focus-visible{outline:2px solid #944429;outline-offset:3px;border-radius:4px}
+.modeDisclosure .modeSwitch{position:absolute;bottom:calc(100% + 10px);left:0;z-index:20;display:grid;gap:3px;min-width:190px;margin:0;padding:7px;background:#fff;border-radius:9px;box-shadow:0 9px 28px rgba(37,43,31,.15)}
+.modeDisclosure .modeSwitch button{justify-content:flex-start;text-align:left;white-space:nowrap;min-height:36px;padding:8px 10px;border-radius:5px;background:none;color:#4f5c44;font-size:12px}
+.modeDisclosure .modeSwitch button[aria-pressed="true"]{background:#edf0e6;color:#273220}.modeDisclosure .modeSwitch button:hover:not(:disabled){background:#f0f1eb}
+.panel footer [type="submit"]{background:#aa4f2e;border-radius:50%;min-width:34px;min-height:34px}.panel footer [type="submit"]:hover:not(:disabled){background:#944429}.panel footer [type="submit"]:disabled{background:#e9ece2;color:#68745a}
+.disclaimer{font-size:10px;color:#647058;margin-top:8px}.returnEntry{padding:4px 0;background:none;border-radius:0;font-size:11px}.returnEntry button{color:#91462c}
+.summary,.usage,.materialInfo{font-size:11px;color:#627052}.error{background:none;border-radius:0;color:#944429;padding:8px 0}
+.panel button:focus-visible,.panel select:focus-visible{outline-color:#944429}
+@container mentor (max-width:350px){.composerOptions{gap:2px}.panel form{padding:11px 12px}.panel header strong{font-size:16px}}
+@media(max-width:700px){.modeDisclosure>summary{min-height:44px}.modeDisclosure .modeSwitch button{min-height:44px}.panel footer [type="submit"]{min-height:44px;min-width:44px}.panel textarea{font-size:16px}}
+.welcome .quickStarts button:disabled{background:transparent;color:#65705d}.panel header button:disabled{background:transparent}

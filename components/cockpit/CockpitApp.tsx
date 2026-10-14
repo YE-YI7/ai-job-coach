@@ -6,6 +6,7 @@ import {assertGenerationQuota} from "@/lib/quota-preflight";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
 import OriginalResume from "./OriginalResume";
+import WorkspaceAccount from "./WorkspaceAccount";
 import { uploadOriginalResume } from "@/lib/resume-original";
 import { companyLogo } from "@/lib/jobs/company-logos";
 import ResumeRecovery from "./ResumeRecovery";
@@ -19,15 +20,17 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   BriefcaseBusiness,
+  ChevronDown,
   ChevronRight,
   CircleAlert,
   CircleCheck,
   FileText,
   GripVertical,
+  House,
   Link2,
-  LogOut,
   Menu,
   MessageSquareText,
+  NotebookPen,
   Pin,
   Plus,
   RotateCcw,
@@ -93,8 +96,6 @@ import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
 import { applyReorderToOpportunity } from "@/lib/opportunities/resume-blocks";
 import { commitStage, mergeStageResult } from "@/lib/opportunities/stage-save";
 import { trackProductEvent } from "@/lib/product-events";
-import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
-import WatchaPayWidget from "@/components/payments/WatchaPayWidget";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "salary";
@@ -125,7 +126,7 @@ function Brand() {
   return (
     <div className={styles.brand}>
       <Image className={styles.brandLogo} src="/logo.png" alt="益职 Logo" width={36} height={36} priority />
-      <span>益职</span>
+      <span>益职 AI</span>
     </div>
   );
 }
@@ -1016,23 +1017,8 @@ export function CockpitApp({
           <span className={dataMode === "demo" ? styles.demoState : styles.liveState}>
             {creating ? "添加求职材料" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
           </span>
-          {/* 四类入口可随时找回（PRD §3.1）：首访自动弹层之外，常驻入口不依赖弹出 */}
-          {dataMode !== "demo" && (
-            <button
-              type="button"
-              onClick={() => setNotesOpen(true)}
-              title="查看、新建和编辑笔记"
-              style={{ border: "0", background: "transparent", color: "inherit", fontSize: 12, cursor: "pointer", padding: "4px 6px", borderRadius: 8 }}
-            >
-              我的笔记
-            </button>
-          )}
-          <span>{compactAccountLabel(userEmail)}</span>
-          <TokenPayWidget compact />
-          {dataMode !== "demo" && <WatchaPayWidget />}
-          <button disabled={intakeBusy} className={creating ? styles.secondaryButton : styles.iconButton} onClick={creating ? () => setCreating(false) : logout} aria-label={creating ? "返回工作区" : "退出登录"} title={creating ? "返回工作区" : "退出登录"}>
-            {creating ? "返回工作区" : <LogOut size={17} aria-hidden="true" />}
-          </button>
+          {creating && <button disabled={intakeBusy} type="button" className={styles.textButton} onClick={() => setCreating(false)}>返回工作区</button>}
+          <WorkspaceAccount label={compactAccountLabel(userEmail)} live={dataMode === "live"} disabled={intakeBusy} onLogout={logout} />
         </div>
         <div className={styles.mobileControls}>
           <button onClick={() => setMobileRail("opportunities")} aria-label="打开机会列表"><Menu size={19} /></button>
@@ -1042,6 +1028,17 @@ export function CockpitApp({
 
       <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
+          profileActive={!creating && active?.workspaceType === "preparation"}
+          notesEnabled={dataMode === "live"}
+          onOpenNotes={() => setNotesOpen(true)}
+          onOpenWorkspace={() => {
+            if (intakeBusy) { announce("材料仍在整理，请保留此页面"); return; }
+            setCreating(false); setMobileRail(null);
+            if (active?.workspaceType === "preparation") {
+              const job = opportunities.find(item => item.workspaceType !== "preparation");
+              if (job) { setActiveId(job.id); setActiveTab(currentJourneyStage(job)); }
+            }
+          }}
           onOpenProfile={() => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
           opportunities={filtered}
@@ -1125,7 +1122,7 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
     <main className={styles.shell}>
       <header className={styles.topbar}>
         <Brand />
-        <div className={styles.topbarContext}><span>{compactAccountLabel(userEmail)}</span><TokenPayWidget compact /><WatchaPayWidget /><button className={styles.iconButton} onClick={onLogout} aria-label="退出登录"><LogOut size={17} /></button></div>
+        <div className={styles.topbarContext}><WorkspaceAccount label={compactAccountLabel(userEmail)} live onLogout={onLogout} /></div>
       </header>
       <section className={styles.emptyCockpit}>
         <div className={styles.emptyCopy}>
@@ -1148,13 +1145,13 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
 function DemoNotice({ onCreate }: { onCreate: () => void }) {
   return (
     <section className={styles.demoNotice} aria-label="示例工作区说明">
-      <div><strong>你正在查看示例机会</strong><p>这些公司、经历和结果都不是你的数据；页面操作仅用于体验，刷新后恢复。</p></div>
-      <button onClick={onCreate}><Plus size={15} />新建我的岗位</button>
+      <details><summary>示例数据</summary><p>这些公司、经历和结果都不是你的数据；页面操作仅用于体验，刷新后恢复。</p><button type="button" onClick={onCreate}><Plus size={15} />创建我的工作区</button></details>
     </section>
   );
 }
 
-function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSelect, onCreate, onOpenProfile, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
+function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSelect, onCreate, onOpenProfile, onOpenWorkspace, onOpenNotes, profileActive, notesEnabled, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
+  profileActive: boolean; notesEnabled: boolean; onOpenWorkspace: () => void; onOpenNotes: () => void;
   onOpenProfile: () => void;
   activeId: string; opportunities: Opportunity[]; query: string;
   onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCreate: () => void;
@@ -1169,12 +1166,17 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
   const clearDrag = () => { setDraggingId(null); setOverId(null); };
   return (
     <aside className={`${styles.opportunityRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="岗位机会">
+      <nav className={styles.workspaceNav} aria-label="工作区导航">
+        <button type="button" aria-current={!profileActive ? "page" : undefined} onClick={onOpenWorkspace}><House size={18} aria-hidden="true" />工作台</button>
+        <button type="button" aria-current={profileActive ? "page" : undefined} onClick={onOpenProfile}><FileText size={18} aria-hidden="true" />我的简历</button>
+        <button type="button" disabled={!notesEnabled} title={notesEnabled ? "查看、新建和编辑笔记" : "登录后可以使用我的笔记"} onClick={onOpenNotes}><NotebookPen size={18} aria-hidden="true" />我的笔记</button>
+      </nav>
       <div className={styles.railHeading}>
-        <div><h2>机会</h2><p>{opportunities.filter(item=>item.workspaceType!=="preparation").length} 个岗位{query.trim()?" · 搜索结果":""}</p></div>
+        <div><h2>正在准备 <span>{opportunities.filter(item=>item.workspaceType!=="preparation").length}</span></h2></div>
+        <button type="button" className={styles.railAdd} onClick={onCreate} aria-label="添加岗位" title="添加岗位"><Plus size={17} aria-hidden="true" /></button>
         <button className={styles.mobileClose} onClick={onClose} aria-label="关闭机会列表"><X size={19} /></button>
       </div>
       <label className={styles.searchBox}><Search size={16} aria-hidden="true" /><span className="sr-only">搜索公司或岗位</span><input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="搜索公司或岗位" /></label>
-      <button className={styles.profileEntry} onClick={onOpenProfile}><FileText size={17}/><span><strong>我的简历</strong></span></button>
       <div className={styles.opportunityList} role="list">
         {opportunities.filter(item=>item.workspaceType!=="preparation").map((opportunity) => {
           const pinned = pinSet.has(opportunity.id);
@@ -1213,7 +1215,6 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
           );
         })}
         {opportunities.length === 0 && <div className={styles.emptySearch}><Search size={18} /><span>没有匹配的岗位</span><button onClick={() => onQueryChange("")}>清除搜索</button></div>}
-        <button className={styles.addOpportunity} onClick={onCreate}><Plus size={16} /><span><strong>添加岗位</strong></span></button>
       </div>
     </aside>
   );
@@ -2052,9 +2053,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 
   return (
     <section>
-      <div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><h2>先练最可能被追问的题</h2><p>单题练习：练一个重点，立即反馈。整轮面试：连续问答，结束后复盘。题目来自{opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历，不会凭空引用你的经历）"}。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />练一道题</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}><Sparkles size={16} />{hasJd ? `整轮模拟面试 · ${quotaLabel}` : "模拟面试 · 需要 JD"}</button></div>
+      {!practicing&&<div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><h2>面试准备</h2><p>单题练一个重点，整轮连续问答、结束后复盘。题目来自{opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历）"}。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />练一道题</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}>{hasJd ? "整轮模拟面试" : "模拟面试 · 需要 JD"}</button></div>
       {!hasJd && <p className={styles.ctaHint}>这个岗位还没有 JD。圆桌的每一题都必须能追溯到当前 JD，缺 JD 时不会用通用题顶上。</p>}
-      </div>
+      </div>}
       {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction
         kind="job"
         title="先补一个目标岗位"
@@ -2063,7 +2064,21 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         loading={supplementing}
         onSubmit={onSupplement}
       />)}
-      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}><span>单题速练 · 不生成新题，只对你选的这题给反馈（{exampleRecords ? "示例工作区给出的是演示反馈，不消耗额度" : "会消耗一次额度"}）；回答会保存到当前岗位</span>{opportunity.interviewFocus.length > 1 && <div className={styles.practiceQuestionPicker} role="group" aria-label="选择要练的重点题">{opportunity.interviewFocus.slice(0, 6).map((focus, index) => <button key={focus.id} type="button" title={focus.question} aria-pressed={focus.id === currentQuestion.id} onClick={() => { if (focus.id !== currentQuestion.id) { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); } }}>第{index + 1}题</button>)}</div>}<h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p><textarea value={answer} onChange={(event) => setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />{practiceFeedback && feedbackFor === currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}><header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong><div><section><b>保留</b>{practiceFeedback.strengths.length ? <ul className={styles.dotListGood}>{practiceFeedback.strengths.map((item) => <li key={item}>{item}</li>)}</ul> : <p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map((item) => <li key={item}>{item}</li>)}</ul></section></div><footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer></article>}{practiceError && <p className={styles.inlineError}>{practiceError}</p>}<div><button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => { setAnalyzingPractice(true); setPracticeError(""); try { const feedback = await onAnalyze(currentQuestion.question, answer.trim()); setPracticeFeedback(feedback); setFeedbackFor(feedback ? currentQuestion.question : null); } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); } finally { setAnalyzingPractice(false); } }}>{analyzingPractice ? "导师处理中…" : requestsTeaching(answer) ? "让导师带我学" : "保存并分析回答"}</button></div></section>}
+      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}>
+        <span>单题练习 · {exampleRecords ? "示例反馈，不消耗额度" : quotaLabel} · 回答保存到当前岗位</span>
+        {opportunity.interviewFocus.length > 1 && <label className={styles.practiceQuestionSelect}><span>第 {opportunity.interviewFocus.findIndex(focus=>focus.id===currentQuestion.id)+1} 题 / 共 {Math.min(opportunity.interviewFocus.length,6)} 题 · 换题</span><ChevronDown size={14} aria-hidden="true" /><select aria-label="选择要练的重点题" value={currentQuestion.id} onChange={event=>{if(event.target.value!==currentQuestion.id){setPracticeQuestionId(event.target.value);setAnswer("");setPracticeError("");}}}>
+          {opportunity.interviewFocus.slice(0,6).map((focus,index)=><option key={focus.id} value={focus.id}>第{index+1}题：{focus.question}</option>)}
+        </select></label>}
+        <h3>{currentQuestion.question}</h3><p>{currentQuestion.rationale}</p>
+        <textarea aria-label="单题练习回答" value={answer} onChange={event=>setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />
+        {practiceFeedback && feedbackFor===currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}>
+          <header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong>
+          <div><section><b>保留</b>{practiceFeedback.strengths.length?<ul className={styles.dotListGood}>{practiceFeedback.strengths.map(item=><li key={item}>{item}</li>)}</ul>:<p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map(item=><li key={item}>{item}</li>)}</ul></section></div>
+          <footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer>
+        </article>}
+        {practiceError&&<p className={styles.inlineError}>{practiceError}</p>}
+        <div><button className={styles.secondaryButton} onClick={()=>setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim()||analyzingPractice} onClick={async()=>{setAnalyzingPractice(true);setPracticeError("");try{const feedback=await onAnalyze(currentQuestion.question,answer.trim());setPracticeFeedback(feedback);setFeedbackFor(feedback?currentQuestion.question:null);}catch(error){setPracticeError(error instanceof Error?error.message:"分析失败");}finally{setAnalyzingPractice(false);}}}>{analyzingPractice?"导师处理中…":requestsTeaching(answer)?"让导师带我学":"提交回答"}</button></div>
+      </section>}
       {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
       {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper}><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>

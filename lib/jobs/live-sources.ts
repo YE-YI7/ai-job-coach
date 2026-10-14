@@ -5,7 +5,7 @@
  * - 免 key、能按关键词查的只有英文/远程板子：RemoteOK（`?tag=`，实测按词返回不同结果）、
  *   Jobicy（`?tag=`，认空格不认连字符）。Remotive 的公开接口**任何参数都不生效**
  *   （`?search=nurse` 与不带参数返回同一批 16 条），所以按「最新一批」的流源用，不假装搜过。
- * - 国内直连七源：腾讯、网易、百度、美团、京东校招、快手校招、小米社招。
+ * - 国内直连八源：腾讯、网易、百度、美团、京东校招、快手校招、小米、滴滴官网。
  *   字节公开请求当前 405，不能声称已接通；BOSS/猎聘/拉勾不绕登录墙/验证码。
  * - 每个源都可能坏。一个源坏了不能把整批结果变成「没有岗位」，也不能悄悄少几个源不说
  *   （`failures` 一路带到界面）。
@@ -14,7 +14,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "xiaomi" | "web-search";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "xiaomi" | "didi" | "web-search";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -35,13 +35,14 @@ export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "jd", label: "京东校园招聘", homepage: "https://campus.jd.com", mode: "keyword", coverageNote: "应届生招聘，不冒充社会招聘" },
   { id: "kuaishou", label: "快手校园招聘", homepage: "https://campus.kuaishou.cn", mode: "keyword", coverageNote: "校招与实习，含完整 JD" },
   { id: "xiaomi", label: "小米招聘官网", homepage: "https://hr.xiaomi.com/website/opportunities.html", mode: "keyword", coverageNote: "国内社会招聘，含职责与要求；覆盖汽车、硬件等业务，不是全行业" },
+  { id: "didi", label: "滴滴招聘官网", homepage: "https://talent.didiglobal.com/social/neit", mode: "keyword", coverageNote: "官网社招入口的国内岗位，保留职责与要求；校园/实习门槛仍按原文判断，不是全市场" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
-export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v5-seven-sources";
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi", "didi"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v6-eight-sources";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
@@ -363,7 +364,31 @@ const xiaomiAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, xiaomi: xiaomiAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+// Reuses the reviewed Didi source from a62377e; anonymous public search only.
+// The official social frontend calls this list API with jobName as its keyword.
+const didiAdapter: Adapter = {
+  id: "didi", hosts: ["talent.didiglobal.com"],
+  async search({ keyword }) {
+    const url = new URL("https://talent.didiglobal.com/recruit-portal-service/api/job/front/list");
+    url.searchParams.set("page", "1"); url.searchParams.set("size", String(ROWS_PER_CALL)); url.searchParams.set("jobName", keyword);
+    const payload = record(await fetchJson(url, this.hosts));
+    const data = record(payload.data);
+    if (record(payload.meta).code !== 0 || !Array.isArray(data.items)) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow();
+    return data.items.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = typeof row.jdId === "string" ? row.jdId.trim() : Number.isSafeInteger(row.jdId) ? String(row.jdId) : "", title = str(row.jobName);
+      const originalPlaces = str(row.workArea), places = domesticPlaces(originalPlaces.split(/[、,，\s]+/));
+      const duty = toPlainText(str(row.jobDuty)), requirement = toPlainText(str(row.jobQualification));
+      if (!/^\d+$/.test(id) || !title || !places.length || !duty || !requirement) return [];
+      return [{ sourceId: `didi:${id}`, url: `https://talent.didiglobal.com/social/jobDetail?jdId=${encodeURIComponent(id)}`,
+        company: "滴滴", companyDomain: "didiglobal.com", title: title.slice(0, 200), location: places.join("、"), fetchedAt,
+        // createTime/refreshTime are not verified first-publication dates.
+        postedAt: null, rawPageText: toPlainText(["滴滴官网公开岗位", str(row.jdNo), str(row.deptName), "原文工作地点", originalPlaces, "岗位职责", duty, "任职要求", requirement].join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, xiaomi: xiaomiAdapter, didi: didiAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

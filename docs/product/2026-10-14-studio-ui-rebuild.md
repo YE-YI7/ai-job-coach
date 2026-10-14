@@ -1,6 +1,6 @@
 # 益职 AI 工作台：界面重建
 
-状态：正在实现与验收，尚未发布。本轮承接用户对整站 UI 的否决，停止的是无效的三选一，不是停止产品工作。
+状态：已实现并正式发布，最后运行提交0803fc7，10月15日00:10（Asia/Shanghai）完成双域及Chrome手机复验。本轮承接用户对整站 UI 的否决，三张旧方向图不再作为选图门禁；不宣称用户已经认可本轮审美。
 
 ## Direction contract
 
@@ -42,3 +42,14 @@
 - Chrome 正式 www 保留既有登录态，实际看到新导航、导师模式和账户；账户展开保留 TokenPay/积分/退出，手机390px浮层不越界，Escape关闭并返回焦点。未改变原DeepSeek选择、没有发送消息或保存真人数据；桌面1440与手机截图已查看（私人临时路径不公开嵌入）。近2分钟浏览器 error=0、部署近5分钟 error日志查询无结果，不代表长期监控。
 - 正式手机发现简历修改按钮仍因费用长句折三行，追加小修：按钮只保留动作，原 `quotaLabel` 原样放在下方并用 aria-describedby 关联，不取消收费告知/预扣检查。本地390px按钮与导出同排、费用可见；2131回归再跑通过，tsc通过。首次tsc恰逢dev生成类型重建缺文件，待生成结束后通过，不改类型配置。
 - 手动detect仅追加一次复核，仍是两项历史4px边框，设计记录收拢后另显旧1048行Georgia未登记；均非本轮新增声明，不扩修原件或纸面，钩子仍关闭。
+
+## 最终 Deploy Result
+
+- URL：https://www.ai-job-coach.xin/cockpit
+- Target：production；Status：READY；Framework：Next.js 16.3.0。
+- Commit：`0803fc7fd0d61c906659ee004ddca214529f6408`（在0ef2943工作台重建之上追加3任务文件小修）。最终云构建约1分钟，本地最终构建通过；没有携带环境私钥或旧诊断文件。
+- Deployment：`dpl_4vN29zMPxvzGbb3Kbm1Y5YB1P3iQ`，候选健康200/database ok、匿名业务401后promote；www及裸域均指向此READY。
+- Chrome正式旧登录直接刷新，新导航、短“重新修改”按钮、aria-describedby费用关联都在；390px真实TokenPay长费用说明不挤按钮，已查看截图 `/tmp/yizhi-studio-production-mobile-final.png` 与桌面图 `/tmp/yizhi-studio-production-desktop-final.png`。私人截图未复制到仓库/公开静态资产，用户资料与旧作答未改。
+- Post-deploy observability：最终Chrome近2分钟error=0；本部署近5分钟服务端error查询无结果。Drains与长期Monitoring配置本轮未核验，没有建立新的长期监控或稳定性承诺。
+- 开发Fast Refresh时曾见removeChild异常；正式全刷新与当前控件/笔记读取交互未复现，不能仅凭开发日志确定产品根因或宣称永久修复。
+- 独立复核手机动作小修resolved/ship，真实费用长文由主代理正式Chrome补看，不把本地“费用待确认”状态当成收费调用验收。没有付费发送真人AI请求、生成新简历或覆盖旧材料。

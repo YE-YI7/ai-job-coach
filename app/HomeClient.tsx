@@ -3,26 +3,27 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  Clipboard,
-  Cloud,
-  Copy,
-  ExternalLink,
-  HardDrive,
-  LockKeyhole,
-  Monitor,
-  Sparkles,
-} from "lucide-react";
-import styles from "./Home.module.css";
+import { ArrowRight, ArrowUp, CheckCircle, Copy, User } from "@phosphor-icons/react";
+import ResumePaper from "@/components/resume/ResumePaper";
+import { DEMO_AFTER, DEMO_BEFORE, LANDING_RESUME } from "@/lib/landing-demo";
+import { renderResumePrintWindow } from "@/lib/resume-print";
 import { trackProductEvent } from "@/lib/product-events";
+import styles from "./Home.module.css";
 
+const START = "/login?redirect=%2Fcockpit";
 const AGENT_PROMPT = "请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。";
 
 export default function HomeClient() {
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const viewed = useRef(false);
+  const [view, setView] = useState<"original" | "suggestion">("suggestion");
+  const [adopted, setAdopted] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [previewError, setPreviewError] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [showPractice, setShowPractice] = useState(false);
+  const [practiceSaved, setPracticeSaved] = useState(false);
+  const currentText = adopted ? LANDING_RESUME.replace(DEMO_BEFORE, DEMO_AFTER) : LANDING_RESUME;
+  const displayedResume = view === "original" ? LANDING_RESUME : currentText;
 
   useEffect(() => {
     if (!viewed.current) {
@@ -31,225 +32,90 @@ export default function HomeClient() {
     }
   }, []);
 
-  const legacyCopy = () => {
-    const textArea = document.createElement("textarea");
-    textArea.value = AGENT_PROMPT;
-    textArea.setAttribute("readonly", "");
-    textArea.style.position = "fixed";
-    textArea.style.opacity = "0";
-    document.body.appendChild(textArea);
-    textArea.select();
-    const succeeded = document.execCommand("copy");
-    textArea.remove();
-    return succeeded;
-  };
+  function previewPdf() {
+    setPreviewError("");
+    const preview = window.open("about:blank", "_blank");
+    if (!preview) { setPreviewError("浏览器拦截了预览，请允许打开新窗口后重试。"); return; }
+    preview.opener = null;
+    renderResumePrintWindow(preview, displayedResume, "modern", "益职 · 虚构示例简历");
+  }
 
-  const copyAgentPrompt = async () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await Promise.race([
-          navigator.clipboard.writeText(AGENT_PROMPT),
-          new Promise((_, reject) => window.setTimeout(() => reject(new Error("clipboard timeout")), 900)),
-        ]);
-      } else if (!legacyCopy()) {
-        throw new Error("clipboard unavailable");
-      }
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 2800);
-    } catch {
-      if (legacyCopy()) {
-        setCopyState("copied");
-        window.setTimeout(() => setCopyState("idle"), 2800);
-      } else {
-        setCopyState("error");
-      }
-    }
-  };
+  async function copyAgentPrompt() {
+    try { await navigator.clipboard.writeText(AGENT_PROMPT); setCopyState("copied"); }
+    catch { setCopyState("error"); }
+  }
 
-  return (
-    <main className={styles.page}>
-      <header className={styles.header}>
-        <Link className={styles.brand} href="/" aria-label="益职 AI 首页">
-          <Image src="/logo.png" alt="" width={42} height={42} priority />
-          <span>益职</span>
-        </Link>
-        <nav className={styles.nav} aria-label="主导航">
-          <a href="#try-tools">免费工具</a>
-          <a href="#compare">版本区别</a>
-          <a href="#local-board">本地作战盘</a>
-          <Link href="/agent">Agent 说明</Link>
-        </nav>
-        <Link className={styles.headerAction} href="/login?redirect=%2Fcockpit">
-          登录网页版 <ArrowRight size={15} />
-        </Link>
-      </header>
+  return <main className={styles.page}>
+    <header className={styles.header}>
+      <Link className={styles.brand} href="/" aria-label="益职 AI 首页"><Image src="/logo.png" alt="" width={38} height={38} priority /><span>益职</span></Link>
+      <nav className={styles.nav} aria-label="主导航"><a href="#resume-demo">简历修改</a><a href="#interview-demo">模拟面试</a><a href="#questions">常见问题</a></nav>
+      <div className={styles.headerActions}><Link href={START}>登录</Link><Link className={styles.headerStart} href={START}>开始使用</Link></div>
+    </header>
 
-      <section className={styles.hero}>
-        <div className={styles.heroCopy}>
-          <Image className={styles.heroLogo} src="/logo.png" alt="益职 AI" width={82} height={82} priority />
-          <h1>把求职变成一场有证据、可推进的作战。</h1>
-          <p>
-            益职把 JD、真实经历、一岗一版简历、面试练习和复盘放进同一个岗位机会。
-            你只需决定：让它运行在益职网页，还是你自己的 Agent 里。
-          </p>
-          <div className={styles.quickStart}>
-            <Link href="/tools/resume-jd-gap" onClick={() => trackProductEvent("landing_task_clicked", { task: "resume_gap", placement: "hero" })}>
-              先看看简历缺什么 <ArrowRight size={17} />
-            </Link>
-            <span>免登录 · 本地对照 · 不消耗模型额度</span>
-          </div>
-          <div className={styles.heroProof}>
-            <span><Check size={15} />不编造经历</span>
-            <span><Check size={15} />阶段结果相互复用</span>
-            <span><Check size={15} />每次只推进最重要的一步</span>
+    <section className={styles.hero} aria-labelledby="home-heading">
+      <h1 id="home-heading">你的 AI 求职导师</h1>
+      <p>从改好一份简历，到答好下一场面试。<br />记得你的经历，也保留每一步进展。</p>
+      <div className={styles.heroActions}><Link className={styles.primary} href={START}>开始使用益职 <ArrowRight size={18} /></Link><a className={styles.quietLink} href="#resume-demo">看看它怎么帮你</a></div>
+      <span className={styles.heroNote}>没有目标岗位，也能先改简历</span>
+    </section>
+
+    <section className={styles.demoSection} id="resume-demo" aria-label="简历修改互动演示">
+      <div className={styles.demoWorkbench}>
+        <div className={styles.demoToolbar}>
+          <span className={styles.demoBrand}><Image src="/logo.png" alt="" width={28} height={28} />益职</span>
+          <div className={styles.demoControls} role="group" aria-label="示例简历视图">
+            <button type="button" aria-pressed={view === "original"} onClick={() => setView("original")}>查看原件</button>
+            <button type="button" aria-pressed={view === "suggestion"} onClick={() => setView("suggestion")}>修改建议</button>
+            <button type="button" className={styles.pdfAction} onClick={previewPdf}>预览示例 PDF</button>
           </div>
         </div>
-
-        <div className={styles.modeSelector} aria-label="选择益职使用方式">
-          <section className={styles.webMode}>
-            <div className={styles.modeIcon}><Cloud size={22} /></div>
-            <div className={styles.modeBody}>
-              <div className={styles.modeTitleLine}>
-                <h2>网页端直接使用</h2>
-                <span className={styles.paidTag}>按额度</span>
-              </div>
-              <p>由益职提供模型、账号与托管作战盘。打开网页就能用，使用时消耗益职额度。</p>
-              <div className={styles.modeFacts}>
-                <span>益职模型</span><span>云端作战盘</span><span>跨设备</span>
-              </div>
+        <div className={styles.demoGrid}>
+          <div className={styles.documentColumn}><ResumePaper text={displayedResume} template="modern" title={view === "original" ? "虚构示例原简历" : "虚构示例简历，与产品成稿共用排版"} showZoom controlsBelow highlight={view === "suggestion" ? adopted ? DEMO_AFTER : DEMO_BEFORE : undefined} /></div>
+          <aside className={styles.demoMentor} aria-label="示例修改建议">
+            <div>
+              <h2>{view === "original" ? "原来的样子，好好保留。" : "这段经历，该怎么写得更具体？"}</h2>
+              <div className={styles.mentorLine}><Image src="/logo.png" alt="导师" width={36} height={36} /><p>{view === "original" ? "上传的原件不重排；修改另存为成稿，由你确认。" : "先写清你负责了什么，再补能核实的结果。"}</p></div>
+              {view === "suggestion" && <div className={styles.suggestion}>
+                <h3>修改建议</h3><p className={styles.revisedSentence}>{DEMO_AFTER}</p>
+                <p>这句话具体说明了你的工作内容、方法和推进动作，比「负责客服相关产品工作」更清晰。</p>
+                <div className={styles.suggestionDetails}><h4>可以补充（如有）</h4><ul><li>覆盖的客服场景或问题类型</li><li>上线后的实际效果</li></ul><span>没有确认的数字，不替你添加。</span></div>
+                <button type="button" className={styles.adoptAction} onClick={() => setAdopted(value => !value)}>{adopted ? "撤回示例修改" : "试试采用这条修改"}<ArrowRight size={16} /></button>
+              </div>}
             </div>
-            <Link className={styles.webAction} href="/login?redirect=%2Fcockpit">
-              进入网页版 <ArrowRight size={16} />
-            </Link>
-          </section>
-
-          <div className={styles.orDivider}><span>或</span></div>
-
-          <section className={styles.agentMode}>
-            <div className={styles.modeIcon}><HardDrive size={22} /></div>
-            <div className={styles.modeBody}>
-              <div className={styles.modeTitleLine}>
-                <h2>在我的 Agent 中使用</h2>
-                <span className={styles.freeTag}>益职免费</span>
-              </div>
-              <p>把下面这句话交给 Codex、WorkBuddy 或其他支持 MCP 的 Agent。模型在你的 Agent 中运行，作战盘建在它的本地沙箱。</p>
-            </div>
-            <div className={styles.promptBox}>
-              <textarea aria-label="给 Agent 的安装指令" readOnly value={AGENT_PROMPT} />
-              <button onClick={copyAgentPrompt} type="button">
-                {copyState === "copied" ? <Check size={16} /> : <Copy size={16} />}
-                {copyState === "copied" ? "已复制" : "复制给我的 Agent"}
-              </button>
-              {copyState === "error" && <span className={styles.promptError} role="alert">复制受限，请在左侧指令中全选并复制。</span>}
-            </div>
-            <div className={styles.agentFoot}>
-              <span><LockKeyhole size={14} />求职材料默认留在本机</span>
-              <Link href="/agent">先看执行说明 <ExternalLink size={13} /></Link>
-            </div>
-          </section>
+            <p className={styles.demoStatus} role="status"><CheckCircle size={18} weight="fill" />{view === "original" ? "示例原件未改动" : adopted ? "演示：纸面高亮处已更新，可定位查看" : "纸面高亮的是原句，由你决定是否修改"}</p>
+          </aside>
         </div>
-      </section>
+      </div>
+      <p className={styles.caption}>产品演示 · 虚构资料，不读取或保存你的简历</p>
+      {previewError && <p className={styles.error} role="alert">{previewError}</p>}
+    </section>
 
-      <section className={styles.toolsSection} id="try-tools" aria-labelledby="tools-heading">
-        <div>
-          <h2 id="tools-heading">先解决你手头的一个问题</h2>
-          <p>不必先学会作战盘。从一份简历或两份 offer 开始。</p>
-        </div>
-        <div className={styles.toolLinks}>
-          <Link href="/tools/resume-jd-gap" onClick={() => trackProductEvent("landing_task_clicked", { task: "resume_gap", placement: "tools" })}>
-            <strong>简历与岗位对照 <ArrowRight size={20} /></strong>
-            <span>找出用词缺口、存疑门槛和缺少结果的经历。词面初筛，不是匹配分。</span>
-          </Link>
-          <Link href="/tools/offer-compare" onClick={() => trackProductEvent("landing_task_clicked", { task: "offer_compare", placement: "tools" })}>
-            <strong>比较两份 offer <ArrowRight size={20} /></strong>
-            <span>把月薪、薪资月数与奖金放在一起比较。税费为估算，未知条款需确认。</span>
-          </Link>
-        </div>
-      </section>
+    <section className={styles.interviewSection} id="interview-demo" aria-labelledby="interview-heading">
+      <div className={styles.interviewCopy}><h2 id="interview-heading">不会答，<br />就从讲明白开始。</h2><p>一次一题，先理解，再用自己的话重新作答。</p><button className={styles.textAction} type="button" onClick={() => { setShowPractice(true); setPracticeSaved(false); }}>看看面试怎么练 <ArrowRight size={18} /></button></div>
+      <div className={styles.interviewConversation} aria-label="面试带练演示">
+        <span className={styles.demoLabel}>带练演示</span>
+        <p className={styles.interviewQuestion}>你如何判断一个需求值不值得做？</p>
+        <div className={styles.userLine}><User size={28} /><p>我不会。</p></div>
+        <div className={styles.coachLine}><Image src="/logo.png" alt="导师" width={36} height={36} /><p>先看谁遇到问题、发生多频繁、解决后有什么变化。<br />先从一个你做过的需求说起。</p></div>
+        {showPractice ? <form onSubmit={event => { event.preventDefault(); if (answer.trim()) setPracticeSaved(true); }} className={styles.practiceForm}>
+          <label htmlFor="demo-answer">试着说一个你做过的需求</label><div><textarea id="demo-answer" value={answer} onChange={event => { setAnswer(event.target.value); setPracticeSaved(false); }} placeholder="谁遇到了什么问题？你做了什么？" rows={2} maxLength={1000} /><button type="submit" aria-label="完成这次演示回答" disabled={!answer.trim()}><ArrowUp size={20} /></button></div>
+          <p role="status">{practiceSaved ? "演示完成。进入工作区后，导师会针对你的回答继续辅导。" : "仅在当前页面体验，不发送给 AI，不扣额度。"}</p>
+        </form> : <button type="button" className={styles.practiceInvite} onClick={() => setShowPractice(true)}><span>试着重新回答…</span><ArrowUp size={20} /></button>}
+      </div>
+    </section>
 
-      <section className={styles.compareSection} id="compare">
-        <div className={styles.sectionHeading}>
-          <h2>区别只在它运行在哪里</h2>
-          <p>两个版本使用同一套益职求职方法；模型、数据和作战盘所在地不同。</p>
-        </div>
-        <div className={styles.comparison} role="table" aria-label="网页版与 Agent 版对比">
-          <div className={`${styles.compareRow} ${styles.compareHeader}`} role="row">
-            <span role="columnheader">对比项</span>
-            <strong role="columnheader">网页版</strong>
-            <strong role="columnheader">Agent 版</strong>
-          </div>
-          {[
-            ["模型由谁提供", "益职", "你的 Agent"],
-            ["益职费用", "消耗益职额度", "益职免费"],
-            ["作战盘在哪里", "益职云端", "Agent 本地沙箱"],
-            ["材料默认在哪里", "按任务需要提交给益职", "留在当前 Agent 环境"],
-            ["适合谁", "想打开网页就用", "已有常用 Agent，更在意本地与自由度"],
-          ].map(([label, web, agent]) => (
-            <div className={styles.compareRow} role="row" key={label}>
-              <span role="cell">{label}</span>
-              <span role="cell">{web}</span>
-              <span role="cell">{agent}</span>
-            </div>
-          ))}
-        </div>
-        <p className={styles.costNote}>Agent 版的“益职免费”指益职不收取模型费；你使用的 Agent 仍按它自身套餐或额度计费。</p>
-      </section>
+    <div className={styles.midAction}><Link className={styles.primary} href={START}>开始你的第一次辅导 <ArrowRight size={18} /></Link></div>
 
-      <section className={styles.localSection} id="local-board">
-        <div className={styles.localCopy}>
-          <h2>免费版不是一组提示词。<br />它会在你的 Agent 里建起作战盘。</h2>
-          <p>安装完成后，Agent 会创建岗位机会、保存已完成产物，并返回一个只在本机可访问的作战盘链接。换一个对话，仍然可以继续同一个岗位。</p>
-          <ol className={styles.localSteps}>
-            <li><span>1</span><div><strong>复制一句话</strong><p>Agent 自己读取官网说明并识别当前宿主。</p></div></li>
-            <li><span>2</span><div><strong>安装与验证</strong><p>加载益职方法和本地作战盘工具。</p></div></li>
-            <li><span>3</span><div><strong>交给它一个真实岗位</strong><p>对话保留进度，复杂结果回到可视作战盘。</p></div></li>
-          </ol>
-          <button className={styles.copyLarge} onClick={copyAgentPrompt} type="button">
-            <Clipboard size={17} />{copyState === "copied" ? "指令已复制" : "复制安装指令"}
-          </button>
-        </div>
+    <section className={styles.questions} id="questions" aria-labelledby="questions-heading"><h2 id="questions-heading">你可能还想知道</h2><div>
+      <details><summary>还没有目标岗位，也能改简历吗？</summary><p>可以。先上传简历，把已有经历写清楚；有了目标岗位后，再做针对性调整。</p></details>
+      <details><summary>会不会改坏我原来的简历？</summary><p>上传文件的原件保持原样。修改建议单独展示，由你确认采用，再预览新成稿和导出 PDF。更新基础简历前会提示覆盖确认。</p></details>
+      <details><summary>哪些操作会消耗额度？</summary><p>这页的示例和免费工具不消耗模型额度。工作区内的 AI 修改、分析和辅导会按界面提示计费；连接 TokenPay 后按模型用量计费。保存回答与笔记免费。</p></details>
+      <details id="try-tools"><summary>想先不用登录试一试？</summary><p>可以先用<Link href="/tools/resume-jd-gap" onClick={() => trackProductEvent("landing_task_clicked", { task: "resume_gap", placement: "tools" })}>简历与岗位对照</Link>，或<Link href="/tools/offer-compare" onClick={() => trackProductEvent("landing_task_clicked", { task: "offer_compare", placement: "tools" })}>比较两份 Offer</Link>。前者是本地文字初筛，不等于完整的 AI 简历修改。</p></details>
+      <details id="compare"><summary>网页版和 Agent 版有什么区别？</summary><p>网页版直接使用益职提供的模型和云端工作区，AI 操作消耗额度。Agent 版使用你已有的 Agent 模型和本地沙箱，益职不另收模型费，但宿主模型仍按自身套餐计费；两个版本的资料默认不互相同步。</p><Link href="/agent">查看完整 Agent 使用说明 <ArrowRight size={15} /></Link>
+        <div id="local-board" className={styles.agentInstall}><label htmlFor="agent-prompt">把这句话交给你的 Agent</label><textarea id="agent-prompt" readOnly value={AGENT_PROMPT} rows={4} /><button type="button" onClick={() => void copyAgentPrompt()}><Copy size={16} />{copyState === "copied" ? "已复制" : "复制安装指令"}</button>{copyState === "error" && <p role="alert">复制受限，请在上方指令中全选并复制。</p>}</div>
+      </details>
+    </div></section>
 
-        <div className={styles.boardDemo} aria-label="益职本地作战盘示意">
-          <div className={styles.boardTopbar}>
-            <span><Image src="/logo.png" alt="" width={28} height={28} />益职</span>
-            <small><HardDrive size={13} />127.0.0.1 · 本地私密工作区</small>
-          </div>
-          <div className={styles.boardGrid}>
-            <aside>
-              <strong>岗位机会</strong>
-              <div className={styles.boardActive}><small>示例科技</small><b>AI 产品经理</b><span>准备投递</span></div>
-              <div><small>本地生活</small><b>策略产品</b><span>等待回复</span></div>
-            </aside>
-            <article>
-              <small>示例科技 · AI 产品经理</small>
-              <h3>先确认商业化结果，再决定是否投递。</h3>
-              <div className={styles.evidenceLine}><span>强证据 4</span><span>弱证据 2</span><span>待确认 1</span></div>
-              <div className={styles.artifactLine}><Sparkles size={15} /><span><strong>岗位决策卡</strong><small>已保存到本地产物</small></span></div>
-              <div className={styles.artifactLine}><Monitor size={15} /><span><strong>岗位简历 V1</strong><small>2 处待你审阅</small></span></div>
-            </article>
-            <aside className={styles.boardNext}>
-              <strong>下一步</strong>
-              <small>今天</small>
-              <b>补充一条可核实的结果指标</b>
-              <p>这会直接改变投递判断。</p>
-            </aside>
-          </div>
-          <p className={styles.demoCaption}>界面为功能示意，公司与内容均为演示数据。</p>
-        </div>
-      </section>
-
-      <section className={styles.finalSection}>
-        <h2>选好它运行在哪里，就从一个真实岗位开始。</h2>
-        <div>
-          <Link className={styles.finalWeb} href="/login?redirect=%2Fcockpit">进入网页版 <ArrowRight size={16} /></Link>
-          <button className={styles.finalAgent} onClick={copyAgentPrompt} type="button"><Copy size={16} />{copyState === "copied" ? "已复制给 Agent" : "复制免费版指令"}</button>
-        </div>
-      </section>
-
-      <footer className={styles.footer}>
-        <span>© 2026 益职 AI</span>
-        <div><Link href="/privacy">隐私说明</Link><Link href="/agent">Agent 执行说明</Link><a href="https://github.com/YE-YI7/ai-job-coach" target="_blank" rel="noreferrer">GitHub</a></div>
-      </footer>
-    </main>
-  );
+    <footer className={styles.footer}><Link className={styles.brand} href="/"><Image src="/logo.png" alt="" width={30} height={30} /><span>益职</span></Link><p>简历、面试和下一步，都能接着做。</p><nav aria-label="页脚导航"><a href="#try-tools">免费工具</a><Link href="/agent">Agent 说明</Link><Link href="/privacy">隐私说明</Link><a href="https://github.com/YE-YI7/ai-job-coach" target="_blank" rel="noopener noreferrer">GitHub</a></nav><small>© 2026 益职 AI</small></footer>
+  </main>;
 }

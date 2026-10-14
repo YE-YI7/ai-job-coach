@@ -9,9 +9,9 @@ import styles from "./CockpitApp.module.css";
 // Visual mini-previews instead of a native <select> label list (per design ask).
 // Each tile mirrors the real template: accent colour, heading rule, and typeface.
 const TEMPLATE_PREVIEWS: Record<PrintTemplate, {label:string; accent:string; serif:boolean; description:string}> = {
-  classic: {label:printTemplates.classic.label, accent:printTemplates.classic.accent, serif:true, description:"居中抬头 · 黑白分节"},
-  modern: {label:printTemplates.modern.label, accent:printTemplates.modern.accent, serif:false, description:"侧栏标题 · 蓝灰层次"},
-  warm: {label:printTemplates.warm.label, accent:printTemplates.warm.accent, serif:false, description:"暖纸底色 · 连续阅读"},
+  classic: {label:printTemplates.classic.label, accent:printTemplates.classic.accent, serif:true, description:"居中姓名 · 正文左齐"},
+  modern: {label:printTemplates.modern.label, accent:printTemplates.modern.accent, serif:false, description:"单列全宽 · 蓝灰分节"},
+  warm: {label:printTemplates.warm.label, accent:printTemplates.warm.accent, serif:false, description:"暖色标题 · 连续阅读"},
 };
 
 export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason,compact=false}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string;compact?:boolean}){

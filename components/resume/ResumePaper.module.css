@@ -1,0 +1,9 @@
+.viewer{min-width:0;width:100%}
+.viewport{width:100%;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#c7cbbf #f1f2ec}
+.paperSize{position:relative;margin-inline:auto;background:#fff;box-shadow:0 8px 28px rgba(41,40,35,.07)}
+.paper{display:block;position:absolute;inset:0;border:0;background:#fff;transform-origin:top left;max-width:none!important}
+.zoomControls{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:4px 10px;margin:10px 0}
+.zoomControls button{min-height:36px;border:0;background:transparent;color:#64675e;font:inherit;font-size:12px;padding:6px 8px;cursor:pointer;border-radius:6px}
+.zoomControls button[aria-pressed=true]{background:#e8ecde;color:#38452e}
+.zoomControls button:focus-visible{outline:2px solid #984320;outline-offset:3px}
+@media(max-width:700px){.zoomControls button{min-height:44px}}

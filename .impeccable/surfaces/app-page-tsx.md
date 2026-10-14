@@ -2,25 +2,41 @@
 version: 1
 slug: "app-page-tsx"
 primary_target: "app/page.tsx"
-related_targets: ["app/Home.module.css","app/agent/page.tsx","app/agent/AgentGuide.module.css"]
+related_targets: ["app/HomeClient.tsx","app/Home.module.css","components/resume/ResumePaper.tsx","components/resume/ResumePaper.module.css","lib/resume-print.ts"]
 ---
 
-Mode: Persuade for `/`; Read as an operational manual for `/agent`.
-Audience and job: AI-native job seekers choose between the paid hosted web runtime and the free-from-益职 local Agent runtime, then start immediately. The `/agent` reader is the user's Agent; the human remains the job seeker, never the project maintainer.
-Primary actions: hosted users enter the cloud cockpit; local users copy one execution instruction. The Agent then identifies its host, installs the right package, connects MCP, verifies a local cockpit URL, reports the result, and asks for one real job artifact.
-Proof hierarchy: first present one inseparable truth group covering who provides the model, whether 益职 charges, where job materials live by default, and where the cockpit runs. Then demonstrate that the local cockpit persists opportunities, artifacts, and the next action. Do not invent prices, metrics, customers, success rates, or testimonials.
-Chosen direction: preserve the warm-white/action-orange/guidance-blue/evidence-green world and official logo. The homepage uses a stacked two-runtime chooser: orange-paper paid hosted web above an ink local-Agent sandbox, with both primary actions visible in the first viewport. A comparison table repeats the same four proof dimensions; the local cockpit demo is explicitly labeled as demonstration data.
-Route-level visual additions: public routes keep the Noto Sans SC system stack but use oversized display type (home hero 44–72px; Agent guide hero 48–80px). The homepage may use a 20px chooser shell and 22px hero-logo radius, with 7–12px internal controls; the Agent guide keeps rule boxes and reading sections square or minimally rounded. The ink Agent plane and these larger scales are local contrast and hierarchy devices, not replacements for cockpit tokens.
-Responsive behavior: below 1050px the homepage becomes a single reading column; below 720px the chooser stays web-first/Agent-second and both actions become full width. Below 760px the Agent guide drops the sticky rail and keeps the five execution steps in document order.
-Constraints: the hosted web version remains independently usable. The local version is Skills + MCP + a visual cockpit, not a prompt pack; “益职免费” never implies the Agent host is free. Preserve keyboard focus, reduced-motion behavior, explicit status labels, and the human's authority over facts and irreversible actions.
-Memorable moment: a free, local resume/JD check is reachable before login; the existing stacked runtime chooser retains its cost and data boundaries.
+Mode: Persuade for `/`. `/agent` keeps its independent execution manual unchanged.
 
-## Direction contract
+## 2026-10-14 selected surface: 成品主舞台
 
-THESIS: Add a concrete first-result path without replacing the established homepage or career features.
-OWN-WORLD: Preserve warm paper, ink and sparse action orange; new links use typography and hairlines, no new card system.
-STORY: Try a real public tool before choosing hosted or local Agent coaching. Browsing a sample is not counted as use.
-FIRST VIEWPORT: Keep the two existing hero columns; a prominent resume-check link and privacy/cost line join the left column. Offer comparison is in the following task section.
-FORM: Narrow code-led extension, inherited seed yi-zhi-home-two-runtime-20260814; no new world selection.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
-Unresolved decisions: none for this finished slice; cross-runtime data synchronization remains outside this route contract.
+Approval: user explicitly selected the second displayed image: `/Users/yi/.codex/generated_images/019ff5a3-9056-7d43-8699-0111f7f80204/exec-43431c3b-8bef-4cfc-bf91-8ac04cd40a32.png` (977 × 1610). Seed 14328570, dealt candidates 3/5/6; selected display position 2, candidate 5, 成品主舞台. This replaces the previous homepage runtime chooser, not the Agent guide or the cockpit's other workflows. Git retains the superseded contract; it is not a current homepage requirement.
+
+THESIS: Show a complete, readable résumé and one concrete mentor-assisted revision before asking the visitor to register.
+OWN-WORLD: Near-white page, ink typography, restrained orange actions, quiet light-gray product stage, official YiZhi logo. No invented illustration, success rates, customers, or ornamental icon wall.
+STORY: Understand the service → compare the fictional original with a concrete suggestion → optionally adopt one sentence or preview PDF → see the interview explain-and-reanswer mechanism → enter the workspace. Existing free tools and local Agent installation remain reachable in FAQ and footer.
+FIRST VIEWPORT: Centered “你的 AI 求职导师” above a dark primary action and a text link; the product stage pairs one full paper résumé with one explanation. Original, suggestion, and PDF remain separate controls. Show the mechanism before lower-page interview practice and FAQ; do not restore the old two-runtime hero.
+FORM: Surface seed 14328570, selected option 2 / 成品主舞台. The approved image is the visual target. A4 must be complete rather than cropped to the concept's paper window; all demonstration data must be clearly fictional. No false cloud-save status for a local demo.
+Signature interaction: adopting the single suggestion changes exactly that sentence in the shared document renderer, while switching to original restores the unchanged source. PDF uses the same document body and type geometry. Mobile stacks paper above the suggestion. Transitions are restrained and honor reduced motion.
+User constraints: never re-typeset the uploaded original, never mutate old interview answers, never force a JD for general résumé revision, preserve old capabilities, verify actual browser and written PDF rather than only tests.
+Implementation: `ResumePaper` renders the fixed 210mm paper via the same `resumePrintHtml` as exports; container resizing scales the paper instead of reflowing its paragraphs. Product final has fit-width and 100% reading controls.
+
+## Implemented composition
+
+- Desktop: shared content width is at most 1280px with 56px side gutters. Header is 80px tall; hero padding is 56px 24px 44px. The title uses the actual `clamp(48px, 6.14vw, 80px)`, weight 400, line-height 1.25; at 977px it resolves to approximately 60px. At 761–1100px the hero padding is 40px 24px 28px and the same 56px side gutters remain.
+- Product stage: quiet gray-green surface, 12px corners and one subtle shadow. A toolbar sits above paper and mentor. Desktop columns are 1.16fr / .84fr, gap 32px, with 36px left and 24px right inset; at 1100px and below the gap and horizontal insets are 24px. The paper remains a complete sheet with its intended whitespace, not a cropped preview window.
+- Mobile at 760px and below: 18px page gutters, 78px header, hidden middle navigation, 38px / 1.3 title. The stage stacks paper before the mentor, uses 14px horizontal insets and wraps its toolbar. Reading controls remain outside the document, offer 100% reading, and can scroll the fixed paper horizontally.
+- Story continuation: interview explanation and re-answer demonstration, then one workspace action, then a hairline-separated FAQ and footer. Free résumé/JD and Offer tools, Agent instructions, privacy and GitHub remain reachable; they are not removed to simplify the new hero.
+
+## Document and interaction boundary
+
+- The fictional landing sample is text, not a user-uploaded file. “查看原件” returns its unchanged source; real uploaded originals must display the original file without this renderer re-typesetting them.
+- New text final and PDF share `resumePrintHtml`: A4 width 210mm, minimum height 297mm, 12mm inset, 10.5pt / 1.48 body, 22pt name, 12pt role and paired right-aligned dates. A narrow rail scales the sheet rather than changing its line breaks. Long content remains complete and paginates.
+- Adopting or withdrawing the landing suggestion changes exactly one sentence. The demonstration can highlight and locate that sentence; formal final/PDF output does not inherit the demonstration highlight. Fit-page and 100% reading are real controls, not decoration.
+- Landing interactions do not read an account, invoke a model, spend credits, store a résumé, or report a cloud save. The interview trial is current-page practice, not a persisted interview session; old interview answers remain untouched.
+- The hosted web version remains independently usable. Agent version uses the user's existing Agent model and local sandbox; 益职 does not separately charge its model fee, but the host retains its own billing. Versions do not sync by default. `/agent` is read by the Agent, which installs, connects and verifies the local visual cockpit; the human stays the job seeker.
+
+## Documentation evidence and limits
+
+Checked against current `app/Home.module.css`, `components/resume/ResumePaper.module.css`, `lib/resume-print.ts`, the shared component call path, and the opened local full-page captures `/tmp/yizhi-home-desktop-final.png` (1440 × 3100) and `/tmp/yizhi-home-mobile-final.png` (390 × 3700). These captures establish the local rendered composition, not production deployment or the full authenticated workflow.
+
+Review, browser/PDF evidence and the honest comp-process gap are recorded in `docs/product/2026-10-14-option2-release-review.md`. Documentation does not retroactively assert a pre-implementation comp gate, numeric fidelity score, quality-bar approval or production acceptance. The user approved the displayed direction and requested no new design workshop before release.

@@ -1,49 +1,50 @@
-# Design QA — 导师作战桌
-
-- Source visual truth: `/Users/yi/.codex/generated_images/019ff5a3-9056-7d43-8699-0111f7f80204/exec-b4e29d21-e725-4f9e-a701-77cf15ee4bbc.png`
-- Implementation screenshot: `/Users/yi/Documents/Codex/2026-07-13/github-plugin-github-openai-curated-remote/me/ai-job-coach/.artifacts/today-coach-implementation-final.png`
-- Side-by-side comparison: `/Users/yi/Documents/Codex/2026-07-13/github-plugin-github-openai-curated-remote/me/ai-job-coach/.artifacts/today-coach-comparison-final.png`
-- Source pixels: 1487 × 1058
-- Implementation pixels: 1274 × 864
-- Browser CSS viewport: 1280 × 720; device pixel ratio: 2
-- Density normalization: both captures scaled proportionally into equal 744 × 529 comparison frames with white padding; no cropping or stretching
-- State: authenticated demo workspace, 今日首页, 字节跳动 AI 产品经理 selected
-
-## Findings
-
-- No actionable P0/P1/P2 differences remain.
-- Typography: the implementation preserves the source's serif editorial hero and sans-serif interface hierarchy. Weight, wrapping, line height, and optical contrast remain legible at the available laptop viewport.
-- Spacing and layout: top capture bar, left navigation, single mentor action, evidence row, cost rail, and stage strip retain the source proportions and reading order. The compact 1280 × 720 viewport scrolls the supporting “导师已替你完成” row below the fold; this is an acceptable P3 responsive difference because the primary action and stage context remain fully visible.
-- Colors and tokens: warm paper, ink, action orange, guidance blue, verified green, and fine warm-gray dividers match the source direction. Shadows remain restrained.
-- Image quality and assets: the supplied production `logo.png` is used directly. Opportunity markers use the chosen Phosphor UI icon family rather than fake company marks or CSS drawings.
-- Copy and content: proactive mentor language, provenance, confidence, time estimate, paid-credit action, free consistency check, correction, reminder, and job-stage context match the selected concept.
-
-## Comparison History
-
-### Iteration 1
-
-- [P1] Demo state loaded old browser opportunities, making the selected recommendation and rail disagree.
-  - Fix: demo mode now ignores live/local persisted opportunities and always renders a clean deterministic dataset.
-- [P2] Three active opportunities did not remain scannable in the shorter laptop viewport.
-  - Fix: reduced opportunity-row height and padding while preserving role, status, and deadline.
-- Post-fix evidence: `today-coach-comparison-final.png` shows a clean three-opportunity rail, aligned active job, matching hero recommendation, and visible stage strip.
-
-## Focused Region Evidence
-
-No separate crop was required: after normalization, the full comparison keeps the primary action, provenance chips, quota treatment, and stage controls readable. Core interactions were verified in the browser rather than judged from the screenshot alone.
-
-## Interaction and Runtime Checks
-
-- “开始补强 · 预计 2 额度” opens the selected job's resume workspace.
-- “返回今日” restores the mentor-led homepage.
-- Upload/material capture opens the existing opportunity intake and Cancel returns to Today.
-- “查看额度规则” explains free tracking versus paid model-heavy actions.
-- Fresh browser run reported no console errors.
-- Targeted ESLint and TypeScript checks passed. The repository-wide lint command remains red because of pre-existing unrelated legacy violations.
-
-## Follow-up Polish
-
-- [P3] At 1280 × 720, the completed passive-work row requires one scroll; consider a condensed laptop-only variant after product feedback.
-- User-authorized copy refinement: the AI-sounding hero preamble was replaced with `今日 ToDo` plus a dynamic unfinished-task count. Verified capture: `.artifacts/today-todo-copy-update.png`.
+# 方案二落地对照检查
 
 final result: passed
+
+范围：2026-10-14 用户选择的第二张首页方案，以及首页与真实成稿共用的 A4 画布；不是全站、所有真实简历、所有 AI 改稿的签收。
+
+## 视觉真源与比较口径
+
+- 用户原话：“2 吧，你看你 2 里面这个简历展示就是对的，但是为什么你产品里做不出来呢”。
+- 选图：`/Users/yi/.codex/generated_images/019ff5a3-9056-7d43-8699-0111f7f80204/exec-43431c3b-8bef-4cfc-bf91-8ac04cd40a32.png`，实际 977×1610 px。
+- 同视口实现：`/tmp/yizhi-home-at-comp.png`，977×1610，Chrome 固定视口、顶部、非 full-page；没有把全长页面缩成同高再比较。
+- 联合图：`/tmp/yizhi-option2-matched-viewport.png`，1954×1610，左选图右实现；同像素密度、无浏览器边框。
+- 桌面全页：`/tmp/yizhi-home-desktop-final.png`，1440×3100；移动全页：`/tmp/yizhi-home-mobile-final.png`，390×3700。使用足够高的固定截图而非不稳定的动态 full-page 长度；两者已打开确认包含顶部与完整页脚。多余白底不代表真实手机视口强制留白。
+- 重点纸面：初轮 `/tmp/yizhi-option2-document-comparison.png`；修正后 `/tmp/yizhi-home-highlight-read.png`（1280×900、采用并定位后的100%阅读局部）。PDF 是实际保存的 `/tmp/yizhi-option2-final-20261014.pdf`，不是截图或打印对话框。
+
+## 比较历史与修正
+
+1. 首轮有四项 P2：身份层级弱且日期落到下一行；缩略纸面不可放大；建议与纸面原句无同位关联；977px 下标题约46px、舞台y约503。
+2. 一批修正：共用正文 renderer 的角色12pt、姓名22pt、日期与条目信息同排右齐；固定 A4 + 适合整页/100%/定位；纯背景 mark 显示原句/改句并有文字状态；977px标题约60px、舞台y约418，对照源约413。
+3. 同路径复拍后，独立 reviewer 给出 `disposition: ship`；只评分原四项，均 resolved，无本批布局回归。没有以此宣称全站无问题。首次两张捕获曾截断页脚/尺寸不匹配，已废弃该轮结论并补正确捕获。
+
+## 五项必查表面
+
+- 字体：中文直立无衬线，常规字重；姓名、角色、章节、机构/项目、时间、正文分层；正文10.5pt/1.48。正文左齐，只有经典模板姓名居中；不使用描边伪粗或中文负字距。
+- 空间：公开页仍是标题→真实纸张/建议双栏→带练→FAQ；完整 A4 不因侧栏窄而重排。移动单栏，放大不改变内部793.695 CSS px纸宽。
+- 颜色：近白底、墨色正文、低占比橙、浅灰绿舞台；绿色仅标建议/状态。白纸不加假材质。人工检查未见本轮可读性阻断；不宣称跑过全站逐元素双截图对比度工具。
+- 图像：官方既有 logo；无新增装饰图、占位插画、SVG画简历或整页截图代替实现。纸面是可选择文字，字体/链接/分页由真实 HTML 渲染。
+- 文案：完全虚构大学/公司/姓名，不捏造实际客户与结果；本地互动不说云端已保存；费用与 Agent/网页边界保留。
+
+## 实际交互与技术核验
+
+- Chrome：采用→mark为新句；查看原件→原句保留；撤回→原句恢复；100%/定位/适合整页；面试演示输入与本地反馈；PDF打开与实际保存。
+- 实际产品预览：三模板、固定内部纸宽、正文与尾部技能保留；不修改账号原件或旧面试答案。
+- 控制台 error 0；红色徽标是 Next 开发模式 issue，生产不应出现。
+- 全套 212 suites / 2107 tests 通过，4 suites / 7 tests 显式跳过；类型/lint通过，构建与正式回读见发布记录。
+
+## 可接受适配与边界
+
+- 选图的白纸是裁切窗口；实现遵守用户完整一页要求显示整张 A4，因此舞台总高度比概念图高，不靠删正文硬凑总高度。
+- 虚构资料替代概念中未经证实的名校/业绩；假“已保存”改诚实演示反馈；为保留原功能，FAQ和Agent入口仍在。
+- Impeccable 数字状态机启动晚，spec/diff门禁不完整；本次是实际截图、浏览器交互与独立定性复核，不声明像素级门禁通过。用户已明确设计技能不得阻塞开发和发布；过程缺口如实留存。
+- 原件上传/替换取消确认/真实无JD模型改稿/账号级保存刷新不是本页公开演示的证据，继续按各自验收记录，不扩大签收。
+
+## 收尾清单
+
+- [x] 对照与四项修正复核
+- [x] 原件/新成稿/导出同源边界
+- [x] 实际 Chrome PDF 文件写出
+- [x] 原有免费工具/Agent/登录路径保留
+- [ ] 正式发布与正式站回读（发布后补到 release review）

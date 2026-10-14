@@ -160,7 +160,7 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
         let boundary = identity ? 1 : 0;
         while (boundary > 0 && boundary < group.length) {
           const line = stripResumeMarkdown(group[boundary]);
-          if (line.length > 160 || !/^(?:电话|手机|邮箱|邮件|Email|GitHub|作品集|个人网站|地址|求职意向)\s*[:：]|^[\w.+-]+@[\w.-]+\.[a-z]+$|^https?:\/\/\S+$|^\+?\d[\d\s()-]{6,}$/i.test(line)) break;
+          if (line.length > 160 || !/^(?:电话|手机|邮箱|邮件|Email|GitHub|作品集|个人网站|地址|求职意向|求职方向)\s*[:：]|^[\w.+-]+@[\w.-]+\.[a-z]+$|^https?:\/\/\S+$|^\+?\d[\d\s()-]{6,}$/i.test(line)) break;
           boundary++;
         }
         if (boundary) blocks.push({ id: `header-${blocks.length}`, kind: "header", title: entryTitle(group[0]), lines: group.slice(0,boundary), changeIds: [], heading: null });

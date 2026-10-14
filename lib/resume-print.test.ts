@@ -1,4 +1,46 @@
 import {resumePrintHtml,printTemplates,renderResumePrintWindow} from "./resume-print";
+import {DEMO_AFTER,DEMO_BEFORE,LANDING_RESUME} from "./landing-demo";
+import {splitResumeBlocks} from "./opportunities/resume-blocks";
+
+test("landing and product keep A4 line wrapping, not a narrow-container text reflow",()=>{
+ const html=resumePrintHtml(LANDING_RESUME,"modern","示例",{toolbar:false});
+ expect(html).toContain("width:210mm;min-height:297mm;padding:12mm");
+ expect(html).not.toContain("max-width:600px");
+ expect(html).toContain("@media print");
+ expect(html).toContain("padding:0;width:auto;min-height:0");
+ const identity=splitResumeBlocks(LANDING_RESUME)[0];
+ expect(identity.kind).toBe("header");
+ expect(identity.lines).toEqual(["陈晓","求职方向：AI 产品经理","邮箱：chenxiao@example.com"]);
+});
+test("demonstration adoption changes only the explicit sentence and original stays available",()=>{
+ const changed=LANDING_RESUME.replace(DEMO_BEFORE,DEMO_AFTER);
+ expect(LANDING_RESUME).toContain(DEMO_BEFORE);
+ expect(changed).toContain(DEMO_AFTER);
+ expect(changed).not.toContain(DEMO_BEFORE);
+ for(const template of Object.keys(printTemplates) as (keyof typeof printTemplates)[]){
+  const html=resumePrintHtml(changed,template,"示例");
+  expect(html).toContain(DEMO_AFTER);
+  expect(html).toContain("需求访谈、流程设计、原型设计、产品验收");
+ }
+});
+test("identity hierarchy and paired dates preserve content without narrow columns",()=>{
+ const html=resumePrintHtml(LANDING_RESUME,"modern","示例",{toolbar:false});
+ expect(html).toContain('class="resume-role">求职方向：AI 产品经理');
+ expect(html).toContain('<span>示例大学 · 计算机科学与技术 · 本科</span><time>2019.09 — 2023.06</time>');
+ expect(html).toContain('<h3 class="resume-entry"><span>智能客服工作台</span><time>2024.01 — 2024.06</time>');
+ expect(html).toContain("justify-content:space-between");
+ expect(html).toContain("需求访谈、流程设计、原型设计、产品验收");
+});
+test("visual evidence highlight changes no source text and is absent from exported document",()=>{
+ const preview=resumePrintHtml(LANDING_RESUME,"modern","示例",{toolbar:false,highlight:DEMO_BEFORE});
+ expect(preview).toContain(`<mark data-resume-highlight>${DEMO_BEFORE}</mark>`);
+ expect(preview).not.toContain(DEMO_AFTER);
+ const adopted=resumePrintHtml(LANDING_RESUME.replace(DEMO_BEFORE,DEMO_AFTER),"modern","示例",{toolbar:false,highlight:DEMO_AFTER});
+ expect(adopted).toContain(`<mark data-resume-highlight>${DEMO_AFTER}</mark>`);
+ const pdf=resumePrintHtml(LANDING_RESUME,"modern","示例");
+ expect(pdf).not.toContain("<mark");
+ expect(pdf).toContain(DEMO_BEFORE);
+});
 test("inline final view and PDF use the same document body",()=>{
  const final=resumePrintHtml("张三\n\n## 项目\n保留没有上线的限定。","classic","成稿",{toolbar:false});
  const pdf=resumePrintHtml("张三\n\n## 项目\n保留没有上线的限定。","classic","成稿");

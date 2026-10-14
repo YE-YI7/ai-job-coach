@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-14T14:40:17+08:00",
+  "generatedAt": "2026-10-14T14:03:29+08:00",
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
@@ -11,22 +11,55 @@
       "action-orange": { "role": "primary", "displayName": "行动橙", "canonical": "#eb6b2b", "tonalRamp": ["#fff0e7", "#eb6b2b", "#c94f17"] },
       "guidance-blue": { "role": "secondary", "displayName": "引导蓝", "canonical": "#536fe8", "tonalRamp": ["#eef1ff", "#536fe8", "#4057b7"] },
       "evidence-green": { "role": "tertiary", "displayName": "证据绿", "canonical": "#2d8a61", "tonalRamp": ["#eaf6ef", "#2d8a61", "#1f6848"] },
-      "ink": { "role": "neutral", "displayName": "清醒墨色", "canonical": "#24272f", "tonalRamp": ["#fbfaf8", "#69707d", "#24272f"] }
+      "ink": { "role": "neutral", "displayName": "清醒墨色", "canonical": "#24272f", "tonalRamp": ["#fbfaf8", "#69707d", "#24272f"] },
+      "home-canvas": { "role": "neutral", "displayName": "首页近白底" },
+      "home-stage": { "role": "neutral", "displayName": "安静产品表面" },
+      "home-stage-line": { "role": "neutral", "displayName": "产品表面边界" },
+      "home-ink": { "role": "neutral", "displayName": "首页文墨与主动作" },
+      "home-ink-hover": { "role": "neutral", "displayName": "墨色动作悬停" },
+      "home-muted": { "role": "neutral", "displayName": "首页说明灰" },
+      "home-line": { "role": "neutral", "displayName": "首页细分隔" },
+      "home-accent": { "role": "primary", "displayName": "首页克制橙" },
+      "home-header-action": { "role": "primary", "displayName": "导航开始橙" },
+      "home-mentor-paper": { "role": "neutral", "displayName": "导师话语纸色" },
+      "home-suggestion": { "role": "neutral", "displayName": "建议白纸" },
+      "home-revision": { "role": "tertiary", "displayName": "建议单句标记" },
+      "paper-modern-accent": { "role": "secondary", "displayName": "成稿蓝灰标题" },
+      "paper-rule": { "role": "neutral", "displayName": "成稿细分隔" },
+      "paper-contact": { "role": "neutral", "displayName": "成稿联系方式" },
+      "paper-date": { "role": "neutral", "displayName": "成稿右侧日期" },
+      "paper-highlight": { "role": "tertiary", "displayName": "演示修订定位" }
     },
     "typographyMeta": {
       "display": { "displayName": "岗位标题", "purpose": "当前机会的唯一一级标题。" },
-      "body": { "displayName": "工作台正文", "purpose": "证据、解释和行动原因。" }
+      "body": { "displayName": "工作台正文", "purpose": "证据、解释和行动原因。" },
+      "home-display": { "displayName": "首页常规字重标题", "purpose": "公开首页的局部显示尺度，不沿用旧重标题。" },
+      "home-display-mobile": { "displayName": "移动首页标题", "purpose": "760px 及以下首页标题。" },
+      "home-body": { "displayName": "首页建议正文", "purpose": "具体修改建议与解释。" },
+      "home-action": { "displayName": "首页主动作", "purpose": "墨色开始动作。" },
+      "resume-paper-body": { "displayName": "A4 成稿正文", "purpose": "无衬线成稿与 PDF 共用的纸上正文。" },
+      "resume-paper-name": { "displayName": "成稿姓名", "purpose": "完整身份区的首要文字。" },
+      "resume-paper-role": { "displayName": "成稿求职方向", "purpose": "姓名后的明确方向。" },
+      "resume-paper-section": { "displayName": "成稿分节", "purpose": "带细分隔线的章节标题。" },
+      "resume-paper-contact": { "displayName": "成稿联系与日期", "purpose": "联系方式和条目右侧日期。" }
     },
     "shadows": [
-      { "name": "mobile-drawer", "value": "18px 0 45px rgba(36, 39, 47, 0.14)", "purpose": "只用于移动端抽屉与内容层分离。" }
+      { "name": "mobile-drawer", "value": "18px 0 45px rgba(36, 39, 47, 0.14)", "purpose": "只用于移动端抽屉与内容层分离。" },
+      { "name": "home-stage", "value": "0 20px 55px -34px rgba(41,40,35,.24)", "purpose": "首页产品表面的低强度环境层次。" },
+      { "name": "resume-paper-frame", "value": "0 8px 28px rgba(41,40,35,.07)", "purpose": "固定纸张外框与屏幕环境分离。" },
+      { "name": "resume-paper-screen", "value": "0 8px 28px rgba(41,40,35,.06)", "purpose": "共用文档 HTML 的屏幕阴影；打印关闭。" }
     ],
     "motion": [
-      { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" }
+      { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" },
+      { "name": "home-action", "value": "background-color 150ms ease", "purpose": "首页墨色主动作的悬停反馈；减少动态效果时关闭。" }
     ],
     "breakpoints": [
       { "name": "mobile", "value": "640px" },
       { "name": "drawer", "value": "900px" },
-      { "name": "compact-desktop", "value": "1120px" }
+      { "name": "compact-desktop", "value": "1120px" },
+      { "name": "home-mobile", "value": "760px" },
+      { "name": "home-compact", "value": "1100px" },
+      { "name": "paper-touch-controls", "value": "700px" }
     ]
   },
   "components": [
@@ -62,24 +95,47 @@
       "css": ".ds-input { height: 39px; padding: 0 12px; border: 1px solid #e7e5e1; border-radius: 11px; background: #fff; color: #24272f; font: 400 12px system-ui, sans-serif; } .ds-input:focus-visible { outline: 3px solid rgba(235,107,43,.28); outline-offset: 2px; }"
     },
     {
-      "name": "Two-runtime Chooser",
+      "name": "Homepage Ink Action",
+      "kind": "button",
+      "refersTo": "home-button-primary",
+      "description": "首页主动作使用墨色，导航开始动作另保留橙色。",
+      "html": "<a class=\"ds-home-action\" href=\"#start\">开始使用益职 <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\"><path d=\"M4 12h15m-6-6 6 6-6 6\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg></a>",
+      "css": ".ds-home-action { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 23px; padding: 13px 26px; border-radius: 9px; background: #292823; color: #fff; text-decoration: none; font: 500 16px 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; transition: background-color 150ms ease; } .ds-home-action:hover { background: #45443c; } .ds-home-action:focus-visible { outline: 2px solid #984320; outline-offset: 5px; } @media(max-width:760px) { .ds-home-action { font-size: 14px; padding: 12px 20px; gap: 16px; } } @media(prefers-reduced-motion:reduce) { .ds-home-action { transition: none; } }"
+    },
+    {
+      "name": "Mentor Suggestion",
+      "kind": "card",
+      "refersTo": "home-suggestion",
+      "description": "解释单句修改，同时明确未确认数字不代填。",
+      "html": "<section class=\"ds-suggestion\"><h3>修改建议</h3><p class=\"ds-revised\">梳理高频客服问题，设计工单分流流程并跟进上线。</p><p>这句话具体说明了你的工作内容、方法和推进动作。</p><div class=\"ds-suggestion-detail\"><h4>可以补充（如有）</h4><ul><li>覆盖的客服场景或问题类型</li><li>上线后的实际效果</li></ul><span>没有确认的数字，不替你添加。</span></div><button class=\"ds-adopt\">试试采用这条修改 <span aria-hidden=\"true\">→</span></button></section>",
+      "css": ".ds-suggestion { background: #fdfdf9; color: #292823; border-radius: 12px; padding: 22px; font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; } .ds-suggestion h3 { margin: 0 0 12px; color: #426347; font-size: 13px; font-weight: 500; } .ds-suggestion > p { font-size: 14px; line-height: 1.85; margin: 0 0 18px; } .ds-suggestion .ds-revised { padding: 6px 9px; background: #e6f0e1; border-radius: 4px; color: #344a34; } .ds-suggestion-detail { border-top: 1px solid #dfdfd7; padding-top: 16px; } .ds-suggestion-detail h4 { margin: 0; font-size: 13px; font-weight: 500; } .ds-suggestion-detail ul { padding-left: 19px; margin: 12px 0; font-size: 13px; line-height: 1.9; } .ds-suggestion-detail > span { font-size: 12px; color: #62645d; } .ds-adopt { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; min-height: 44px; padding: 12px 0 0; margin-top: 12px; border: 0; background: transparent; color: #ad4b29; font: 13px 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; cursor: pointer; text-align: left; } .ds-adopt:hover { text-decoration: underline; text-underline-offset: 4px; } .ds-adopt:focus-visible { outline: 2px solid #984320; outline-offset: 5px; }"
+    },
+    {
+      "name": "Resume Paper",
       "kind": "custom",
-      "description": "首页专用的连续运行时选择表面；托管网页与本地 Agent 共享一组真实边界事实。",
-      "html": "<section class=\"ds-runtime\"><div class=\"ds-runtime-web\"><strong>网页端直接使用</strong><span>付费 · 益职模型 · 云端作战盘</span><button>进入网页版</button></div><div class=\"ds-runtime-agent\"><strong>在我的 Agent 中使用</strong><span>益职免费 · 你的 Agent · 本地沙箱</span><button>复制给我的 Agent</button></div></section>",
-      "css": ".ds-runtime { overflow: hidden; border: 1px solid #d8d2c9; border-radius: 20px; background: #fff; color: #24272f; font-family: system-ui, sans-serif; box-shadow: 0 24px 60px rgba(51,45,39,.11); } .ds-runtime > div { padding: 24px; display: grid; gap: 10px; } .ds-runtime strong { font-size: 18px; letter-spacing: -.02em; } .ds-runtime span { font-size: 11px; line-height: 1.6; } .ds-runtime button { width: fit-content; min-height: 38px; padding: 0 12px; border: 0; border-radius: 10px; font: 800 10px system-ui, sans-serif; cursor: pointer; } .ds-runtime button:focus-visible { outline: 3px solid rgba(233,103,45,.3); outline-offset: 3px; } .ds-runtime-web { background: #fff0e7; } .ds-runtime-web span { color: #70635b; } .ds-runtime-web button { background: #e9672d; color: #fff; } .ds-runtime-web button:hover { background: #d95a22; } .ds-runtime-agent { background: #24272f; color: #fff; } .ds-runtime-agent span { color: #c1c5ce; } .ds-runtime-agent button { background: #fff; color: #24272f; } .ds-runtime-agent button:hover { background: #f2f0ec; }"
+      "refersTo": "resume-paper",
+      "description": "简洁蓝灰的固定 A4 文档样本；真实组件缩放整张纸，不按窄栏重排，文字成稿和 PDF 共用渲染器。",
+      "html": "<div class=\"ds-paper-viewport\"><article class=\"ds-paper\"><header><p class=\"ds-paper-name\">陈晓</p><p class=\"ds-paper-role\">求职方向：AI 产品经理</p><p class=\"ds-paper-contact\">邮箱：chenxiao@example.com</p></header><section><h2>项目经历</h2><p class=\"ds-paper-entry\"><span>智能客服工作台</span><time>2024.01 — 2024.06</time></p><p>梳理高频客服问题，设计工单分流流程并跟进上线。</p></section></article></div>",
+      "css": ".ds-paper-viewport { width: 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #c7cbbf #f1f2ec; } .ds-paper { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 12mm; margin: 0 auto; background: #fff; color: #292823; font: 10.5pt/1.48 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; box-shadow: 0 8px 28px rgba(41,40,35,.07); } .ds-paper header { border-bottom: 1px solid #dcded7; padding-bottom: 12px; margin-bottom: 8px; } .ds-paper p { white-space: pre-wrap; margin: 0 0 5px; } .ds-paper .ds-paper-name { font-size: 22pt; line-height: 1.35; font-weight: 600; margin-bottom: 7px; } .ds-paper .ds-paper-role { font-size: 12pt; font-weight: 600; margin-bottom: 7px; } .ds-paper .ds-paper-contact { font-size: 9.5pt; color: #555750; } .ds-paper section { padding: 6px 0; text-align: left; } .ds-paper h2 { color: #365571; margin: 6px 0 7px; padding: 0; border-bottom: 1px solid #dcded7; font-size: 11.5pt; font-weight: 600; break-after: avoid; } .ds-paper-entry { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; font-weight: 600; break-after: avoid; } .ds-paper-entry > span { min-width: 0; } .ds-paper-entry time { font-size: 9.5pt; font-weight: 400; white-space: nowrap; color: #61635c; } @media print { .ds-paper { margin: 0; padding: 0; width: auto; min-height: 0; box-shadow: none; } }"
+    },
+    {
+      "name": "Resume Reading Controls",
+      "kind": "custom",
+      "description": "实际文档的整页与 100% 阅读选择；定位按钮只在演示高亮存在时出现。",
+      "html": "<div class=\"ds-paper-zoom\" role=\"group\" aria-label=\"简历阅读大小\"><button aria-pressed=\"true\">适合整页</button><button aria-pressed=\"false\">放大阅读 · 100%</button><button>定位这处修改</button></div>",
+      "css": ".ds-paper-zoom { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px 10px; margin: 10px 0; font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif; } .ds-paper-zoom button { min-height: 36px; border: 0; background: transparent; color: #64675e; font: inherit; font-size: 12px; padding: 6px 8px; cursor: pointer; border-radius: 6px; } .ds-paper-zoom button[aria-pressed=true] { background: #e8ecde; color: #38452e; } .ds-paper-zoom button:focus-visible { outline: 2px solid #984320; outline-offset: 3px; } @media(max-width:700px) { .ds-paper-zoom button { min-height: 44px; } }"
     }
   ],
   "narrative": {
     "northStar": "温暖的求职作战桌",
-    "overview": "益职不是营销落地页，也不是游戏化闯关。它像一张整理有序、持续更新的求职作战桌：暖白环境降低压力，橙色只推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。",
-    "keyCharacteristics": ["暖白底、白色工作表面、深色正文。", "橙色负责行动，蓝绿负责信息和证据语义。", "中等圆角、细边界、克制阴影。", "岗位机会是所有页面和状态的主线。", "公开首页与执行手册可以扩大字号、拉开明暗对比，但不得改变颜色语义或工作台的证据优先级。"],
+    "overview": "益职的工作区像一张整理有序、持续更新的求职作战桌，而不是游戏化闯关：暖白环境降低压力，橙色只推动关键行动，蓝色提示 Agent 判断，绿色表达已确认的证据。\n\n界面保持亲和但不幼态。复杂信息主要依靠连续的阅读顺序、细边界和稳定网格组织，而不是大面积渐变、装饰光斑或堆叠阴影。\n\n2026-10-14 的局部更新覆盖公开首页和简历成稿纸张：近白环境、墨色主动作、克制橙色与真实文档几何。下方 `home-*`、`paper-*` 与 `resume-paper-*` 是当前实现的局部令牌；既有工作台与 Agent 手册规范继续保留。首页构图和选图记录只归对应 surface brief 管理。",
+    "keyCharacteristics": ["暖白底、白色工作表面、深色正文。", "橙色负责行动，蓝绿负责信息和证据语义。", "中等圆角、细边界、克制阴影。", "岗位机会是所有页面和状态的主线。", "公开首页与执行手册可以扩大字号、拉开明暗对比，但不得改变颜色语义或工作台的证据优先级。", "简历成稿保持真实纸张的字宽、行高与留白，缩放不触发正文重排。"],
     "rules": [
-      { "name": "Sparse Accent", "body": "橙色只服务当前行动和关键结论。", "section": "colors" },
+      { "name": "Sparse Accent", "body": "橙色只服务当前行动和关键结论，不铺满页面。", "section": "colors" },
       { "name": "Semantic Continuity", "body": "公开路由可以调节同一色族的明度与对比，但橙、蓝、绿仍分别只表达行动、引导与证据。", "section": "colors" },
-      { "name": "Route Intent", "body": "大字号只属于需要先说服或建立执行上下文的公开路由；进入作战盘后回到紧凑、可扫描的信息尺度。", "section": "typography" },
-      { "name": "Border First", "body": "常规内容优先使用表面色差和 1px 边界，不默认加阴影。", "section": "elevation" }
+      { "name": "Route Intent", "body": "大字号只属于需要先说服或建立执行上下文的公开路由；进入作战盘后回到紧凑、可扫描的信息尺度。", "section": "typography" }
     ],
-    "dos": ["让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。", "用暖白表面、细边界和稳定留白组织高密度信息。", "为演示数据、待确认事实和真实用户数据提供清晰标签。", "在首页把模型提供方、益职费用、材料位置和作战盘位置作为完整证据组呈现。", "让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。"],
-    "donts": ["使用大面积彩色渐变、光斑或营销式玻璃效果。", "用游戏关卡、虚假精确分数或夸张成功率制造激励。", "把每个信息块都做成带阴影的卡片，也不要嵌套卡片。", "把首页的墨色运行时平面或超大标题无条件带入高密度作战盘。", "把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。"]
+    "dos": ["让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。", "用暖白表面、细边界和稳定留白组织高密度信息。", "为演示数据、待确认事实和真实用户数据提供清晰标签。", "在版本说明中清楚交代模型提供方、益职费用、材料位置和作战盘位置。", "让 Agent 执行手册把用户保持在求职者角色，由读取页面的 Agent 承担安装、接通和验证。", "让文字成稿与 PDF 共用文档渲染器，完整保留正文和尾部。"],
+    "donts": ["使用大面积彩色渐变、光斑或营销式玻璃效果。", "用游戏关卡、虚假精确分数或夸张成功率制造激励。", "把每个信息块都做成带阴影的卡片，也不要嵌套卡片。", "把公开首页的大标题或局部产品表面无条件带入高密度作战盘。", "把“益职免费”写成 Agent 宿主免费，也不要补写未经确认的价格、指标或用户背书。", "重新排版上传原件、把演示状态说成云端已保存，或用窄栏重新折行代替缩放成稿。"]
   }
 }

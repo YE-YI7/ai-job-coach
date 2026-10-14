@@ -3,12 +3,12 @@ import HomeClient from "./HomeClient";
 import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
 
 export const metadata: Metadata = {
-  title: "益职 AI｜简历与岗位对照、面试辅导、Offer 比较",
-  description: "先免费对照简历与岗位要求，或比较两份 Offer；无需登录。需要进一步修改简历、练习面试时，再进入益职 AI 求职辅导。",
+  title: "益职 AI｜你的 AI 求职导师，简历修改与面试辅导",
+  description: "从改好一份简历，到答好下一场面试。益职保留你的经历、对话与进展；没有目标岗位，也能先改简历。先看互动演示，或使用免登录的简历对照与 Offer 比较工具。",
   alternates: { canonical: PUBLIC_SITE_URL },
   openGraph: {
-    title: "益职 AI｜从一个具体的求职问题开始",
-    description: "简历与岗位对照、Offer 比较，无需登录先体验。",
+    title: "益职 AI｜你的 AI 求职导师",
+    description: "从改好一份简历，到答好下一场面试。记得你的经历，也保留每一步进展。",
     url: PUBLIC_SITE_URL, locale: "zh_CN", type: "website",
     images: [{ url: `${PUBLIC_SITE_URL}/logo.png`, alt: "益职 AI" }],
   },

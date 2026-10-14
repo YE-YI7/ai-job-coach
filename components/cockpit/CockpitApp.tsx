@@ -1496,8 +1496,9 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
 function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; recovery: Recovery | null; onSupplement: (answer: string) => Promise<void>; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
   const quotaLabel = useQuotaLabel("resume", generating || validating || freezing);
   const [checkingPdf, setCheckingPdf] = useState(false);
-  const [documentView, setDocumentView] = useState<"original" | "edit" | "final">("original");
-  useEffect(() => setDocumentView("original"), [opportunity.id,opportunity.resumeRevision]);
+  const originalPath = opportunity.resumeOriginal?.path;
+  const [documentView, setDocumentView] = useState<"original" | "edit" | "final">(() => opportunity.resumeOriginal ? "original" : "final");
+  useEffect(() => setDocumentView(originalPath ? "original" : "final"), [opportunity.id,opportunity.resumeRevision,originalPath]);
   const previousChangeCount = useRef(opportunity.resumeChanges.length);
   useEffect(()=>{if(generating){previousChangeCount.current=-1;return;}if(previousChangeCount.current===-1&&opportunity.resumeChanges.length)setDocumentView("edit");previousChangeCount.current=opportunity.resumeChanges.length;},[generating,opportunity.resumeChanges.length]);
   const progress = resumeProgress(opportunity);

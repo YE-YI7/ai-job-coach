@@ -34,4 +34,14 @@
 - Chrome 独立临时组件验收页（仅本地，发布前已移除）实际展开，1440×900 与 390×844 截图均查看，价格不挤占名称，无横向溢出，12 张品牌图片 complete / naturalWidth>0。没有因工具读到 DOM 就称截图通过。
 - Chrome 原生读取可用；第一次绑定原生新标签时 CDP 点击未生效，换独立 owned 会话后展开可用。未声称官方扩展已永久修复。
 
-生产发布、正式账号菜单与运行日志结果在发布后补录。未写用户材料、旧作答或笔记，未付费压测 / benchmark。
+## 正式发布
+
+- 运行提交 `668e6b755099e8ec53af9afe7398e0a5027ac5ef`，仅 16 任务文件 push `codex/resume-original-first`；旧 Chrome 诊断与 `.impeccable/build/` 未混入。干净 git archive 构建，不携带 env / 临时组件验收页。
+- 正式部署 `dpl_3MG5oGS4U55JVCYWhdrGkpWpif8V`，候选健康 200/database ok、受保护业务接口匿名 401 后 promote。www 与裸域 inspect 均同 READY；正式首页 200、健康 database ok。
+- Chrome 正式 www 既有登录态已实际打开菜单，12 项全部可用；输入 / 输出 / 缓存数值、估算速度、原来 DeepSeek 选择均可见。第一次截屏新资产仍在加载，后续独立 DOM 读取 12 图 complete/naturalWidth>0；以加载完成后复拍为准。正式账号没有切换其已选模型，没有发消息或做其他写操作。
+- 本地临时页实际选 GLM Flash 并关闭菜单成功；正式站只读检查不把“未付费生成”混称新模型输出质量验收。
+- 正式 Chrome 近 2 分钟 console error=0；部署近 10 分钟 error 日志查询无结果，不代表已建立长期监控。
+- 最初本地 build 被已移除临时页的 Next dev 残留类型挡住；停止本任务 dev server，把该生成缓存可恢复移至 `/private/tmp/yizhi-models-dev-types.YpZUcr/types` 后，最终本地与云构建成功，不删除源码或改类型检查规则。
+- 新元件文本实色对比度：普通纸面 5.88 / 14.48，选中底 4.86 / 11.97；这是已知实色组合计算，不冒充整站像素验收。
+
+未写用户材料、旧作答或笔记，未付费压测 / benchmark。用户后续提出的简历三色原位批注是新的设计预览任务，见 `2026-10-14-resume-inline-review-design.md`，尚未实现，不能混称本次模型菜单发布包含它。

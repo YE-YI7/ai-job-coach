@@ -47,4 +47,4 @@ final result: passed
 - [x] 原件/新成稿/导出同源边界
 - [x] 实际 Chrome PDF 文件写出
 - [x] 原有免费工具/Agent/登录路径保留
-- [ ] 正式发布与正式站回读（发布后补到 release review）
+- [x] 正式发布与正式站回读：运行时c8e9fef，正式dpl_DQeucdVqsMGPdtxSw4nj9iQf7vZD；正式首页真实采用/原件恢复、真实账号三模板/100%/left正文、真实PDF落盘1页A4/305362bytes并重渲染。详情 release review，真实材料不进Git。

@@ -1389,4 +1389,6 @@
 .practiceQuestionSelect{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;width:fit-content;max-width:100%;min-height:36px;padding:6px 0;margin:16px 0 8px;color:var(--muted);font-size:12px;cursor:pointer}
 .practiceQuestionSelect select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .practiceQuestionSelect:focus-within{outline:2px solid var(--accent-deep);outline-offset:3px;border-radius:3px}
+.resumeGenerationFee{flex-basis:100%;font-size:11px;line-height:1.6;color:var(--muted)}
+.resumeEditorActions>.primaryButton{white-space:nowrap;flex:none}
 @media(max-width:700px){.demoNotice{padding-inline:20px}.interviewIntro .interviewActions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}.interviewIntro .interviewActions button{width:auto}.practicePanel h3{font-size:21px}.practicePanel textarea{font-size:16px}}

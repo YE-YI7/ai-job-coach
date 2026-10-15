@@ -52,6 +52,8 @@ export interface ResumeChange {
   evidenceId: string | null;
   evidenceIds?: string[];
   editedByUser?: boolean;
+  /** A targeted follow-up may revise an accepted paragraph; rejecting it restores this version. */
+  previousDecision?: { after: string; status: "accepted" | "rejected"; reason: string; evidenceId: string | null; evidenceIds?: string[]; editedByUser?: boolean };
   status: "accepted" | "pending" | "rejected";
 }
 
@@ -178,6 +180,7 @@ export interface Opportunity {
   resumeRevision?: string;
   /** 服务端改稿版本；迟到的自动保存不得抹掉更新版本的建议。 */
   resumeGenerationId?: string;
+  resumeEditHistory?: { past: Array<{ text: string; changes: ResumeChange[] }>; future: Array<{ text: string; changes: ResumeChange[] }> };
   profileText?: string;
   nextEventLabel: string | null;
   scheduledInterviewAt?: string | null;

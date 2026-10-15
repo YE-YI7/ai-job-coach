@@ -31,7 +31,8 @@ export function resumeInlineProjection(source: string, changes: ResumeChange[], 
   const ink: ResumeInk[] = [];
   for (const edit of edits) {
     text += source.slice(cursor, edit.start);
-    const pieces = showMarks && edit.change.status === "pending" ? resumeInkDiff(source.slice(edit.start, edit.end), edit.after) : [{ text: edit.after, kind: "same" as const }];
+    const before=edit.change.previousDecision?.status==='accepted'?edit.change.previousDecision.after:source.slice(edit.start, edit.end);
+    const pieces = showMarks && edit.change.status === "pending" ? resumeInkDiff(before, edit.after) : [{ text: edit.after, kind: "same" as const }];
     for (const piece of pieces) {
       const start = text.length;
       text += piece.text;

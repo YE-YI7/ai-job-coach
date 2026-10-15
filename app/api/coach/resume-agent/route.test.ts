@@ -43,3 +43,10 @@ test('owner failure does not call model or finish someone else’s task',async()
   expect((await POST(request({opportunityId:id,action:'answer'}))).status).toBe(404);
   expect(draft).not.toHaveBeenCalled();expect(finishResumeTask).not.toHaveBeenCalled();
 });
+test('a committed result survives a later response failure without double finishing',async()=>{
+  (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:4,lease:'lease',source:{resume:'原文',jd:''}});
+  (draft as jest.Mock).mockResolvedValue(Response.json({ok:false,error:'response failed'},{status:503}));
+  (readResumeTask as jest.Mock).mockResolvedValue({id:'task',state:'ready',result:{resumeGenerationId:'task:4',changes:[]}});
+  expect(await (await POST(request({opportunityId:id,action:'retry'}))).json()).toMatchObject({ok:true,task:{state:'ready'}});
+  expect(finishResumeTask).not.toHaveBeenCalled();
+});

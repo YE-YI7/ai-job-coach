@@ -9,7 +9,8 @@ export default function ResumeAgentConversation({task,busy,onAnswer,onContinue,o
   const [answer,setAnswer]=useState(()=>{try{return localStorage.getItem(key)||'';}catch{return '';}}),[error,setError]=useState('');
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{if(task.state!=='running')return;const timer=setInterval(()=>setNow(Date.now()),5000);return()=>clearInterval(timer);},[task.state]);
-  if((task.state==='ready'&&!task.question)||task.state==='idle'||task.state==='stale')return null;
+  if(task.state==='idle'||task.state==='stale')return null;
+  if(task.state==='ready'&&!task.question)return <div className={styles.conversation}><p>修改稿已保存。</p><p>可以直接编辑文字、确认建议，或预览 PDF。</p>{task.answers.length>0&&<details><summary>本次补充</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充':item.answer}</p></div>)}</details>}</div>;
   if(task.state==='running')return <div className={styles.waiting}><p role="status">导师正在整理你的材料，已保存的补充不会丢失。</p>{now-Date.parse(task.updatedAt)>=330_000&&<button type="button" disabled={busy} onClick={onContinue}>这次等待较久，从已保存材料重试</button>}</div>;
   return <div className={styles.conversation}>
     {task.answers.length>0&&<details><summary>已补充 {task.answers.length} 条</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}</details>}

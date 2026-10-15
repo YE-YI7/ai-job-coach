@@ -33,7 +33,12 @@ async function archiveRemote(sessionId:string){
  const r=await fetch("/api/coach/agent/archive",{method:"POST",headers:{"Content-Type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({sessionId})});
  const b=await r.json();if(!b.ok)throw Error(b.error||"保存进展失败");return b;
 }
-export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onArchived,onStageAdvanced,chatContext,opening,invitation,jobLabels={}}:{opportunityId?:string;label:string;jobLabels?:Record<string,string>;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage,opportunityId?:string)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null}){
+export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onArchived,onStageAdvanced,chatContext,opening,invitation,jobLabels={},resumeWorkflow}:{opportunityId?:string;label:string;jobLabels?:Record<string,string>;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage,opportunityId?:string)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null;resumeWorkflow?:{key:string;content:React.ReactNode}}){
+ const [resumeGuided,setResumeGuided]=useState(Boolean(resumeWorkflow));
+ const workflowKey=resumeWorkflow?.key,startId=startRequest?.id;
+ useEffect(()=>{if(workflowKey)setResumeGuided(true);},[workflowKey]);
+ useEffect(()=>{if(startId)setResumeGuided(false);},[startId]);
+ const guidedOpen=Boolean(resumeWorkflow&&resumeGuided);
  const [dismissedInvitations,setDismissedInvitations]=useState<string[]>([]);
  const [outreach,setOutreach]=useState<TutorInvitation|null>(null);
  const [turns,setTurns]=useState<ScopedTurn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
@@ -197,6 +202,9 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
   {!!sessions.length&&<details className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
   </div>
+  {resumeWorkflow&&<div className={styles.workflowSwitch}><button type="button" aria-pressed={guidedOpen} onClick={()=>setResumeGuided(true)}>简历修改</button><button type="button" aria-pressed={!guidedOpen} onClick={()=>setResumeGuided(false)}>其他辅导</button></div>}
+  {guidedOpen&&<div className={styles.guidedWorkflow}>{resumeWorkflow?.content}</div>}
+  <div style={{display:guidedOpen?"none":"contents"}}>
   {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{turns.at(-1)?.question.slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
   <TaskRunTray enabled={enabled}/>
   <div ref={list} className={styles.messages} role="log" aria-label="辅导对话" aria-live="polite">
@@ -228,5 +236,6 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    </div></details><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/></div><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
   <details className={styles.disclaimer}><summary>{quotaLabel}</summary><p>发送消息会调用 AI。保存回答和笔记免费；失败释放额度。重要信息请核实。</p></details>
+ </div>
  </section>;
 }

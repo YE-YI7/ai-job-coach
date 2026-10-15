@@ -4,7 +4,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { applyResumeChanges, reviewAtsText, compileContextBundle } from "@/lib/coach-harness";
-import { resumeTaskInput, persistResumeAnswerClaims } from "@/lib/coach-harness/resume-task";
+import { resumeTaskInput, persistResumeAnswerClaims,ownedResumeTaskSource,finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import {runWithGenerationContext} from "@/lib/generation-context";
 import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
@@ -36,6 +36,8 @@ describe("resume draft source mapping", () => {
     jest.clearAllMocks();
     (callLLM as jest.Mock).mockReset();
     (resumeTaskInput as jest.Mock).mockReset();
+    (ownedResumeTaskSource as jest.Mock).mockReset();
+    (finishResumeTask as jest.Mock).mockReset();
     jest.spyOn(console, "error").mockImplementation(() => undefined);
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "user-1" });
     (reserveQuota as jest.Mock).mockResolvedValue({ source: "free", remaining: 0 });
@@ -50,6 +52,19 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  test.each(['ready','stale'])('commit %s is checked before successful quota settlement',async state=>{
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'负责模型评测',jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state,result:{changes:[]}});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(finishResumeTask).toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),state==='ready');
+    expect((finishResumeTask as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((finalizeQuota as jest.Mock).mock.invocationCallOrder[0]);
+    expect(response.status).toBe(state==='ready'?200:500);
+  });
 
   test('normalizes only a unique PDF punctuation span back to actual original bytes',async()=>{
     const before='负责模型评测,记录准确率口径。';

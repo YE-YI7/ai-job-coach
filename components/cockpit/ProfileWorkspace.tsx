@@ -5,13 +5,13 @@ import styles from "./CockpitApp.module.css";
 import JobDiscovery from "./JobDiscovery";
 import {ArrowUpRight} from "lucide-react";
 
-export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,onCoach,onSaveDirection,onImportJob,children,editor}:{opportunity:Opportunity;jobs:Opportunity[];onAddJob:()=>void;onSelectJob:(id:string)=>void;onCoach:()=>void;onSaveDirection:(role:string,location:string)=>Promise<void>;onImportJob:(opportunity:Opportunity)=>void;children:React.ReactNode;editor:React.ReactNode}){
+export default function ProfileWorkspace({opportunity,jobs,onAddJob,onSelectJob,onCoach,onSaveDirection,onImportJob,children,editor,onViewChange}:{opportunity:Opportunity;jobs:Opportunity[];onAddJob:()=>void;onSelectJob:(id:string)=>void;onCoach:()=>void;onSaveDirection:(role:string,location:string)=>Promise<void>;onImportJob:(opportunity:Opportunity)=>void;children:React.ReactNode;editor:React.ReactNode;onViewChange?:(view:string)=>void}){
  const [role,setRole]=useState(opportunity.role),[location,setLocation]=useState(opportunity.location||"");
  const [busy,setBusy]=useState(false),[result,setResult]=useState("");
  const [view,setView]=useState<"profile"|"jobs"|"direction">("profile");
  return <div className={styles.profileWorkspace}>
   <header className={styles.profileHeading}><h1>我的简历</h1>{opportunity.resumeText?<details className={styles.profileFileMenu}><summary>更新原简历</summary><div>{children}</div></details>:null}</header>
-  <div className={styles.profileViewTabs} role="group" aria-label="个人档案视图"><button type="button" aria-pressed={view==="profile"} onClick={()=>setView("profile")}>简历</button><button type="button" aria-pressed={view==="jobs"} onClick={()=>setView("jobs")}>找岗位</button><button type="button" aria-pressed={view==="direction"} onClick={()=>setView("direction")}>求职方向</button></div>
+  <div className={styles.profileViewTabs} role="group" aria-label="个人档案视图"><button type="button" aria-pressed={view==="profile"} onClick={()=>{setView("profile");onViewChange?.("profile");}}>简历</button><button type="button" aria-pressed={view==="jobs"} onClick={()=>{setView("jobs");onViewChange?.("jobs");}}>找岗位</button><button type="button" aria-pressed={view==="direction"} onClick={()=>{setView("direction");onViewChange?.("direction");}}>求职方向</button></div>
   <div hidden={view!=="profile"}>
   {!opportunity.resumeText&&<div className={styles.profileResumeTools}>{children}</div>}
   {editor}

@@ -30,7 +30,11 @@ export async function POST(request: Request) {
       resumeTaskId: claimed.task.id, resumeTaskLease: claimed.lease,
     }) }));
     const result = await response.json();
-    const task = await finishResumeTask(user.id, claimed.task.id, claimed.lease!, claimed.source, result);
+    // The draft route commits before settling quota. If a transport/settlement
+    // failure happens after that commit, return the saved generation, not a
+    // failed task or a second model run.
+    const committed = !result.ok ? await readResumeTask(user.id, body.opportunityId).catch(()=>null) : null;
+    const task = result.task || (committed?.state==='ready'&&committed.result?.resumeGenerationId===`${claimed.task.id}:${claimed.version}`?committed:null) || await finishResumeTask(user.id, claimed.task.id, claimed.lease!, claimed.source, result);
     return reply({ ok: true, task });
   } catch (error) {
     const message = error instanceof Error ? error.message : "改稿暂未完成，补充仍保留";

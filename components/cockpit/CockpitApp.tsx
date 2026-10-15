@@ -58,6 +58,8 @@ import { applyResumeChanges } from "@/lib/coach-harness/application-quality";
 import ResumeBlockBoard from "./ResumeInlineReview";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
+import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
+import {rememberResumeEdit,travelResumeEdit,editResumeBlock} from "@/lib/opportunities/resume-edit-history";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import VoiceControls from "./VoiceControls";
@@ -567,6 +569,7 @@ export function CockpitApp({
         actions: analysis.actions ?? active.actions,
         interviewFocus: analysis.interviewFocus ?? active.interviewFocus,
         resumeChanges: replacesResume ? [] : active.resumeChanges,
+        resumeEditHistory: replacesResume ? undefined : active.resumeEditHistory,
         resumeCheckStale: true,
         frozenStale: active.frozenStale || Boolean(active.snapshots?.some(snapshot=>snapshot.snapshotType==="submitted_resume")),
         applicationQuality: undefined,
@@ -599,18 +602,24 @@ export function CockpitApp({
     }
   };
 
+  const [resumeFocus,setResumeFocus]=useState(0);
+  const [profileView,setProfileView]=useState("profile");
+  const focusResumeMentor=()=>{setResumeFocus(value=>value+1);setMobileRail("actions");};
+  const changeResumeBlock=(id:string,text:string,expected:string)=>{if(!active)return;const updated=editResumeBlock(active,id,text,expected);setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));};
+  const travelResume=(direction:"undo"|"redo")=>{if(!active||generatingResume)return;setOpportunities(items=>items.map(item=>item.id===active.id?travelResumeEdit(item,direction):item));};
+
   const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
     if (!active) return;
-    setOpportunities((current) => current.map((item) => item.id === active.id ? { ...item, resumeCheckStale: true, frozenStale: item.frozenStale || Boolean(item.snapshots?.some((snapshot) => snapshot.snapshotType === "submitted_resume")), resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? { ...change, status } : change) } : item));
+    setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,{ ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? decideResumeChange(change,status) : change) }) : item));
     if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
     logAction(status === "accepted" ? "接受了一处简历修改建议" : "对一处简历修改保留了原文");
-    announce(status === "accepted" ? "已选择这个版本；全部选好后检查并保存投递版" : "已选择保留原文");
+    announce(status === "accepted" ? "已采纳 · 可撤销" : "已保留原文 · 可撤销");
   };
 
   const editResumeChange = (changeId: string, after: string) => {
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id
-      ? applyUserResumeEdit(item, changeId, after)
+      ? rememberResumeEdit(item,applyUserResumeEdit(item, changeId, after))
       : item));
     if (dataMode === "live") trackProductEvent("resume_change_edited", { opportunity_id: active.id, change_id: changeId });
     logAction(`自己改写了一处简历建议：「${after.slice(0, 40)}」`);
@@ -622,7 +631,7 @@ export function CockpitApp({
     if (!active?.resumeText) return;
     const applied = applyReorderToOpportunity(active, fromId, toId);
     if (!applied.changed) return;
-    setOpportunities((current) => current.map((item) => item.id === active.id ? applied.opportunity : item));
+    setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,applied.opportunity) : item));
     if (dataMode === "live") trackProductEvent("resume_reordered", { opportunity_id: active.id, invalidated_freeze: applied.invalidatedFreeze });
     announce(applied.invalidatedFreeze
       ? "已按新顺序改写简历。原投递版本是按旧正文冻结的，已标记过期——导出现在用当前正文，重新检查并冻结后才能再导投递版"
@@ -691,7 +700,7 @@ export function CockpitApp({
 
   const receiveResumeTask = (id:string,task:ResumeAgentTask|null) => {
     setResumeAgentTasks(current=>({...current,[id]:task}));
-    if(task?.state==='ready'&&task.result){const result=task.result;setOpportunities(items=>items.map(item=>item.id===id&&item.resumeGenerationId!==result.resumeGenerationId?{...item,resumeChanges:result.changes,applicationQuality:result.applicationQuality,resumeGenerationId:result.resumeGenerationId,resumeCheckStale:result.resumeCheckStale}:item));}
+    if(task?.state==='ready'&&task.result){const result=task.result;setOpportunities(items=>items.map(item=>item.id===id&&item.resumeGenerationId!==result.resumeGenerationId?{...item,resumeChanges:result.changes,applicationQuality:result.applicationQuality,resumeGenerationId:result.resumeGenerationId,resumeEditHistory:undefined,resumeCheckStale:result.resumeCheckStale}:item));}
   };
   useEffect(()=>{
     if(dataMode!=='live'||!activeId||localIds.includes(activeId))return;
@@ -707,7 +716,7 @@ export function CockpitApp({
     const id=target.id;
     resumeRequestBusy.current=true;setGeneratingResume(true);
     try{
-      if(action==='start'||action==='restart')await saveOpportunity.current(id,async()=>{
+      await saveOpportunity.current(id,async()=>{
         const saved=await fetch('/api/coach/opportunities',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunity:target,preserveStage:true})});
         const result=await saved.json();if(!saved.ok||!result.ok)throw Error(result.error||'简历尚未保存，未开始修改');
       });
@@ -1099,7 +1108,7 @@ export function CockpitApp({
           {!creating && active && (activeTab === "resume" || active.workspaceType === "preparation") && dataMode === "live" && <div className={styles.saveReceipt} role="status">{savedPayloads.current.get(active.id) === JSON.stringify(active) ? "已保存到工作区" : saveReceipts[active.id]?.payload === JSON.stringify(active) && saveReceipts[active.id]?.status === "failed" ? <>云端保存失败，当前草稿仍在页面中。<button type="button" onClick={() => setSyncRetry(value => value + 1)}>重试保存</button></> : "正在保存草稿…"}</div>}
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry} initialSourceText={newEntry==="resume" && active?.workspaceType==="preparation" && !active.resumeText ? active.profileText || "" : ""} onCreate={createOpportunity} onBusyChange={setIntakeBusy} onCancel={() => { setCreating(false); setSurface(createOrigin); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
-          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} editor={<ResumeTab opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补充真实经历",prompt:"帮我把当前简历缺少具体动作与结果的一处讲清楚，一次问一个问题，不补编经历。"})} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={() => {}}/>} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction compact kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
+          {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onViewChange={setProfileView} editor={<ResumeTab onEditBlock={changeResumeBlock} onUndo={()=>travelResume("undo")} onRedo={()=>travelResume("redo")} onFocusMentor={focusResumeMentor} opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补充真实经历",prompt:"帮我把当前简历缺少具体动作与结果的一处讲清楚，一次问一个问题，不补编经历。"})} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={() => {}}/>} onImportJob={opportunity=>{setOpportunities(current=>[opportunity,...current.filter(item=>item.id!==opportunity.id)]);announce("投递判断已保存到机会列表，未额外扣额度");}} onSaveDirection={async(role,location)=>{const updated={...active,role,location};if(dataMode==="live"&&!localIds.includes(active.id)){const response=await fetch("/api/coach/opportunities",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunity:updated,preserveStage:true})});const body=await response.json();if(!response.ok||!body.ok)throw Error(body.error||"保存失败，修改仍在");}setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));}} opportunity={active} jobs={relatedJobs} onSelectJob={id=>{setActiveId(id);setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!));}} onAddJob={()=>{setNewEntry("resume");setCreating(true);}} onCoach={()=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,proactive:true,title:"确认求职方向",prompt:"请基于已保存的基础简历，先给出有证据支持的求职方向建议，再只问一个最影响选择的问题。不要要求我重新上传简历，不要宣称已搜索岗位；若简历不足，先带我梳理一段真实经历。"});setMobileRail("actions");}}><ContextMaterialAction compact kind="resume" existingText={active.resumeText} title={active.resumeText?"更新基础简历":"上传或粘贴简历"} description="" placeholder="粘贴简历原文" loading={supplementingMaterial} onSubmit={supplementOpportunity}/></ProfileWorkspace> : <JobTimeline opportunity={active} selected={activeTab} onSelect={setActiveTab}/>}
           {active.workspaceType !== "preparation" && <>
           <div className={styles.documentBody}>
             {activeTab==="resume"&&!active.resumeText&&<ContextMaterialAction kind="resume" title="上传简历开始修改" description="拖入文件或粘贴内容，不会覆盖已有岗位。" placeholder="粘贴简历内容" loading={supplementingMaterial} onSubmit={supplementOpportunity}/>}
@@ -1107,7 +1116,7 @@ export function CockpitApp({
             {activeTab==="resume"&&active.resumeText&&resumeUploadOpen&&<ContextMaterialAction compact kind="resume" existingText={active.resumeText} title="替换简历" description="" placeholder="粘贴新的简历内容" loading={supplementingMaterial} onSubmit={async (s)=>{await supplementOpportunity(s);setResumeUploadOpen(false);}}/>}
             {activeTab === "overview" && <OverviewTab key={active.id} opportunity={active} relatedJobs={relatedJobs} onOpenEvidence={() => setActiveTab("evidence")} onSelectJob={(id) => { setActiveId(id); }} onSupplement={supplementOpportunity} onConfirmEvidence={(requirement)=>{setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补齐关键经历",prompt:`请带我梳理能证明「${requirement}」的真实经历，先问一个具体问题，不要替我编造。`});setMobileRail("actions");}} supplementing={supplementingMaterial} />}
             {activeTab === "evidence" && <EvidenceTab opportunity={active} />}
-            {activeTab === "resume" && <ResumeTab opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
+            {activeTab === "resume" && <ResumeTab onEditBlock={changeResumeBlock} onUndo={()=>travelResume("undo")} onRedo={()=>travelResume("redo")} onFocusMentor={focusResumeMentor} opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => generateResumeDraft()} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} />}
             {/* 面试台不再挂「概览+优先练题清单」：开练入口就在训练台上，
                 导师聊天保留在右栏，练面试时随时能就题问导师。 */}
             {activeTab === "interview" && <div className={styles.interviewWorkbench}>
@@ -1120,6 +1129,8 @@ export function CockpitApp({
 
         {creating && <CreationRail />}
         {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
+          resumeContext={active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume"}
+          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume} onAnswer={supplementResumeDraft} onContinue={()=>generateResumeDraft()} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}
@@ -1533,7 +1544,7 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   );
 }
 
-function ResumeTab({ opportunity, agentTask, onSkip, recovery, onSupplement, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { opportunity: Opportunity; agentTask?: ResumeAgentTask|null; onSkip:()=>Promise<void>; recovery: Recovery | null; onSupplement: (answer: string) => Promise<void>; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
+function ResumeTab({ onEditBlock,onUndo,onRedo,onFocusMentor, opportunity, agentTask, recovery, onSupplement, onOpenEvidence, onUpdate, onEdit, onReorder, onGenerate, onValidate, onFreeze, generating, validating, freezing, onPdfResult }: { onEditBlock:(id:string,text:string,expected:string)=>void;onUndo:()=>void;onRedo:()=>void;onFocusMentor:()=>void;opportunity: Opportunity; agentTask?: ResumeAgentTask|null; onSkip:()=>Promise<void>; recovery: Recovery | null; onSupplement: (answer: string) => Promise<void>; onOpenEvidence: () => void; onUpdate: (id: string, status: "accepted" | "rejected") => void; onEdit: (id: string, after: string) => void; onReorder: (fromId: string, toId: string) => void; onGenerate: () => void; onValidate: () => void; onFreeze: () => void; generating: boolean; validating: boolean; freezing: boolean; onPdfResult: (status: "passed" | "failed", summary: string) => void }) {
   const quotaLabel = useQuotaLabel("resume", generating || validating || freezing);
   const [checkingPdf, setCheckingPdf] = useState(false);
   const [showOriginal,setShowOriginal]=useState(Boolean(opportunity.resumeOriginal&&!opportunity.resumeChanges.length)),[showMarks,setShowMarks]=useState(true);
@@ -1560,8 +1571,8 @@ function ResumeTab({ opportunity, agentTask, onSkip, recovery, onSupplement, onO
   };
   return (
     <section className={styles.resumeStudio}>
-      <div className={styles.resumeEditorActions}><button className={styles.primaryButton} aria-describedby={`resume-generation-cost-${opportunity.id}`} onClick={onGenerate} disabled={generating || agentTask?.state==='running' || !opportunity.resumeText || (!opportunity.jdText&&opportunity.workspaceType!=="preparation")}><Sparkles size={16} />{generating||agentTask?.state==='running' ? "正在修改…" : agentTask?.state==='needs_detail'?'继续补充':opportunity.resumeChanges.length ? "重新修改" : "开始修改"}</button><ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text} pendingCount={pendingCount} disabledReason={currentExport.findings.length?'有修改无法定位，请先核对或保留原文':undefined}/><span role="status">{pendingCount?`${pendingCount} 处待确认`:opportunity.resumeChanges.length?'修改已处理':''}</span><small id={`resume-generation-cost-${opportunity.id}`} className={styles.resumeGenerationFee}>{quotaLabel}</small></div>
-      {agentTask&&<ResumeAgentConversation key={`${agentTask.id}:${agentTask.question?.id||agentTask.state}`} task={agentTask} busy={generating} onAnswer={onSupplement} onContinue={onGenerate} onSkip={onSkip}/>}
+      <div className={styles.resumeEditorActions}><button className={styles.primaryButton} aria-describedby={`resume-generation-cost-${opportunity.id}`} onClick={agentTask?.state==="needs_detail"?onFocusMentor:onGenerate} disabled={generating || agentTask?.state==='running' || !opportunity.resumeText || (!opportunity.jdText&&opportunity.workspaceType!=="preparation")}><Sparkles size={16} />{generating||agentTask?.state==='running' ? "正在修改…" : agentTask?.state==='needs_detail'?'继续补充':opportunity.resumeChanges.length ? "重新修改" : "开始修改"}</button><ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text} pendingCount={pendingCount} disabledReason={currentExport.findings.length?'有修改无法定位，请先核对或保留原文':undefined}/><span role="status">{pendingCount?`${pendingCount} 处待确认`:opportunity.resumeChanges.length?'修改已处理':''}</span><small id={`resume-generation-cost-${opportunity.id}`} className={styles.resumeGenerationFee}>{quotaLabel}</small></div>
+      {agentTask?.question&&<button type="button" className={styles.resumeContinueLink} onClick={onFocusMentor}>导师有一个补充问题 <ArrowRight size={14}/></button>}
       {opportunity.applicationQuality&&opportunity.workspaceType!=="preparation"&&<details className={styles.resumeCheckDetails}><summary>检查与投递版</summary><div className={styles.resumeActionRow}>
         <div>
           {progress.action === "check" && <button className={styles.secondaryButton} disabled={validating} onClick={onValidate}><ShieldCheck size={15} />{validating ? "正在检查修改…" : "请 AI 帮我检查（可选）"}</button>}
@@ -1573,8 +1584,8 @@ function ResumeTab({ opportunity, agentTask, onSkip, recovery, onSupplement, onO
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
-          <div className={styles.resumePaperTools}><label><input type="checkbox" checked={showMarks} onChange={event=>{setShowMarks(event.target.checked);setShowOriginal(false);}}/>显示修改</label><details><summary>更多</summary><div><button type="button" onClick={()=>setShowOriginal(value=>!value)}>{showOriginal?'回到修改稿':'查看原文件'}</button><label>版式<select aria-label="简历版式" value={template} onChange={event=>chooseTemplate(event.target.value as PrintTemplate)}>{(Object.keys(printTemplates) as PrintTemplate[]).map(id=><option key={id} value={id}>{printTemplates[id].label}</option>)}</select></label></div></details></div>
-          <div id={`resume-current-${opportunity.id}`}>{showOriginal?<OriginalResume opportunity={opportunity}/>:<ResumeBlockBoard opportunity={opportunity} showMarks={showMarks} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder}/>}</div>
+          <div className={styles.resumePaperTools}><div className={styles.resumeHistory}><button type="button" aria-label="撤销简历修改" disabled={generating||agentTask?.state==="running"||!opportunity.resumeEditHistory?.past.length} onClick={onUndo}>撤销</button><button type="button" aria-label="重做简历修改" disabled={generating||agentTask?.state==="running"||!opportunity.resumeEditHistory?.future.length} onClick={onRedo}>重做</button></div><label><input type="checkbox" checked={showMarks} onChange={event=>{setShowMarks(event.target.checked);setShowOriginal(false);}}/>显示修改</label><details><summary>更多</summary><div><button type="button" onClick={()=>setShowOriginal(value=>!value)}>{showOriginal?'回到修改稿':'查看原文件'}</button><label>版式<select aria-label="简历版式" value={template} onChange={event=>chooseTemplate(event.target.value as PrintTemplate)}>{(Object.keys(printTemplates) as PrintTemplate[]).map(id=><option key={id} value={id}>{printTemplates[id].label}</option>)}</select></label></div></details></div>
+          <div id={`resume-current-${opportunity.id}`}>{showOriginal?<OriginalResume opportunity={opportunity}/>:<ResumeBlockBoard disabled={generating||agentTask?.state==="running"} onEditBlock={onEditBlock} opportunity={opportunity} showMarks={showMarks} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder}/>}</div>
           {currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}
@@ -2238,7 +2249,8 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
   );
 }
 
-function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startRequest, onStartConsumed, onStageAdvanced, chatContext, hidden, jobLabels }: {
+function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startRequest, onStartConsumed, onStageAdvanced, chatContext, hidden, jobLabels, resumeWorkflow, resumeContext }: {
+  resumeContext?:boolean;resumeWorkflow?:{key:string;content:React.ReactNode};
   opportunity: Opportunity; hidden?: boolean; jobLabels:Record<string,string>;
   startRequest?: CoachingStart|null; onStartConsumed?: (id:string)=>void;
   onStageAdvanced?: (stage: OpportunityStage,targetId?:string)=>void|Promise<boolean>;
@@ -2256,7 +2268,7 @@ function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startReques
   return (
     <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="导师对话" style={hidden?{display:"none"}:undefined}>
       <button className={styles.mobileClose} onClick={onClose} aria-label="关闭导师对话"><X size={19}/></button>
-      <AgentConversation jobLabels={jobLabels} invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
+      <AgentConversation resumeWorkflow={resumeWorkflow} jobLabels={jobLabels} invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={resumeContext?{text:"你的简历已带上。点击开始修改，我先整理已有内容；需要补充时，只问你一个具体问题。",prompts:[]}:mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
       <details className={styles.privacyLine}><summary><ShieldCheck size={13} />{storageLabel}</summary><p>{storageDetail}</p></details>
     </aside>
   );

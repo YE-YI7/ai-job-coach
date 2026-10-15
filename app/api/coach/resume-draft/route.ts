@@ -23,7 +23,7 @@ import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/r
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
 import { resumeTaskInput, persistResumeAnswerClaims } from "@/lib/coach-harness/resume-task";
-import { factualResumeAnswers, nextResumeQuestion } from "@/lib/coach-harness/resume-task-types";
+import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -159,7 +159,9 @@ export async function POST(request: Request) {
         { role: "system", content: "你是益职的简历导师。先判断资料是否能形成具体、真实、有价值的短 bullet。只有模糊职责/名词，或用户说忘了、不知道具体做了什么时，必须先补问；别直接把空泛句润色。已有具体个人动作和交付，就 ready；没有数字、没有目标JD，不是阻断理由。一次只问一个最影响改稿的事实，问题简短易答，可以用回忆方法引导，但不提供可冒充经历的示例答案。不要一口气问背景/动作/结果三件事，不重复问已经回答或说不知道的维度。返回JSON {\"ready\":true} 或 {\"ready\":false,\"recovery\":{\"sourceExcerpt\":\"简历连续原句，不含姓名联系方式\",\"field\":\"context|action|deliverable|outcome|scope\",\"question\":\"只问一个具体问题\"}}。外部案例不是用户经历，不向用户展示内部评分。" },
         { role: "user", content: `当前JD：${jobDescription || "无JD，通用修改"}\n原简历：${resumeText}\n已保存补问及回答（用户自述，含不知道）：${JSON.stringify(agentTask.answers)}\n同账号可引用事实：${source}\n${renderResumeKnowledge(includedKnowledge)}` },
       ], { provider: "deepseek", temperature: 0.1, maxTokens: 700, reasoningBudgetTokens: 1536, timeoutMs: 30_000, maxRetries: 0, responseFormat: "json_object" })));
-      const question = plan.ready === false ? nextResumeQuestion(resumeText, plan.recovery, agentTask.answers) : null;
+      const modelQuestion = plan.ready !== true ? nextResumeQuestion(resumeText, plan.recovery||plan, agentTask.answers) : null;
+      const question = modelQuestion || (plan.ready !== true ? fallbackResumeQuestion(resumeText,agentTask.answers) : null);
+      if(question&&!modelQuestion)trace.step('draft','materials_question_fallback',agentTask.answers.length);
       if (question) {
         await finalizeQuota(reservation, false); reservation = null; outcome = "needs_detail";
         trace.step("draft", "materials_one_question", agentTask.answers.length);

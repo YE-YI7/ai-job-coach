@@ -1,7 +1,7 @@
 import { getDbClient } from '@/lib/db';
 import { FakeDb } from './run-ledger/testing/fake-db';
 import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims } from './resume-task';
-import { factualResumeAnswers, nextResumeQuestion } from './resume-task-types';
+import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from './resume-task-types';
 jest.mock('@/lib/db');
 const source='参加校园工具项目，负责需求工作，想不起来具体交付。';
 const q=nextResumeQuestion(source,{sourceExcerpt:source,question:'你当时亲手处理的第一份材料是什么？',field:'action'},[])!;
@@ -14,3 +14,5 @@ test('回答保存后进程中断在 idle，可从同一回答继续，不重填
 test('跨用户读取及替换后旧回答被拒绝',async()=>{await expect(readResumeTask('other','opp')).rejects.toThrow('不可访问');(db.rows('coach_opportunities')[0].metadata as Record<string,unknown>).resumeRevision='new';expect(await readResumeTask('owner','opp')).toBeNull();await expect(claimResumeTask('owner','opp',{action:'answer',questionId:q.id,answer:'旧材料'})).rejects.toThrow('已更换');});
 test('不知道也记为已答，同一维度不反复追问；跳过不变成可引用事实',async()=>{const result=await claimResumeTask('owner','opp',{action:'answer',questionId:q.id,answer:'我不知道'});expect(nextResumeQuestion(source,q,result.task.answers)).toBeNull();expect(nextResumeQuestion(source,{...q,field:'deliverable',question:'最后交给同学的东西是什么？'},result.task.answers)).not.toBeNull();expect(factualResumeAnswers([{...result.task.answers[0],skipped:true}])).toEqual([]);});
 test('补充以稳定真实UUID建立私有用户自述来源，可用于保存产物引用',async()=>{const result=await claimResumeTask('owner','opp',{action:'answer',questionId:q.id,answer:'我整理了分类表，没有上线。'});const row=db.rows('coach_resume_tasks')[0];const claims=await persistResumeAnswerClaims(row as never);expect(claims[0]).toMatchObject({id:result.task.answers[0].claimId,sourceKind:'user_statement',status:'unverified'});expect(db.rows('coach_claims')[0]).toMatchObject({user_id:'owner',opportunity_id:'opp',confirmed_at:null,source_kind:'user_statement'});});
+test('PDF半角标点和换行可唯一定位，存下的仍是原文而不是模型改写',()=>{const pdf='参与校园工具项目,负责用户需求相关工作,\n具体个人交付还没梳理。';const result=nextResumeQuestion(pdf,{sourceExcerpt:'参与校园工具项目，负责用户需求相关工作，具体个人交付还没梳理。',field:'action',question:'你本人实际做的第一件事是什么？'},[]);expect(result?.sourceExcerpt).toBe(pdf);expect(nextResumeQuestion(pdf,{sourceExcerpt:'我主导全部需求并提升收入。',field:'action',question:'你本人实际做的第一件事是什么？'},[])).toBeNull();});
+test('异常补问有一条原文锚定兜底，知道与不知道均不反复问同维度',()=>{const first=fallbackResumeQuestion(source,[])!;expect(first.field).toBe('action');const second=fallbackResumeQuestion(source,[{...first,answer:'不知道',savedAt:'now'}]);expect(second?.field).toBe('deliverable');expect(fallbackResumeQuestion('姓名：林清\n电话：13800000000',[])).toBeNull();});

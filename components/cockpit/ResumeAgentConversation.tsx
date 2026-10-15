@@ -18,7 +18,7 @@ export default function ResumeAgentConversation({task,busy,onAnswer,onContinue,o
       <details className={styles.anchor}><summary>对应原文</summary><p>{task.question.sourceExcerpt}</p></details>
       <textarea id={`resume-answer-${task.id}`} rows={3} maxLength={2000} value={answer} disabled={busy} placeholder="写你实际做过的内容；不知道也可以直接说。" onChange={event=>{setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* 内存中的输入保留。 */}}}/>
       {error&&<p role="alert">{error}</p>}
-      <div className={styles.actions}><button type="button" disabled={busy} onClick={async()=>{setError('');try{await onSkip();}catch(cause){setError(cause instanceof Error?cause.message:'暂未完成，请重试');}}}>先用已有材料</button><button type="submit" disabled={busy||!answer.trim()}>{busy?'已保存，继续整理…':'保存并继续'}</button></div>
+      <div className={styles.actions}><button type="button" disabled={busy} onClick={async()=>{setError('');try{await onSkip();}catch(cause){setError(cause instanceof Error?cause.message:'暂未完成，请重试');}}}>先用已有材料</button><button type="submit" disabled={busy||!answer.trim()}>{busy?'正在保存并整理…':'保存并继续'}</button></div>
     </form>}
   </div>;
 }

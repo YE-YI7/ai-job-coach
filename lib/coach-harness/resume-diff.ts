@@ -43,7 +43,7 @@ export function isTrivialRewrite(before: string, after: string) {
   if(a.length>=18&&a.length<=100&&bullets(after)<=bullets(before)
     &&b.length>=a.length-Math.max(3,Math.floor(a.length*.15))
     &&b.length<=a.length+Math.max(3,Math.floor(a.length*.3))){
-    const cosmeticLimit=Math.floor(Math.min(a.length,b.length)*.3);
+    const cosmeticLimit=Math.floor(Math.min(a.length,b.length)*.4);
     if(editDistanceWithin(a,b,cosmeticLimit)<=cosmeticLimit)return true;
   }
   const limit = Math.max(2, Math.floor(Math.min(a.length, b.length) * 0.1));

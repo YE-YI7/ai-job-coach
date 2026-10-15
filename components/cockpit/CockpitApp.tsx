@@ -59,7 +59,7 @@ import ResumeBlockBoard from "./ResumeInlineReview";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
 import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
-import {rememberResumeEdit,travelResumeEdit,editResumeBlock} from "@/lib/opportunities/resume-edit-history";
+import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHistory} from "@/lib/opportunities/resume-edit-history";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import VoiceControls from "./VoiceControls";
@@ -604,6 +604,7 @@ export function CockpitApp({
 
   const [resumeFocus,setResumeFocus]=useState(0);
   const [profileView,setProfileView]=useState("profile");
+  useEffect(()=>setProfileView("profile"),[activeId]);
   const focusResumeMentor=()=>{setResumeFocus(value=>value+1);setMobileRail("actions");};
   const changeResumeBlock=(id:string,text:string,expected:string)=>{if(!active)return;const updated=editResumeBlock(active,id,text,expected);setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));};
   const travelResume=(direction:"undo"|"redo")=>{if(!active||generatingResume)return;setOpportunities(items=>items.map(item=>item.id===active.id?travelResumeEdit(item,direction):item));};
@@ -1584,7 +1585,7 @@ function ResumeTab({ onEditBlock,onUndo,onRedo,onFocusMentor, opportunity, agent
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
-          <div className={styles.resumePaperTools}><div className={styles.resumeHistory}><button type="button" aria-label="撤销简历修改" disabled={generating||agentTask?.state==="running"||!opportunity.resumeEditHistory?.past.length} onClick={onUndo}>撤销</button><button type="button" aria-label="重做简历修改" disabled={generating||agentTask?.state==="running"||!opportunity.resumeEditHistory?.future.length} onClick={onRedo}>重做</button></div><label><input type="checkbox" checked={showMarks} onChange={event=>{setShowMarks(event.target.checked);setShowOriginal(false);}}/>显示修改</label><details><summary>更多</summary><div><button type="button" onClick={()=>setShowOriginal(value=>!value)}>{showOriginal?'回到修改稿':'查看原文件'}</button><label>版式<select aria-label="简历版式" value={template} onChange={event=>chooseTemplate(event.target.value as PrintTemplate)}>{(Object.keys(printTemplates) as PrintTemplate[]).map(id=><option key={id} value={id}>{printTemplates[id].label}</option>)}</select></label></div></details></div>
+          <div className={styles.resumePaperTools}><div className={styles.resumeHistory}><button type="button" aria-label="撤销简历修改" disabled={generating||agentTask?.state==="running"||!currentResumeEditHistory(opportunity)?.past.length} onClick={onUndo}>撤销</button><button type="button" aria-label="重做简历修改" disabled={generating||agentTask?.state==="running"||!currentResumeEditHistory(opportunity)?.future.length} onClick={onRedo}>重做</button></div><label><input type="checkbox" checked={showMarks} onChange={event=>{setShowMarks(event.target.checked);setShowOriginal(false);}}/>显示修改</label><details><summary>更多</summary><div><button type="button" onClick={()=>setShowOriginal(value=>!value)}>{showOriginal?'回到修改稿':'查看原文件'}</button><label>版式<select aria-label="简历版式" value={template} onChange={event=>chooseTemplate(event.target.value as PrintTemplate)}>{(Object.keys(printTemplates) as PrintTemplate[]).map(id=><option key={id} value={id}>{printTemplates[id].label}</option>)}</select></label></div></details></div>
           <div id={`resume-current-${opportunity.id}`}>{showOriginal?<OriginalResume opportunity={opportunity}/>:<ResumeBlockBoard disabled={generating||agentTask?.state==="running"} onEditBlock={onEditBlock} opportunity={opportunity} showMarks={showMarks} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder}/>}</div>
           {currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}
         </>

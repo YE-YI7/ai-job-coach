@@ -3,16 +3,17 @@ import { splitResumeBlocks } from './resume-blocks';
 import { applyResumeChanges, resolveResumeEdits } from '../coach-harness/application-quality';
 
 const snapshot=(item:Opportunity)=>({text:item.resumeText||'',changes:item.resumeChanges});
+export const currentResumeEditHistory=(item:Opportunity)=>item.resumeEditHistory?.generationId===item.resumeGenerationId?item.resumeEditHistory:undefined;
 /** Only résumé work is reversible here; never touch interviews, originals or chat. */
 export function rememberResumeEdit(before:Opportunity,after:Opportunity):Opportunity{
   if(JSON.stringify(snapshot(before))===JSON.stringify(snapshot(after)))return before;
-  return {...after,resumeCheckStale:true,frozenStale:after.frozenStale||Boolean(after.applicationQuality),resumeEditHistory:{past:[...(before.resumeEditHistory?.past||[]),snapshot(before)].slice(-15),future:[]}};
+  return {...after,resumeCheckStale:true,frozenStale:after.frozenStale||Boolean(after.applicationQuality),resumeEditHistory:{generationId:after.resumeGenerationId,past:[...(currentResumeEditHistory(before)?.past||[]),snapshot(before)].slice(-15),future:[]}};
 }
 export function travelResumeEdit(item:Opportunity,direction:'undo'|'redo'):Opportunity{
-  const history=item.resumeEditHistory||{past:[],future:[]};
+  const history=currentResumeEditHistory(item)||{past:[],future:[]};
   const from=direction==='undo'?history.past:history.future,entry=from.at(-1);
   if(!entry)return item;
-  return {...item,resumeText:entry.text,resumeChanges:entry.changes,resumeCheckStale:true,frozenStale:item.frozenStale||Boolean(item.applicationQuality),resumeEditHistory:direction==='undo'?{past:from.slice(0,-1),future:[...history.future,snapshot(item)].slice(-15)}:{past:[...history.past,snapshot(item)].slice(-15),future:from.slice(0,-1)}};
+  return {...item,resumeText:entry.text,resumeChanges:entry.changes,resumeCheckStale:true,frozenStale:item.frozenStale||Boolean(item.applicationQuality),resumeEditHistory:{generationId:item.resumeGenerationId,...(direction==='undo'?{past:from.slice(0,-1),future:[...history.future,snapshot(item)].slice(-15)}:{past:[...history.past,snapshot(item)].slice(-15),future:from.slice(0,-1)})}};
 }
 export function editableResumeBlock(item:Opportunity,id:string){
   const before=splitResumeBlocks(item.resumeText||'').find(block=>block.id===id)?.lines.join('\n');

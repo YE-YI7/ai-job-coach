@@ -180,7 +180,7 @@ export interface Opportunity {
   resumeRevision?: string;
   /** 服务端改稿版本；迟到的自动保存不得抹掉更新版本的建议。 */
   resumeGenerationId?: string;
-  resumeEditHistory?: { past: Array<{ text: string; changes: ResumeChange[] }>; future: Array<{ text: string; changes: ResumeChange[] }> };
+  resumeEditHistory?: { generationId?: string; past: Array<{ text: string; changes: ResumeChange[] }>; future: Array<{ text: string; changes: ResumeChange[] }> };
   profileText?: string;
   nextEventLabel: string | null;
   scheduledInterviewAt?: string | null;

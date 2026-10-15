@@ -8,6 +8,11 @@ export function resumeSourceProtection(before: string, after: string, section: s
   if (identitySection.test(section.trim()) || contact.test(before)
     || (nameLine && before.replace(/^#+\s*/, "").trim() === firstLine)) return ["姓名与联系方式保留原文，不由自动改稿更改；需要时可手动编辑"];
   const markers = ["虚构", "示例", "练习", "模拟", "教学", "个人项目", "课程项目"];
-  return markers.filter(marker => before.includes(marker) && !after.includes(marker))
+  const at = resume.indexOf(before);
+  // A qualifier already in this exact, unchanged Markdown heading need not
+  // be repeated in every bullet. Never borrow a label from another project.
+  const localHeading = before && at >= 0 && resume.indexOf(before, at + before.length) < 0 && !/^\s*#/m.test(before)
+    ? resume.slice(0, at).split('\n').filter(line=>/^\s*#{1,6}\s+\S/.test(line)).at(-1) || '' : '';
+  return markers.filter(marker => before.includes(marker) && !after.includes(marker) && !localHeading.includes(marker))
     .map(() => "不能去掉原文的虚构、示例或练习性质标记");
 }

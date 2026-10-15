@@ -67,8 +67,14 @@ export function nextResumeQuestion(source: string, raw: unknown, answers: Resume
 const RESUME_FACT_QUESTIONS:Record<ResumeQuestionField,string>={action:'这段经历里，你本人实际做的第一件事是什么？',deliverable:'这一步最后留下了什么具体材料或交付物？',context:'当时最需要解决的一个问题是什么？',outcome:'你交付的材料后来是怎么被使用的？',scope:'这段经历中，你具体负责哪一部分？'};
 
 export function isVagueResumeResponsibility(text:string){
-  return /(?:负责|参与|协助|从事).{0,20}(?:相关工作|一些工作|日常工作|需求工作|运营工作|产品工作)[。！!\s]*$/.test(text)
-    &&!/(?:整理|记录|核对|制作|更新|编写|开发|测试|评测|设计|维护|排查|分析|审核|处理|收集|访谈|交付|提交|交给|接待|跟进)/.test(text);
+  // A note such as “具体个人交付还没梳理” is an admission of missing
+  // detail, not evidence of having 梳理/交付. Removing that note alone must
+  // not turn a vague responsibility into a supposedly useful paid rewrite.
+  const factual = text.split(/[，,；;。！!\n]/).filter(clause=>
+    !/^\s*(?:(?:具体|个人|本人|我的|实际|最后|最终)\s*)*(?:交付|动作|做了什么|工作).{0,12}(?:未梳理|没梳理|不清楚|记不清|不知道)/.test(clause)
+  ).filter(Boolean).join('，');
+  return /(?:负责|参与|协助|从事).{0,20}(?:相关工作|一些工作|日常工作|需求工作|运营工作|产品工作)\s*$/.test(factual)
+    &&!/(?:整理|记录|核对|制作|更新|编写|开发|测试|评测|设计|维护|排查|分析|审核|处理|收集|访谈|交付|提交|交给|接待|跟进)/.test(factual);
 }
 
 /** Ask for an explicit gap or a clearly vague responsibility after safe edits have been attempted.

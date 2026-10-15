@@ -104,6 +104,17 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test('removing a missing-detail note cannot count as a useful edit of vague work',async()=>{
+    const resumeText='- 参与校园二手平台项目，主要负责需求相关工作，具体个人交付还没梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:resumeText,after:'- 参与小组课程项目「校园二手平台」，主要负责需求相关工作。',sourceIds:['claim-1']}]}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{field:'deliverable',sourceExcerpt:resumeText}});
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+
   test('purely cosmetic attempts can end unchanged only after independent original review',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'Excel、Word',jd:'',revision:'r',changes:[]});

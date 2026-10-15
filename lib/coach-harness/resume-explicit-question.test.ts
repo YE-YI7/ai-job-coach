@@ -1,4 +1,11 @@
-import {explicitMissingResumeQuestion} from './resume-task-types';
+import {explicitMissingResumeQuestion,isVagueResumeResponsibility} from './resume-task-types';
+
+test('missing-deliverable notes are not concrete actions and cannot hide vague responsibilities',()=>{
+ expect(isVagueResumeResponsibility('- 参与校园二手平台项目，主要负责需求相关工作，具体个人交付还没梳理。')).toBe(true);
+ expect(isVagueResumeResponsibility('负责运营相关工作，具体交付不清楚。')).toBe(true);
+ expect(isVagueResumeResponsibility('整理商品表交给店长，协助运营相关工作，具体个人交付还没梳理。')).toBe(false);
+ expect(isVagueResumeResponsibility('参与需求相关工作，梳理了十条反馈并交付清单。')).toBe(false);
+});
 test('explicit gaps can ask one fact, not contacts or ordinary duties',()=>{
  expect(explicitMissingResumeQuestion('参与校园项目，具体个人交付还没梳理。',[])?.field).toBe('deliverable');
  expect(explicitMissingResumeQuestion('负责店铺运营，整理商品资料和问题清单。',[])).toBeNull();

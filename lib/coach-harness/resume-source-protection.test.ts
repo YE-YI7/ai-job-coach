@@ -14,3 +14,11 @@ test("ordinary project names and factual edits are not identity fields", () => {
   expect(resumeSourceProtection("协助整理走查记录", "整理走查记录，并保留协助责任", "项目经历")).toEqual([]);
   expect(resumeSourceProtection("协助整理走查记录", "协助整理记录", "个人信息保护平台项目")).toEqual([]);
 });
+
+test('a source label in the same unchanged heading can qualify concise bullets',()=>{
+  const before='- 在课程项目中使用 React 完成两个页面，目前还是课程原型。';
+  expect(resumeSourceProtection(before,'- 使用 React 完成两个页面，处于课程原型阶段。','项目经历',`### 图书系统｜课程项目\n${before}`)).toEqual([]);
+  expect(resumeSourceProtection(before,'- 使用 React 完成两个页面','项目经历',`### 旧项目｜课程项目\n其他经历\n### 新项目\n${before}`)).not.toEqual([]);
+  expect(resumeSourceProtection('### 图书系统｜课程项目','### 图书系统','项目经历','### 图书系统｜课程项目')).not.toEqual([]);
+  expect(resumeSourceProtection(before,'- 使用 React 完成两个页面','项目经历',`### 课程项目\n${before}\n### 新项目\n${before}`)).not.toEqual([]);
+});

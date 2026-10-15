@@ -219,6 +219,7 @@ export async function POST(request: Request) {
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、项目成熟度、数字和时间，个人未负责的事项不写进正文，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
       {role:'system',content:'内容取舍规则：每条修改必须改善实际可读性或信息，理由指出具体删掉了什么冗余/怎样拆清动作与交付/吸收了哪条本人事实。只加“办公软件：”、技能换序、换同义词或写笼统评价，不算改稿。否定责任是内部约束，不是简历内容：用户说“整理Excel需求清单交给页面同学，没有负责开发上线，也没有统计人数”，正文只写“整理Excel需求清单，交给负责页面的同学讨论”，不要另加“未负责开发/未统计人数”的bullet，更不能改成负责开发或有增长成果。保留参与/协助和原型/待上线等会改变已写动作含义的限定。没有结果数据不强求数字，真实交付与用途也有价值。已经清楚且无新事实、没有值得补问的缺口时返回 {status:"unchanged",changes:[]}，不要为了产生修改硬改。只有模糊经历而没有具体动作时先问一个对应经历的问题，不能只改旁边的技能栏蒙混过去。'},
       {role:'system',content:'具体规则：给同一组技能新增“前端技术/测试工具/版本控制”等分类标签，也不算有价值改稿，不给这种建议。原文含“课程项目”“个人项目”“练习”“模拟”“示例”“虚构”时，在改后对应段落逐字保留这些性质标记；可以将原型/未上线状态简短括注，不要把项目边界或别人负责的事项单独凑成自己的工作bullet。'},
+      {role:'system',content:'最终措辞约束：肯定的职责、动作只沿用原文肯定句中的词，不借用否定句中的词，动作名词也一样。比如原文是“使用 React 做前端页面；没有负责后端开发”，成稿可以写“使用 React 做图书列表和预约表单”，不能改成“前端开发”“负责前端开发”或“开发页面”。先拆清原来已做的动作、删口语冗余，不用更专业的同义动作词冒险。'},
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 4096, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
     } catch(error) {
       if(agentTask&&attempt===0&&/empty response/i.test(String(error instanceof Error?error.message:error))){
@@ -297,6 +298,7 @@ export async function POST(request: Request) {
           ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement ? ['vague_without_supplement'] : []),
           ...(mappingIssues.some(issue=>issue.includes('仅同义换词')) ? ['cosmetic_rewrite'] : []),
           ...(citationVerdict?.outcome==='block' ? [citationVerdict.reason.code] : []),
+          ...(citationVerdict?.outcome==='block' ? ((citationVerdict.data?.rejected || []) as Array<{ruleId:string}>).map(item=>`rule_${item.ruleId}`).filter(code=>/^rule_[a-zA-Z0-9_-]+$/.test(code)) : []),
         ] }].slice(0,12);
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];

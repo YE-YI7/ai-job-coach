@@ -1,5 +1,13 @@
-import {normalizeResumeDeletion,normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
+import {proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
 describe('resume editing value, separate from factuality',()=>{
+  test('proposes only uniquely anchored, sourced, standalone disclaimer deletion',()=>{
+    const before='- 没有负责后端开发。',source={id:'own',text:'没有负责后端开发。'};
+    expect(proposeStandaloneDisclaimerDeletions(before,[],[source])).toEqual([expect.objectContaining({before,after:'',sourceIds:['own']})]);
+    expect(proposeStandaloneDisclaimerDeletions(before,[],[])).toEqual([]);
+    expect(proposeStandaloneDisclaimerDeletions(before,[{before}], [source])).toEqual([]);
+    expect(proposeStandaloneDisclaimerDeletions(before+'\n'+before,[],[source])).toEqual([]);
+    for(const text of ['未负责开发，但整理了接口清单。','尚未上线的课程原型','记录未处理工单'])expect(proposeStandaloneDisclaimerDeletions(text,[],[{id:'own',text}])).toEqual([]);
+  });
   test('deletion instructions never become résumé prose or erase real contributions',()=>{
     expect(normalizeResumeDeletion('- 没有负责后端开发。','- （删除该条）')).toBe('');
     expect(normalizeResumeDeletion('- 协助编写接口说明。','- （删除该条）')).toBe('- （删除该条）');

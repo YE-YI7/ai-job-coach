@@ -38,6 +38,18 @@ export function normalizeResumeDeletion(before:string,after:string){
   return before.trim()&&!omitStandaloneDisclaimers(before).trim()&&/^(?:删除|删去|移除)(?:该|此|这)(?:条|段)$/.test(label)?'':after;
 }
 
+/** Propose, never apply, omission of standalone personal disclaimers. Both
+ * exact source citation and independent review/user acceptance still follow. */
+export function proposeStandaloneDisclaimerDeletions(resume:string,proposals:Array<{before?:unknown}>,sources:Array<{id:string;text:string}>){
+  return resume.split('\n').map(line=>line.trim()).filter(line=>line.length>=6&&line.length<=260
+    &&!omitStandaloneDisclaimers(line).trim()&&resume.indexOf(line)===resume.lastIndexOf(line)
+    &&!proposals.some(item=>String(item.before||'').includes(line)||line.includes(String(item.before||'\u0000'))))
+    .flatMap(before=>{
+      const source=sources.find(item=>item.text.includes(before)||clean(item.text).includes(clean(before)));
+      return source?[{section:'经历表述',before,after:'',reason:'独立的未负责事项仅保留为内部事实边界，建议从投递正文中删除；并不表示承担了这些工作。',sourceIds:[source.id]}]:[];
+    }).slice(0,Math.max(0,6-proposals.length));
+}
+
 const normalize=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
 const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专业技能|个人技能|技能清单|掌握技能|技能|工具|软件|技术栈|常用工具|使用工具|工作内容|主要职责|项目职责|职责|个人简介|项目经历)\s*[:：]/g,'');
 

@@ -17,7 +17,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
-import {RESUME_EDITORIAL_STANDARD,normalizeResumeDeletion,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
+import {RESUME_EDITORIAL_STANDARD,proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { selectResumeDraftKnowledge } from "@/lib/knowledge/resume-methods";
@@ -236,6 +236,7 @@ export async function POST(request: Request) {
     }
     trace.step("draft", "model_returned");
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
+    if(rawChanges.some(item=>String(item.after||'').trim()))rawChanges.push(...proposeStandaloneDisclaimerDeletions(resumeText,rawChanges,citationSources.filter(item=>citableIds.has(item.id))));
     followUp = agentTask && agentTask.answers.length < 5
       ? nextResumeQuestion(resumeText, parsed.recovery, agentTask.answers) : null;
     // A no-op is a valid outcome, but never a shortcut around an unhandled

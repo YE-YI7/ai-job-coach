@@ -53,6 +53,14 @@ describe("resume draft source mapping", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  test('an explicit unfilled experience gets one question only after safe drafting fails',async()=>{
+    const resumeText='参与校园二手平台项目，主要负责需求相关工作，具体个人交付还没梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[]}));
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{field:'deliverable',sourceExcerpt:resumeText}});expect(callLLM).toHaveBeenCalledTimes(2);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test('malformed model JSON gets one bounded repair before a draft is delivered',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce('{"changes": [broken]}')

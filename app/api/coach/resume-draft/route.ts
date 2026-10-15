@@ -25,7 +25,7 @@ import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protec
 import { resumeTaskInput, persistResumeAnswerClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
-import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, anchoredResumeExcerpt, type ResumeAgentQuestion } from "@/lib/coach-harness/resume-task-types";
+import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, explicitMissingResumeQuestion, anchoredResumeExcerpt, type ResumeAgentQuestion } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -167,6 +167,11 @@ export async function POST(request: Request) {
     // A skill-line polish must not mask failure to incorporate the experience
     // we just asked the user to explain. Unknown/skipped answers are not facts.
     const latestAnswer=agentTask?currentResumeAnswer(agentTask.answers):null;
+    const explicitQuestion=agentTask?explicitMissingResumeQuestion(resumeText,agentTask.answers):null;
+    const askExplicitDetail=()=>{
+      outcome='needs_detail';trace?.step('draft','explicit_missing_fact_after_attempts');
+      return NextResponse.json({ok:false,reasonCode:'resume_detail_needed',error:'这段经历还缺一个你实际做过的细节。原文已保留，本次未扣额度。',recovery:explicitQuestion},{status:422});
+    };
     const coversSupplement = (proposals:ResumeChange[]) => coversCurrentResumeAnswer(proposals,agentTask?.answers||[]);
     for(let attempt=0;attempt<(agentTask?2:1);attempt++){
     const output = await runWithGenerationContext({
@@ -247,6 +252,7 @@ export async function POST(request: Request) {
       outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length);
       await finalizeQuota(reservation, false);
       reservation = null;
+      if(explicitQuestion)return askExplicitDetail();
       return NextResponse.json({ ok: false, reasonCode: "resume_draft_unverified", retryable: true, error: "这次生成的修改未通过事实校验，原文和补充已保留，本次未扣额度，可以重试", ...(agentTask ? {} : { recovery: resumeRecovery(resumeText) }) }, { status: 422 });
     }
     trace.step("grounding", "proposals_checked", changes.length);
@@ -280,6 +286,7 @@ export async function POST(request: Request) {
       outcome = "blocked"; trace.step("review", "all_changes_rejected");
       await finalizeQuota(reservation, false);
       reservation = null;
+      if(explicitQuestion)return askExplicitDetail();
       return NextResponse.json({ ok: false, reasonCode: "resume_review_failed", retryable: true, error: "这次生成的修改未通过文字与事实质检，原文和补充已保留，本次未扣额度，可以重试", ...(agentTask ? {} : { recovery: resumeRecovery(resumeText) }) }, { status: 422 });
     }
     break;

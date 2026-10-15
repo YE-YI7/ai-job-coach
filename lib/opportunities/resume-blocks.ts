@@ -21,6 +21,7 @@ export interface ResumeBlock {
 const SECTION_PATTERNS: Array<{ kind: ResumeBlockKind; test: RegExp }> = [
   { kind: "header", test: /^(基本信息|联系方式)[:：\s]*$/ },
   { kind: "education", test: /^(教育背景|教育经历|学历|教育)/ },
+  { kind: "project", test: /^(?:校园|课程|个人|开源|科研)项目(?:经历|经验)?[:：\s]*$/ },
   { kind: "project", test: /^(项目经历|项目经验|代表项目|主要项目|项目)/ },
   { kind: "experience", test: /^(工作经历|实习经历|职业经历|工作经验|相关经历|校园经历|社团经历|课外活动)/ },
   { kind: "skill", test: /^(专业技能|职业技能|技能|证书|荣誉|获奖)/ },

@@ -6,6 +6,13 @@ function change(over: Partial<ResumeChange> & { id: string }): ResumeChange {
 }
 
 describe("splitResumeBlocks", () => {
+  it('keeps short campus/course project headings separate without swallowing facts',()=>{
+    const text='林禾\n实习经历\n负责整理商品资料\n校园项目\n参与校园二手平台，整理需求清单\n课程项目\n课程项目需要核对原始问卷';
+    const blocks=splitResumeBlocks(text);
+    expect(blocks.filter(b=>b.kind==='project').map(b=>b.heading)).toEqual(['校园项目','课程项目']);
+    expect(reconstructResumeText(blocks).replace(/\s/g,'')).toBe(text.replace(/\s/g,''));
+    expect(blocks.at(-1)?.lines).toEqual(['课程项目需要核对原始问卷']);
+  });
   it("does not centre unsectioned narrative just because the first line is short",()=>{
     const text="张三\n手机：13800000000\n我想做一个让人和 Agent 共同工作的系统，让小团队能调动过去需要庞大组织才有的能力。\nASM 研究任务交给谁\n工具的价值取决于使用者，我负责产品定义、取舍与验收。\n\n## 教育背景\n2022-2026 某大学";
     const blocks=splitResumeBlocks(text);
@@ -94,7 +101,7 @@ describe("reorderResumeText", () => {
     expect(restored.map(block => block.kind)).toContain("summary");
     expect(restored.find(block => block.kind === "summary")?.lines).toEqual(blocks[0].lines);
     expect(restored.find(block => block.title === "我提出的问题")?.lines).toEqual([]);
-    expect(restored.find(block => block.title === "校园项目")?.lines).toEqual(["访谈8名同学。"]);
+    expect(restored.find(block => block.heading === "### 校园项目")?.lines).toEqual(["访谈8名同学。"]);
     const summary = restored.find(block => block.kind === "summary")!;
     const reversed = reorderResumeText(next, summary.id, restored[0].id)!;
     expect(splitResumeBlocks(reversed)[0].kind).toBe("summary");

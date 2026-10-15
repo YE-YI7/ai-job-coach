@@ -4,7 +4,9 @@
 // HTTP handlers (+config) to be exported from a route module.
 
 function normalizeForDiff(value: string) {
-  return value.toLowerCase().replace(/[\s，。、；：！？“”‘’（）()《》\-—·|/\\]+/g, "");
+  return value.toLowerCase().replace(/[\s，。、；：！？“”‘’（）()《》\-—·|/\\]+/g, "")
+    // Handoff synonyms and linking words do not create a new deliverable.
+    .replace(/(?:并|后|再|随后)?(?:移交|交给|提交给)/g,'交给');
 }
 
 function editDistanceWithin(a: string, b: string, limit: number) {

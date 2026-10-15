@@ -175,6 +175,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ok:false,reasonCode:'resume_detail_needed',error:'这段经历还缺一个你实际做过的细节。原文已保留，本次未扣额度。',recovery:explicitQuestion},{status:422});
     };
     const coversSupplement = (proposals:ResumeChange[]) => coversCurrentResumeAnswer(proposals,agentTask?.answers||[]);
+    let lastUnchangedAttempt=-1;
+    const checkUnchanged=async(attempt:number)=>{
+      if(latestAnswer||explicitQuestion||followUp||lastUnchangedAttempt===attempt)return null;
+      lastUnchangedAttempt=attempt;
+      const checkOutput=await runWithGenerationContext({userId:user.id,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
+        {role:'system',content:'独立检查原简历是否已经可以保留，不审核失败的候选。真实动作、交付和用途已清楚，或只有技能/教育无需重写时，可以保留。不要因为没有数字要求补问。换同义词、技能分类、交给换成移交不算改善；若有冗长、重复、名词堆砌可安全改善，或值得逐问的模糊经历，unchanged必须false。只返回JSON:{"status":"passed|failed","unchanged":true或false,"summary":"判断依据"}。不得把不确定或模型失败当成无需修改。'},
+        {role:'user',content:JSON.stringify({resume:resumeText,currentDecisions:generationSource?.changes||[],answers:agentTask?.answers||[],jd:jobDescription})},
+      ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
+      const check=parseJson(checkOutput);
+      if(check.status!=='passed'||check.unchanged!==true||String(check.summary||'').length<8){repairFeedback.push('独立检查认为仍有值得处理的内容：'+String(check.summary||'请先精简已有事实或对模糊经历问一个问题'));return null;}
+      const summary='已检查，当前内容可以保留。本轮没有新增修改；仍可直接编辑或导出。';
+      const kept=generationSource?.changes||[];
+      const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:kept,unchanged:true,summary,applicationQuality:generationSource.applicationQuality}):undefined;
+      if(task&&task.state!=='ready')throw Error('简历已更新，本次检查未覆盖你的编辑，请刷新核对');
+      await finalizeQuota(reservation,false);reservation=null;outcome='unchanged';
+      trace!.data.editingValue={reviewed:0,useful:0,rejected:rejected.length,kinds:[],personalDisclaimersOmitted,disposition:'unchanged'};
+      trace!.step('save','independently_checked_unchanged');
+      return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
+    };
     for(let attempt=0;attempt<(agentTask?2:1);attempt++){
     let output:string;
     try { output = await runWithGenerationContext({
@@ -213,22 +232,8 @@ export async function POST(request: Request) {
     // A no-op is a valid outcome, but never a shortcut around an unhandled
     // positive answer or an explicit missing fact. Independently confirm it.
     if((parsed.status==='unchanged'||!parsed.status)&&!rawChanges.length&&!latestAnswer&&!explicitQuestion&&!followUp){
-      const checkOutput=await runWithGenerationContext({userId:user.id,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
-        {role:'system',content:'独立检查是否应保持当前简历不变。真实动作、交付和用途已清楚，或只有技能/教育无需重写时，可以保留。不要因为没有数字要求补问。若有冗长、重复、名词堆砌可安全改善，或有值得逐问的模糊经历，unchanged必须false。只返回JSON:{"status":"passed|failed","unchanged":true或false,"summary":"判断依据"}。不得把不确定或模型失败当成无需修改。'},
-        {role:'user',content:JSON.stringify({resume:resumeText,currentDecisions:generationSource?.changes||[],answers:agentTask?.answers||[],jd:jobDescription})},
-      ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
-      const check=parseJson(checkOutput);
-      if(check.status==='passed'&&check.unchanged===true&&String(check.summary||'').length>=8){
-        const summary='已检查，当前内容可以保留。本轮没有新增修改；仍可直接编辑或导出。';
-        const kept=generationSource?.changes||[];
-        const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:kept,unchanged:true,summary,applicationQuality:generationSource.applicationQuality}):undefined;
-        if(task&&task.state!=='ready')throw Error('简历已更新，本次检查未覆盖你的编辑，请刷新核对');
-        await finalizeQuota(reservation,false);reservation=null;outcome='unchanged';
-        trace.data.editingValue={reviewed:0,useful:0,rejected:0,kinds:[],personalDisclaimersOmitted,disposition:'unchanged'};
-        trace.step('save','independently_checked_unchanged');
-        return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
-      }
-      if(agentTask&&attempt===0){repairFeedback=['独立检查认为仍有值得处理的内容：'+String(check.summary||'请先精简已有事实或对模糊经历问一个问题')];continue;}
+      const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;
+      if(agentTask&&attempt===0)continue;
     }
     if (parsed.status === "needs_detail" && !rawChanges.length) {
       if (agentTask && attempt === 0) {
@@ -286,6 +291,8 @@ export async function POST(request: Request) {
     });
     if (!changes.length || !coversSupplement(changes)) {
       if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
+      const onlyCosmetic=rejected.length>0&&rejected.every(item=>item.reasons.length>0&&item.reasons.every(reason=>/仅改标签|技能列表|仅同义换词/.test(reason)));
+      if(agentTask&&!changes.length&&onlyCosmetic){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}
       outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length);
       await finalizeQuota(reservation, false);
       reservation = null;
@@ -327,6 +334,9 @@ export async function POST(request: Request) {
       !errorChangeIds.has(change.id) && (reviewer.status !== "failed" || !failedFindingIds.has(change.id)));
     if (!finalChanges.length || !coversSupplement(finalChanges)) {
       if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...reviewerFindings.map(finding=>String((finding as Record<string,unknown>)?.message||'独立复核未通过'))].slice(0,10);if(!repairFeedback.length)repairFeedback=['独立复核未通过，请忠实沿用用户原词和责任限定'];trace.step('review','one_bounded_repair',reviewerFindings.length);continue;}
+      const onlyValueRejections=reviewer.status==='passed'&&valueChecks.length===changes.length&&valueChecks.every(check=>!check.useful)
+        &&reviewerFindings.every(finding=>valueChecks.some(check=>check.reason===String((finding as Record<string,unknown>)?.message)));
+      if(agentTask&&!finalChanges.length&&onlyValueRejections){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}
       outcome = "blocked"; trace.step("review", "all_changes_rejected");
       await finalizeQuota(reservation, false);
       reservation = null;

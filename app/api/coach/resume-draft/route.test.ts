@@ -59,7 +59,17 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'Excel、Word',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
-    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(2);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
+  test('purely cosmetic attempts can end unchanged only after independent original review',async()=>{
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'Excel、Word',jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes:[],unchanged:true}});
+    const cosmetic=JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有技能清单清楚，增加标签没有信息价值。'}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'Excel、Word',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
   test('factually approved edits still require independent value approval',async()=>{

@@ -1,5 +1,5 @@
 "use client";
-import {useState} from "react";
+import {useRef,useState} from "react";
 import {Check, FileDown} from "lucide-react";
 import {printTemplates,renderResumePrintWindow,type PrintTemplate} from "@/lib/resume-print";
 import {useResumeTemplate} from "@/lib/resume-template-preference";
@@ -14,8 +14,9 @@ const TEMPLATE_PREVIEWS: Record<PrintTemplate, {label:string; accent:string; ser
   warm: {label:printTemplates.warm.label, accent:printTemplates.warm.accent, serif:false, description:"暖色标题 · 连续阅读"},
 };
 
-export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason,compact=false}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string;compact?:boolean}){
+export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason,compact=false,pendingCount=0}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string;compact?:boolean;pendingCount?:number}){
  const [template,setTemplate]=useResumeTemplate(),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const confirmation=useRef<HTMLDialogElement>(null);
  async function open(){
   if(disabledReason)return;
   const track=(name:"resume_preview_ready"|"resume_preview_failed"|"resume_print_requested")=>{if(/^[0-9a-f-]{36}$/i.test(opportunityId))trackProductEvent(name,{opportunity_id:opportunityId,template,version_source:artifactId?"artifact":"current_text"});};
@@ -44,7 +45,8 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
    );})}
   </div>
   </>}
-  <button className={`${styles.secondaryButton} ${styles.exportAction}`} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>void open()}><FileDown size={17} aria-hidden="true"/>{busy?"正在准备…":"预览 / 保存 PDF"}</button>
+  <button className={`${styles.secondaryButton} ${styles.exportAction}`} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>pendingCount?confirmation.current?.showModal():void open()}><FileDown size={17} aria-hidden="true"/>{busy?"正在准备…":"预览 / 保存 PDF"}</button>
+  <dialog ref={confirmation} className={styles.resumeExportConfirmation} aria-labelledby={`resume-export-confirm-${opportunityId}`}><p id={`resume-export-confirm-${opportunityId}`}>还有 {pendingCount} 处修改未逐一确认。要导出的话，按我们最后给你修改的版本导出，你同不同意？</p><p>已拒绝的修改不会重新采用，导出不会替你更改采纳状态。</p><div><button type="button" onClick={()=>confirmation.current?.close()}>返回继续选择</button><button type="button" onClick={()=>{confirmation.current?.close();void open();}}>同意，导出修改后版本</button></div></dialog>
   {(!compact||disabledReason)&&<small>{disabledReason||"在打印窗口选择「另存为 PDF」。"}</small>}
   {error&&<p role="alert">{error}</p>}
  </div>;

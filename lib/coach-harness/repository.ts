@@ -851,6 +851,9 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const incomingResume = typeof opportunity.resumeText === "string" ? opportunity.resumeText.trim() : "";
   const nextResume = incomingResume || prevResume;
   const mergedMetadata: Record<string, unknown> = { ...metadata };
+  if (!replacement && currentMetadata.resumeGenerationId && metadata.resumeGenerationId !== currentMetadata.resumeGenerationId) {
+    for (const field of ["resumeGenerationId", "resumeChanges", "applicationQuality", "resumeCheckStale"]) mergedMetadata[field] = currentMetadata[field];
+  }
   // Client auto-save cannot erase or forge the server-owned stage clock.
   mergedMetadata.stageEnteredAt = !preserveStage && current.stage !== stage
     ? new Date().toISOString() : currentMetadata.stageEnteredAt || null;

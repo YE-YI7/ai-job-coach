@@ -176,6 +176,8 @@ export interface Opportunity {
   /** Byte-preserved private source, distinct from the editable draft. */
   resumeOriginal?: { path: string; name: string; mime: string; size: number };
   resumeRevision?: string;
+  /** 服务端改稿版本；迟到的自动保存不得抹掉更新版本的建议。 */
+  resumeGenerationId?: string;
   profileText?: string;
   nextEventLabel: string | null;
   scheduledInterviewAt?: string | null;

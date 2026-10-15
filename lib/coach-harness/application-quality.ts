@@ -29,7 +29,7 @@ function uniqueRange(source: string, needle: string) {
   return { start: first, end: first + needle.length };
 }
 
-export function applyResumeChanges(source: string, changes: ResumeChange[]) {
+export function resolveResumeEdits(source: string, changes: ResumeChange[]) {
   const findings: TextQualityFinding[] = [];
   const edits: { start: number; end: number; after: string; change: ResumeChange }[] = [];
   const normalized = normalizedOffsets(source);
@@ -48,8 +48,13 @@ export function applyResumeChanges(source: string, changes: ResumeChange[]) {
   }
   const overlapping = new Set(edits.filter((edit) => edits.some((other) => other !== edit && edit.start < other.end && other.start < edit.end)));
   for (const edit of overlapping) findings.push({ code: "replacement_missed", severity: "error", changeId: edit.change.id, message: `「${edit.change.section}」与另一条建议修改了同一段原文。请只选择其中一条，其余保留原文。` });
+  return { edits: edits.filter(item => !overlapping.has(item)).sort((a, b) => a.start - b.start), findings };
+}
+
+export function applyResumeChanges(source: string, changes: ResumeChange[]) {
+  const { edits, findings } = resolveResumeEdits(source, changes);
   let text = source;
-  for (const edit of edits.filter((item) => !overlapping.has(item)).sort((a, b) => b.start - a.start)) text = text.slice(0, edit.start) + edit.after + text.slice(edit.end);
+  for (const edit of [...edits].reverse()) text = text.slice(0, edit.start) + edit.after + text.slice(edit.end);
   return { text, findings };
 }
 

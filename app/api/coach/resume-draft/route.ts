@@ -22,6 +22,8 @@ import { retrieveResumeExamples, renderResumeKnowledge } from "@/lib/knowledge/r
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
+import { resumeTaskInput, persistResumeAnswerClaims } from "@/lib/coach-harness/resume-task";
+import { factualResumeAnswers, nextResumeQuestion } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -64,6 +66,8 @@ export async function POST(request: Request) {
     if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
     trace = await startResumeTrace(user.id, requestId, generalResume);
+    const agentTask = body.resumeTaskId ? await resumeTaskInput(user.id, String(body.resumeTaskId), String(body.resumeTaskLease || "")) : null;
+    if (agentTask && agentTask.opportunity_id !== opportunityId) throw Error("改稿任务与当前简历不一致");
     reservation = await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
     if (!reservation) { outcome = "quota_denied"; return NextResponse.json({ ok: false, error: "简历生成额度不足", needUpgrade: true }, { status: 403 }); }
 
@@ -110,6 +114,12 @@ export async function POST(request: Request) {
       });
     }
 
+    if (agentTask) {
+      const answers = factualResumeAnswers(agentTask.answers);
+      const supplementClaims = await persistResumeAnswerClaims(agentTask);
+      context = compileContextBundle({ ...context, knowledgeContext: "", claims: [...context.claims.filter(claim=>claim.claimType!=="resume_task_supplement"), ...supplementClaims],
+        attachments: [...context.attachments, ...answers.map((answer, index) => ({ id: `resume-answer-source-${index}`, label: "已保存的本人补充（自述）", text: answer.answer, required: true }))] });
+    }
     trace.step("context", "own_materials_compiled");
     const examples = retrieveResumeExamples({ resume: resumeText, target: jobDescription });
     if (examples.length) {
@@ -144,6 +154,21 @@ export async function POST(request: Request) {
     ];
     const citationVerdicts: Array<{ index: number; outcome: GuardDecision["outcome"]; code: string; message: string }> = [];
 
+    if (agentTask && agentTask.answers.length < 5 && !agentTask.answers.some(answer => answer.skipped)) {
+      const plan = parseJson(await runWithGenerationContext({ userId: user.id, operation: "resume_draft", requestId: `${requestId}:materials`, knowledgeDocumentIds: includedKnowledge.map(item => item.id) }, () => callLLM([
+        { role: "system", content: "你是益职的简历导师。先判断资料是否能形成具体、真实、有价值的短 bullet。只有模糊职责/名词，或用户说忘了、不知道具体做了什么时，必须先补问；别直接把空泛句润色。已有具体个人动作和交付，就 ready；没有数字、没有目标JD，不是阻断理由。一次只问一个最影响改稿的事实，问题简短易答，可以用回忆方法引导，但不提供可冒充经历的示例答案。不要一口气问背景/动作/结果三件事，不重复问已经回答或说不知道的维度。返回JSON {\"ready\":true} 或 {\"ready\":false,\"recovery\":{\"sourceExcerpt\":\"简历连续原句，不含姓名联系方式\",\"field\":\"context|action|deliverable|outcome|scope\",\"question\":\"只问一个具体问题\"}}。外部案例不是用户经历，不向用户展示内部评分。" },
+        { role: "user", content: `当前JD：${jobDescription || "无JD，通用修改"}\n原简历：${resumeText}\n已保存补问及回答（用户自述，含不知道）：${JSON.stringify(agentTask.answers)}\n同账号可引用事实：${source}\n${renderResumeKnowledge(includedKnowledge)}` },
+      ], { provider: "deepseek", temperature: 0.1, maxTokens: 700, reasoningBudgetTokens: 1536, timeoutMs: 30_000, maxRetries: 0, responseFormat: "json_object" })));
+      const question = plan.ready === false ? nextResumeQuestion(resumeText, plan.recovery, agentTask.answers) : null;
+      if (question) {
+        await finalizeQuota(reservation, false); reservation = null; outcome = "needs_detail";
+        trace.step("draft", "materials_one_question", agentTask.answers.length);
+        return NextResponse.json({ ok: false, recovery: question, reasonCode: "resume_detail_needed", error: "先补充这一个细节，再继续修改" }, { status: 422 });
+      }
+      if (plan.ready !== true && !agentTask.answers.length) throw Error("导师未能确认资料缺口，原简历保留，请重试");
+      trace.step("draft", "materials_ready", agentTask.answers.length);
+    }
+
     const output = await runWithGenerationContext({
       userId: user.id,
       operation: "resume_draft",
@@ -152,9 +177,10 @@ export async function POST(request: Request) {
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只整理用户已经提供的事实，不补项目、职责、技能、数字或时间。用户没有目标岗位经历不等于原简历不能改善；可改善已有工作的表达，不能替他补齐JD门槛。优先把密集的真实动作拆成2至3条易读短句或列表，保留原词、否定和责任限定。没有新信息时不要同义换词，但段落拆成有意义的动作/交付列表属于有效结构整理。补充经历仍是用户自述，不代表已核实。每条建议必须引用完整支持它的 sourceIds（逐字复制下方编号，不要用示例编号）；before 必须是原文连续片段。不要强行写成产品经理、主导、分析洞察或推动优化。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"这处表达改善的具体价值及与JD的有限对应","sourceIds":["提供的真实编号"]}]}` },
       { role: "system", content: "先判断现有事实是否足够改善表达；有能安全修改的内容就先改，不因缺 JD 关键词或没有数字阻断。只有完全无法提出有价值修改且缺具体事实时，才返回 {\"status\":\"needs_detail\",\"recovery\":{\"sourceExcerpt\":\"简历中12–260字的完整连续原文，不含联系方式\",\"question\":\"针对这段经历、一次只问一个最有用的具体问题\"},\"changes\":[]}。若已有补充经历，先读并使用，不能再要求同一材料。不索取案例中的成果或数字。参考资料只用于选择结构，永远不是可引用事实。" },
+      ...(agentTask ? [{ role: "user" as const, content: `已保存的逐问回答：${JSON.stringify(agentTask.answers)}。把有用的本人补充合并进原句，引用可引用事实清单中的对应编号；before 仍逐字来自原简历。不把这些问答原样堆到成稿末尾。不要仅改责任否定句/同义换词凑建议；优先改善真实动作、交付和信息取舍。已答或暂不补充的内容不要重复追问，缺失事实保持限定。` }] : []),
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n${renderResumeKnowledge(includedKnowledge)}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、否定、数字和时间，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
     trace.step("draft", "model_returned");
@@ -300,7 +326,7 @@ export async function POST(request: Request) {
     }
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
-    if(error instanceof Error && /Empty response from LLM|LLM_REQUEST_TIMEOUT|timed out/i.test(error.message)) {
+    if(error instanceof Error && /Empty response from LLM|LLM_REQUEST_TIMEOUT|timed out|LLM API|Service is too busy/i.test(error.message)) {
       return NextResponse.json({ok:false,error:"简历修改暂时未完成，本次未扣额度。原简历已保留，可以重试。",reasonCode:"model_response_incomplete",retryable:true},{status:503});
     }
     if (error instanceof Error && /^RESUME_TRACE_/.test(error.message)) return NextResponse.json({ ok: false, error: "简历服务暂时未准备好，原文已保留，本次未扣额度", retryable: true }, { status: 503 });

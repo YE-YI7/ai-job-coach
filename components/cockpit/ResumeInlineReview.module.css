@@ -1,0 +1,12 @@
+.workbench{min-width:0;padding-top:12px}
+.bubble{position:fixed;z-index:120;width:320px;max-width:calc(100vw - 24px);padding:10px 14px;background:var(--cockpit-studio-surface,#fdfdfb);color:var(--cockpit-studio-ink,#272b27);border-radius:12px;box-shadow:0 6px 28px rgb(39 43 39 / .16);font:13px/1.65 "Outfit","PingFang SC",sans-serif}
+.decisions{display:flex;gap:8px;align-items:center}
+.decisions button{display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
+.decisions button:hover{background:var(--cockpit-studio-selected,#dddfd6)}
+.bubble p{margin:5px 0 0;color:var(--cockpit-studio-muted,#636861)}
+.bubble textarea{width:100%;padding:8px;margin-top:8px;border:1px solid var(--cockpit-studio-line-strong,#d4d6ce);background:white;color:inherit;font:inherit;resize:vertical}
+.bubble form>button,.unlocated button{border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;padding:8px 0;color:inherit;font:inherit;cursor:pointer}
+.bubble button:focus-visible,.bubble textarea:focus-visible,.unlocated button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.unlocated{font-size:13px;line-height:1.7;margin-block:16px;color:var(--cockpit-studio-muted,#636861)}
+.unlocated p{margin:10px 0}.unlocated button{margin-left:12px}
+@media(max-width:700px){.decisions button{width:44px;height:44px}.bubble textarea{font-size:16px}}

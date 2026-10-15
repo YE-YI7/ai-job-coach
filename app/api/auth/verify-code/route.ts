@@ -44,7 +44,7 @@ function getSupabaseAdmin() {
  * 在 users 表中查找或创建用户
  */
 async function findOrCreateUser(
-  client: any,
+  client: NonNullable<Awaited<ReturnType<typeof getDbClient>>>,
   email: string,
   provider: string = 'email'
 ): Promise<{ userId: string; isNewUser: boolean }> {
@@ -185,7 +185,9 @@ export async function POST(request: Request) {
         await client.from('users').update({ last_active: new Date().toISOString() }).eq('id', userId);
       } else {
         // 邀请码未使用，创建或查找用户
-        const inviteEmail = `${code}@invite.local`;
+        // Supabase Auth normalizes email case; use the same value for the
+        // application-user lookup, including after its signup trigger ran.
+        const inviteEmail = `${code.toLowerCase()}@invite.local`;
         const result = await findOrCreateUser(client, inviteEmail, 'invite');
         userId = result.userId;
         isNewUser = result.isNewUser;

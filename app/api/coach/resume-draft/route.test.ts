@@ -3,7 +3,8 @@ import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota } from "@/lib/quota";
-import { applyResumeChanges, reviewAtsText } from "@/lib/coach-harness";
+import { applyResumeChanges, reviewAtsText, compileContextBundle } from "@/lib/coach-harness";
+import { resumeTaskInput, persistResumeAnswerClaims } from "@/lib/coach-harness/resume-task";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import {runWithGenerationContext} from "@/lib/generation-context";
 import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
@@ -11,6 +12,7 @@ import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
+jest.mock("@/lib/coach-harness/resume-task");
 jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn() }));
 jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: jest.fn((_context: unknown, run: () => unknown) => run()) }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
@@ -36,6 +38,8 @@ describe("resume draft source mapping", () => {
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "user-1" });
     (reserveQuota as jest.Mock).mockResolvedValue({ source: "free", remaining: 0 });
     (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
+    (compileContextBundle as jest.Mock).mockImplementation(input=>input);
+    (persistResumeAnswerClaims as jest.Mock).mockResolvedValue([]);
     (startResumeTrace as jest.Mock).mockResolvedValue({ data: {}, step: jest.fn(), finish: jest.fn().mockResolvedValue(undefined) });
     (getContextBundleForUser as jest.Mock).mockResolvedValue({
       allowedClaimIds: ["claim-1"], unverifiedClaimIds: [], selection: { included: [], excluded: [] },
@@ -44,6 +48,27 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  test('durable task plans exactly one anchored question before rewriting and releases hosted quota',async()=>{
+    const resumeText='参加校园工具项目，负责需求工作，具体交付尚未梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:false,recovery:{sourceExcerpt:resumeText,field:'action',question:'你本人处理的第一份材料是什么？'}}));
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect((await response.json()).recovery).toMatchObject({field:'action',question:'你本人处理的第一份材料是什么？'});
+    expect(callLLM).toHaveBeenCalledTimes(1);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
+  test('saved answers enter required context and stable citations before the next one-question planner',async()=>{
+    const resumeText='参加校园工具项目，负责需求工作，具体交付尚未梳理。';
+    const answer={id:'action',field:'action',sourceExcerpt:resumeText,question:'你本人做了什么？',answer:'我整理了访谈记录。',claimId:'8c47df93-0984-468b-bb56-30a387f670fe'};
+    (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[answer]});
+    (persistResumeAnswerClaims as jest.Mock).mockResolvedValueOnce([{id:answer.claimId,displayText:answer.answer}]);
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:false,recovery:{sourceExcerpt:resumeText,field:'deliverable',question:'你最后交付的那份材料叫什么？'}}));
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect((await response.json()).recovery.field).toBe('deliverable');
+    expect(compileContextBundle).toHaveBeenCalledWith(expect.objectContaining({attachments:[expect.objectContaining({text:answer.answer,required:true})],claims:[expect.objectContaining({id:answer.claimId})]}));
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain(answer.answer);
+  });
 
   test("identity cleanup and removal of a fictitious label are blocked before paid review", async () => {
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{section:"姓名栏",before:"林补充（虚构 QA）",after:"林补充",reason:"精简",sourceIds:["claim-1"]}]}));

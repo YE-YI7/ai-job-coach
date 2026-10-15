@@ -12,8 +12,13 @@ export const RESUME_EDITORIAL_STANDARD = `简历编辑不只是保真压缩，�
 export function isPersonalDisclaimer(text:string){return personalDisclaimer.test(clean(text));}
 
 /** Fix an unambiguous model list delimiter, not source prose or numeric ranges. */
-export function normalizeResumeBulletBreaks(text:string){
-  return /^\s*[-*•]\s+/.test(text)?text.replace(/[；;]\s*[-*•]\s+(?=\S)/g,'\n- '):text;
+export function normalizeResumeBulletBreaks(text:string,before=''){
+  const normalized = /^\s*[-*•]\s+/.test(text)?text.replace(/[；;]\s*[-*•]\s+(?=\S)/g,'\n- '):text;
+  // A single rewritten list item must not silently become a plain paragraph.
+  // Only restore an unambiguous source marker; never invent lists/headings.
+  const marker = before.match(/^\s*([-*•])\s+[^\n]+$/)?.[1];
+  return marker && normalized && !normalized.includes('\n') && !/^\s*(?:[-*•#]|\d+[.)])\s/.test(normalized)
+    ? `${marker} ${normalized}` : normalized;
 }
 
 // Only omit standalone disclaimer bullets/sentences. Mixed factual sentences

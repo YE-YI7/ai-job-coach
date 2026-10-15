@@ -260,17 +260,19 @@ export async function POST(request: Request) {
     rejected = [];
     changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => citableIds.has(id)) : [];
-      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000));
-      const after = omitStandaloneDisclaimers(proposedAfter);
-      if(after!==proposedAfter)personalDisclaimersOmitted++;
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);
       const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
+      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);
+      const after = omitStandaloneDisclaimers(proposedAfter);
+      if(after!==proposedAfter)personalDisclaimersOmitted++;
       const hasPositiveSupplement=agentTask?.answers.some(answer=>currentResumeAnswer([answer])&&answer.claimId&&sourceIds.includes(answer.claimId)&&(before.includes(answer.sourceExcerpt)||answer.sourceExcerpt.includes(before)));
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
+      const sourceIssues = resumeSourceProtection(before, after, String(raw.section || ""), resumeText);
+      const valueIssues = resumeEditValueIssues(before,after);
       const mappingIssues = [
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
-        ...resumeSourceProtection(before, after, String(raw.section || ""), resumeText),
-        ...resumeEditValueIssues(before,after),
+        ...sourceIssues,
+        ...valueIssues,
         ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement?['原文只有模糊职责，没有具体动作；拆成空泛bullet或把参与换成梳理不是有效改稿，需先补问这段本人实际做的事，不能阻断其他有事实段落']:[]),
       ];
       if (before && after && !hasPositiveSupplement && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
@@ -282,6 +284,15 @@ export async function POST(request: Request) {
       if (citationVerdict) citationVerdicts.push({ index, outcome: citationVerdict.outcome, code: citationVerdict.reason.code, message: citationVerdict.reason.message });
       if (citationVerdict?.outcome === "block") mappingIssues.push(citationVerdict.reason.message);
       if (!after || !before || !report.ok || mappingIssues.length) {
+        trace!.data.groundingRejections = [...(trace!.data.groundingRejections || []), { attempt, index, codes: [
+          ...(!after ? ['empty_after'] : []), ...(!before ? ['empty_before'] : []),
+          ...(before && !resumeText.includes(before) ? ['source_mapping'] : []),
+          ...(!report.ok ? ['claim_validation'] : []), ...(sourceIssues.length ? ['source_identity_or_marker'] : []),
+          ...(valueIssues.length ? ['editorial_value'] : []),
+          ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement ? ['vague_without_supplement'] : []),
+          ...(mappingIssues.some(issue=>issue.includes('仅同义换词')) ? ['cosmetic_rewrite'] : []),
+          ...(citationVerdict?.outcome==='block' ? [citationVerdict.reason.code] : []),
+        ] }].slice(0,12);
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];
       }

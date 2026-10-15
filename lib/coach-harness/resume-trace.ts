@@ -12,6 +12,8 @@ export interface ResumeTrace {
     matches: Array<{ id: string; similarity: number; dimensions: string[]; signals: string[]; stageMatched: boolean }> };
   quality: null | { subject: "draft_quality_not_candidate"; score: number; grounding: boolean; independentReview: boolean; shortBullets: boolean; ats: boolean; proposed: number; retained: number };
   editingValue?: { reviewed:number; useful:number; rejected:number; kinds:string[]; personalDisclaimersOmitted:number; disposition:'revised'|'unchanged' };
+  /** Fixed diagnostic categories only; never persist rejected text or prompts. */
+  groundingRejections?: Array<{ attempt:number; index:number; codes:string[] }>;
 }
 export function resumeRequestHash(requestId: string) { return createHash("sha256").update(requestId).digest("hex"); }
 

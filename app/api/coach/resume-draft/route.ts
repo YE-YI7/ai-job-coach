@@ -21,6 +21,7 @@ import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-
 import { retrieveResumeExamples, renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
+import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -172,7 +173,10 @@ export async function POST(request: Request) {
       const after = String(raw.after || "").trim().slice(0, 2000);
       const before = String(raw.before || "").trim().slice(0, 2000);
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
-      const mappingIssues = before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : [];
+      const mappingIssues = [
+        ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
+        ...resumeSourceProtection(before, after, String(raw.section || ""), resumeText),
+      ];
       if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
       // 槽3 引用回指核验（FR-23）：先于付费的独立质检员跑——逐字回指是确定性判定，
       // 不该花一次模型调用去发现一句没有出处的话。拦哪些类别由守卫裁定

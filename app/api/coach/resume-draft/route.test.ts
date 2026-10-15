@@ -45,6 +45,13 @@ describe("resume draft source mapping", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  test("identity cleanup and removal of a fictitious label are blocked before paid review", async () => {
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{section:"姓名栏",before:"林补充（虚构 QA）",after:"林补充",reason:"精简",sourceIds:["claim-1"]}]}));
+    const response=await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({opportunityId:"opp-1",resumeText:"林补充（虚构 QA）\n负责模型评测",mode:"general_resume"})}));
+    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test("one anchored question is returned before review and quota is released", async () => {
     const resumeText = "协助整理客服工单，参与需求讨论，但原材料还未说明具体交付";
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ status: "needs_detail", changes: [], recovery: {

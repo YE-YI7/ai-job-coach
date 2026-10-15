@@ -17,7 +17,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
-import {RESUME_EDITORIAL_STANDARD,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
+import {RESUME_EDITORIAL_STANDARD,normalizeResumeDeletion,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { selectResumeDraftKnowledge } from "@/lib/knowledge/resume-methods";
@@ -36,7 +36,7 @@ import {
   type GuardDecision,
   type Slot3Input,
 } from "@/lib/coach-harness/guard-slots";
-import type { GroundingSource } from "@/lib/coach-harness/citation-verifier";
+import { ACTION_VOCAB, type GroundingSource } from "@/lib/coach-harness/citation-verifier";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -265,7 +265,7 @@ export async function POST(request: Request) {
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);
       const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
       const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);
-      const after = omitStandaloneDisclaimers(proposedAfter);
+      const after = normalizeResumeDeletion(before,omitStandaloneDisclaimers(proposedAfter));
       // A standalone personal disclaimer is factual context, not an
       // achievement. An explicitly proposed deletion may be reviewed and
       // accepted, while arbitrary empty rewrites remain blocked.
@@ -299,6 +299,7 @@ export async function POST(request: Request) {
           ...(mappingIssues.some(issue=>issue.includes('仅同义换词')) ? ['cosmetic_rewrite'] : []),
           ...(citationVerdict?.outcome==='block' ? [citationVerdict.reason.code] : []),
           ...(citationVerdict?.outcome==='block' ? ((citationVerdict.data?.rejected || []) as Array<{ruleId:string}>).map(item=>`rule_${item.ruleId}`).filter(code=>/^rule_[a-zA-Z0-9_-]+$/.test(code)) : []),
+          ...(citationVerdict?.outcome==='block' ? ((citationVerdict.data?.rejected || []) as Array<{offendingSpan?:{text:string}}>).flatMap(item=>ACTION_VOCAB.includes(item.offendingSpan?.text||'')?[`verb_${item.offendingSpan!.text}`]:[]) : []),
         ] }].slice(0,12);
         rejected.push({ index, reasons: [...mappingIssues, ...report.issues.map((issue) => issue.message)] });
         return [];
@@ -314,7 +315,7 @@ export async function POST(request: Request) {
         status: "pending" as const,
       }];
     });
-    if (!changes.length || !coversSupplement(changes)) {
+    if (!changes.length || !coversSupplement(changes) || (rejected.length > 0 && changes.every(change=>!change.after.trim()))) {
       if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
       const onlyCosmetic=rejected.length>0&&rejected.every(item=>item.reasons.length>0&&item.reasons.every(reason=>/仅改标签|技能列表|仅同义换词/.test(reason)));
       if(agentTask&&!changes.length&&onlyCosmetic){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}

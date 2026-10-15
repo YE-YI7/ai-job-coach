@@ -1,5 +1,11 @@
-import {normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
+import {normalizeResumeDeletion,normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
 describe('resume editing value, separate from factuality',()=>{
+  test('deletion instructions never become résumé prose or erase real contributions',()=>{
+    expect(normalizeResumeDeletion('- 没有负责后端开发。','- （删除该条）')).toBe('');
+    expect(normalizeResumeDeletion('- 协助编写接口说明。','- （删除该条）')).toBe('- （删除该条）');
+    expect(resumeEditValueIssues('- 协助编写接口说明。','- （删除该条）')).toHaveLength(1);
+    expect(normalizeResumeDeletion('未负责开发，但整理了清单。','（删除该条）')).toBe('（删除该条）');
+  });
   test('a dated importance statement is not a résumé achievement',()=>expect(resumeEditValueIssues('提出了提醒机制，协作信息持续变化，希望主动提醒。','2025年11月提出提醒机制的重要性。希望系统主动提醒。').length).toBeGreaterThan(0));
   test('a concrete proposal can be edited without claiming implementation',()=>expect(resumeEditValueIssues('协作信息持续变化，提出按需提醒的设想，希望主动跟进。','针对协作信息持续变化的问题，提出按需主动提醒的设想。')).toEqual([]));
   test.each([['Excel、Word。','办公软件：Excel、Word。'],['Excel、Word','技能：Word、Excel'],['主要职责：整理清单','工作内容：整理清单']])('rejects cosmetic-only edits %s',(before,after)=>expect(resumeEditValueIssues(before,after).length).toBeGreaterThan(0));

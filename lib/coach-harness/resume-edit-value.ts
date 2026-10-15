@@ -31,11 +31,19 @@ export function omitStandaloneDisclaimers(text:string){
   }).join('\n').trim();
 }
 
+/** A model's deletion label is not résumé content. Only translate it to an
+ * empty replacement when the entire source is an eligible disclaimer. */
+export function normalizeResumeDeletion(before:string,after:string){
+  const label=clean(after).replace(/[（）()。.!！]/g,'').trim();
+  return before.trim()&&!omitStandaloneDisclaimers(before).trim()&&/^(?:删除|删去|移除)(?:该|此|这)(?:条|段)$/.test(label)?'':after;
+}
+
 const normalize=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
 const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专业技能|个人技能|技能清单|掌握技能|技能|工具|软件|技术栈|常用工具|使用工具|工作内容|主要职责|项目职责|职责|个人简介|项目经历)\s*[:：]/g,'');
 
 export function resumeEditValueIssues(before:string,after:string):string[]{
   const issues:string[]=[];
+  if(/^(?:删除|删去|移除)(?:该|此|这)(?:条|段)$/.test(clean(after).replace(/[（）()。.!！]/g,'').trim()))issues.push('编辑指令不能作为简历正文；删除必须返回空 after，且不能删除真实贡献');
   if(/(?:提出|认识到|意识到|强调).{0,28}(?:的)?重要性/.test(after))issues.push('“提出/认识到重要性”仍是随笔口吻；用来源已有的具体问题和提案重写，保留提案阶段，不冒称实施成果');
   if(isPersonalDisclaimer(after))issues.push('个人未负责/未参与/未统计的说明只作事实边界，不写进简历正文；只写实际做过的动作与交付，仍不得暗示承担被否定的工作');
   if(/由(?:其他|别的|另外的)(?:同学|同事|成员|团队)(?:负责|开发|完成|承担)/.test(after))issues.push('其他人的分工只作内部归属边界，不作为本人的经历bullet；保留本人实际动作，不得把他人的开发或成果写成本人负责');

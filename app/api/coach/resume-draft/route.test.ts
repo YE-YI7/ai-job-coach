@@ -115,8 +115,8 @@ describe("resume draft source mapping", () => {
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
 
-  test.each([['- 没有负责后端开发。',200],['- 协助编写接口说明。',422]])('only standalone disclaimer deletion can pass review: %s',async(before,status)=>{
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after:'',sourceIds:['claim-1'],reason:'独立免责声明不作为求职贡献'}]}))
+  test.each([['- 没有负责后端开发。','',200],['- 协助编写接口说明。','',422],['- 没有负责后端开发。','（删除该条）',200],['- 协助编写接口说明。','（删除该条）',422]])('only standalone disclaimer deletion can pass review: %s %s',async(before,after,status)=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after,sourceIds:['claim-1'],reason:'独立免责声明不作为求职贡献'}]}))
       .mockResolvedValueOnce(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'其余完整简历',findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
@@ -136,6 +136,16 @@ describe("resume draft source mapping", () => {
     (callLLM as jest.Mock).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有技能清单清楚，增加标签没有信息价值。'}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'Excel、Word',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
+  test('removing a disclaimer cannot hide a blocked contribution rewrite',async()=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[
+      {before:'协助编写接口说明。',after:'主导平台上线。',sourceIds:['claim-1']},
+      {before:'没有负责后端开发。',after:'（删除该条）',sourceIds:['claim-1']},
+    ]}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'协助编写接口说明。\n没有负责后端开发。',mode:'general_resume'})}));
+    expect(response.status).toBe(422);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
   test('factually approved edits still require independent value approval',async()=>{

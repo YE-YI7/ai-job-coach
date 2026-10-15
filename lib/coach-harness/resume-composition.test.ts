@@ -6,3 +6,8 @@ test('composed factual short bullets keep source-limited negative actions',()=>{
  const verdict=citationGroundingDecision({citation:{candidateText,sources}});
  expect(verdict?.outcome).not.toBe('block');
 });
+test('reading feedback cannot become collecting it merely because another outcome verb exists in the source',()=>{
+ const sources=[{id:'a',text:'我先看了同学的使用反馈。'},{id:'b',text:'我整理成 Excel 需求清单，没有使用增长数据。'}];
+ expect(citationGroundingDecision({citation:{candidateText:'先收集同学的使用反馈',sources}})?.outcome).toBe('block');
+ expect(citationGroundingDecision({citation:{candidateText:'先看了同学的使用反馈',sources}})?.outcome).not.toBe('block');
+});

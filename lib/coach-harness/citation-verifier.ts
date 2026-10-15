@@ -24,7 +24,7 @@
  */
 
 /** 核验器版本：改动下面任何判定表都必须升版；护栏阈值指纹的 guard 段应把本对象取进去。 */
-export const CITATION_VERIFIER_VERSION = "citation-verifier-v1";
+export const CITATION_VERIFIER_VERSION = "citation-verifier-v2";
 
 export type GroundingSource = { id: string; text: string };
 
@@ -188,6 +188,8 @@ export interface FabricationRule {
   id: string;
   when: RegExp;
   requiresSomeSourceTerm: readonly string[];
+  /** Each action actually used must be supported; another verb is not evidence. */
+  requireEachMatchedTerm?: boolean;
   reason?: RejectReason;
   note: string;
 }
@@ -235,6 +237,7 @@ export const FABRICATION_RULES: readonly FabricationRule[] = [
     id: "outcome-verb-not-sourced",
     when: /迭代|评测|演示|提升|增长|推广|收集|落地|推动/,
     requiresSomeSourceTerm: ["迭代", "评测", "演示", "提升", "增长", "推广", "收集", "落地", "推动"],
+    requireEachMatchedTerm: true,
     note: "常见流程动作不能因为「通常会做」而补写",
   },
 ] as const;
@@ -495,13 +498,17 @@ function verifyStatement(raw: RawStatement, allSources: IndexedSource[], maxGapL
   for (const rule of FABRICATION_RULES) {
     const hit = rule.when.exec(statement);
     if (!hit) continue;
-    const satisfied = pool.some((s) => rule.requiresSomeSourceTerm.some((term) => s.normalized.includes(term)));
+    const matchedTerms = rule.requiresSomeSourceTerm.filter(term => statement.includes(term));
+    const missingTerm = rule.requireEachMatchedTerm ? matchedTerms.find(term => !pool.some(s => s.normalized.includes(term))) : undefined;
+    const satisfied = rule.requireEachMatchedTerm
+      ? matchedTerms.every(term => pool.some(s => s.normalized.includes(term)))
+      : pool.some((s) => rule.requiresSomeSourceTerm.some((term) => s.normalized.includes(term)));
     if (!satisfied) {
       return makeRejected(rule.reason ?? "action_not_supported", rule.id, {
         ...base,
         statement,
-        offending: { start: raw.start + hit.index, end: raw.start + hit.index + hit[0].length },
-        detail: `${rule.note}；来源里没有可回指的逐字依据`,
+        offending: { start: raw.start + (missingTerm ? statement.indexOf(missingTerm) : hit.index), end: raw.start + (missingTerm ? statement.indexOf(missingTerm) + missingTerm.length : hit.index + hit[0].length) },
+        detail: `${rule.note}；${missingTerm ? `动作「${missingTerm}」` : ''}来源里没有可回指的逐字依据`,
       });
     }
   }

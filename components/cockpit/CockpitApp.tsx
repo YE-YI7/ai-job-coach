@@ -1529,7 +1529,7 @@ function ResumeTab({ opportunity, recovery, onSupplement, onOpenEvidence, onUpda
           {progress.action === "export" && <label className={styles.secondaryButton}>{checkingPdf ? "正在检查…" : pdfReview?.status === "passed" ? "重新校验导出 PDF" : "校验导出 PDF"}<input type="file" accept="application/pdf" hidden disabled={checkingPdf} onChange={(event) => { const file = event.target.files?.[0]; if (file) void verifyPdf(file); event.currentTarget.value = ""; }} /></label>}
         </div>
       </div></details>}
-      {recovery && <details className={styles.resumeCheckDetails}><summary>岗位版需要补充一个真实细节 · 原文可直接导出</summary><ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/></details>}
+      {recovery && <details open className={styles.resumeCheckDetails}><summary>{recovery.detailSaved ? "补充已保存" : "补充一个真实细节"}</summary><ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/></details>}
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>

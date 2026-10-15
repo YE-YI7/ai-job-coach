@@ -20,6 +20,6 @@ export default function ResumeRecovery({ recovery, onSave, onKeep, onRetry, busy
     {recovery.detailSaved ? <><p>{recovery.question}</p><div className={styles.actions}><button type="button" disabled={busy} onClick={onKeep}>保留当前内容</button><button type="button" disabled={busy} onClick={onRetry}>再试一次（AI 额度）</button></div></> : <><label htmlFor="resume-factual-detail">{recovery.question}</label>
     <textarea id="resume-factual-detail" value={answer} onChange={event => setAnswer(event.target.value)} maxLength={2000} rows={3} placeholder="只写你实际做过的内容，不用凑数字。" disabled={saving || busy}/>
     {error && <p role="alert">{error}</p>}
-    <div className={styles.actions}><span>补充会保存到本岗位简历，不会自动采用 AI 改写。</span><button type="submit" disabled={!answer.trim() || saving || busy}>{saving ? "保存并继续…" : "保存补充并继续改"}</button></div></>}
+    <div className={styles.actions}><span>先保存到当前简历，再继续改稿；修改建议仍由你确认。</span><button type="submit" disabled={!answer.trim() || saving || busy}>{saving ? "保存并继续…" : "保存并继续"}</button></div></>}
   </form>;
 }

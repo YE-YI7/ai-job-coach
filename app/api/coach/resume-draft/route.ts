@@ -16,7 +16,7 @@ import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota"
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
-import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
+import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { retrieveResumeExamples, renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
@@ -179,14 +179,14 @@ export async function POST(request: Request) {
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只整理用户已经提供的事实，不补项目、职责、技能、数字或时间。用户没有目标岗位经历不等于原简历不能改善；可改善已有工作的表达，不能替他补齐JD门槛。优先把密集的真实动作拆成2至3条易读短句或列表，保留原词、否定和责任限定。没有新信息时不要同义换词，但段落拆成有意义的动作/交付列表属于有效结构整理。补充经历仍是用户自述，不代表已核实。每条建议必须引用完整支持它的 sourceIds（逐字复制下方编号，不要用示例编号）；before 必须是原文连续片段。不要强行写成产品经理、主导、分析洞察或推动优化。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"这处表达改善的具体价值及与JD的有限对应","sourceIds":["提供的真实编号"]}]}` },
       { role: "system", content: "先判断现有事实是否足够改善表达；有能安全修改的内容就先改，不因缺 JD 关键词或没有数字阻断。只有完全无法提出有价值修改且缺具体事实时，才返回 {\"status\":\"needs_detail\",\"recovery\":{\"sourceExcerpt\":\"简历中12–260字的完整连续原文，不含联系方式\",\"question\":\"针对这段经历、一次只问一个最有用的具体问题\"},\"changes\":[]}。若已有补充经历，先读并使用，不能再要求同一材料。不索取案例中的成果或数字。参考资料只用于选择结构，永远不是可引用事实。" },
-      ...(agentTask ? [{ role: "user" as const, content: `已保存的逐问回答：${JSON.stringify(agentTask.answers)}。把有用的本人补充合并进原句，引用可引用事实清单中的对应编号；before 仍逐字来自原简历。不把这些问答原样堆到成稿末尾。不要仅改责任否定句/同义换词凑建议；优先改善真实动作、交付和信息取舍。已答或暂不补充的内容不要重复追问，缺失事实保持限定。` }] : []),
+      ...(agentTask ? [{ role: "user" as const, content: `已保存的逐问回答：${JSON.stringify(agentTask.answers)}。把有用的本人补充合并进原句，引用可引用事实清单中的对应编号；before 仍逐字来自原简历。每个 before 只出现一次；同一原句拆出的2–3条短bullet都放进一个after，不能重复before。不把这些问答原样堆到成稿末尾。不要仅改责任否定句/同义换词凑建议；优先改善真实动作、交付和信息取舍。已答或暂不补充的内容不要重复追问，缺失事实保持限定。` }] : []),
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n${renderResumeKnowledge(includedKnowledge)}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、否定、数字和时间，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
 
     const parsed = parseJson(output);
     trace.step("draft", "model_returned");
-    const rawChanges = Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6) : [];
+    const rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
     if (parsed.status === "needs_detail" && !rawChanges.length) {
       const recovery = modelResumeRecovery(resumeText, parsed.recovery);
       if (recovery) {
@@ -264,6 +264,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "改写未通过文字与事实质检，原文已保留，本次未扣额度", recovery: resumeRecovery(resumeText) }, { status: 422 });
     }
     const preview = applyResumeChanges(resumeText, finalChanges);
+    if(preview.findings.length){
+      outcome='blocked';trace.step('review','mapping_conflict',preview.findings.length);
+      await finalizeQuota(reservation,false);reservation=null;
+      return NextResponse.json({ok:false,error:'修改位置发生冲突，本次未扣额度。原文和补充已保留，可以继续。',reasonCode:'resume_mapping_conflict',retryable:true},{status:422});
+    }
     const ats = reviewAtsText(preview.text, jobDescription);
     const shortBullets = finalChanges.every(change => change.after.split(/\n+/).every(line => line.replace(/^\s*[-•*]\s*/, "").length <= 100));
     const grounding = preview.findings.length === 0;

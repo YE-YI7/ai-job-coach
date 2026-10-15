@@ -49,6 +49,21 @@ describe("resume draft source mapping", () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  test('same source paragraph split into two bullets is reviewed as one applicable edit',async()=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'整理模型评测的准确率记录',sourceIds:['claim-1']},{before:'负责模型评测',after:'交付模型评测记录表',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'合并后预览',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    const body=await response.json();expect(body.changes).toHaveLength(1);expect(body.changes[0].after).toBe('- 整理模型评测的准确率记录\n- 交付模型评测记录表');
+  });
+
+  test('an ambiguous/conflicting preview is not delivered or billed as success',async()=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'原文',findings:[{code:'replacement_missed',severity:'error'}]});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    expect(response.status).toBe(422);expect((await response.json()).reasonCode).toBe('resume_mapping_conflict');expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test('durable task plans exactly one anchored question before rewriting and releases hosted quota',async()=>{
     const resumeText='参加校园工具项目，负责需求工作，具体交付尚未梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});

@@ -38,3 +38,16 @@ export function isTrivialRewrite(before: string, after: string) {
   const limit = Math.max(2, Math.floor(Math.min(a.length, b.length) * 0.1));
   return editDistanceWithin(a, b, limit) <= limit;
 }
+
+/** Several short bullets replacing ONE sentence are one atomic suggestion,
+ * not overlapping alternatives that make the entire paragraph disappear. */
+export function coalesceResumeProposals(input:Record<string,unknown>[]){
+  const groups=new Map<string,Record<string,unknown>[]>();
+  input.forEach((change,index)=>{const key=String(change.before||'').trim()||`invalid-${index}`;groups.set(key,[...(groups.get(key)||[]),change]);});
+  return [...groups.values()].map(group=>{
+    if(group.length===1)return group[0];
+    const afters=[...new Set(group.map(item=>String(item.after||'').trim()).filter(Boolean))];
+    return {...group[0],after:afters.length===1?afters[0]:afters.flatMap(after=>after.split(/\n+/).filter(line=>line.trim()).map(line=>`- ${line.replace(/^\s*[-*•]\s*/, '').trim()}`)).join('\n'),
+      sourceIds:[...new Set(group.flatMap(item=>Array.isArray(item.sourceIds)?item.sourceIds.map(String):[]))],reason:[...new Set(group.map(item=>String(item.reason||'')))].join('；').slice(0,500)};
+  });
+}

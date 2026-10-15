@@ -1,6 +1,6 @@
 import { splitResumeBlocks } from "./opportunities/resume-blocks";
 import { isResumePageBreak, markdownSegments } from "./opportunities/resume-markdown";
-import { stripResumeMarkdown } from "./opportunities/resume-blocks";
+import { stripResumeMarkdown, isResumeIdentityLine } from "./opportunities/resume-blocks";
 import type { ResumeInk } from "./opportunities/resume-inline";
 export const printTemplates={classic:{label:"经典黑白",accent:"#242424",font:"serif"},modern:{label:"简洁蓝灰",accent:"#365571",font:"sans-serif"},warm:{label:"温润纸感",accent:"#85502f",font:"sans-serif"}} as const;
 export type PrintTemplate=keyof typeof printTemplates;
@@ -41,18 +41,20 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
    const sectionHeading=groupIndex===0?heading:null;
    if(!lines.length&&!sectionHeading)return "";
    const headingDate=sectionHeading&&tag==="h3"&&lines[0]&&isDateLine(lines[0])?lines.shift():null;
+   const nameIndex=block.kind==='header'?lines.findIndex(isResumeIdentityLine):-1;
    const paragraphs:string[]=[];
    for(let index=0;index<lines.length;index++){
     const line=lines[index], next=lines[index+1];
     const bullet=/^\s*[-*•]\s+/.test(line);
     const plain=stripResumeMarkdown(line);
+    if(/^--\s*\d+\s+of\s+\d+\s*--$/i.test(line.trim()))continue;
     if(block.kind!=="header"&&!bullet&&plain.length<=100&&!/[。！？!?]/.test(plain)){
      if(next&&isDateLine(next)&&!isDateLine(line)){paragraphs.push(entryRow(line,next));index++;continue;}
      if(isDateLine(line)&&next&&!/^\s*[-*•]\s+/.test(next)&&stripResumeMarkdown(next).length<=80){paragraphs.push(entryRow(next,line));index++;continue;}
      const date=line.match(DATE_RANGE)?.[0];
      if(date&&plain!==date&&(index===0||/^\s*\*\*/.test(line))){paragraphs.push(entryRow(line.replace(date,"").trim(),date));continue;}
     }
-    const kind=block.kind==="header"&&groupIndex===0&&index===0&&plain.length<=40?"resume-name":block.kind==="header"&&/^(?:求职方向|求职意向)\s*[:：]/.test(plain)?"resume-role":block.kind==="header"?"resume-contact":bullet?"resume-bullet":"";
+    const kind=block.kind==="header"&&/^(?:头像区|照片|证件照)$/.test(plain)?'resume-photo-label':block.kind==="header"&&groupIndex===0&&index===nameIndex&&plain.length<=40?"resume-name":block.kind==="header"&&/^(?:求职方向|求职意向|意向)\s*[:：]/.test(plain)?"resume-role":block.kind==="header"?"resume-contact":bullet?"resume-bullet":"";
     paragraphs.push(`<p${kind?` class="${kind}"`:""}>${lineHtml(line)}</p>`);
    }
    const headingHtml=sectionHeading?(headingDate?entryRow(sectionHeading,headingDate,tag):`<${tag}>${inline(sectionHeading)}</${tag}>`):"";
@@ -63,6 +65,7 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  @page{size:A4;margin:12mm}*{box-sizing:border-box}html{background:#fff}body{width:210mm;min-height:297mm;padding:12mm;margin:0 auto;color:#292823;font:10.5pt/1.48 ${t.font === "serif" ? '"Songti SC","Noto Serif SC",serif' : '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'};overflow-wrap:anywhere}
  section{padding:6px 0;border-bottom:0;text-align:left}h2,h3{color:${t.accent};margin:0 0 7px;break-after:avoid;word-break:normal}h2{font-size:11.5pt;font-weight:600;border-bottom:1px solid #dcded7;padding-bottom:7px;margin-top:6px}h3{font-size:10.5pt;font-weight:600}p{white-space:pre-wrap;margin:0 0 5px;orphans:2;widows:2}.resume-name{font-size:22pt;line-height:1.35;font-weight:600;color:${t.accent};margin-bottom:7px}.resume-bullet{padding-left:1em;position:relative}.resume-bullet:before{content:"•";position:absolute;left:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px}.page-break{break-before:page;page-break-before:always}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
  .classic section[data-kind="header"]{border-bottom:2px solid #242424}.classic section[data-kind="header"] .resume-name{text-align:center}
+ .resume-photo-label{float:right;min-width:22mm;min-height:28mm;text-align:center;color:#777;font-size:8pt}section[data-kind=header]:after{content:"";display:block;clear:both}
  .modern section{display:block}.modern h2,.modern h3{padding:0;align-self:start}.modern section[data-kind="header"]{display:block;border-bottom:1px solid #dcded7;padding-bottom:12px;margin-bottom:8px}.modern .resume-name{color:#292823}
  .resume-role{font-size:12pt;font-weight:600;margin-bottom:7px}.resume-contact{font-size:9.5pt;color:#555750}.resume-entry{display:flex;align-items:baseline;justify-content:space-between;gap:16px;font-weight:600;break-after:avoid}.resume-entry>span{min-width:0}.resume-entry time{font-size:9.5pt;font-weight:400;white-space:nowrap;color:#61635c}mark[data-resume-highlight]{background:#e7f3e8;color:inherit;padding:0;box-decoration-break:clone;-webkit-box-decoration-break:clone}
  .warm main{display:block}.warm section{padding:7px 0}.warm h2{border-bottom-color:#d9cbbb}

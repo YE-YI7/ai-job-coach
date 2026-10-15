@@ -33,3 +33,4 @@ test('多行带粗体的改稿在纸面保留三色与键盘入口，导出无�
   const final=resumePrintHtml(resumeInlineProjection(source,[change],false).text,'modern','PDF',{toolbar:false});
   expect(final).not.toContain('<mark');expect(final).not.toContain('重复核对');expect(final).toContain('需求表格，交付清单。');
 });
+test('照片占位不是姓名，抽取器页码不进入新成稿，原文字节不改',()=>{const source='头像区\n林清（虚构 QA）\n邮箱：qa@example.invalid\n电话：13800000000\n\n项目经历\n参与校园工具需求整理。\n\n-- 1 of 1 --';const html=resumePrintHtml(source,'modern','PDF',{toolbar:false});expect(html).toContain('class="resume-name">林清（虚构 QA）');expect(html).toContain('class="resume-photo-label">头像区');expect(html).not.toContain('1 of 1');expect(source).toContain('-- 1 of 1 --');});

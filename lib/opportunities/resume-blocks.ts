@@ -41,7 +41,7 @@ export function stripResumeMarkdown(line: string): string {
 
 export function isResumeIdentityLine(line:string):boolean {
   const text=stripResumeMarkdown(line);
-  return Boolean(text&&text.length<=40&&!/[，。；：！？!?@]/.test(text)&&!/^https?:/i.test(text));
+  return Boolean(text&&text.length<=40&&!/^(?:头像区|照片|证件照|个人简历|简历)$/.test(text)&&!/[，。；：！？!?@]/.test(text)&&!/^https?:/i.test(text));
 }
 
 function classifyHeader(line: string): { kind: ResumeBlockKind; title: string } | null {
@@ -156,8 +156,10 @@ export function splitResumeBlocks(text: string): ResumeBlock[] {
       madeGroups.forEach((group, index) => {
         // A short first line never makes the *whole* preamble a centred header.
         // Only identity/contact lines belong there; narrative stays left aligned.
-        const identity = index === 0 && isResumeIdentityLine(group[0]);
-        let boundary = identity ? 1 : 0;
+        let identityIndex=0;
+        while(identityIndex<group.length&&/^(?:头像区|照片|证件照|个人简历|简历)$/.test(stripResumeMarkdown(group[identityIndex])))identityIndex++;
+        const identity = index === 0 && identityIndex<group.length&&isResumeIdentityLine(group[identityIndex]);
+        let boundary = identity ? identityIndex+1 : 0;
         while (boundary > 0 && boundary < group.length) {
           const line = stripResumeMarkdown(group[boundary]);
           if (line.length > 160 || !/^(?:电话|手机|邮箱|邮件|Email|GitHub|作品集|个人网站|地址|求职意向|求职方向)\s*[:：]|^[\w.+-]+@[\w.-]+\.[a-z]+$|^https?:\/\/\S+$|^\+?\d[\d\s()-]{6,}$/i.test(line)) break;

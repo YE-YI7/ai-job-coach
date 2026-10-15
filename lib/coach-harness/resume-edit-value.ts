@@ -24,7 +24,7 @@ export function resumeEditValueIssues(before:string,after:string):string[]{
   if((removeLabels(before)!==before||removeLabels(after)!==after)&&normalize(removeLabels(before))===normalize(removeLabels(after)))issues.push('仅改标签、标点或前缀，没有改善内容，不作为修改交付');
   // Reordering a short tool/skill list or adding a proficiency adjective is not
   // a useful edit (nor evidence of proficiency). Actual experience is exempt.
-  const list=(text:string)=>removeLabels(text).replace(/熟练(?:使用|掌握)?|掌握|熟悉|擅长|精通/g,'').split(/[、,，;；\n/|]/).map(normalize).filter(Boolean).sort().join('|');
+  const list=(text:string)=>removeLabels(text.replace(/(^|[;；\n])\s*[^:：;；\n]{1,16}[:：]/g,'$1')).replace(/熟练(?:使用|掌握)?|掌握|熟悉|擅长|精通/g,'').split(/[、,，;；\n/|]/).map(normalize).filter(Boolean).sort().join('|');
   if(before.length<100&&!/负责|整理|制作|开发|编写|设计|维护|处理|交付|参与|协助|分析|排查|记录/.test(before)&&list(before)===list(after))issues.push('技能列表的换序或修饰词变化不算有价值改稿');
   return [...new Set(issues)];
 }

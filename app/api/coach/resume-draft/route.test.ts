@@ -168,6 +168,19 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(2);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test('review repair retains source-protection feedback from candidates filtered before review',async()=>{
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[
+      {before:'课程项目：负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']},
+      {before:'负责数据评测',after:'数据评测覆盖准确率口径',sourceIds:['claim-1']},
+    ]})).mockImplementationOnce(async(messages:Array<{content:string}>)=>{
+      const candidates=JSON.parse(messages.find(item=>item.content.includes('待审修改（'))!.content.split('：\n').at(-1)!);
+      return JSON.stringify({status:'passed',findings:[],valueChecks:candidates.map((_item:unknown,index:number)=>({index,useful:false,kind:'clarity',reason:'这处改写没有带来明确的编辑改善'}))});
+    }).mockResolvedValue(JSON.stringify({status:'failed',changes:[]}));
+    await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'课程项目：负责模型评测\n负责数据评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('不能去掉原文的虚构、示例或练习性质标记');
+  });
+
   test('same source paragraph split into two bullets is reviewed as one applicable edit',async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'整理模型评测的准确率记录',sourceIds:['claim-1']},{before:'负责模型评测',after:'交付模型评测记录表',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'合并后预览',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});

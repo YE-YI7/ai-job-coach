@@ -190,6 +190,7 @@ export async function POST(request: Request) {
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n${renderResumeKnowledge(includedKnowledge)}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、项目成熟度、数字和时间，个人未负责的事项不写进正文，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
       {role:'system',content:'内容取舍规则：每条修改必须改善实际可读性或信息，理由指出具体删掉了什么冗余/怎样拆清动作与交付/吸收了哪条本人事实。只加“办公软件：”、技能换序、换同义词或写笼统评价，不算改稿。否定责任是内部约束，不是简历内容：用户说“整理Excel需求清单交给页面同学，没有负责开发上线，也没有统计人数”，正文只写“整理Excel需求清单，交给负责页面的同学讨论”，不要另加“未负责开发/未统计人数”的bullet，更不能改成负责开发或有增长成果。保留参与/协助和原型/待上线等会改变已写动作含义的限定。没有结果数据不强求数字，真实交付与用途也有价值。已经清楚且无新事实、没有值得补问的缺口时返回 {status:"unchanged",changes:[]}，不要为了产生修改硬改。只有模糊经历而没有具体动作时先问一个对应经历的问题，不能只改旁边的技能栏蒙混过去。'},
+      {role:'system',content:'具体规则：给同一组技能新增“前端技术/测试工具/版本控制”等分类标签，也不算有价值改稿，不给这种建议。原文含“课程项目”“个人项目”“练习”“模拟”“示例”“虚构”时，在改后对应段落逐字保留这些性质标记；可以将原型/未上线状态简短括注，不要把项目边界或别人负责的事项单独凑成自己的工作bullet。'},
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
 
     let parsed;
@@ -315,7 +316,7 @@ export async function POST(request: Request) {
     finalChanges = unexplainedFailure ? [] : changes.filter(change =>
       !errorChangeIds.has(change.id) && (reviewer.status !== "failed" || !failedFindingIds.has(change.id)));
     if (!finalChanges.length || !coversSupplement(finalChanges)) {
-      if(agentTask&&attempt===0){repairFeedback=reviewerFindings.map(finding=>String((finding as Record<string,unknown>)?.message||'独立复核未通过')).slice(0,10);if(!repairFeedback.length)repairFeedback=['独立复核未通过，请忠实沿用用户原词和责任限定'];trace.step('review','one_bounded_repair',reviewerFindings.length);continue;}
+      if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...reviewerFindings.map(finding=>String((finding as Record<string,unknown>)?.message||'独立复核未通过'))].slice(0,10);if(!repairFeedback.length)repairFeedback=['独立复核未通过，请忠实沿用用户原词和责任限定'];trace.step('review','one_bounded_repair',reviewerFindings.length);continue;}
       outcome = "blocked"; trace.step("review", "all_changes_rejected");
       await finalizeQuota(reservation, false);
       reservation = null;

@@ -29,6 +29,10 @@
 | 产品案例面 | `domains/product-management/case-interview-live-reasoning.md` | 首版，3 个来源 |
 | 角色定位与故事库 | `domains/product-management/story-bank-and-positioning.md` | 首版，5 个来源 |
 | 相近背景的简历写法案例 | `domains/shared/resume-example-*.md` 与 manifest 的 `resume_profile` | 4 份经阅读的 MIT CAPD 公开教学样例；无录用证明，只按用户背景匹配，不收集其他用户简历 |
+| 简历改写质量与事实边界 | `domains/shared/resume-factual-rewriting.md` | 已有事实先改、短 bullet、不拔高责任；Skill 方法与高校指南交叉校验 |
+| 简历逐步补问 | `domains/shared/resume-progressive-discovery.md` | 一次一个问题，允许跳过，补完回到改稿；关联来源不算独立验证 |
+| 原样式与 PDF 交付检查 | `domains/shared/resume-layout-and-export.md` | 原件优先，保存刷新与实际导出分开验；不承诺 ATS 通过 |
+| 公开简历 Skill 筛选与许可 | `reviews/2026-10-16-resume-skills.md` | 7 份审读、3 个方法来源取舍；不编译外部完整指令或被拒绝内容 |
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |
 | 软件工程师首份工作 | `domains/software-engineering/first-job-evidence.md` | 首版，基于 GitHub 指南 |
 | 软件工程师技术面准备 | `domains/software-engineering/technical-interview-preparation.md` | 首版，基于 3 个公开样本 |
@@ -46,6 +50,7 @@
 | `domains/product-management/` | 产品经理岗位、转岗、投递和面试知识 | 软件工程技术题 |
 | `domains/software-engineering/` | 工程岗位求职和技术面知识 | 产品业务案例题 |
 | `policies/` | Agent 如何检索、引用和处理冲突 | 具体岗位知识 |
+| `reviews/` | 来源版本、许可、取舍与验证边界 | 不进入运行时的外部完整指令，不存用户私有材料 |
 
 ## 版本与冲突规则
 

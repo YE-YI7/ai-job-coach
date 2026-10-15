@@ -1,10 +1,57 @@
 {
   "version": 1,
-  "updated_at": "2026-10-15",
+  "updated_at": "2026-10-16",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
   "documents": [
+    {
+      "id": "resume.factual-rewriting.v1", "title": "简历改写：用已有事实写清贡献",
+      "path": "domains/shared/resume-factual-rewriting.md",
+      "description": "改写冗长、空泛的简历 bullet，已有事实先改，不虚构数字，不把提案写成落地。",
+      "goal": "让每次改稿带来可读性或信息取舍的实际改善，而非只换动词和标签。",
+      "scope": "有原简历或本人自述即可；无 JD 可以优化表达；公共写法不是用户事实或录用证据。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["简历写得空泛或 bullet 太长", "没有 JD 只想改简历", "缺数字但已有具体动作", "改写只是换动词加标签", "提案被改成上线成果"],
+      "do_not_use_when": ["要求编造经历或结果", "把教学例句和外部样例写成用户事实", "用通用写法替代当前材料"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+        "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",
+        "https://capd.mit.edu/resources/career-toolkit-crafting-an-effective-resume/"
+      ]
+    },
+    {
+      "id": "resume.progressive-discovery.v1", "title": "简历补问：一问一答，补完继续改",
+      "path": "domains/shared/resume-progressive-discovery.md",
+      "description": "缺证据时先改能改的，再根据回答一问一问补充个人动作和交付，允许不知道或跳过。",
+      "goal": "避免整份简历被信息缺口卡住，补充事实之后继续改写而不是无限追问。",
+      "scope": "只处理当前用户授权范围内的事实；公开 Skill 方法有关联来源，不视为独立招聘效果验证。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["缺证据导致没给改稿", "导师一次问很多问题", "回答后仍重复追问", "用户不知道指标或想跳过", "区分本人负责和团队成果"],
+      "do_not_use_when": ["当前已有足够事实只需直接修改", "用户明确不补充仍继续逼问", "复用其他用户的经历"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/varunr89/resume-tailoring-skill/blob/9a4a0f20f5983d1b533627b8c5191acd1ca0cd89/skills/resume-tailoring/SKILL.md",
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md"
+      ]
+    },
+    {
+      "id": "resume.layout-and-export.v1", "title": "简历交付：保留原样式，检查实际文件",
+      "path": "domains/shared/resume-layout-and-export.md",
+      "description": "保持原件样式，局部调整，分别检查保存刷新和实际 PDF，避免用重排文本冒充原件。",
+      "goal": "内容优化不破坏用户认可的版式，并如实区分预览、保存、刷新与文件交付。",
+      "scope": "简历排版和导出检查；无统一 ATS 保证；国内照片和一页偏好按用户要求处理。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["保留上传原件排版", "换模板后布局错乱", "简历保存后刷新恢复", "PDF 导出发生裁切乱码或多页", "正文混入内部提示和待补占位符"],
+      "do_not_use_when": ["未经同意重做用户认可的版式", "把文本提取成功说成所有 ATS 通过", "授权外的第三方上传"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/Hfx-J/tailored-resume-generator/blob/422424b3e5611f19b8f704fe86a05bebf1b9602a/SKILL.md",
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+        "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/"
+      ]
+    },
     {
       "id": "resume.example.computing-hci.v1", "title": "计算机/HCI 研究与软件实习写法样例",
       "path": "domains/shared/resume-example-computing-hci.md",

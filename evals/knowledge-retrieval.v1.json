@@ -1,4 +1,7 @@
 [
+  {"id":"resume-short-factual-bullets","task":"resume_tailoring","query":"简历写得空泛，bullet 太长，只换动词加标签，没有 JD 只想改简历","stage":"简历","expected_any":["resume.factual-rewriting.v1"]},
+  {"id":"resume-one-question","task":"resume_tailoring","query":"缺证据导致没给改稿，导师重复追问，想一次一个问题，不知道能不能跳过","role":"门店运营","stage":"简历","expected_any":["resume.progressive-discovery.v1"]},
+  {"id":"resume-original-export","task":"resume_tailoring","query":"保留上传原件排版，保存后刷新恢复，PDF 导出裁切乱码","stage":"简历","expected_any":["resume.layout-and-export.v1"]},
   {"id":"pm-xhs-user-research","task":"mock_interview","query":"小红书产品一面，用户研究和活跃度下降怎么准备","role":"产品经理","company":"小红书","stage":"一面","expected_any":["pm.interview-core.v1"]},
   {"id":"pm-byte-commercial","task":"mock_interview","query":"字节商业化产品二面，AB实验、广告计费和跨团队分歧","role":"商业产品经理","company":"字节跳动","stage":"二面","expected_any":["pm.interview-core.v1"]},
   {"id":"ai-pm-scenario","task":"answer_assessment","query":"如何判断一个业务场景适不适合用AI，需要看哪些条件","role":"AI产品经理","stage":"业务面","expected_any":["pm.ai-product-interview-basics.v1"]},

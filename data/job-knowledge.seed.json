@@ -1,5 +1,45 @@
 [
   {
+    "platform": "github", "source_kind": "guide",
+    "canonical_url": "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+    "title": "Evidence-First Resume：事实台账与有边界的改写", "author": "Dannyvice", "published_at": null,
+    "language": "en", "company": null, "roles": [], "stages": ["简历"],
+    "summary": "人工审读的公开 Agent Skill，MIT 许可。提炼事实来源、责任边界、按信息价值补问和成品检查；不是录用效果证据，也不整体执行其工作流。复核于 2026-10-16，版本与取舍见知识库来源审查。",
+    "key_points": ["每项主张回指材料，区分个人与团队结果", "数字不是每条经历的必填项", "检查最终文件的文本和实际排版"], "interview_questions": []
+  },
+  {
+    "platform": "github", "source_kind": "guide",
+    "canonical_url": "https://github.com/varunr89/resume-tailoring-skill/blob/9a4a0f20f5983d1b533627b8c5191acd1ca0cd89/skills/resume-tailoring/SKILL.md",
+    "title": "Resume Tailoring Skill：按回答分支发现真实经历", "author": "Varun Ramesh", "published_at": null,
+    "language": "en", "company": null, "roles": [], "stages": ["简历"],
+    "summary": "人工审读的公开 Agent Skill，MIT 许可。仅借鉴动态追问、同一用户材料回指和缺口去重；不采用改职位名称、机械百分比和大批量确认工作流。复核于 2026-10-16。",
+    "key_points": ["回答决定下一问，不使用固定长问卷", "区分直接经历、参与、学习项目与未做过", "保留事实来源，已经回答的不重复追问"], "interview_questions": []
+  },
+  {
+    "platform": "github", "source_kind": "guide",
+    "canonical_url": "https://github.com/Hfx-J/tailored-resume-generator/blob/422424b3e5611f19b8f704fe86a05bebf1b9602a/SKILL.md",
+    "title": "Tailored Resume Generator：原样式继承与交付审查参考", "author": "Hfx-J", "published_at": null,
+    "language": "en", "company": null, "roles": [], "stages": ["简历"],
+    "summary": "公开可读工作流，未发现明确仓库许可证。只记录链接和独立撰写的方法摘要，不复制或安装源码、模板、完整提示词。借鉴原样式取证、局部修改和导出后复核；不采纳强制 JD、未决占位符入成稿和无限审查循环。复核于 2026-10-16。",
+    "key_points": ["用户原件和明确偏好优先于默认模板", "局部修改后检查整页连带影响", "内部审查意见不进入简历正文"], "interview_questions": []
+  },
+  {
+    "platform": "other", "source_kind": "guide",
+    "canonical_url": "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",
+    "title": "Harvard College Guide to Creating a Strong Resume", "author": "Harvard Mignone Center for Career Success", "published_at": null,
+    "language": "en", "company": null, "roles": [], "stages": ["简历"],
+    "summary": "高校职业中心公开指南，2026-10-16 复核。支持具体、基于事实、便于扫读的表达，以及 PDF 转换后的格式检查。只作方法交叉校验，不复制模板；其美国本科生语境和照片等建议不当成中国市场统一规则。",
+    "key_points": ["表达具体而非空泛", "修改服务于真实能力与经历", "排版一致且便于扫读，转换后检查 PDF"], "interview_questions": []
+  },
+  {
+    "platform": "other", "source_kind": "guide",
+    "canonical_url": "https://capd.mit.edu/resources/career-toolkit-crafting-an-effective-resume/",
+    "title": "MIT CAPD Career toolkit: Crafting an effective resume", "author": "MIT CAPD", "published_at": null,
+    "language": "en", "company": null, "roles": [], "stages": ["简历"],
+    "summary": "高校职业中心公开讲解，2026-10-16 复核。参考其动作、方法、交付的表达思路；研究尚未完成时描述目标与进展，不能写成已实现成果。只记录摘要，不收集样例个人信息，不证明录用效果。",
+    "key_points": ["具体工作与交付让读者看懂能力", "预期用途和实际结果分开", "结合申请任务取舍经历"], "interview_questions": []
+  },
+  {
     "platform":"other", "source_kind":"guide",
     "canonical_url":"https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-MastersII.pdf",
     "title":"MIT CAPD Masters II résumé teaching sample", "author":"MIT CAPD", "published_at":null,

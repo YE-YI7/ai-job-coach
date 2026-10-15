@@ -1,10 +1,198 @@
 {
   "version": 1,
-  "updated_at": "2026-10-15",
+  "updated_at": "2026-10-16",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy": "# Agent 使用规则\n\n## Description\n\n本规则用于指导益职 Agent 在岗位分析、简历定制、模拟面试、回答点评和面试复盘中正确使用公共求职知识。\n\n## Goal\n\n让 Agent 的建议有可追溯依据，同时确保公共案例不会覆盖用户事实、制造虚假经历或被误解为公司官方规则。\n\n## 使用顺序\n\n1. 先读取当前任务、JD、用户简历、项目经历、面试轮次和历史记录。\n2. 检索与岗位、公司、阶段和任务相符的知识文档。\n3. 用知识文档补充追问、检查遗漏和校准建议。\n4. 只有结论依赖外部知识或用户追问时，才自然说明来源。\n\n## 证据优先级\n\n1. 用户刚刚提供的真实材料和明确纠正。\n2. 当前岗位 JD 与真实招聘流程信息。\n3. 用户长期记忆中已确认的事实。\n4. 多来源支持的知识文档。\n5. 单条公开经历或社区讨论。\n\n## 禁止事项\n\n- 不把面经当成固定题库或招聘承诺。\n- 不把外部案例、职责、数字和结果写进用户简历。\n- 不因公共样本与用户不同而否定用户事实。\n- 不向用户倾倒知识列表；知识必须服务于当前行动。\n- 证据不足时不输出伪精确概率、分数或成功率。\n\n## 冲突处理\n\n当知识文档之间或知识与用户材料冲突时，Agent 必须指出冲突来源，优先采用更贴近当前岗位、更新且证据更多的一方；仍无法判断时提出一个能改变结论的最小问题。",
   "documents": [
+    {
+      "id": "resume.factual-rewriting.v1",
+      "title": "简历改写：用已有事实写清贡献",
+      "path": "domains/shared/resume-factual-rewriting.md",
+      "description": "改写冗长、空泛的简历 bullet，已有事实先改，不虚构数字，不把提案写成落地。",
+      "goal": "让每次改稿带来可读性或信息取舍的实际改善，而非只换动词和标签。",
+      "scope": "有原简历或本人自述即可；无 JD 可以优化表达；公共写法不是用户事实或录用证据。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "简历写得空泛或 bullet 太长",
+        "没有 JD 只想改简历",
+        "缺数字但已有具体动作",
+        "改写只是换动词加标签",
+        "提案被改成上线成果"
+      ],
+      "do_not_use_when": [
+        "要求编造经历或结果",
+        "把教学例句和外部样例写成用户事实",
+        "用通用写法替代当前材料"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+        "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",
+        "https://capd.mit.edu/resources/career-toolkit-crafting-an-effective-resume/"
+      ],
+      "content": "# 简历改写：用已有事实写清贡献\n\n## 适用边界\n\n用于有原简历或用户自述时的内容修改；没有 JD 也能改善表达。知识库只提供写法，不是用户经历。以下是益职结合公开 Skill、高校指南和产品要求整理的方法；不是已验证的录用规律。\n\n## 先做有价值的修改\n\n1. 先找原文中可直接改善的部分：重复叙述、对象不清、动作与交付混在一起、关键事实被长句埋住。缺少一项指标不阻塞其他段落。\n2. 每条 bullet 讲一件主要贡献。优先写清对象、本人做的事、产出或已知结果；只取事实支持的部分，不强行凑齐公式。避免写成过程日记和名词清单。\n3. 删掉空话应保留信息量。只换动词、补能力标签、增加“显著”“深度”等形容词不算有价值的改稿；原句已经清楚可以不改。\n4. 有 JD 时按其重点选择真实材料；没有 JD 时先整理原内容，不假设岗位、级别和招聘偏好。需要方向才能决定的取舍留到补问。\n\n## 事实和强度\n\n- 为每个重要主张保留原文或本人的回答位置；区分已有依据、细节待补、材料冲突。用户上传是自述，不等于外部核实；模型改稿也不会自动变成已确认事实。\n- 保持职称、公司、日期、学历、责任、数字和完成状态。协助不改成主导，团队结果不改成本人独立实现，提出方案不改成上线落地，预计不改成实测。\n- 没有数字可写具体方法、交付物或用途。不猜月份、不编提升比例，不把 `[指标待补]` 放进成稿。\n- “没有负责后端”“缺乏某项能力”等仅作内部约束或补问依据，不写进求职者简历正文。\n- 外部好简历只参考取舍与结构；不得移植其数字、公司、技术栈或经历，也不得只因目标 JD 类似就认定背景相似。\n\n## 教学示例（虚构，不可作为用户事实）\n\n材料：“门店每天统计退货。我负责整理原因，做了分类表，交给店长每周查看。”\n\n可写：“整理门店退货原因并制作分类表，供店长每周复盘。”\n\n不可写：“主导售后体系优化，退货率下降 20%。”材料没有说明体系负责人或改善结果。\n\n## 内部复核\n\n逐条问：读者是否更容易看懂具体贡献？改后主张是否均有来源？有没有夸大责任或状态？有没有为改而改？给操作者的 trace 记录修改理由、事实回指与未决项，不向求职者展示虚构 ATS 分数，也不拿内部评分替代人工确认。\n\n## 来源与取舍\n\n主要参考 Evidence-First Resume 的事实台账与写作边界，以 Harvard、MIT 职业中心的具体表达建议交叉校验。采用的是方法，不是招聘效果承诺；许可、固定版本和未采用部分见 `knowledge-base/reviews/2026-10-16-resume-skills.md`。",
+      "evidence": [
+        {
+          "platform": "github",
+          "source_kind": "guide",
+          "url": "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+          "title": "Evidence-First Resume：事实台账与有边界的改写",
+          "company": null,
+          "published_at": null,
+          "summary": "人工审读的公开 Agent Skill，MIT 许可。提炼事实来源、责任边界、按信息价值补问和成品检查；不是录用效果证据，也不整体执行其工作流。复核于 2026-10-16，版本与取舍见知识库来源审查。"
+        },
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",
+          "title": "Harvard College Guide to Creating a Strong Resume",
+          "company": null,
+          "published_at": null,
+          "summary": "高校职业中心公开指南，2026-10-16 复核。支持具体、基于事实、便于扫读的表达，以及 PDF 转换后的格式检查。只作方法交叉校验，不复制模板；其美国本科生语境和照片等建议不当成中国市场统一规则。"
+        },
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://capd.mit.edu/resources/career-toolkit-crafting-an-effective-resume/",
+          "title": "MIT CAPD Career toolkit: Crafting an effective resume",
+          "company": null,
+          "published_at": null,
+          "summary": "高校职业中心公开讲解，2026-10-16 复核。参考其动作、方法、交付的表达思路；研究尚未完成时描述目标与进展，不能写成已实现成果。只记录摘要，不收集样例个人信息，不证明录用效果。"
+        }
+      ]
+    },
+    {
+      "id": "resume.progressive-discovery.v1",
+      "title": "简历补问：一问一答，补完继续改",
+      "path": "domains/shared/resume-progressive-discovery.md",
+      "description": "缺证据时先改能改的，再根据回答一问一问补充个人动作和交付，允许不知道或跳过。",
+      "goal": "避免整份简历被信息缺口卡住，补充事实之后继续改写而不是无限追问。",
+      "scope": "只处理当前用户授权范围内的事实；公开 Skill 方法有关联来源，不视为独立招聘效果验证。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "缺证据导致没给改稿",
+        "导师一次问很多问题",
+        "回答后仍重复追问",
+        "用户不知道指标或想跳过",
+        "区分本人负责和团队成果"
+      ],
+      "do_not_use_when": [
+        "当前已有足够事实只需直接修改",
+        "用户明确不补充仍继续逼问",
+        "复用其他用户的经历"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/varunr89/resume-tailoring-skill/blob/9a4a0f20f5983d1b533627b8c5191acd1ca0cd89/skills/resume-tailoring/SKILL.md",
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md"
+      ],
+      "content": "# 简历补问：一问一答，补完继续改\n\n## 适用边界\n\n已有简历可以改，但某条经历缺少会影响措辞的事实时使用。不能把“材料不完整”当成整份拒绝改稿的理由，也不为填满模板制造经历。分支追问来自公开 Skill；一次只问一个、先交付安全修改是益职的产品约束。\n\n## 补问顺序\n\n1. 先完成有事实支撑的修改，把缺口限定到相关段落。\n2. 只选择一个能改变下一步改写的问题。通常先确认个人动作或具体交付，再考虑确有用处的规模、结果。不要一口气问背景、过程、指标和复盘。\n3. 问具体、可回答的事实，例如“你在这个项目中亲手交付的东西是什么？”不诱导用户承认主导、不暗示应该有漂亮数字。\n4. 收到回答后立即回到对应段落修改，同时检查它是否已回答其他待问项；不要换一种说法继续问同一个问题。\n5. 接受“不知道”“记不清”“没做过”“跳过”。保留可用事实、略去未知结论，继续当前改稿；不能循环追问逼出数据。\n\n## 按答案选择下一步\n\n- 亲手做过：用回答中的动作与产出；确实需要时再问一项细节。\n- 参与协作：描述本人负责的环节，不把团队整体成果移到个人名下。\n- 只有学习或练习：保留练习性质，不能转成商业上线经历。\n- 有方案、尚未实现：写清要解决的问题及提出的具体办法，保留提案状态。\n- 来源冲突：只确认冲突事实，暂不使用有争议的断言；其他安全修改继续。\n- 明确没做过：内部记下不可主张的边界，不把“没负责什么”写进成稿。\n\n## 教学对话（虚构，不可作为用户事实）\n\n原文：“参与社团活动，锻炼沟通能力。”\n\n导师先问：“这次活动中，你具体负责哪一件事？”\n\n用户：“我联系三位讲者，确认时间，整理了当天流程。”\n\n可改：“联系 3 位讲者并协调时间，整理活动当日流程。”不能添加参会人数、满意度、招商额或负责人身份。已经有有效修改，不必为了结果数字继续盘问。\n\n## 记忆与权限\n\n只在同一用户、当前授权材料范围内复用事实。新回答保留自述来源；未经确认的 AI 草稿不是新的事实证据。公共写法库与用户私有经历分开，公共知识不进入用户事实引用列表。不用查阅其他用户简历来补当前人的经历。\n\n## 来源与取舍\n\n借鉴 varunr89 的回答分支、停止追问与来源回指，结合 Evidence-First Resume 的高信息价值问题和回答后重新匹配。后者明确参考过前者，不能算两份独立效果验证。未采用任意匹配百分比、强制 JD 和长问卷；来源审查见 `knowledge-base/reviews/2026-10-16-resume-skills.md`。",
+      "evidence": [
+        {
+          "platform": "github",
+          "source_kind": "guide",
+          "url": "https://github.com/varunr89/resume-tailoring-skill/blob/9a4a0f20f5983d1b533627b8c5191acd1ca0cd89/skills/resume-tailoring/SKILL.md",
+          "title": "Resume Tailoring Skill：按回答分支发现真实经历",
+          "company": null,
+          "published_at": null,
+          "summary": "人工审读的公开 Agent Skill，MIT 许可。仅借鉴动态追问、同一用户材料回指和缺口去重；不采用改职位名称、机械百分比和大批量确认工作流。复核于 2026-10-16。"
+        },
+        {
+          "platform": "github",
+          "source_kind": "guide",
+          "url": "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+          "title": "Evidence-First Resume：事实台账与有边界的改写",
+          "company": null,
+          "published_at": null,
+          "summary": "人工审读的公开 Agent Skill，MIT 许可。提炼事实来源、责任边界、按信息价值补问和成品检查；不是录用效果证据，也不整体执行其工作流。复核于 2026-10-16，版本与取舍见知识库来源审查。"
+        }
+      ]
+    },
+    {
+      "id": "resume.layout-and-export.v1",
+      "title": "简历交付：保留原样式，检查实际文件",
+      "path": "domains/shared/resume-layout-and-export.md",
+      "description": "保持原件样式，局部调整，分别检查保存刷新和实际 PDF，避免用重排文本冒充原件。",
+      "goal": "内容优化不破坏用户认可的版式，并如实区分预览、保存、刷新与文件交付。",
+      "scope": "简历排版和导出检查；无统一 ATS 保证；国内照片和一页偏好按用户要求处理。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "保留上传原件排版",
+        "换模板后布局错乱",
+        "简历保存后刷新恢复",
+        "PDF 导出发生裁切乱码或多页",
+        "正文混入内部提示和待补占位符"
+      ],
+      "do_not_use_when": [
+        "未经同意重做用户认可的版式",
+        "把文本提取成功说成所有 ATS 通过",
+        "授权外的第三方上传"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-16",
+      "evidence_urls": [
+        "https://github.com/Hfx-J/tailored-resume-generator/blob/422424b3e5611f19b8f704fe86a05bebf1b9602a/SKILL.md",
+        "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+        "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/"
+      ],
+      "content": "# 简历交付：保留原样式，检查实际文件\n\n## 适用边界\n\n用于简历编辑和 PDF 导出前后的复核，不是默认换模板的理由。公开指南多面向英语市场，照片、页数、字体和 ATS 格式建议不能机械变成所有用户的规则。\n\n## 编辑前\n\n- 原件展示保持原件；提取文本可供分析，但不能把 OCR 重排结果冒充原件。\n- 先看用户原件或已认可版本的姓名、联系方式、照片位置、章节、字体与留白，再决定局部调整。不能因存在默认模板就重做整份简历。\n- 更新原简历按益职替换确认流程处理，不能一边展示旧文件、一边分析新文件；不得动其他材料或历史作答。\n\n## 编辑中\n\n- 优先修改内容和相关区域；局部溢出先删冗余、调整该段，不全局缩字。\n- 尽量一页，但不为凑满页面添加空话，也不为硬塞一页挤坏可读性。确需多页时说明取舍。\n- 没有原件时，姓名与联系方式分层，电话、邮箱用清楚标签；是否放头像按用户和申请场景决定，不凭空生成人像。\n- 未确认内容、编辑标记、补问、内部评分和 `[待补]` 不进入默认导出成品。\n\n## 导出后\n\n1. 检查实际保存的文件，而不只是网页预览。内容和用户最终采纳的版本一致。\n2. 逐页检查裁切、重叠、乱码、孤立标题、异常空白页及联系方式可读性。\n3. 提取 PDF 文本，核对姓名、公司、职称、日期与正文的阅读顺序。文本可提取不等于所有 ATS 可正确解析。\n4. 页面保存、刷新恢复、下载文件是三个检查项，不能用其中一个通过代替全部通过。未实际检查的项保持未验证。\n5. 申请平台明确要求格式时遵从要求；自动填表后核对实际字段。不得向未经用户授权的第三方简历评分站上传个人材料，也不承诺 ATS 通过率。\n\n## 来源与取舍\n\nHfx-J 的原样式继承只作方法参考，未发现明确许可，因此不复制模板、脚本或完整提示词；结合 Evidence-First Resume 的文件检查与 Harvard 的 PDF 转换检查。原件展示、替换确认、刷新验收和一页优先来自益职既有用户要求。来源审查见 `knowledge-base/reviews/2026-10-16-resume-skills.md`。",
+      "evidence": [
+        {
+          "platform": "github",
+          "source_kind": "guide",
+          "url": "https://github.com/Hfx-J/tailored-resume-generator/blob/422424b3e5611f19b8f704fe86a05bebf1b9602a/SKILL.md",
+          "title": "Tailored Resume Generator：原样式继承与交付审查参考",
+          "company": null,
+          "published_at": null,
+          "summary": "公开可读工作流，未发现明确仓库许可证。只记录链接和独立撰写的方法摘要，不复制或安装源码、模板、完整提示词。借鉴原样式取证、局部修改和导出后复核；不采纳强制 JD、未决占位符入成稿和无限审查循环。复核于 2026-10-16。"
+        },
+        {
+          "platform": "github",
+          "source_kind": "guide",
+          "url": "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
+          "title": "Evidence-First Resume：事实台账与有边界的改写",
+          "company": null,
+          "published_at": null,
+          "summary": "人工审读的公开 Agent Skill，MIT 许可。提炼事实来源、责任边界、按信息价值补问和成品检查；不是录用效果证据，也不整体执行其工作流。复核于 2026-10-16，版本与取舍见知识库来源审查。"
+        },
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",
+          "title": "Harvard College Guide to Creating a Strong Resume",
+          "company": null,
+          "published_at": null,
+          "summary": "高校职业中心公开指南，2026-10-16 复核。支持具体、基于事实、便于扫读的表达，以及 PDF 转换后的格式检查。只作方法交叉校验，不复制模板；其美国本科生语境和照片等建议不当成中国市场统一规则。"
+        }
+      ]
+    },
     {
       "id": "resume.example.computing-hci.v1",
       "title": "计算机/HCI 研究与软件实习写法样例",

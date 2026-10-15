@@ -1,26 +1,26 @@
 {
-  "generated_at": "2026-10-15T00:00:00.000Z",
+  "generated_at": "2026-10-16T00:00:00.000Z",
   "current": {
-    "sources": 98,
-    "documents": 31,
+    "sources": 103,
+    "documents": 34,
     "companies": 20,
-    "retrieval_evaluations": 115,
-    "documents_with_three_sources": 22,
-    "three_source_ratio": 0.71,
+    "retrieval_evaluations": 118,
+    "documents_with_three_sources": 24,
+    "three_source_ratio": 0.706,
     "by_platform": {
       "anthropic": 2,
       "arxiv": 2,
-      "github": 2,
+      "github": 5,
       "linkedin": 14,
       "mcp": 1,
       "nowcoder": 60,
-      "other": 4,
+      "other": 6,
       "reddit": 11,
       "xiaohongshu": 2
     },
     "by_confidence": {
       "low": 6,
-      "medium": 25,
+      "medium": 28,
       "high": 0
     }
   },
@@ -32,6 +32,11 @@
     "three_source_ratio": 0.7
   },
   "thin_documents": [
+    {
+      "id": "resume.progressive-discovery.v1",
+      "evidence_count": 2,
+      "confidence": "medium"
+    },
     {
       "id": "resume.example.computing-hci.v1",
       "evidence_count": 1,

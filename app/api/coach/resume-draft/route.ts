@@ -17,7 +17,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
-import {omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
+import {normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { retrieveResumeExamples, renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
@@ -176,7 +176,8 @@ export async function POST(request: Request) {
     };
     const coversSupplement = (proposals:ResumeChange[]) => coversCurrentResumeAnswer(proposals,agentTask?.answers||[]);
     for(let attempt=0;attempt<(agentTask?2:1);attempt++){
-    const output = await runWithGenerationContext({
+    let output:string;
+    try { output = await runWithGenerationContext({
       userId: user.id,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
@@ -191,7 +192,14 @@ export async function POST(request: Request) {
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、项目成熟度、数字和时间，个人未负责的事项不写进正文，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
       {role:'system',content:'内容取舍规则：每条修改必须改善实际可读性或信息，理由指出具体删掉了什么冗余/怎样拆清动作与交付/吸收了哪条本人事实。只加“办公软件：”、技能换序、换同义词或写笼统评价，不算改稿。否定责任是内部约束，不是简历内容：用户说“整理Excel需求清单交给页面同学，没有负责开发上线，也没有统计人数”，正文只写“整理Excel需求清单，交给负责页面的同学讨论”，不要另加“未负责开发/未统计人数”的bullet，更不能改成负责开发或有增长成果。保留参与/协助和原型/待上线等会改变已写动作含义的限定。没有结果数据不强求数字，真实交付与用途也有价值。已经清楚且无新事实、没有值得补问的缺口时返回 {status:"unchanged",changes:[]}，不要为了产生修改硬改。只有模糊经历而没有具体动作时先问一个对应经历的问题，不能只改旁边的技能栏蒙混过去。'},
       {role:'system',content:'具体规则：给同一组技能新增“前端技术/测试工具/版本控制”等分类标签，也不算有价值改稿，不给这种建议。原文含“课程项目”“个人项目”“练习”“模拟”“示例”“虚构”时，在改后对应段落逐字保留这些性质标记；可以将原型/未上线状态简短括注，不要把项目边界或别人负责的事项单独凑成自己的工作bullet。'},
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 4096, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
+    } catch(error) {
+      if(agentTask&&attempt===0&&/empty response/i.test(String(error instanceof Error?error.message:error))){
+        repairFeedback=['上一轮没有返回最终正文。请简短给出完整JSON；没有值得改的内容就明确返回status:unchanged和changes:[]，不能以空响应代替判断。'];
+        trace.step('draft','empty_response_bounded_repair');continue;
+      }
+      throw error;
+    }
 
     let parsed;
     try { parsed = parseJson(output); } catch (error) {
@@ -208,7 +216,7 @@ export async function POST(request: Request) {
       const checkOutput=await runWithGenerationContext({userId:user.id,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
         {role:'system',content:'独立检查是否应保持当前简历不变。真实动作、交付和用途已清楚，或只有技能/教育无需重写时，可以保留。不要因为没有数字要求补问。若有冗长、重复、名词堆砌可安全改善，或有值得逐问的模糊经历，unchanged必须false。只返回JSON:{"status":"passed|failed","unchanged":true或false,"summary":"判断依据"}。不得把不确定或模型失败当成无需修改。'},
         {role:'user',content:JSON.stringify({resume:resumeText,currentDecisions:generationSource?.changes||[],answers:agentTask?.answers||[],jd:jobDescription})},
-      ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:2048,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
+      ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
       const check=parseJson(checkOutput);
       if(check.status==='passed'&&check.unchanged===true&&String(check.summary||'').length>=8){
         const summary='已检查，当前内容可以保留。本轮没有新增修改；仍可直接编辑或导出。';
@@ -240,7 +248,7 @@ export async function POST(request: Request) {
     rejected = [];
     changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => citableIds.has(id)) : [];
-      const proposedAfter = String(raw.after || "").trim().slice(0, 2000);
+      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000));
       const after = omitStandaloneDisclaimers(proposedAfter);
       if(after!==proposedAfter)personalDisclaimersOmitted++;
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);

@@ -5,6 +5,11 @@ const clean = (text:string) => text.replace(/^\s*[-*•]\s*/gm,'').trim();
 
 export function isPersonalDisclaimer(text:string){return personalDisclaimer.test(clean(text));}
 
+/** Fix an unambiguous model list delimiter, not source prose or numeric ranges. */
+export function normalizeResumeBulletBreaks(text:string){
+  return /^\s*[-*•]\s+/.test(text)?text.replace(/[；;]\s*[-*•]\s+(?=\S)/g,'\n- '):text;
+}
+
 // Only omit standalone disclaimer bullets/sentences. Mixed factual sentences
 // are rejected for revision, never cut mid-clause or turned into positive claims.
 export function omitStandaloneDisclaimers(text:string){
@@ -21,6 +26,7 @@ const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专
 export function resumeEditValueIssues(before:string,after:string):string[]{
   const issues:string[]=[];
   if(isPersonalDisclaimer(after))issues.push('个人未负责/未参与/未统计的说明只作事实边界，不写进简历正文；只写实际做过的动作与交付，仍不得暗示承担被否定的工作');
+  if(/由(?:其他|别的|另外的)(?:同学|同事|成员|团队)(?:负责|开发|完成|承担)/.test(after))issues.push('其他人的分工只作内部归属边界，不作为本人的经历bullet；保留本人实际动作，不得把他人的开发或成果写成本人负责');
   if((removeLabels(before)!==before||removeLabels(after)!==after)&&normalize(removeLabels(before))===normalize(removeLabels(after)))issues.push('仅改标签、标点或前缀，没有改善内容，不作为修改交付');
   // Reordering a short tool/skill list or adding a proficiency adjective is not
   // a useful edit (nor evidence of proficiency). Actual experience is exempt.

@@ -1,6 +1,10 @@
 import { isTrivialRewrite } from "./resume-diff";
 
 describe("useful factual restructuring", () => {
+  it('rejects explanatory padding that makes an already clear bullet longer',()=>{
+    expect(isTrivialRewrite('编写 12 个组件测试，覆盖表单校验与加载失败，提交同学复核。','编写 12 个组件测试用例，覆盖表单校验、加载失败两类场景，提交同学复核。')).toBe(true);
+    expect(isTrivialRewrite('编写组件测试，覆盖表单校验，提交同学复核。','编写 12 个组件测试，覆盖表单校验与加载失败，提交同学复核。')).toBe(false);
+  });
   it('does not count handoff synonyms as better action logic',()=>expect(isTrivialRewrite('核对活动页面的图片与标题，记录差异并交给页面同事修改。','核对活动页面的图片与标题，记录差异后移交页面同事修改。')).toBe(true));
   it('rejects minor embellishment of already clear short bullets',()=>{
     expect(isTrivialRewrite('整理每日退换货问题，将待处理清单交给客服主管跟进。','整理每日退换货问题，生成待处理清单并交付客服主管跟进')).toBe(true);

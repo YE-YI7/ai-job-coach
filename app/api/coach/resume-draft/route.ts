@@ -266,7 +266,7 @@ export async function POST(request: Request) {
         ...resumeEditValueIssues(before,after),
         ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement?['原文只有模糊职责，没有具体动作；拆成空泛bullet或把参与换成梳理不是有效改稿，需先补问这段本人实际做的事，不能阻断其他有事实段落']:[]),
       ];
-      if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
+      if (before && after && !hasPositiveSupplement && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
       // 槽3 引用回指核验（FR-23）：先于付费的独立质检员跑——逐字回指是确定性判定，
       // 不该花一次模型调用去发现一句没有出处的话。拦哪些类别由守卫裁定
       // （残缺/扩大动作/丢限定 = block，换措辞 = annotate 记账），本模块只认 outcome，

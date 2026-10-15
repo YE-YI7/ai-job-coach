@@ -4,9 +4,7 @@
 // HTTP handlers (+config) to be exported from a route module.
 
 function normalizeForDiff(value: string) {
-  return value.toLowerCase().replace(/[\s，。、；：！？“”‘’（）()《》\-—·|/\\]+/g, "")
-    // Handoff synonyms and linking words do not create a new deliverable.
-    .replace(/(?:并|后|再|随后)?(?:移交|交给|提交给)/g,'交给');
+  return value.toLowerCase().replace(/[\s，。、；：！？“”‘’（）()《》\-—·|/\\]+/g, "");
 }
 
 function editDistanceWithin(a: string, b: string, limit: number) {
@@ -37,6 +35,15 @@ export function isTrivialRewrite(before: string, after: string) {
   const bullets = (value: string) => (value.match(/^\s*[-*•]\s+\S/gm) || []).length;
   if (a === b && bullets(after) >= 2 && bullets(after) > bullets(before) && /[。；;，,]/.test(before)) return false;
   if (a === b) return true;
+  // A short bullet that keeps almost the same length, structure and words is
+  // usually stylistic churn, not a deliverable. New factual supplements are
+  // handled separately by the caller. Material shortening and real paragraph
+  // splitting remain eligible for independent review.
+  if(a.length>=18&&a.length<=100&&bullets(after)<=bullets(before)
+    &&Math.abs(a.length-b.length)<=Math.max(3,Math.floor(a.length*.15))){
+    const cosmeticLimit=Math.floor(Math.min(a.length,b.length)*.3);
+    if(editDistanceWithin(a,b,cosmeticLimit)<=cosmeticLimit)return true;
+  }
   const limit = Math.max(2, Math.floor(Math.min(a.length, b.length) * 0.1));
   return editDistanceWithin(a, b, limit) <= limit;
 }

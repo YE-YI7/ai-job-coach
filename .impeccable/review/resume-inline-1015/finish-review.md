@@ -53,3 +53,16 @@ disposition: recapture
 Clear for the single scored keyboard finding. This ship verdict covers that fix only; it does not certify real-model behavior, answer persistence, or production acceptance, and does not broaden the original surface review.
 
 disposition: ship
+
+---
+
+## verdict
+
+1. **Resolved — later PDF/header correction, bounded to commit d608cdd.** Independently inspected `/private/tmp/yizhi-resume-inline-final-1015.png` (990 × 1400): the actual synthetic QA name is the dominant heading; email and phone occupy separate lines; the photo label remains in its right-hand reserved area; no page-counter extraction debris, overlap, clipped content, or unreadable glyphs is visible. `pdfinfo` independently reports one A4 page, Chrome 155 creator, and Skia/PDF producer. The scoped diff excludes photo/document labels from identity detection, keeps the following name/contact preamble together, identifies the actual rendered name, and filters extraction counters during new rendering. No raw-upload write is introduced by the inspected changes; immutable raw-file byte identity was not re-tested in this follow-up. The optional `pdftotext` check could not run because that command is unavailable, so the counter conclusion is based on the complete page render and source, not independent text extraction.
+2. **Resolved — earlier keyboard finding remains resolved at the inspected scope.** The correction does not edit ResumePaper or ResumeInlineReview. Their current source still contains interaction-specific focus handoff, guarded origin-focus restoration, and direct iframe Escape forwarding. No source-level regression to that path is present; this reviewer did not re-run Chrome interactions, and the previously accepted UI captures remain the unchanged-shell evidence.
+
+## remaining
+
+Clear for the PDF/header layout correction and its inspected effect on the earlier keyboard fix only. The PDF is intentionally partial/rejected synthetic QA content and is layout evidence, not a prose-quality endorsement. Full-chain QA B, real-model behavior, persistence, and production acceptance remain outside this follow-up. Only the review file was changed; no detector was rerun. The PDF skill guided page-pixel and file-metadata verification, not document edits.
+
+disposition: ship

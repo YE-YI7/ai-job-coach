@@ -1,6 +1,6 @@
 # 简历持久补问与单纸面三色采纳验收
 
-当前运行提交：c6a580d。生产部署：dpl_DuYuTbMqBnaTwRsq1Ye7GE7he5Ly，云构建 READY，包含裸域/www 两个正式别名。最后一轮正式 Chrome 的补问→继续改稿→纸面采纳→保存刷新→实际 PDF 已通过；不是全部简历、全部模型和完整手绘范围的无缺陷承诺。
+本报告验收基线：c6a580d / dpl_DuYuTbMqBnaTwRsq1Ye7GE7he5Ly。后续用户发现普通简历被材料资格拦截，已由 45ceae2 / dpl_6pZr2h5j4R8eBpbo4itn2EPwpCLX 替代，双域 Ready；改为先改已有事实、局部补问不拦整稿。新一轮真实 Chrome 无 JD/零补充直接生成两处修改、刷新与实际一页 PDF 见 [续修验收](2026-10-15-resume-draft-first-repair.md)。下文保留原轮次的真实边界，不把历史“生成前补问”规则当现行规则。
 
 ## 实现边界
 

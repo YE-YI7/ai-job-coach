@@ -97,6 +97,14 @@ describe("resume draft source mapping", () => {
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test('splitting a vague responsibility cannot pretend to add a concrete action',async()=>{
+    const resumeText='参加过校园失物招领平台项目，参与需求相关工作。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:resumeText,after:'- 参与校园失物招领平台项目\n- 协助梳理需求相关内容',sourceIds:['claim-1']}]}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{field:'action'}});expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+
   test('malformed model JSON gets one bounded repair before a draft is delivered',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce('{"changes": [broken]}')

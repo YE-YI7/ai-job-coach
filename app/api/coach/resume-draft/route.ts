@@ -26,7 +26,7 @@ import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protec
 import { resumeTaskInput, persistResumeAnswerClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
-import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, explicitMissingResumeQuestion, anchoredResumeExcerpt, type ResumeAgentQuestion } from "@/lib/coach-harness/resume-task-types";
+import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, explicitMissingResumeQuestion, anchoredResumeExcerpt, isVagueResumeResponsibility, type ResumeAgentQuestion } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -245,11 +245,13 @@ export async function POST(request: Request) {
       if(after!==proposedAfter)personalDisclaimersOmitted++;
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);
       const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
+      const hasPositiveSupplement=agentTask?.answers.some(answer=>currentResumeAnswer([answer])&&answer.claimId&&sourceIds.includes(answer.claimId)&&(before.includes(answer.sourceExcerpt)||answer.sourceExcerpt.includes(before)));
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const mappingIssues = [
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
         ...resumeSourceProtection(before, after, String(raw.section || ""), resumeText),
         ...resumeEditValueIssues(before,after),
+        ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement?['原文只有模糊职责，没有具体动作；拆成空泛bullet或把参与换成梳理不是有效改稿，需先补问这段本人实际做的事，不能阻断其他有事实段落']:[]),
       ];
       if (before && after && isTrivialRewrite(before, after)) mappingIssues.push("该修改与原文仅同义换词，没有信息增量，已自动过滤");
       // 槽3 引用回指核验（FR-23）：先于付费的独立质检员跑——逐字回指是确定性判定，

@@ -115,6 +115,19 @@ describe("resume draft source mapping", () => {
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
 
+  test.each([['- 没有负责后端开发。',200],['- 协助编写接口说明。',422]])('only standalone disclaimer deletion can pass review: %s',async(before,status)=>{
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after:'',sourceIds:['claim-1'],reason:'独立免责声明不作为求职贡献'}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'其余完整简历',findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact-1'});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.status).toBe(status);
+    if(status===200)expect((await response.json()).changes[0]).toMatchObject({before,after:'',status:'pending'});
+    else expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+
   test('purely cosmetic attempts can end unchanged only after independent original review',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'Excel、Word',jd:'',revision:'r',changes:[]});

@@ -264,6 +264,10 @@ export async function POST(request: Request) {
       const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
       const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);
       const after = omitStandaloneDisclaimers(proposedAfter);
+      // A standalone personal disclaimer is factual context, not an
+      // achievement. An explicitly proposed deletion may be reviewed and
+      // accepted, while arbitrary empty rewrites remain blocked.
+      const disclaimerDeletion = !after && Boolean(before) && sourceIds.length > 0 && !omitStandaloneDisclaimers(before).trim();
       if(after!==proposedAfter)personalDisclaimersOmitted++;
       const hasPositiveSupplement=agentTask?.answers.some(answer=>currentResumeAnswer([answer])&&answer.claimId&&sourceIds.includes(answer.claimId)&&(before.includes(answer.sourceExcerpt)||answer.sourceExcerpt.includes(before)));
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
@@ -283,9 +287,9 @@ export async function POST(request: Request) {
       const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { citation: { candidateText: after, sources: citationSources } }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
       if (citationVerdict) citationVerdicts.push({ index, outcome: citationVerdict.outcome, code: citationVerdict.reason.code, message: citationVerdict.reason.message });
       if (citationVerdict?.outcome === "block") mappingIssues.push(citationVerdict.reason.message);
-      if (!after || !before || !report.ok || mappingIssues.length) {
+      if ((!after && !disclaimerDeletion) || !before || !report.ok || mappingIssues.length) {
         trace!.data.groundingRejections = [...(trace!.data.groundingRejections || []), { attempt, index, codes: [
-          ...(!after ? ['empty_after'] : []), ...(!before ? ['empty_before'] : []),
+          ...(!after && !disclaimerDeletion ? ['empty_after'] : []), ...(!before ? ['empty_before'] : []),
           ...(before && !resumeText.includes(before) ? ['source_mapping'] : []),
           ...(!report.ok ? ['claim_validation'] : []), ...(sourceIssues.length ? ['source_identity_or_marker'] : []),
           ...(valueIssues.length ? ['editorial_value'] : []),
@@ -325,6 +329,7 @@ export async function POST(request: Request) {
     const reviewerOutput = await runWithGenerationContext({userId:user.id,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       ...(knowledgePrompt ? [{role:'user' as const,content:knowledgePrompt}] : []),
+      {role:'system',content:'after为空代表建议删除原文中独立的“没有负责/未参与/未统计”等个人免责声明，不是丢失响应；只在没有删掉真实贡献或必要的项目阶段、职责限定时，才能判定为有效精简。原始材料仍保留作为内部事实边界，用户需要自行确认这处删除。'},
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 指向的用户材料完整支持（用户自述可作为来源，不要求外部证明）；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 有实际编辑价值，无JD时只审可读性和信息取舍，不要求岗位关键词；5. after 文字完整通顺——句子没有在词中间被截断、没有与 before 对不上的可疑错字换字、括号引号成对。事实或文字错误给 severity=error。必须对每条修改另给一个 valueChecks 条目，index从0开始，useful为布尔值，kind只取concision/structure/specificity/relevance/clarity之一。无实际价值useful=false。只返回完整 JSON（不要遗漏valueChecks）：{"status":"passed","summary":"判断依据","findings":[],"valueChecks":[{"index":0,"useful":true,"kind":"concision","reason":"指出实际改善了哪处冗余、结构或信息"}]}。有事实错误时status改failed并填写findings；无价值但事实正确仍需useful=false，不能用passed替代逐条价值判断。` },
       { role: "user", content: `目标 JD：\n${jobDescription || "无目标 JD：只审表达、事实与精简，不要求岗位关键词匹配"}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n每条 bullet 应短且有具体动作或已有结果；不接受超过 100 字的长 bullet、无事实支撑的名词堆砌。\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes.map(change=>({...change,sourceIds:change.evidenceIds})))}` },
       {role:'system',content:'还必须逐条评估修改价值，与事实正确分开。增加标签/技能换序/同义替换/照抄否定责任说明都不算有价值。具体精简冗余、将长段拆成可扫描的动作与交付、用已提供补充替换模糊职责，才是有效改善；不要求新增数字。每条检查是否丢掉重要动作、对象、交付和参与/协助/原型等必要限定。无需把未负责/未参与/未统计的独立免责声明留在正文，只要新文不暗示那些工作即可。JSON必须另外给valueChecks:[{index:待审修改的0起始序号,useful:true或false,kind:"concision|structure|specificity|relevance|clarity",reason:"至少一句说明哪处实际变好或为何没有价值"}]，每条恰好一次；无具体价值的useful=false，即使事实完全正确也不通过。'},

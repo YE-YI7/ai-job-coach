@@ -2,13 +2,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { getDbClient } from "@/lib/db";
 
 export const RESUME_TRACE_EVENT = "resume_agent_trace";
-export type ResumeTraceOutcome = "running" | "completed" | "needs_detail" | "blocked" | "failed" | "quota_denied";
+export type ResumeTraceOutcome = "running" | "completed" | "unchanged" | "needs_detail" | "blocked" | "failed" | "quota_denied";
 export interface ResumeTrace {
   version: 1; traceId: string; requestHash: string; mode: "general_resume" | "target_resume";
   outcome: ResumeTraceOutcome; elapsedMs: number;
   steps: Array<{ stage: "context" | "retrieval" | "draft" | "grounding" | "review" | "save" | "failure"; elapsedMs: number; code: string; count?: number }>;
   retrieval: { status: "not_run" | "matched" | "no_close_example"; candidates: number; includedIds: string[]; matches: Array<{ id: string; similarity: number; dimensions: string[]; signals: string[]; stageMatched: boolean }> };
   quality: null | { subject: "draft_quality_not_candidate"; score: number; grounding: boolean; independentReview: boolean; shortBullets: boolean; ats: boolean; proposed: number; retained: number };
+  editingValue?: { reviewed:number; useful:number; rejected:number; kinds:string[]; personalDisclaimersOmitted:number; disposition:'revised'|'unchanged' };
 }
 export function resumeRequestHash(requestId: string) { return createHash("sha256").update(requestId).digest("hex"); }
 

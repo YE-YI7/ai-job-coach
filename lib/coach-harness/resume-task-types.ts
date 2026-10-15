@@ -20,7 +20,7 @@ export interface ResumeAgentTask {
   answers: ResumeAgentAnswer[];
   updatedAt: string;
   error?: string;
-  result?: { changes: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string };
+  result?: { changes: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean };
 }
 
 /** 不把待回答、模型推断或“暂不补充”变成经历事实。 */
@@ -63,7 +63,7 @@ export function nextResumeQuestion(source: string, raw: unknown, answers: Resume
   return { id, sourceExcerpt, question, field };
 }
 
-const RESUME_FACT_QUESTIONS:Record<ResumeQuestionField,string>={action:'这段经历里，你本人实际做的第一件事是什么？',deliverable:'这一步最后留下了什么具体材料或交付物？',context:'当时最需要解决的一个问题是什么？',outcome:'你交付的材料后来是怎么被使用的？',scope:'这件事里，哪些工作不是由你负责的？'};
+const RESUME_FACT_QUESTIONS:Record<ResumeQuestionField,string>={action:'这段经历里，你本人实际做的第一件事是什么？',deliverable:'这一步最后留下了什么具体材料或交付物？',context:'当时最需要解决的一个问题是什么？',outcome:'你交付的材料后来是怎么被使用的？',scope:'这段经历中，你具体负责哪一部分？'};
 
 /** Ask only for an explicitly missing fact after safe edits have been attempted.
  * A generic generation failure must not be blamed on the user's materials. */

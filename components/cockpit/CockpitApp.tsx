@@ -724,7 +724,7 @@ export function CockpitApp({
       const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunityId:id,action,answer,questionId:resumeAgentTasks[id]?.question?.id})});
       const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
       receiveResumeTask(id,result.task);
-      announce(result.task.state==='needs_detail'?'导师还有一个问题，补充后接着改':result.task.state==='ready'?'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
+      announce(result.task.state==='needs_detail'?'导师还有一个问题，补充后接着改':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
     }finally{resumeRequestBusy.current=false;setGeneratingResume(false);}
   };
 

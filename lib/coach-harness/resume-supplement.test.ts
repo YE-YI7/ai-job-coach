@@ -13,3 +13,7 @@ test('不知道或跳过不强迫重新引用之前的回答',()=>{
  expect(coversCurrentResumeAnswer([], [answer('a','第一段'),{...answer('b','第二段'),answer:'不知道'}])).toBe(true);
  expect(coversCurrentResumeAnswer([], [{...answer('b','第二段'),skipped:true}])).toBe(true);
 });
+test('仅否定责任的回答作为约束保留，不强迫复制到正文；正向动作仍必须交付',()=>{
+ expect(coversCurrentResumeAnswer([], [{...answer('b','第二段'),answer:'我没有负责开发上线，也没有统计人数。'}])).toBe(true);
+ expect(coversCurrentResumeAnswer([], [{...answer('b','第二段'),answer:'我没有负责开发。我整理了需求清单。'}])).toBe(false);
+});

@@ -25,7 +25,7 @@ export async function ownedResumeTaskSource(userId: string, opportunityId: strin
   const jd = String(data.jd_text || "").trim();
   if (!resume) throw new ResumeTaskError("请先上传简历", 400);
   if (resume.length>30_000||jd.length>30_000) throw new ResumeTaskError("简历或岗位原文超过30000字，请先精简；原文已保留，尚未调用模型",400);
-  return { resume, jd, revision: String(data.metadata?.resumeRevision || ""), changes:(data.metadata?.resumeChanges||[]) as ResumeChange[], general: data.metadata?.workspaceType === "preparation", fingerprint: resumeTaskFingerprint(resume, jd, data.metadata?.resumeRevision) };
+  return { resume, jd, revision: String(data.metadata?.resumeRevision || ""), changes:(data.metadata?.resumeChanges||[]) as ResumeChange[], applicationQuality:data.metadata?.applicationQuality as Opportunity['applicationQuality'], general: data.metadata?.workspaceType === "preparation", fingerprint: resumeTaskFingerprint(resume, jd, data.metadata?.resumeRevision) };
 }
 async function readRow(userId: string, opportunityId: string): Promise<Row | null> {
   const db = requireDb(await getDbClient());
@@ -113,7 +113,7 @@ export async function persistResumeAnswerClaims(row: Row): Promise<CareerClaim[]
     status: "unverified", visibility: "recruiter_safe", sourceKind: "user_statement", verificationLevel: "self_reported" }));
 }
 
-export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string}) {
+export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean}) {
   const db = requireDb(await getDbClient()), row = await resumeTaskInput(userId, taskId, lease);
   const question = body.ok ? nextResumeQuestion(source.resume, body.followUp, row.answers)
     : body.recovery && !body.recovery.detailSaved ? nextResumeQuestion(source.resume, body.recovery, row.answers) : null;
@@ -121,7 +121,7 @@ export async function finishResumeTask(userId: string, taskId: string, lease: st
   const current=body.ok?await ownedResumeTaskSource(userId,row.opportunity_id):null;
   const previous=source.changes??current?.changes??[];
   const answer=currentResumeAnswer(row.answers);
-  const result = body.ok ? { changes: body.prepared?body.changes||[]:mergeResumeAgentChanges(source.resume,previous,body.changes||[],answer?[answer.sourceExcerpt]:[]), applicationQuality: body.applicationQuality, resumeGenerationId: `${taskId}:${row.version}`, previousChanges:previous, resumeCheckStale:Boolean(previous.some(change=>change.status!=='pending')), ...(body.summary?{summary:body.summary}:{}) } : null;
+  const result = body.ok ? { changes: body.prepared?body.changes||[]:mergeResumeAgentChanges(source.resume,previous,body.changes||[],answer?[answer.sourceExcerpt]:[]), applicationQuality: body.applicationQuality, resumeGenerationId: `${taskId}:${row.version}`, previousChanges:previous, resumeCheckStale:Boolean(previous.some(change=>change.status!=='pending')), ...(body.summary?{summary:body.summary}:{}), ...(body.unchanged?{unchanged:true}:{}) } : null;
   const { data, error } = await db.rpc("finish_coach_resume_task", { p_user_id: userId, p_task_id: taskId, p_lease: lease,
     p_state: state, p_question: question, p_result: result, p_error: body.ok || question ? null : String(body.error || "改稿暂未完成，补充已保存，可以重试"),
     p_source: source.resume, p_jd: source.jd, p_revision: source.revision });

@@ -68,12 +68,12 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(422);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
-  test('independently checked unchanged result keeps existing decisions and does not charge generation success',async()=>{
+  test.each(['unchanged',undefined])('independently checked empty result (%s) keeps existing decisions and does not charge generation success',async status=>{
     const changes=[{id:'accepted',before:'旧句',after:'已采纳句',status:'accepted'}];
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'负责模型评测',jd:'',revision:'r',changes});
     (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes,unchanged:true}});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status:'unchanged',changes:[]})).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status,changes:[]})).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes});
     expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),expect.objectContaining({unchanged:true,changes,prepared:true}));
@@ -86,6 +86,15 @@ describe("resume draft source mapping", () => {
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[]}));
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(422);expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{field:'deliverable',sourceExcerpt:resumeText}});expect(callLLM).toHaveBeenCalledTimes(2);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
+  test('empty drafts on a clearly vague experience recover with one question without inventing a missing-evidence error',async()=>{
+    const resumeText='参加过校园二手平台项目，参与需求相关工作。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[]}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{sourceExcerpt:resumeText,field:'action'}});
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
   test('malformed model JSON gets one bounded repair before a draft is delivered',async()=>{

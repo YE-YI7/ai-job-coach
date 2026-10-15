@@ -203,7 +203,7 @@ export async function POST(request: Request) {
       ? nextResumeQuestion(resumeText, parsed.recovery, agentTask.answers) : null;
     // A no-op is a valid outcome, but never a shortcut around an unhandled
     // positive answer or an explicit missing fact. Independently confirm it.
-    if(parsed.status==='unchanged'&&!rawChanges.length&&!latestAnswer&&!explicitQuestion&&!followUp){
+    if((parsed.status==='unchanged'||!parsed.status)&&!rawChanges.length&&!latestAnswer&&!explicitQuestion&&!followUp){
       const checkOutput=await runWithGenerationContext({userId:user.id,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
         {role:'system',content:'独立检查是否应保持当前简历不变。真实动作、交付和用途已清楚，或只有技能/教育无需重写时，可以保留。不要因为没有数字要求补问。若有冗长、重复、名词堆砌可安全改善，或有值得逐问的模糊经历，unchanged必须false。只返回JSON:{"status":"passed|failed","unchanged":true或false,"summary":"判断依据"}。不得把不确定或模型失败当成无需修改。'},
         {role:'user',content:JSON.stringify({resume:resumeText,currentDecisions:generationSource?.changes||[],answers:agentTask?.answers||[],jd:jobDescription})},

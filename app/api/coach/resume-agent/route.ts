@@ -3,7 +3,7 @@ import { POST as draftResume } from "../resume-draft/route";
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from "@/lib/coach-harness/resume-task";
 
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 300;
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 const uuid = /^[0-9a-f-]{36}$/i;
 export async function GET(request: Request) {

@@ -10,7 +10,7 @@ export default function ResumeAgentConversation({task,busy,onAnswer,onContinue,o
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{if(task.state!=='running')return;const timer=setInterval(()=>setNow(Date.now()),5000);return()=>clearInterval(timer);},[task.state]);
   if(task.state==='ready'||task.state==='idle'||task.state==='stale')return null;
-  if(task.state==='running')return <div className={styles.waiting}><p role="status">导师正在整理你的材料，已保存的补充不会丢失。</p>{now-Date.parse(task.updatedAt)>=210_000&&<button type="button" disabled={busy} onClick={onContinue}>这次等待较久，从已保存材料重试</button>}</div>;
+  if(task.state==='running')return <div className={styles.waiting}><p role="status">导师正在整理你的材料，已保存的补充不会丢失。</p>{now-Date.parse(task.updatedAt)>=330_000&&<button type="button" disabled={busy} onClick={onContinue}>这次等待较久，从已保存材料重试</button>}</div>;
   return <div className={styles.conversation}>
     {task.answers.length>0&&<details><summary>已补充 {task.answers.length} 条</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}</details>}
     {task.state==='failed'?<div className={styles.failed}><p role="alert">{task.error||'这次修改暂未完成，补充仍保留。'}</p><button type="button" disabled={busy} onClick={onContinue}>从已保存材料继续</button></div>:task.question&&<form onSubmit={async event=>{event.preventDefault();if(!answer.trim()||busy)return;setError('');try{await onAnswer(answer);setAnswer('');localStorage.removeItem(key);}catch(cause){setError(readableError(cause));}}}>

@@ -63,7 +63,7 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
   if(row!.state==='needs_detail'&&!nextResumeQuestion(source.resume,row!.question,row!.answers))await write({state:'idle',question:null,error:null});
   if (row!.state === "running") {
     // 超过整条请求时限才允许用户显式重试；旧持有者的 lease 已失效，不能迟到覆盖。
-    if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 210_000) return { task: publicResumeTask(row!), source, claimed: false };
+    if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 330_000) return { task: publicResumeTask(row!), source, claimed: false };
     await write({ state: "failed", lease_id: null, error: "上一轮未完成，已保留补充" });
   }
   if (input.action === "answer" || input.action === "skip") {

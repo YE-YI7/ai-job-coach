@@ -56,7 +56,8 @@ export function nextResumeQuestion(source: string, raw: unknown, answers: Resume
   if (answers.some(answer => (answer.field === field && answer.sourceExcerpt === sourceExcerpt) || answer.question === question)) return null;
   // A single question mark can still hide several questions. Keep one factual
   // slot; use a clear anchored fallback rather than repeatedly rejecting it.
-  if((question.match(/什么|哪些|多少|怎么|如何|为何|为什么|哪[一份个种项]/g)||[]).length>1){
+  if((question.match(/什么|哪些|多少|怎么|如何|为何|为什么|哪[一份个种项]/g)||[]).length>1
+    || /(?:动作|工作|做法).{0,6}[与和及].{0,6}(?:交付|成果|结果)|例如|比如|是否.{0,24}、/.test(question)){
     question=RESUME_FACT_QUESTIONS[field];
   }
   const id = `${field}:${encodeURIComponent(sourceExcerpt)}`;

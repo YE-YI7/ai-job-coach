@@ -6,6 +6,7 @@ jest.mock('@/lib/db');
 const source='参加校园工具项目，负责需求工作，想不起来具体交付。';
 const q=nextResumeQuestion(source,{sourceExcerpt:source,question:'你当时亲手处理的第一份材料是什么？',field:'action'},[])!;
 test('一个问号也不能同时索要三个事实',()=>{expect(nextResumeQuestion(source,{sourceExcerpt:source,field:'action',question:'当时解决什么问题，你做了什么，最后交付了什么？'},[])?.question).toBe('这段经历里，你本人实际做的第一件事是什么？');});
+test('动作与交付加案例清单也收敛成一个事实槽位',()=>{expect(nextResumeQuestion(source,{sourceExcerpt:source,field:'action',question:'请补充具体动作与交付成果，例如是否参与过调研、原型绘制、文档撰写等事项？'},[])?.question).toBe('这段经历里，你本人实际做的第一件事是什么？');});
 let db:FakeDb;
 beforeEach(()=>{db=new FakeDb({coach_opportunities:[{id:'opp',user_id:'owner',status:'active',jd_text:'',metadata:{resumeText:source,workspaceType:'preparation',resumeRevision:'rev'}}],coach_resume_tasks:[{id:'task',user_id:'owner',opportunity_id:'opp',fingerprint:resumeTaskFingerprint(source,'','rev'),state:'needs_detail',question:q,answers:[],result:null,error:null,lease_id:null,version:1,updated_at:new Date().toISOString()}]});(getDbClient as jest.Mock).mockResolvedValue(db);});
 test('刷新只读当前一问；显式开始允许先修改已有事实，不被旧补问卡住',async()=>{expect((await readResumeTask('owner','opp'))?.question).toEqual(q);expect(db.rows('coach_resume_tasks')[0].state).toBe('needs_detail');const result=await claimResumeTask('owner','opp',{action:'start'});expect(result.claimed).toBe(true);expect(result.task.answers).toEqual([]);expect(JSON.stringify(result.task)).not.toContain('lease_id');});

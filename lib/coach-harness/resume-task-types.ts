@@ -48,6 +48,7 @@ export function nextResumeQuestion(source: string, raw: unknown, answers: Resume
   const field = String(value.field || "action") as ResumeQuestionField;
   if (!["context", "action", "deliverable", "outcome", "scope"].includes(field)
     || sourceExcerpt.length<12 || sourceExcerpt.length > 260 || !source.includes(sourceExcerpt)
+    || /^(?:意向|求职意向|求职方向|目标方向|职业目标|姓名|教育背景|技能)\s*[:：]/.test(sourceExcerpt)
     || /@|https?:|电话|邮箱|手机|\d{11}/.test(sourceExcerpt)
     || question.length < 8 || question.length > 220 || (question.match(/[？?]/g) || []).length > 1
     || /https?:|@|\d{11}/.test(question)) return null;
@@ -61,7 +62,7 @@ export function nextResumeQuestion(source: string, raw: unknown, answers: Resume
  * Ask one conservative factual question, never fabricate a model answer. */
 export function fallbackResumeQuestion(source:string,answers:ResumeAgentAnswer[]){
   const questions:Record<ResumeQuestionField,string>={action:'这段经历里，你本人实际做的第一件事是什么？',deliverable:'这一步最后留下了什么具体材料或交付物？',context:'当时最需要解决的一个问题是什么？',outcome:'你交付的材料后来是怎么被使用的？',scope:'这件事里，哪些工作不是由你负责的？'};
-  const lines=source.split(/\n+/).map(line=>line.trim()).filter(line=>line.length>=12&&line.length<=260&&/负责|参与|协助|完成|整理|制作|维护|搭建|设计|开发|运营/.test(line)&&!/@|https?:|电话|邮箱|手机|\d{11}/.test(line));
+  const lines=source.split(/\n+/).map(line=>line.trim()).filter(line=>line.length>=12&&line.length<=260&&/负责|参与|协助|完成|整理|制作|维护|搭建|设计|开发/.test(line)&&!/^(?:意向|求职|目标|方向|姓名|教育|技能|学校|学历)\s*[:：]/.test(line)&&!/@|https?:|电话|邮箱|手机|\d{11}/.test(line));
   for(const sourceExcerpt of lines)for(const field of Object.keys(questions) as ResumeQuestionField[]){const q=nextResumeQuestion(source,{sourceExcerpt,field,question:questions[field]},answers);if(q)return q;}
   return null;
 }

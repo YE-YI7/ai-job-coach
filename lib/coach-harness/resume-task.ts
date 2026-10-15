@@ -34,6 +34,7 @@ async function readRow(userId: string, opportunityId: string): Promise<Row | nul
 }
 export async function readResumeTask(userId: string, opportunityId: string) {
   const source = await ownedResumeTaskSource(userId, opportunityId), row = await readRow(userId, opportunityId);
+  if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
   return row && row.fingerprint === source.fingerprint ? publicResumeTask(row) : null;
 }
 
@@ -59,6 +60,7 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     const retained=source.revision&&row.source_revision===source.revision?row.answers.filter(answer=>source.resume.includes(answer.sourceExcerpt)):[];
     await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, result: null, error: null, lease_id: null });
   }
+  if(row!.state==='needs_detail'&&!nextResumeQuestion(source.resume,row!.question,row!.answers))await write({state:'idle',question:null,error:null});
   if (row!.state === "running") {
     // 超过整条请求时限才允许用户显式重试；旧持有者的 lease 已失效，不能迟到覆盖。
     if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 210_000) return { task: publicResumeTask(row!), source, claimed: false };

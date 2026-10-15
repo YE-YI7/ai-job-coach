@@ -24,7 +24,8 @@ export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onRe
   const [editing,setEditing]=useState(false),[value,setValue]=useState("");
   const bubble=useRef<HTMLDivElement>(null);
   const editor=useRef<HTMLDialogElement>(null);
-  const [blockEdit,setBlockEdit]=useState<{id:string;original:string;text:string}|null>(null);
+  const [blockEdit,setBlockEdit]=useState<{id:string;original:string;text:string;headingOnly:boolean}|null>(null);
+  const [confirmDelete,setConfirmDelete]=useState(false);
   const [editError,setEditError]=useState('');
   const projection=useMemo(()=>resumeInlineProjection(opportunity.resumeText||"",opportunity.resumeChanges,showMarks),[opportunity.resumeText,opportunity.resumeChanges,showMarks]);
   const blockIds=useMemo(()=>{
@@ -42,13 +43,14 @@ export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onRe
     return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',close);window.removeEventListener('resize',close);window.removeEventListener('scroll',close,true);};
   },[active]);
   return <div className={styles.workbench}>
-    <ResumePaper text={projection.text} template={template} title="简历 · 原位修改" showZoom controlsBelow review={{ink:projection.ink,blockIds,disabled,onMark:(id,rect,interaction)=>{if(active?.id!==id||interaction.keyboard){setEditing(false);setActive({id,...rect,...interaction});}},onDismiss:()=>{active?.restoreFocus();setActive(null);setEditing(false);},onReorder,onEditBlock:onEditBlock?id=>{const block=editableResumeBlock(opportunity,id);if(!block)return;setBlockEdit({id,original:block.text,text:block.text});setEditError('');editor.current?.showModal();}:undefined}}/>
+    <ResumePaper text={projection.text} template={template} title="简历 · 原位修改" showZoom controlsBelow review={{ink:projection.ink,blockIds,disabled,onMark:(id,rect,interaction)=>{if(active?.id!==id||interaction.keyboard){setEditing(false);setActive({id,...rect,...interaction});}},onDismiss:()=>{active?.restoreFocus();setActive(null);setEditing(false);},onReorder,onEditBlock:onEditBlock?id=>{const block=editableResumeBlock(opportunity,id);if(!block){setEditError('这块内容暂时无法定位，请先处理重叠建议后再编辑。');return;}setBlockEdit({id,original:block.text,text:block.text,headingOnly:block.headingOnly});setConfirmDelete(false);setEditError('');editor.current?.showModal();}:undefined}}/>
+    {editError&&!blockEdit&&<p role="alert">{editError}</p>}
     <dialog ref={editor} className={styles.editor} aria-labelledby="resume-block-editor-title" onClose={()=>setBlockEdit(null)}>
-      <form onSubmit={event=>{event.preventDefault();if(!blockEdit||disabled)return;try{onEditBlock?.(blockEdit.id,blockEdit.text,blockEdit.original);editor.current?.close();}catch(error){setEditError(error instanceof Error?error.message:'保存失败，文字仍在。');}}}>
-        <h2 id="resume-block-editor-title">修改这段文字</h2>
-        <textarea autoFocus aria-label="简历段落正文" value={blockEdit?.text||''} maxLength={6000} onChange={event=>setBlockEdit(current=>current?{...current,text:event.target.value}:null)}/>
-        <p>只修改当前工作稿，原文件保留。保存后也可以撤销。</p>{editError&&<p role="alert">{editError}</p>}
-        <footer><button type="button" onClick={()=>editor.current?.close()}>取消</button><button type="submit" disabled={disabled||!blockEdit?.text.trim()}>保存这段文字</button></footer>
+      <form onSubmit={event=>{event.preventDefault();if(!blockEdit||disabled)return;if(!blockEdit.text.trim()&&!confirmDelete){setConfirmDelete(true);return;}try{onEditBlock?.(blockEdit.id,confirmDelete?'':blockEdit.text,blockEdit.original);editor.current?.close();}catch(error){setEditError(error instanceof Error?error.message:'保存失败，文字仍在。');}}}>
+        <h2 id="resume-block-editor-title">{confirmDelete?'删除这块内容？':blockEdit?.headingOnly?'修改标题':'修改这段文字'}</h2>
+        {confirmDelete?<p role="status">只删除当前这块，不影响其他内容和原文件。删除后可以撤销。</p>:<textarea autoFocus aria-label={blockEdit?.headingOnly?'简历区块标题':'简历段落正文'} rows={blockEdit?.headingOnly?2:8} className={blockEdit?.headingOnly?styles.headingEditor:undefined} value={blockEdit?.text||''} maxLength={6000} onChange={event=>setBlockEdit(current=>current?{...current,text:event.target.value}:null)}/>}
+        {!confirmDelete&&<p>只修改当前工作稿，原文件保留。保存后也可以撤销。</p>}{editError&&<p role="alert">{editError}</p>}
+        <footer>{!confirmDelete&&<button type="button" className={styles.deleteBlock} disabled={disabled} onClick={()=>setConfirmDelete(true)}>删除此块</button>}<button type="button" onClick={()=>confirmDelete?setConfirmDelete(false):editor.current?.close()}>{confirmDelete?'继续编辑':'取消'}</button><button type="submit" disabled={disabled}>{confirmDelete?'确认删除':!blockEdit?.text.trim()?'删除此块':blockEdit.headingOnly?'保存标题':'保存这段文字'}</button></footer>
       </form>
     </dialog>
     {projection.findings.length>0&&<details className={styles.unlocated}><summary>有 {projection.findings.length} 处建议无法定位，原文未变</summary>{projection.findings.map(finding=><p key={finding.changeId}>{finding.message}<button type="button" onClick={()=>onUpdate(finding.changeId!,"rejected")}>保留原文</button></p>)}</details>}

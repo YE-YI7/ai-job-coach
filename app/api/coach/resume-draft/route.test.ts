@@ -185,7 +185,7 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('上一版未通过校验');
     const reviewMessages=(callLLM as jest.Mock).mock.calls[2][0] as Array<{role:string;content:string}>;
-    expect(reviewMessages[0].content).toContain('"valueChecks"');
+    expect(reviewMessages.some(message=>message.role==='system'&&message.content.includes('"valueChecks"'))).toBe(true);
     const reviewData=JSON.parse(reviewMessages.find(message=>message.content.includes('待审修改（'))!.content.split('：\n').at(-1)!);
     expect(reviewData[0].sourceIds).toEqual(['claim-1']);
   });

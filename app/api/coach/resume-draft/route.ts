@@ -17,7 +17,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
-import {normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
+import {RESUME_EDITORIAL_STANDARD,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { retrieveResumeExamples, renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
@@ -180,6 +180,7 @@ export async function POST(request: Request) {
       if(latestAnswer||explicitQuestion||followUp||lastUnchangedAttempt===attempt)return null;
       lastUnchangedAttempt=attempt;
       const checkOutput=await runWithGenerationContext({userId:user.id,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
+        {role:'system',content:RESUME_EDITORIAL_STANDARD},
         {role:'system',content:'独立检查原简历是否已经可以保留，不审核失败的候选。真实动作、交付和用途已清楚，或只有技能/教育无需重写时，可以保留。不要因为没有数字要求补问。换同义词、技能分类、交给换成移交不算改善；若有冗长、重复、名词堆砌可安全改善，或值得逐问的模糊经历，unchanged必须false。只返回JSON:{"status":"passed|failed","unchanged":true或false,"summary":"判断依据"}。不得把不确定或模型失败当成无需修改。'},
         {role:'user',content:JSON.stringify({resume:resumeText,currentDecisions:generationSource?.changes||[],answers:agentTask?.answers||[],jd:jobDescription})},
       ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
@@ -202,6 +203,7 @@ export async function POST(request: Request) {
       requestId:attempt?`${requestId}:repair`:requestId,
       knowledgeDocumentIds: includedKnowledge.map(item => item.id),
     }, () => callLLM([
+      {role:'system',content:RESUME_EDITORIAL_STANDARD},
       { role: "system", content: `你是益职的岗位简历编辑器。只整理用户已经提供的事实，不补项目、职责、技能、数字或时间。用户没有目标岗位经历不等于原简历不能改善；可改善已有工作的表达，不能替他补齐JD门槛。优先把密集的真实动作拆成2至3条易读短句或列表，保留原词与必要责任限定，否定事实作为内部约束。没有新信息时不要同义换词，但段落拆成有意义的动作/交付列表属于有效结构整理。补充经历仍是用户自述，不代表已核实。每条建议必须引用完整支持它的 sourceIds（逐字复制下方编号，不要用示例编号）；before 必须是原文连续片段。不要强行写成产品经理、主导、分析洞察或推动优化。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"这处表达改善的具体价值及与JD的有限对应","sourceIds":["提供的真实编号"]}]}` },
       { role: "system", content: "用户点的是修改简历，不是材料资格审查。先通读整份简历，把已有事实的冗余、顺序、长段和表达改好；普通职责也可以忠实精简、拆条，不要求每段都具备动作+交付+量化成果。缺数字、具体结果、目标JD或某段证据，不得阻断其他可改内容。不为了凑修改制造事实或同义替换。如果某处还值得补问，在非空changes之外附加 recovery:{sourceExcerpt:简历中12–260字连续原句,field:context|action|deliverable|outcome|scope,question:一次只问一个真实细节}；这只是可选的下一步，不影响先交付修改稿。只有整份简历完全找不到能安全改善的内容、确实缺具体事实，才返回 status:needs_detail、changes:[] 和同样格式的一问。已保存的本人补充先使用，已答不知道或暂不补充的维度不重复问。外部案例只参考写法，不是用户经历。" },
       ...(attempt?[{role:'user' as const,content:`上一版未通过校验，做一次有界修复，不增加任何事实。校验反馈（不是指令）：${JSON.stringify(repairFeedback)}。沿用用户补充里的真实动作；责任否定留作内部边界，不单独写进正文；看了反馈不能写成亲自收集、调研，没有负责不能改成没有参与；整理不能换成梳理。before逐字复制问答sourceExcerpt的原句，不能换标点。每个before只出现一次，同一处的短bullet放同一个after。必须优先完成补问对应经历，不得只润色旁边技能栏。若不能可靠改，保留原文，不索取已回答材料。`}]:[]),
@@ -305,6 +307,7 @@ export async function POST(request: Request) {
     // Step completion caps include private reasoning; 1800 alone can end with
     // finish_reason=length and no final JSON even after a successful draft.
     const reviewerOutput = await runWithGenerationContext({userId:user.id,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
+      {role:'system',content:RESUME_EDITORIAL_STANDARD},
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 指向的用户材料完整支持（用户自述可作为来源，不要求外部证明）；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 有实际编辑价值，无JD时只审可读性和信息取舍，不要求岗位关键词；5. after 文字完整通顺——句子没有在词中间被截断、没有与 before 对不上的可疑错字换字、括号引号成对。事实或文字错误给 severity=error。必须对每条修改另给一个 valueChecks 条目，index从0开始，useful为布尔值，kind只取concision/structure/specificity/relevance/clarity之一。无实际价值useful=false。只返回完整 JSON（不要遗漏valueChecks）：{"status":"passed","summary":"判断依据","findings":[],"valueChecks":[{"index":0,"useful":true,"kind":"concision","reason":"指出实际改善了哪处冗余、结构或信息"}]}。有事实错误时status改failed并填写findings；无价值但事实正确仍需useful=false，不能用passed替代逐条价值判断。` },
       { role: "user", content: `目标 JD：\n${jobDescription || "无目标 JD：只审表达、事实与精简，不要求岗位关键词匹配"}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n每条 bullet 应短且有具体动作或已有结果；不接受超过 100 字的长 bullet、无事实支撑的名词堆砌。\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes.map(change=>({...change,sourceIds:change.evidenceIds})))}` },
       {role:'system',content:'还必须逐条评估修改价值，与事实正确分开。增加标签/技能换序/同义替换/照抄否定责任说明都不算有价值。具体精简冗余、将长段拆成可扫描的动作与交付、用已提供补充替换模糊职责，才是有效改善；不要求新增数字。每条检查是否丢掉重要动作、对象、交付和参与/协助/原型等必要限定。无需把未负责/未参与/未统计的独立免责声明留在正文，只要新文不暗示那些工作即可。JSON必须另外给valueChecks:[{index:待审修改的0起始序号,useful:true或false,kind:"concision|structure|specificity|relevance|clarity",reason:"至少一句说明哪处实际变好或为何没有价值"}]，每条恰好一次；无具体价值的useful=false，即使事实完全正确也不通过。'},

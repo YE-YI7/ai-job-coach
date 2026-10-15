@@ -3,6 +3,11 @@
 const personalDisclaimer = /(?:^|[，,；;。.!！])\s*(?:(?:我|本人)(?:也|并)?|也|并)?(?:没有|并未|未曾|未|没)(?:亲自|直接)?(?:负责|参与|主导|承担|统计|记录|测量|验证|量化)/;
 const clean = (text:string) => text.replace(/^\s*[-*•]\s*/gm,'').trim();
 
+/** Shared by drafting and independent review, including the no-change verdict. */
+export const RESUME_EDITORIAL_STANDARD = `简历编辑不只是保真压缩，还要筛掉随笔口吻。不要把“某年某月提出某机制的重要性”“思考某方向”“希望AI更好”当成一个成果卖点；时间不必占据bullet开头，日期对任职/项目范围有意义时才保留在对应位置。优先写清具体问题、本人已做的判断/动作、交付与实际用途，有什么写什么，不要求凑齐四项或数字。
+只有设想、提案或产品判断时，先把已有的问题与具体提案写清楚，并明确保留“提出/建议/计划”等阶段；不能改成设计完成、落地、上线、持续运行或带来效果。能安全改的先交付；若值得深挖，再一问“这项提案目前推进到了哪一步？”，不要停稿等证明。不要把未负责事项塞进简历，也不把别人的交付写成自己的。
+教学对照（不是用户事实）：原句“某月提出提醒机制的重要性。协作周期长，信息不断变；希望系统在必要时提醒，而不是等人来问。”可以整理为“针对协作周期长、信息持续变化的问题，提出按需主动提醒的机制，减少对人工提问的依赖（提案）。”其中“减少依赖”只能是方案目的，绝不能变成已实现的结果。若来源没有具体提案，只问本人实际做过的一件事，不把泛泛思考美化成行动。每条短句一个要点，不用加粗空话作标题再接一大段说明。`;
+
 export function isPersonalDisclaimer(text:string){return personalDisclaimer.test(clean(text));}
 
 /** Fix an unambiguous model list delimiter, not source prose or numeric ranges. */
@@ -25,6 +30,7 @@ const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专
 
 export function resumeEditValueIssues(before:string,after:string):string[]{
   const issues:string[]=[];
+  if(/(?:提出|认识到|意识到|强调).{0,28}(?:的)?重要性/.test(after))issues.push('“提出/认识到重要性”仍是随笔口吻；用来源已有的具体问题和提案重写，保留提案阶段，不冒称实施成果');
   if(isPersonalDisclaimer(after))issues.push('个人未负责/未参与/未统计的说明只作事实边界，不写进简历正文；只写实际做过的动作与交付，仍不得暗示承担被否定的工作');
   if(/由(?:其他|别的|另外的)(?:同学|同事|成员|团队)(?:负责|开发|完成|承担)/.test(after))issues.push('其他人的分工只作内部归属边界，不作为本人的经历bullet；保留本人实际动作，不得把他人的开发或成果写成本人负责');
   if((removeLabels(before)!==before||removeLabels(after)!==after)&&normalize(removeLabels(before))===normalize(removeLabels(after)))issues.push('仅改标签、标点或前缀，没有改善内容，不作为修改交付');

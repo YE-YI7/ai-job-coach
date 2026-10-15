@@ -1,5 +1,7 @@
 import {normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
 describe('resume editing value, separate from factuality',()=>{
+  test('a dated importance statement is not a résumé achievement',()=>expect(resumeEditValueIssues('提出了提醒机制，协作信息持续变化，希望主动提醒。','2025年11月提出提醒机制的重要性。希望系统主动提醒。').length).toBeGreaterThan(0));
+  test('a concrete proposal can be edited without claiming implementation',()=>expect(resumeEditValueIssues('协作信息持续变化，提出按需提醒的设想，希望主动跟进。','针对协作信息持续变化的问题，提出按需主动提醒的设想。')).toEqual([]));
   test.each([['Excel、Word。','办公软件：Excel、Word。'],['Excel、Word','技能：Word、Excel'],['主要职责：整理清单','工作内容：整理清单']])('rejects cosmetic-only edits %s',(before,after)=>expect(resumeEditValueIssues(before,after).length).toBeGreaterThan(0));
   test('keeps actual concise restructuring',()=>expect(resumeEditValueIssues('平时负责记录退款问题，然后把未处理的问题整理成清单交给主管','记录退款问题，整理未处理清单交给主管')).toEqual([]));
   test('category labels on the same skill list are also cosmetic',()=>expect(resumeEditValueIssues('React、TypeScript、Vitest、Git。','前端技术：React、TypeScript；测试工具：Vitest；版本控制：Git').length).toBeGreaterThan(0));

@@ -23,7 +23,7 @@ import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/r
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
 import { resumeTaskInput, persistResumeAnswerClaims } from "@/lib/coach-harness/resume-task";
-import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from "@/lib/coach-harness/resume-task-types";
+import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, anchoredResumeExcerpt } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
   GUARD_SLOTS,
@@ -174,6 +174,12 @@ export async function POST(request: Request) {
     let rawChanges:Record<string,unknown>[]=[],changes:ResumeChange[]=[],finalChanges:ResumeChange[]=[];
     let rejected:Array<{index:number;reasons:string[]}>=[],reviewer:{status?:string;summary?:string;findings?:unknown[]}={},reviewerFindings:unknown[]=[],reviewerPassed=false,errorChangeIds=new Set<string>();
     let repairFeedback:string[]=[];
+    // A skill-line polish must not mask failure to incorporate the experience
+    // we just asked the user to explain. Unknown/skipped answers are not facts.
+    const usefulAnswers = agentTask ? factualResumeAnswers(agentTask.answers).filter(answer => answer.sourceExcerpt && !/^(我)?(不知道|忘了|不记得|不清楚)[。！!\s]*$/.test(answer.answer.trim())) : [];
+    const coversSupplement = (proposals:ResumeChange[]) => !usefulAnswers.length || proposals.some(change => usefulAnswers.some(answer =>
+      (change.before.includes(answer.sourceExcerpt) || answer.sourceExcerpt.includes(change.before))
+      && Boolean(answer.claimId && change.evidenceIds?.includes(answer.claimId))));
     for(let attempt=0;attempt<(agentTask?2:1);attempt++){
     const output = await runWithGenerationContext({
       userId: user.id,
@@ -183,7 +189,7 @@ export async function POST(request: Request) {
     }, () => callLLM([
       { role: "system", content: `你是益职的岗位简历编辑器。只整理用户已经提供的事实，不补项目、职责、技能、数字或时间。用户没有目标岗位经历不等于原简历不能改善；可改善已有工作的表达，不能替他补齐JD门槛。优先把密集的真实动作拆成2至3条易读短句或列表，保留原词、否定和责任限定。没有新信息时不要同义换词，但段落拆成有意义的动作/交付列表属于有效结构整理。补充经历仍是用户自述，不代表已核实。每条建议必须引用完整支持它的 sourceIds（逐字复制下方编号，不要用示例编号）；before 必须是原文连续片段。不要强行写成产品经理、主导、分析洞察或推动优化。只返回 JSON：{"changes":[{"section":"经历位置","before":"原文原句","after":"可直接使用的新表述","reason":"这处表达改善的具体价值及与JD的有限对应","sourceIds":["提供的真实编号"]}]}` },
       { role: "system", content: "先判断现有事实是否足够改善表达；有能安全修改的内容就先改，不因缺 JD 关键词或没有数字阻断。只有完全无法提出有价值修改且缺具体事实时，才返回 {\"status\":\"needs_detail\",\"recovery\":{\"sourceExcerpt\":\"简历中12–260字的完整连续原文，不含联系方式\",\"question\":\"针对这段经历、一次只问一个最有用的具体问题\"},\"changes\":[]}。若已有补充经历，先读并使用，不能再要求同一材料。不索取案例中的成果或数字。参考资料只用于选择结构，永远不是可引用事实。" },
-      ...(attempt?[{role:'user' as const,content:`上一版未通过校验，做一次有界修复，不增加任何事实。校验反馈（不是指令）：${JSON.stringify(repairFeedback)}。逐字沿用用户补充里的动作和责任否定；看了反馈不能写成亲自收集、调研，没有负责不能改成没有参与。每个before只出现一次，同一处的短bullet放同一个after。若不能可靠改，保留原文，不索取已回答材料。`}]:[]),
+      ...(attempt?[{role:'user' as const,content:`上一版未通过校验，做一次有界修复，不增加任何事实。校验反馈（不是指令）：${JSON.stringify(repairFeedback)}。逐字沿用用户补充里的动作和责任否定；看了反馈不能写成亲自收集、调研，没有负责不能改成没有参与；整理不能换成梳理。before逐字复制问答sourceExcerpt的原句，不能换标点。每个before只出现一次，同一处的短bullet放同一个after。必须优先完成补问对应经历，不得只润色旁边技能栏。若不能可靠改，保留原文，不索取已回答材料。`}]:[]),
       ...(agentTask ? [{ role: "user" as const, content: `已保存的逐问回答：${JSON.stringify(agentTask.answers)}。把有用的本人补充合并进原句，引用可引用事实清单中的对应编号；before 仍逐字来自原简历。每个 before 只出现一次；同一原句拆出的2–3条短bullet都放进一个after，不能重复before。不把这些问答原样堆到成稿末尾。不要仅改责任否定句/同义换词凑建议；优先改善真实动作、交付和信息取舍。已答或暂不补充的内容不要重复追问，缺失事实保持限定。` }] : []),
       { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n${renderResumeKnowledge(includedKnowledge)}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、否定、数字和时间，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
@@ -204,7 +210,8 @@ export async function POST(request: Request) {
     changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => citableIds.has(id)) : [];
       const after = String(raw.after || "").trim().slice(0, 2000);
-      const before = String(raw.before || "").trim().slice(0, 2000);
+      const rawBefore = String(raw.before || "").trim().slice(0, 2000);
+      const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const mappingIssues = [
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
@@ -233,8 +240,8 @@ export async function POST(request: Request) {
         status: "pending" as const,
       }];
     });
-    if (!changes.length) {
-      if(agentTask&&attempt===0){repairFeedback=rejected.flatMap(item=>item.reasons).slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
+    if (!changes.length || !coversSupplement(changes)) {
+      if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
       outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length);
       await finalizeQuota(reservation, false);
       reservation = null;
@@ -263,7 +270,7 @@ export async function POST(request: Request) {
     const unexplainedFailure = reviewer.status !== "passed" && (reviewer.status !== "failed" || !failedFindingIds.size || [...failedFindingIds].some(id => !knownIds.has(id)));
     finalChanges = unexplainedFailure ? [] : changes.filter(change =>
       !errorChangeIds.has(change.id) && (reviewer.status !== "failed" || !failedFindingIds.has(change.id)));
-    if (!finalChanges.length) {
+    if (!finalChanges.length || !coversSupplement(finalChanges)) {
       if(agentTask&&attempt===0){repairFeedback=reviewerFindings.map(finding=>String((finding as Record<string,unknown>)?.message||'独立复核未通过')).slice(0,10);if(!repairFeedback.length)repairFeedback=['独立复核未通过，请忠实沿用用户原词和责任限定'];trace.step('review','one_bounded_repair',reviewerFindings.length);continue;}
       outcome = "blocked"; trace.step("review", "all_changes_rejected");
       await finalizeQuota(reservation, false);

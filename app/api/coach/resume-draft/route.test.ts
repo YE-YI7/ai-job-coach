@@ -34,6 +34,8 @@ jest.mock("@/lib/coach-harness", () => ({
 describe("resume draft source mapping", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (callLLM as jest.Mock).mockReset();
+    (resumeTaskInput as jest.Mock).mockReset();
     jest.spyOn(console, "error").mockImplementation(() => undefined);
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "user-1" });
     (reserveQuota as jest.Mock).mockResolvedValue({ source: "free", remaining: 0 });
@@ -48,6 +50,24 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  test('normalizes only a unique PDF punctuation span back to actual original bytes',async()=>{
+    const before='负责模型评测,记录准确率口径。';
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:before.replace(',', '，'),after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'预览',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.status).toBe(200);expect((await response.json()).changes[0].before).toBe(before);
+  });
+
+  test('a skill-only change cannot masquerade as completion of saved experience supplements',async()=>{
+    const before='参与校园项目,负责需求工作,个人交付未梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[{sourceExcerpt:before,answer:'我整理了需求清单。',claimId:'claim-1'}]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:true}));
+    const skill=JSON.stringify({changes:[{before:'使用 Excel 整理资料',after:'- 使用 Excel\n- 整理资料',sourceIds:['claim-1']}]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(skill).mockResolvedValueOnce(skill);
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before+'\n使用 Excel 整理资料',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
 
   test('guided task repairs one rejected draft within the same quota reservation',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});

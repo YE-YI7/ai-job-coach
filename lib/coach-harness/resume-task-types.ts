@@ -28,7 +28,7 @@ export function factualResumeAnswers(answers: ResumeAgentAnswer[]) {
   return answers.filter(item => !item.skipped && item.answer.trim());
 }
 
-function anchoredExcerpt(source:string,excerpt:string){
+export function anchoredResumeExcerpt(source:string,excerpt:string){
   if(source.includes(excerpt))return excerpt;
   // PDF extraction commonly uses ASCII punctuation and wraps a sentence.
   // Match only a unique normalized span, then retain the actual source bytes.
@@ -43,7 +43,7 @@ function anchoredExcerpt(source:string,excerpt:string){
 export function nextResumeQuestion(source: string, raw: unknown, answers: ResumeAgentAnswer[]): ResumeAgentQuestion | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
-  const sourceExcerpt = anchoredExcerpt(source,String(value.sourceExcerpt || "").trim())||'';
+  const sourceExcerpt = anchoredResumeExcerpt(source,String(value.sourceExcerpt || "").trim())||'';
   const question = String(value.question || "").trim();
   const field = String(value.field || "action") as ResumeQuestionField;
   if (!["context", "action", "deliverable", "outcome", "scope"].includes(field)

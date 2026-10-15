@@ -148,6 +148,18 @@ describe("resume draft source mapping", () => {
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test('cosmetic education edits cannot remove enrolled status instead of asking about vague experience',async()=>{
+    const education='示例大学｜信息管理｜本科在读｜2023.09–2027.06';
+    const vague='- 参与校园二手平台项目，主要负责需求相关工作，具体个人交付还没梳理。';
+    const resumeText=`## 项目经历\n${vague}\n## 教育背景\n${education}`;
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:resumeText,jd:'',revision:'r',changes:[]});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:education,after:'示例大学 信息管理 本科 2023.09–2027.06',sourceIds:['claim-1']}]}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(422);expect(await response.json()).toMatchObject({reasonCode:'resume_detail_needed',recovery:{field:'deliverable',sourceExcerpt:vague}});
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test('factually approved edits still require independent value approval',async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));

@@ -1,4 +1,9 @@
 import { resumeSourceProtection } from "./resume-source-protection";
+test.each(['在读','预计毕业','肄业','结业','未毕业','未获得学位','未取得学位'])('education status %s cannot disappear behind dates',status=>{
+  const before=`示例大学｜信息管理｜本科${status}｜2023.09–2027.06`;
+  expect(resumeSourceProtection(before,'示例大学 信息管理 本科 2023.09–2027.06','教育背景',`## 教育背景\n${before}`)).not.toEqual([]);
+  expect(resumeSourceProtection(before,`示例大学 信息管理 本科${status} 2023.09–2027.06`,'教育背景',`## 教育背景\n${before}`)).toEqual([]);
+});
 test("automatic editing leaves identity and contact untouched", () => {
   expect(resumeSourceProtection("林补充（虚构 QA）", "林补充", "姓名栏")).not.toEqual([]);
   expect(resumeSourceProtection("邮箱：test@example.invalid", "test@example.invalid", "其他")).not.toEqual([]);

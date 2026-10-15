@@ -7,12 +7,15 @@ export function resumeSourceProtection(before: string, after: string, section: s
     || /^[\p{Script=Han}·]{2,5}(?:[（(][^）)]{0,40}[）)])?$/u.test(firstLine);
   if (identitySection.test(section.trim()) || contact.test(before)
     || (nameLine && before.replace(/^#+\s*/, "").trim() === firstLine)) return ["姓名与联系方式保留原文，不由自动改稿更改；需要时可手动编辑"];
-  const markers = ["虚构", "示例", "练习", "模拟", "教学", "个人项目", "课程项目"];
+  const educationStatus = ["在读", "预计", "肄业", "结业", "未毕业", "未获得学位", "未取得学位"];
+  const markers = ["虚构", "示例", "练习", "模拟", "教学", "个人项目", "课程项目", ...educationStatus];
   const at = resume.indexOf(before);
   // A qualifier already in this exact, unchanged Markdown heading need not
   // be repeated in every bullet. Never borrow a label from another project.
   const localHeading = before && at >= 0 && resume.indexOf(before, at + before.length) < 0 && !/^\s*#/m.test(before)
     ? resume.slice(0, at).split('\n').filter(line=>/^\s*#{1,6}\s+\S/.test(line)).at(-1) || '' : '';
   return markers.filter(marker => before.includes(marker) && !after.includes(marker) && !localHeading.includes(marker))
-    .map(() => "不能去掉原文的虚构、示例或练习性质标记");
+    .map(marker => educationStatus.includes(marker)
+      ? "不能去掉原文的在读、预计或未毕业等学历状态；时间范围不能替代明确状态，也不能把未取得的学历写成已获得"
+      : "不能去掉原文的虚构、示例或练习性质标记");
 }

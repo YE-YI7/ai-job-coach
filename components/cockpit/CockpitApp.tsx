@@ -707,7 +707,7 @@ export function CockpitApp({
     if(dataMode!=='live'||!activeId||localIds.includes(activeId))return;
     let stopped=false,failures=0,timer:ReturnType<typeof setTimeout>|undefined;
     const retryRead=()=>{if(!stopped&&failures++<3)timer=setTimeout(read,4000*failures);};
-    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(body.task?.state==='running')timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
+    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(body.task?.state==='running'||generatingResume)timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
     void read();return()=>{stopped=true;if(timer)clearTimeout(timer);};
   // 读取任务不调用模型；任务切换、替换或运行状态变化后恢复轮询。
   },[activeId,active?.resumeRevision,dataMode,generatingResume,localIds]);

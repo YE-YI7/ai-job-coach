@@ -43,8 +43,8 @@ registerDefaultGuards();
 
 function parseJson(text: string) {
   const match = text.replace(/```json\s*/g, "").replace(/```/g, "").match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("AI 返回格式错误");
-  return JSON.parse(match[0]);
+  try { if (match) return JSON.parse(match[0]); } catch { /* Invalid model output is not a user-input error. */ }
+  throw new Error("导师返回的内容暂时无法整理。原文和补充已保留，本次未扣额度，可以重试。");
 }
 
 // 模型偶发把 after 生成成半截话（用户实测：「…周活约10，已上线腾」——词都断在
@@ -184,7 +184,11 @@ export async function POST(request: Request) {
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、否定、数字和时间，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
     ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 2048, timeoutMs: 45_000, maxRetries: agentTask ? 0 : 1, responseFormat: "json_object" }));
 
-    const parsed = parseJson(output);
+    let parsed;
+    try { parsed = parseJson(output); } catch (error) {
+      if(agentTask&&attempt===0){repairFeedback=['上次返回的 JSON 无法解析。请重新给出完整、合法的 JSON，字符串换行使用转义，不用 Markdown 围栏；减少修改条数，确保每一条完整。'];trace.step('draft','invalid_format_bounded_repair');continue;}
+      throw error;
+    }
     trace.step("draft", "model_returned");
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
     followUp = agentTask && agentTask.answers.length < 5
@@ -253,7 +257,10 @@ export async function POST(request: Request) {
       { role: "system", content: `你是独立的简历质检员，不参与起草。检查每条修改是否：1. 被 sourceIds 完整支持；2. 没扩大职责、结果、技能或数字；3. before 确实来自原简历；4. 对目标 JD 有明确价值；5. after 文字完整通顺——句子没有在词中间被截断（如「已上线腾」）、没有与 before 对不上的可疑错字换字（如「周活」写成「腾活」）、括号引号成对。第 5 条任一成立即 severity=error，并在 message 里写明断在哪。只返回 JSON：{"status":"passed|failed","summary":"一句话","findings":[{"changeId":"...","severity":"warning|error","message":"..."}]}` },
       { role: "user", content: `目标 JD：\n${jobDescription || "无目标 JD：只审表达、事实与精简，不要求岗位关键词匹配"}\n\n原简历：\n${resumeText}\n\n事实源：\n${source}\n\n每条 bullet 应短且有具体动作或已有结果；不接受超过 100 字的长 bullet、无事实支撑的名词堆砌。\n\n待审修改（findings 里的 changeId 必须从这里逐字取）：\n${JSON.stringify(changes)}` },
     ], { provider: "deepseek", temperature: 0, maxTokens: 1800, reasoningBudgetTokens:4096, timeoutMs: 55_000, maxRetries: 0, responseFormat: "json_object" }));
-    reviewer = parseJson(reviewerOutput);
+    try { reviewer = parseJson(reviewerOutput); } catch (error) {
+      if(agentTask&&attempt===0){repairFeedback=['质检返回格式无效。请重新给出少量完整、事实可回指的修改，以便重新检查。'];trace.step('review','invalid_format_bounded_repair');continue;}
+      throw error;
+    }
     reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
     reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
     // 质检 error 对应的建议直接不下发（用户实测残缺文本「已上线腾」就是从这漏出去的）：

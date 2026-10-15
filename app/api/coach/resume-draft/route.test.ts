@@ -8,6 +8,7 @@ import { resumeTaskInput, persistResumeAnswerClaims,ownedResumeTaskSource,finish
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import {runWithGenerationContext} from "@/lib/generation-context";
 import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
+import { RESUME_METHOD_IDS } from "@/lib/knowledge/resume-methods";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
@@ -54,6 +55,47 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  test.each(["opp-1", ""])("no-JD draft includes reviewed methods with opportunity %s", async opportunityId => {
+    // Use the real compiler here so the direct/no-opportunity branch is covered.
+    const { compileContextBundle: realCompile } = jest.requireActual("@/lib/coach-harness/context");
+    (compileContextBundle as jest.Mock).mockImplementation(input => realCompile({ task: "resume_workshop", userId: "user-1", claims: [], ...input }));
+    (callLLM as jest.Mock).mockRejectedValueOnce(new Error("isolated transport fixture"));
+    await POST(new Request("https://example.com", {method:"POST",body:JSON.stringify({ opportunityId, resumeText:"门店运营：核对库存差异，整理盘点表交给店长。", mode:"general_resume" })}));
+    const prompt = JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);
+    for (const id of RESUME_METHOD_IDS) expect(prompt).toContain(`[参考 ${id}]`);
+    expect(prompt).toContain("不是用户事实");
+    const trace = await (startResumeTrace as jest.Mock).mock.results[0].value;
+    expect(trace.data.retrieval.includedMethodIds).toEqual(RESUME_METHOD_IDS);
+    expect(trace.data.retrieval.matches).toEqual([]);
+  });
+
+  test("budget-excluded methods never return through prompts or telemetry", async () => {
+    (compileContextBundle as jest.Mock).mockImplementation(input => ({...input, knowledge:[]}));
+    (callLLM as jest.Mock).mockRejectedValueOnce(new Error("isolated transport fixture"));
+    await POST(new Request("https://example.com", {method:"POST",body:JSON.stringify({ opportunityId:"opp-1", resumeText:"门店运营：核对库存差异。", mode:"general_resume" })}));
+    const prompt = JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);
+    for (const id of RESUME_METHOD_IDS) expect(prompt).not.toContain(id);
+    expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].knowledgeDocumentIds).toEqual([]);
+    const trace = await (startResumeTrace as jest.Mock).mock.results[0].value;
+    expect(trace.data.retrieval.includedMethodIds).toEqual([]);
+    expect(trace.data.retrieval.excludedByBudgetIds).toEqual(RESUME_METHOD_IDS);
+  });
+
+  test("draft and independent reviewer receive the same admitted methods", async () => {
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact-1'});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    expect(response.status).toBe(200);
+    expect(callLLM).toHaveBeenCalledTimes(2);
+    for (const [messages] of (callLLM as jest.Mock).mock.calls) {
+      for (const id of RESUME_METHOD_IDS) expect(JSON.stringify(messages)).toContain(`[参考 ${id}]`);
+    }
+  });
 
   test('cosmetic labels never become a paid deliverable',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});

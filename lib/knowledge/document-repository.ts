@@ -118,6 +118,16 @@ export function reviewedResumeExamples(): AgentKnowledgeDocument[] {
   return compiledKnowledge.documents.filter(document => document.status === "active" && "resume_profile" in document).map(mapDocument);
 }
 
+/** Task-wide writing methods are not similar-background cases. Resolve only
+ * active, shared resume methods from the compiled, reviewed source of truth. */
+export function reviewedResumeMethods(ids: readonly string[]): AgentKnowledgeDocument[] {
+  return ids.flatMap(id => {
+    const doc = compiledKnowledge.documents.find(item => item.id === id && item.status === "active"
+      && item.tasks.includes("resume_tailoring") && !item.roles.length && !("resume_profile" in item));
+    return doc ? [mapDocument(doc)] : [];
+  });
+}
+
 export function retrieveKnowledgeDocuments(input: {
   task: AgentKnowledgeTask;
   query?: string | null;

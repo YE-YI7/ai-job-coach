@@ -4,6 +4,9 @@ import compiled from "@/data/knowledge-documents.generated.json";
 import { buildAgentKnowledgeContext } from "./context";
 import { retrieveKnowledgeDocuments, reviewedResumeExamples } from "./document-repository";
 import { renderResumeKnowledge } from "./resume-examples";
+import { RESUME_METHOD_IDS, selectResumeDraftKnowledge } from "./resume-methods";
+import { compileContextBundle } from "@/lib/coach-harness/context";
+import { assertContextFits } from "@/lib/coach-harness/prompt";
 
 const methodIds = ["resume.factual-rewriting.v1", "resume.progressive-discovery.v1", "resume.layout-and-export.v1"];
 
@@ -62,5 +65,34 @@ describe("reviewed public resume methods", () => {
     }
     const plugin = JSON.parse(readFileSync(join(process.cwd(), ".agents/plugins/plugins/yi-zhi/knowledge/knowledge-documents.json"), "utf8"));
     expect(plugin).toEqual(compiled);
+  });
+
+  it.each(["门店盘点和对账", "护理实习记录", "React 课程原型", "行政排班和档案"])("always selects reviewed shared methods without a JD: %s", resume => {
+    const selected = selectResumeDraftKnowledge(resume, "");
+    expect(selected.methods.map(doc => doc.id)).toEqual(RESUME_METHOD_IDS);
+    expect(selected.examples).toHaveLength(0);
+    const again = selectResumeDraftKnowledge(resume, "", selected.knowledge);
+    expect(again.knowledge.map(item => item.id)).toEqual([...RESUME_METHOD_IDS]);
+  });
+
+  it("admits methods after required user materials, never as citable facts", () => {
+    const selected = selectResumeDraftKnowledge("门店盘点", "");
+    const context = compileContextBundle({ task: "resume_workshop", userId: "isolated-qa",
+      claims: [{ id: "own-answer", entityType: "experience", entityKey: "store", claimType: "experience",
+        value: "每周核对库存差异", displayText: "每周核对库存差异", status: "confirmed", visibility: "recruiter_safe",
+        sourceKind: "user_statement", verificationLevel: "self_reported" }],
+      attachments: [{ id: "own-resume", label: "原文", text: "门店盘点和对账", required: true }],
+      knowledge: selected.knowledge, budget: { maxInputTokens: 12000 } });
+    assertContextFits(context);
+    expect(context.knowledge.map(item => item.id)).toEqual(RESUME_METHOD_IDS);
+    expect(context.allowedClaimIds).toEqual(["own-answer"]);
+    expect(context.unverifiedClaimIds).toEqual([]);
+    const tight = compileContextBundle({ ...context, budget: { maxInputTokens: 600 } });
+    assertContextFits(tight);
+    expect(tight.claims).toEqual(context.claims);
+    expect(tight.attachments).toEqual(context.attachments);
+    expect(tight.knowledge).toEqual([]);
+    expect(renderResumeKnowledge(tight.knowledge)).toBe("");
+    expect(tight.selection.excluded.filter(item => item.kind === "knowledge").map(item => item.refId)).toEqual(RESUME_METHOD_IDS);
   });
 });

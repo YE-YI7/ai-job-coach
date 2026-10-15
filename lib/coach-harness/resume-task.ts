@@ -67,6 +67,10 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     await write({ state: "failed", lease_id: null, error: "上一轮未完成，已保留补充" });
   }
   if (input.action === "answer" || input.action === "skip") {
+    if (input.action === "skip" && row!.state === "ready" && row!.result && row!.question?.id === input.questionId) {
+      await write({ question: null, error: null, answers: [...row!.answers, { ...row!.question!, answer: "", skipped: true, savedAt: new Date().toISOString() }] });
+      return { task: publicResumeTask(row!), source, claimed: false };
+    }
     const already = row!.answers.find(answer => answer.id === input.questionId);
     if (already) {
       if (input.action === "answer" && already.answer !== input.answer?.trim()) throw new ResumeTaskError("该问题已保存了另一份回答，请刷新核对");
@@ -77,7 +81,7 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
       if (input.action === "answer" && (!answer || answer.length > 2000)) throw new ResumeTaskError("请填写1–2000字真实补充", 400);
       await write({ state: "idle", question: null, error: null, answers: [...row!.answers, { ...row!.question, answer, skipped: input.action === "skip", claimId: randomUUID(), savedAt: new Date().toISOString() }] });
     }
-  } else if (row!.state === "needs_detail" || (row!.state === "ready" && input.action !== "restart")) {
+  } else if ((row!.state === "needs_detail" && input.action !== "start" && input.action !== "restart") || (row!.state === "ready" && input.action !== "restart")) {
     return { task: publicResumeTask(row!), source, claimed: false };
   }
   const lease = randomUUID();
@@ -108,10 +112,10 @@ export async function persistResumeAnswerClaims(row: Row): Promise<CareerClaim[]
     status: "unverified", visibility: "recruiter_safe", sourceKind: "user_statement", verificationLevel: "self_reported" }));
 }
 
-export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string }, body: {ok?:boolean;recovery?:ResumeRecovery;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"]}) {
+export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"]}) {
   const db = requireDb(await getDbClient()), row = await resumeTaskInput(userId, taskId, lease);
-  const question = !body.ok && body.recovery && !body.recovery.detailSaved
-    ? nextResumeQuestion(source.resume, body.recovery, row.answers) : null;
+  const question = body.ok ? nextResumeQuestion(source.resume, body.followUp, row.answers)
+    : body.recovery && !body.recovery.detailSaved ? nextResumeQuestion(source.resume, body.recovery, row.answers) : null;
   const state = body.ok ? "ready" : question ? "needs_detail" : "failed";
   const current=body.ok?await ownedResumeTaskSource(userId,row.opportunity_id):null;
   const result = body.ok ? { changes: mergeResumeAgentChanges(source.resume,current?.changes||[],body.changes||[]), applicationQuality: body.applicationQuality, resumeGenerationId: `${taskId}:${row.version}`, previousChanges:current?.changes||[], resumeCheckStale:Boolean(current?.changes.some(change=>change.status!=='pending')) } : null;

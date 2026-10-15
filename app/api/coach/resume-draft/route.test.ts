@@ -62,23 +62,22 @@ describe("resume draft source mapping", () => {
   test('a skill-only change cannot masquerade as completion of saved experience supplements',async()=>{
     const before='参与校园项目,负责需求工作,个人交付未梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[{sourceExcerpt:before,answer:'我整理了需求清单。',claimId:'claim-1'}]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:true}));
     const skill=JSON.stringify({changes:[{before:'使用 Excel 整理资料',after:'- 使用 Excel\n- 整理资料',sourceIds:['claim-1']}]});
     (callLLM as jest.Mock).mockResolvedValueOnce(skill).mockResolvedValueOnce(skill);
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before+'\n使用 Excel 整理资料',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
-    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(2);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(await response.json()).toMatchObject({reasonCode:'resume_draft_unverified',retryable:true});
   });
 
   test('guided task repairs one rejected draft within the same quota reservation',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:true}))
-      .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'主导模型评测全流程',sourceIds:['claim-1']}]}))
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'主导模型评测全流程',sourceIds:['claim-1']}]}))
       .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
       .mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
-    expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(4);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
-    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('上一版未通过校验');
+    expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('上一版未通过校验');
   });
 
   test('guided repair is capped and still refunds when both drafts are unsafe',async()=>{
@@ -104,25 +103,49 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(422);expect((await response.json()).reasonCode).toBe('resume_mapping_conflict');expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
-  test('durable task plans exactly one anchored question before rewriting and releases hosted quota',async()=>{
+  test('only an entirely uneditable resume asks one question after a bounded second look',async()=>{
     const resumeText='参加校园工具项目，负责需求工作，具体交付尚未梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:false,recovery:{sourceExcerpt:resumeText,field:'action',question:'你本人处理的第一份材料是什么？'}}));
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({status:'needs_detail',changes:[],recovery:{sourceExcerpt:resumeText,field:'action',question:'你本人处理的第一份材料是什么？'}}));
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(422);expect((await response.json()).recovery).toMatchObject({field:'action',question:'你本人处理的第一份材料是什么？'});
-    expect(callLLM).toHaveBeenCalledTimes(1);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(callLLM).toHaveBeenCalledTimes(2);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
-  test('saved answers enter required context and stable citations before the next one-question planner',async()=>{
+  test('saved answers enter required context and stable citations before drafting, without a readiness call',async()=>{
     const resumeText='参加校园工具项目，负责需求工作，具体交付尚未梳理。';
     const answer={id:'action',field:'action',sourceExcerpt:resumeText,question:'你本人做了什么？',answer:'我整理了访谈记录。',claimId:'8c47df93-0984-468b-bb56-30a387f670fe'};
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[answer]});
     (persistResumeAnswerClaims as jest.Mock).mockResolvedValueOnce([{id:answer.claimId,displayText:answer.answer}]);
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ready:false,recovery:{sourceExcerpt:resumeText,field:'deliverable',question:'你最后交付的那份材料叫什么？'}}));
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({status:'needs_detail',changes:[],recovery:{sourceExcerpt:resumeText,field:'deliverable',question:'你最后交付的那份材料叫什么？'}}));
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(422);expect((await response.json()).recovery.field).toBe('deliverable');
     expect(compileContextBundle).toHaveBeenCalledWith(expect.objectContaining({attachments:[expect.objectContaining({text:answer.answer,required:true})],claims:[expect.objectContaining({id:answer.claimId})]}));
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain(answer.answer);
+  });
+
+  test('a weak paragraph does not block safe edits elsewhere; one optional question accompanies the saved draft',async()=>{
+    const weak='参与校园工具项目，负责需求相关工作，具体交付还没梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}],recovery:{sourceExcerpt:weak,field:'action',question:'这段项目里你本人实际做过哪一步？'}}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'已改稿',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测\n'+weak,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({ok:true,changes:[expect.anything()],followUp:{field:'action',sourceExcerpt:weak}});
+    expect(callLLM).toHaveBeenCalledTimes(2);expect(createArtifactWithClaims).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+  });
+
+  test('an overcautious first detail request is rechecked against the whole resume before blocking',async()=>{
+    const weak='参与校园工具项目，负责需求相关工作，具体交付还没梳理。';
+    (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status:'needs_detail',changes:[],recovery:{sourceExcerpt:weak,field:'action',question:'你本人实际做了什么？'}}))
+      .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:'已改稿',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测\n'+weak,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
   });
 
   test("identity cleanup and removal of a fictitious label are blocked before paid review", async () => {
@@ -198,7 +221,7 @@ describe("resume draft source mapping", () => {
     }));
 
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, error: expect.stringContaining("没有生成通过事实校验"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, reasonCode: "resume_draft_unverified", error: expect.stringContaining("未通过事实校验"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
     expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({

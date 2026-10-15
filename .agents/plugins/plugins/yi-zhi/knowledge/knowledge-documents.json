@@ -1,10 +1,379 @@
 {
   "version": 1,
-  "updated_at": "2026-09-29",
+  "updated_at": "2026-10-15",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy": "# Agent 使用规则\n\n## Description\n\n本规则用于指导益职 Agent 在岗位分析、简历定制、模拟面试、回答点评和面试复盘中正确使用公共求职知识。\n\n## Goal\n\n让 Agent 的建议有可追溯依据，同时确保公共案例不会覆盖用户事实、制造虚假经历或被误解为公司官方规则。\n\n## 使用顺序\n\n1. 先读取当前任务、JD、用户简历、项目经历、面试轮次和历史记录。\n2. 检索与岗位、公司、阶段和任务相符的知识文档。\n3. 用知识文档补充追问、检查遗漏和校准建议。\n4. 只有结论依赖外部知识或用户追问时，才自然说明来源。\n\n## 证据优先级\n\n1. 用户刚刚提供的真实材料和明确纠正。\n2. 当前岗位 JD 与真实招聘流程信息。\n3. 用户长期记忆中已确认的事实。\n4. 多来源支持的知识文档。\n5. 单条公开经历或社区讨论。\n\n## 禁止事项\n\n- 不把面经当成固定题库或招聘承诺。\n- 不把外部案例、职责、数字和结果写进用户简历。\n- 不因公共样本与用户不同而否定用户事实。\n- 不向用户倾倒知识列表；知识必须服务于当前行动。\n- 证据不足时不输出伪精确概率、分数或成功率。\n\n## 冲突处理\n\n当知识文档之间或知识与用户材料冲突时，Agent 必须指出冲突来源，优先采用更贴近当前岗位、更新且证据更多的一方；仍无法判断时提出一个能改变结论的最小问题。",
   "documents": [
+    {
+      "id": "resume.example.computing-hci.v1",
+      "title": "计算机/HCI 研究与软件实习写法样例",
+      "path": "domains/shared/resume-example-computing-hci.md",
+      "description": "公开教学简历的结构提炼，不含个人信息，不承诺录用。",
+      "goal": "为相近的计算机研究、软件实习用户提供动作和交付的表达参照。",
+      "scope": "海外计算机硕士教学样例；向 AI 产品的迁移是应用判断，不是原作者目标或录用证据。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "计算机背景同时有软件或用户界面研究经历"
+      ],
+      "do_not_use_when": [
+        "仅目标 JD 有技术关键词",
+        "借用样例的学历、成果或数字"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-15",
+      "evidence_urls": [
+        "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-MastersII.pdf"
+      ],
+      "resume_profile": {
+        "kind": "public_teaching_sample",
+        "careerStage": "student",
+        "outcomeVerified": false,
+        "signals": [
+          {
+            "dimension": "discipline",
+            "label": "计算机/软件背景",
+            "terms": [
+              "计算机",
+              "软件工程",
+              "computer science"
+            ]
+          },
+          {
+            "dimension": "work",
+            "label": "软件开发或研究",
+            "terms": [
+              "软件开发",
+              "开发",
+              "research",
+              "研究"
+            ]
+          },
+          {
+            "dimension": "scenario",
+            "label": "用户界面/检索工具",
+            "terms": [
+              "用户界面",
+              "HCI",
+              "搜索",
+              "检索",
+              "代码评审",
+              "search",
+              "interface"
+            ]
+          }
+        ],
+        "targetTerms": [
+          "软件",
+          "产品",
+          "HCI",
+          "search"
+        ],
+        "reviewBasis": [
+          "分别说明使用场景与个人实现",
+          "开发中与完成状态有区分",
+          "不照抄原样例较长的句子"
+        ]
+      },
+      "content": "# 计算机与 HCI 研究、软件实习的简历写法参考\n\nMIT CAPD 的 MEng 计算机教学样例将研究、软件实习、课程带教分开写。研究部分先说明使用者和反馈问题，再分别说明搜索工具、检索实现、分组处理的动作；软件实习则指出做出的界面及使用场景，不用技能名词代替交付。\n\n可借鉴：同一项目按“为谁解决什么问题—自己实现什么—目前可证实的交付”组织成短条。研究中、开发中保持未完成口径，不能自动改成商业上线成果。背景相近也不代表目标岗位相同；向 AI 产品岗位迁移是编辑应用判断，不是原样例的求职结果。\n\n不借用：样例的院校、语言、研究规模、客户或获奖。它是公开教学参考，不证明录用、国内筛选适用或所有 bullet 都值得照抄。仅保留写法提炼，不收录姓名和联系方式。",
+      "evidence": [
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-MastersII.pdf",
+          "title": "MIT CAPD Masters II résumé teaching sample",
+          "company": null,
+          "published_at": null,
+          "summary": "公开教学样例：计算机/HCI 研究、软件实习与带教的动作/交付写法。仅提炼结构，不保存个人信息，不证明录用。"
+        }
+      ]
+    },
+    {
+      "id": "resume.example.advertising-analysis.v1",
+      "title": "数学计算机、广告分析与实验流程写法样例",
+      "path": "domains/shared/resume-example-advertising-analysis.md",
+      "description": "公开本科教学样例的分析、决策与流程表达提炼。",
+      "goal": "为相近广告分析、运筹和实验背景提供结构参照。",
+      "scope": "海外本科教学样例；不是资深商业化产品负责人或国内录用样本。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "定量背景同时有广告分析或实验流程工作"
+      ],
+      "do_not_use_when": [
+        "只有想做广告岗位的 JD",
+        "借用样例提升幅度"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-15",
+      "evidence_urls": [
+        "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-UndergraduateII.pdf"
+      ],
+      "resume_profile": {
+        "kind": "public_teaching_sample",
+        "careerStage": "student",
+        "outcomeVerified": false,
+        "signals": [
+          {
+            "dimension": "discipline",
+            "label": "数学/计算机/运筹背景",
+            "terms": [
+              "数学",
+              "计算机",
+              "运筹",
+              "mathematics"
+            ]
+          },
+          {
+            "dimension": "work",
+            "label": "定量分析",
+            "terms": [
+              "数据分析",
+              "风险分析",
+              "数学模型",
+              "量化",
+              "analysis",
+              "建模"
+            ]
+          },
+          {
+            "dimension": "scenario",
+            "label": "广告交易/实验流程",
+            "terms": [
+              "广告",
+              "竞价",
+              "实验流程",
+              "实验设计",
+              "advertising",
+              "auction"
+            ]
+          }
+        ],
+        "targetTerms": [
+          "广告",
+          "商业化",
+          "数据分析",
+          "运筹"
+        ],
+        "reviewBasis": [
+          "动作、方法和结果分离",
+          "校园责任不冒充全职责任",
+          "数字只在来源真实时使用"
+        ]
+      },
+      "content": "# 数学计算机、广告分析与实验流程的简历写法参考\n\nMIT CAPD 本科数学/计算机/管理样例把广告交易的分析与决策动作分开，并将研究经历中的实验设计、流程改动和观察到的效率变化联系起来。校园组织与募资放在独立部分，不冒充全职业务负责人。\n\n可借鉴：对广告、运筹或分析背景，写清评估对象、自己采用的方法、产出的决策或流程，再按已有证据说明结果。没有结果数字也可以描述实际交付，不能从案例移植提升幅度。结构应按当前目标取舍；不为了“一页”删除责任限定。\n\n边界：本科教学样例，不证明广告产品岗录用，也不是资深商业化负责人模板。仅供写法参考，样例个人身份、公司、金额、比例均不进入用户事实库。",
+      "evidence": [
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-UndergraduateII.pdf",
+          "title": "MIT CAPD Undergraduate II résumé teaching sample",
+          "company": null,
+          "published_at": null,
+          "summary": "公开教学样例：数学计算机背景、广告交易分析和实验流程改善。只借鉴结构，不迁移数字或个人事实，不证明录用。"
+        }
+      ]
+    },
+    {
+      "id": "resume.example.biology-consulting.v1",
+      "title": "生物研究与医药咨询写法样例",
+      "path": "domains/shared/resume-example-biology-consulting.md",
+      "description": "公开本科教学样例的访谈、分析、展示交付提炼。",
+      "goal": "帮助相近生物/医药背景用真实工作连接商业分析。",
+      "scope": "海外本科教学样例；不证明医药商业化成果或国内筛选适用。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "生物医药背景同时有研究、咨询或访谈经历"
+      ],
+      "do_not_use_when": [
+        "非相关行业",
+        "把预测当实际收益"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-15",
+      "evidence_urls": [
+        "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Undergraduate.pdf"
+      ],
+      "resume_profile": {
+        "kind": "public_teaching_sample",
+        "careerStage": "student",
+        "outcomeVerified": false,
+        "signals": [
+          {
+            "dimension": "discipline",
+            "label": "生物/医药背景",
+            "terms": [
+              "生物",
+              "医药",
+              "药学",
+              "biology",
+              "pharma"
+            ]
+          },
+          {
+            "dimension": "work",
+            "label": "研究/咨询工作",
+            "terms": [
+              "实验室",
+              "研究助理",
+              "咨询",
+              "research",
+              "consulting"
+            ]
+          },
+          {
+            "dimension": "scenario",
+            "label": "访谈与市场研究",
+            "terms": [
+              "访谈",
+              "市场研究",
+              "临床",
+              "interview",
+              "market research"
+            ]
+          }
+        ],
+        "targetTerms": [
+          "咨询",
+          "医药",
+          "商业分析"
+        ],
+        "reviewBasis": [
+          "个人动作与分析交付相连",
+          "预测与实际结果区分",
+          "不照搬长 bullet"
+        ]
+      },
+      "content": "# 生物研究向医药商业分析连接的简历写法参考\n\nMIT CAPD 生物本科样例将医药咨询的数据访谈、分析工具、展示交付放在同一证据链里；实验室经历交代技术方法和研究目的，而不是把全部内容改成“商业增长”。\n\n可借鉴：当用户确有生物/医药研究和咨询或市场研究背景时，说明研究对象、个人动作和产出的分析材料。预测性收益必须保持预测口径，客户采用与实际效果不能混为一谈。原文中较长的 bullet 只借信息关系，不照搬长度。\n\n边界：公开教学样例，不是可核验的录用案例。不能把实验研究翻译成真实临床/药品商业化成果，不借用样例数字、学校、职位或联系方式；行业不相关时不调用。",
+      "evidence": [
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Undergraduate.pdf",
+          "title": "MIT CAPD Biology undergraduate résumé teaching sample",
+          "company": null,
+          "published_at": null,
+          "summary": "公开教学样例：生物医药研究、咨询访谈与分析交付。预测不能冒充实际效果，不保存个人身份与联系方式。"
+        }
+      ]
+    },
+    {
+      "id": "resume.example.senior-strategy.v1",
+      "title": "资深策略金融与跨组织交付写法样例",
+      "path": "domains/shared/resume-example-senior-strategy.md",
+      "description": "公开校友教学简历的经历排序与交付范围提炼。",
+      "goal": "为相近资深金融/策略背景提供证据取舍参照。",
+      "scope": "海外校友教学样例；不适合学生套用，不是录用结果证据。",
+      "roles": [],
+      "companies": [],
+      "stages": [
+        "简历"
+      ],
+      "tasks": [
+        "resume_tailoring"
+      ],
+      "use_when": [
+        "有多年的策略金融分析与跨团队交付经历"
+      ],
+      "do_not_use_when": [
+        "无工作经验",
+        "把不同项目拼成不存在的履历"
+      ],
+      "confidence": "medium",
+      "status": "active",
+      "reviewed_at": "2026-10-15",
+      "evidence_urls": [
+        "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Alum-1.pdf"
+      ],
+      "resume_profile": {
+        "kind": "public_teaching_sample",
+        "careerStage": "experienced",
+        "outcomeVerified": false,
+        "signals": [
+          {
+            "dimension": "discipline",
+            "label": "金融/经济背景",
+            "terms": [
+              "金融",
+              "经济",
+              "MBA",
+              "finance",
+              "economics"
+            ]
+          },
+          {
+            "dimension": "work",
+            "label": "策略/投资分析",
+            "terms": [
+              "战略",
+              "策略",
+              "尽职调查",
+              "投资分析",
+              "strategy",
+              "due diligence"
+            ]
+          },
+          {
+            "dimension": "scenario",
+            "label": "组织决策与协作交付",
+            "terms": [
+              "管理层",
+              "跨团队",
+              "董事会",
+              "汇报",
+              "senior executives",
+              "board"
+            ]
+          }
+        ],
+        "targetTerms": [
+          "策略",
+          "战略",
+          "金融",
+          "商业分析"
+        ],
+        "reviewBasis": [
+          "工作经历优先于教育",
+          "区分共同负责与个人负责",
+          "不同项目保留独立边界"
+        ]
+      },
+      "content": "# 资深策略金融与跨组织交付的简历写法参考\n\nMIT CAPD 校友教学样例以工作经历为主体，教育信息靠后。项目写明分析对象、协作方、决策材料与交付范围；策略、金融、教育和健康场景的经历分别保留，不用统一的“推动赋能”抹平差异。\n\n可借鉴：资深分析/策略用户优先呈现与目标最相关的判断和交付，注明个人负责与共同负责，真实规模只在有材料时使用。跨行业转向可以重排证据，但不能把过去不同项目拼成一段不存在的履历。\n\n边界：不适合给没有工作经历的学生套用资深叙事，也不证明国内招聘结果。原样例的长句需要按用户短 bullet 要求精简。这里只保存写法总结，不保存个人姓名、地址或联系方式。",
+      "evidence": [
+        {
+          "platform": "other",
+          "source_kind": "guide",
+          "url": "https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Alum-1.pdf",
+          "title": "MIT CAPD Alum résumé teaching sample",
+          "company": null,
+          "published_at": null,
+          "summary": "公开校友教学样例：资深策略金融背景、跨组织交付与经历排序。不适合学生套用，不证明国内录用结果。"
+        }
+      ]
+    },
     {
       "id": "shared.evidence-driven-job-search.v1",
       "title": "把求职当成证据驱动的迭代闭环",

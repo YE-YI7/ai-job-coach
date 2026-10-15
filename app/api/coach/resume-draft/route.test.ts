@@ -6,10 +6,12 @@ import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { applyResumeChanges, reviewAtsText } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import {runWithGenerationContext} from "@/lib/generation-context";
+import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
+jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn() }));
 jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: jest.fn((_context: unknown, run: () => unknown) => run()) }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
 jest.mock("@/lib/coach-harness/repository", () => ({
@@ -34,6 +36,7 @@ describe("resume draft source mapping", () => {
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: "user-1" });
     (reserveQuota as jest.Mock).mockResolvedValue({ source: "free", remaining: 0 });
     (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
+    (startResumeTrace as jest.Mock).mockResolvedValue({ data: {}, step: jest.fn(), finish: jest.fn().mockResolvedValue(undefined) });
     (getContextBundleForUser as jest.Mock).mockResolvedValue({
       allowedClaimIds: ["claim-1"], unverifiedClaimIds: [], selection: { included: [], excluded: [] },
       budget: { maxInputTokens: 12_000 }, usage: { truncated: false }, claims: [], artifacts: [], knowledge: [], attachments: [],
@@ -41,6 +44,38 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  test("one anchored question is returned before review and quota is released", async () => {
+    const resumeText = "协助整理客服工单，参与需求讨论，但原材料还未说明具体交付";
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ status: "needs_detail", changes: [], recovery: {
+      sourceExcerpt: resumeText, question: "整理这批工单时，你本人最后交付了什么材料？",
+    } }));
+    const response = await POST(new Request("https://example.com/api/coach/resume-draft", { method: "POST", body: JSON.stringify({ opportunityId: "opp-1", resumeText, mode: "general_resume" }) }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({reasonCode:"resume_detail_needed", recovery:{sourceExcerpt:resumeText,question:expect.stringContaining("交付")}});
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect((await (startResumeTrace as jest.Mock).mock.results[0].value).finish).toHaveBeenCalledWith("needs_detail");
+  });
+
+  test("a saved detail is not requested again, internal trace is absent from the response", async () => {
+    const source = "协助整理客服工单，参与需求讨论，但原材料还未说明具体交付";
+    const resumeText = `${source}\n\n补充经历（用户提供，待核实）：\n我整理了三类工单分类表，没有参与上线。`;
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status:"needs_detail",changes:[],recovery:{sourceExcerpt:source,question:"整理这批工单时，你本人最后交付了什么材料？"}}));
+    const response = await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({opportunityId:"opp-1",resumeText,mode:"general_resume"})}));
+    const result = await response.json();
+    expect(result.recovery.detailSaved).toBe(true);
+    expect(result.recovery.question).toContain("不需要反复补");
+    expect(JSON.stringify(result)).not.toMatch(/requestHash|similarity|draft_quality_not_candidate/);
+  });
+
+  test("an unavailable audit store fails before reserve or model invocation", async () => {
+    (startResumeTrace as jest.Mock).mockRejectedValueOnce(Error("RESUME_TRACE_UNAVAILABLE"));
+    const response = await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({resumeText:"真实简历",mode:"general_resume"})}));
+    expect(response.status).toBe(503);
+    expect(reserveQuota).not.toHaveBeenCalled(); expect(callLLM).not.toHaveBeenCalled();
+  });
 
   test("general résumé can be rewritten and saved without a target JD",async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{section:"项目经历",before:"负责模型评测",after:"模型评测覆盖准确率口径",reason:"明确动作",sourceIds:["claim-1"]}]}))

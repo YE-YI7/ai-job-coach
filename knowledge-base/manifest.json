@@ -1,10 +1,98 @@
 {
   "version": 1,
-  "updated_at": "2026-09-29",
+  "updated_at": "2026-10-15",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
   "documents": [
+    {
+      "id": "resume.example.computing-hci.v1", "title": "计算机/HCI 研究与软件实习写法样例",
+      "path": "domains/shared/resume-example-computing-hci.md",
+      "description": "公开教学简历的结构提炼，不含个人信息，不承诺录用。",
+      "goal": "为相近的计算机研究、软件实习用户提供动作和交付的表达参照。",
+      "scope": "海外计算机硕士教学样例；向 AI 产品的迁移是应用判断，不是原作者目标或录用证据。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["计算机背景同时有软件或用户界面研究经历"],
+      "do_not_use_when": ["仅目标 JD 有技术关键词", "借用样例的学历、成果或数字"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-15",
+      "evidence_urls": ["https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-MastersII.pdf"],
+      "resume_profile": {
+        "kind": "public_teaching_sample", "careerStage": "student", "outcomeVerified": false,
+        "signals": [
+          {"dimension":"discipline","label":"计算机/软件背景","terms":["计算机","软件工程","computer science"]},
+          {"dimension":"work","label":"软件开发或研究","terms":["软件开发","开发","research","研究"]},
+          {"dimension":"scenario","label":"用户界面/检索工具","terms":["用户界面","HCI","搜索","检索","代码评审","search","interface"]}
+        ],
+        "targetTerms": ["软件","产品","HCI","search"],
+        "reviewBasis": ["分别说明使用场景与个人实现", "开发中与完成状态有区分", "不照抄原样例较长的句子"]
+      }
+    },
+    {
+      "id": "resume.example.advertising-analysis.v1", "title": "数学计算机、广告分析与实验流程写法样例",
+      "path": "domains/shared/resume-example-advertising-analysis.md",
+      "description": "公开本科教学样例的分析、决策与流程表达提炼。",
+      "goal": "为相近广告分析、运筹和实验背景提供结构参照。",
+      "scope": "海外本科教学样例；不是资深商业化产品负责人或国内录用样本。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["定量背景同时有广告分析或实验流程工作"],
+      "do_not_use_when": ["只有想做广告岗位的 JD", "借用样例提升幅度"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-15",
+      "evidence_urls": ["https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-UndergraduateII.pdf"],
+      "resume_profile": {
+        "kind": "public_teaching_sample", "careerStage": "student", "outcomeVerified": false,
+        "signals": [
+          {"dimension":"discipline","label":"数学/计算机/运筹背景","terms":["数学","计算机","运筹","mathematics"]},
+          {"dimension":"work","label":"定量分析","terms":["数据分析","风险分析","数学模型","量化","analysis","建模"]},
+          {"dimension":"scenario","label":"广告交易/实验流程","terms":["广告","竞价","实验流程","实验设计","advertising","auction"]}
+        ],
+        "targetTerms": ["广告","商业化","数据分析","运筹"],
+        "reviewBasis": ["动作、方法和结果分离", "校园责任不冒充全职责任", "数字只在来源真实时使用"]
+      }
+    },
+    {
+      "id": "resume.example.biology-consulting.v1", "title": "生物研究与医药咨询写法样例",
+      "path": "domains/shared/resume-example-biology-consulting.md",
+      "description": "公开本科教学样例的访谈、分析、展示交付提炼。",
+      "goal": "帮助相近生物/医药背景用真实工作连接商业分析。",
+      "scope": "海外本科教学样例；不证明医药商业化成果或国内筛选适用。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["生物医药背景同时有研究、咨询或访谈经历"],
+      "do_not_use_when": ["非相关行业", "把预测当实际收益"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-15",
+      "evidence_urls": ["https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Undergraduate.pdf"],
+      "resume_profile": {
+        "kind": "public_teaching_sample", "careerStage": "student", "outcomeVerified": false,
+        "signals": [
+          {"dimension":"discipline","label":"生物/医药背景","terms":["生物","医药","药学","biology","pharma"]},
+          {"dimension":"work","label":"研究/咨询工作","terms":["实验室","研究助理","咨询","research","consulting"]},
+          {"dimension":"scenario","label":"访谈与市场研究","terms":["访谈","市场研究","临床","interview","market research"]}
+        ],
+        "targetTerms": ["咨询","医药","商业分析"],
+        "reviewBasis": ["个人动作与分析交付相连", "预测与实际结果区分", "不照搬长 bullet"]
+      }
+    },
+    {
+      "id": "resume.example.senior-strategy.v1", "title": "资深策略金融与跨组织交付写法样例",
+      "path": "domains/shared/resume-example-senior-strategy.md",
+      "description": "公开校友教学简历的经历排序与交付范围提炼。",
+      "goal": "为相近资深金融/策略背景提供证据取舍参照。",
+      "scope": "海外校友教学样例；不适合学生套用，不是录用结果证据。",
+      "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
+      "use_when": ["有多年的策略金融分析与跨团队交付经历"],
+      "do_not_use_when": ["无工作经验", "把不同项目拼成不存在的履历"],
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-15",
+      "evidence_urls": ["https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Alum-1.pdf"],
+      "resume_profile": {
+        "kind": "public_teaching_sample", "careerStage": "experienced", "outcomeVerified": false,
+        "signals": [
+          {"dimension":"discipline","label":"金融/经济背景","terms":["金融","经济","MBA","finance","economics"]},
+          {"dimension":"work","label":"策略/投资分析","terms":["战略","策略","尽职调查","投资分析","strategy","due diligence"]},
+          {"dimension":"scenario","label":"组织决策与协作交付","terms":["管理层","跨团队","董事会","汇报","senior executives","board"]}
+        ],
+        "targetTerms": ["策略","战略","金融","商业分析"],
+        "reviewBasis": ["工作经历优先于教育", "区分共同负责与个人负责", "不同项目保留独立边界"]
+      }
+    },
     {
       "id": "shared.evidence-driven-job-search.v1",
       "title": "把求职当成证据驱动的迭代闭环",

@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-09-29T00:00:00.000Z",
+  "generated_at": "2026-10-15T00:00:00.000Z",
   "current": {
-    "sources": 94,
-    "documents": 27,
+    "sources": 98,
+    "documents": 31,
     "companies": 20,
     "retrieval_evaluations": 115,
     "documents_with_three_sources": 22,
-    "three_source_ratio": 0.815,
+    "three_source_ratio": 0.71,
     "by_platform": {
       "anthropic": 2,
       "arxiv": 2,
@@ -14,12 +14,13 @@
       "linkedin": 14,
       "mcp": 1,
       "nowcoder": 60,
+      "other": 4,
       "reddit": 11,
       "xiaohongshu": 2
     },
     "by_confidence": {
       "low": 6,
-      "medium": 21,
+      "medium": 25,
       "high": 0
     }
   },
@@ -31,6 +32,26 @@
     "three_source_ratio": 0.7
   },
   "thin_documents": [
+    {
+      "id": "resume.example.computing-hci.v1",
+      "evidence_count": 1,
+      "confidence": "medium"
+    },
+    {
+      "id": "resume.example.advertising-analysis.v1",
+      "evidence_count": 1,
+      "confidence": "medium"
+    },
+    {
+      "id": "resume.example.biology-consulting.v1",
+      "evidence_count": 1,
+      "confidence": "medium"
+    },
+    {
+      "id": "resume.example.senior-strategy.v1",
+      "evidence_count": 1,
+      "confidence": "medium"
+    },
     {
       "id": "pm.transition-from-engineering.v1",
       "evidence_count": 2,

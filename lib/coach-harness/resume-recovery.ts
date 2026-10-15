@@ -28,6 +28,20 @@ export function resumeRecovery(resume: string): ResumeRecovery {
   };
 }
 
+/** A model may ask only one anchored question, never replace a saved answer. */
+export function modelResumeRecovery(resume: string, value: unknown): ResumeRecovery | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const sourceExcerpt = typeof raw.sourceExcerpt === "string" ? raw.sourceExcerpt.trim() : "";
+  const question = typeof raw.question === "string" ? raw.question.trim() : "";
+  if (sourceExcerpt.length < 12 || sourceExcerpt.length > 260 || !resume.includes(sourceExcerpt)
+    || /@|https?:|电话|邮箱|手机|\d{11}/.test(sourceExcerpt)
+    || question.length < 8 || question.length > 220 || (question.match(/[？?]/g) || []).length > 1
+    || /https?:|@|\d{11}/.test(question)) return null;
+  const existing = resumeRecovery(resume);
+  return existing.detailSaved ? existing : { sourceExcerpt, question };
+}
+
 export function appendResumeSupplement(resume: string, answer: string): string {
   const detail = answer.trim();
   if (!detail || detail.length > 2000) throw new Error("请填写 1–2000 字的真实补充");

@@ -28,6 +28,7 @@
 | 创作者生态与内容治理 | `domains/product-management/creator-ecosystem-and-content-governance.md` | 创作、分发、消费、商业化与治理取舍 |
 | 产品案例面 | `domains/product-management/case-interview-live-reasoning.md` | 首版，3 个来源 |
 | 角色定位与故事库 | `domains/product-management/story-bank-and-positioning.md` | 首版，5 个来源 |
+| 相近背景的简历写法案例 | `domains/shared/resume-example-*.md` 与 manifest 的 `resume_profile` | 4 份经阅读的 MIT CAPD 公开教学样例；无录用证明，只按用户背景匹配，不收集其他用户简历 |
 | 岗位反向验证 | `domains/product-management/role-due-diligence.md` | 单来源，只用于生成反问 |
 | 软件工程师首份工作 | `domains/software-engineering/first-job-evidence.md` | 首版，基于 GitHub 指南 |
 | 软件工程师技术面准备 | `domains/software-engineering/technical-interview-preparation.md` | 首版，基于 3 个公开样本 |
@@ -53,6 +54,7 @@
 3. 多来源重复出现的模式优先；单公司、单团队、单轮次经验必须保留样本边界。
 4. 当前 JD、用户简历、真实回答与真实面试记录，优先于公共知识。
 5. 无法确认时保留冲突，不把推断写成事实。
+6. 简历案例须有公开来源、审核依据和背景信号，专用召回至少匹配两个背景维度；目标 JD 不能代替用户背景。案例只证明可参考的写法，不能冒充成功录用案例、用户事实或全面覆盖。
 
 ## 维护规则
 

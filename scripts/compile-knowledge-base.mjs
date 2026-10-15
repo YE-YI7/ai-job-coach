@@ -35,6 +35,17 @@ for (const document of manifest.documents) {
       throw new Error(`Knowledge document has invalid ${field}: ${document.id}`);
     }
   }
+  if (document.resume_profile) {
+    const profile = document.resume_profile;
+    if (profile.kind !== "public_teaching_sample" || profile.outcomeVerified !== false
+      || !["student", "experienced"].includes(profile.careerStage)
+      || !Array.isArray(profile.reviewBasis) || profile.reviewBasis.length < 2
+      || !Array.isArray(profile.targetTerms) || !Array.isArray(profile.signals) || profile.signals.length < 2
+      || profile.signals.some(signal => !["discipline", "work", "scenario"].includes(signal.dimension)
+        || !signal.label || !Array.isArray(signal.terms) || !signal.terms.length)) {
+      throw new Error(`Invalid reviewed résumé example profile: ${document.id}`);
+    }
+  }
   if (seenIds.has(document.id)) throw new Error(`Duplicate knowledge document id: ${document.id}`);
   if (seenPaths.has(document.path)) throw new Error(`Duplicate knowledge document path: ${document.path}`);
   seenIds.add(document.id);

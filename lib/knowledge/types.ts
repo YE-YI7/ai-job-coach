@@ -57,4 +57,15 @@ export interface AgentKnowledgeDocument {
   reviewedAt: string;
   content: string;
   evidence: AgentKnowledgeEvidence[];
+  resumeProfile?: ResumeExampleProfile;
+}
+
+/** Public, editorially reviewed writing examples, never a pool of user résumés. */
+export interface ResumeExampleProfile {
+  kind: "public_teaching_sample";
+  careerStage: "student" | "experienced";
+  signals: Array<{ dimension: "discipline" | "work" | "scenario"; label: string; terms: string[] }>;
+  targetTerms: string[];
+  reviewBasis: string[];
+  outcomeVerified: false;
 }

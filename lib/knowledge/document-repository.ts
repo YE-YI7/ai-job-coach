@@ -3,6 +3,7 @@ import type {
   AgentKnowledgeDocument,
   AgentKnowledgeEvidence,
   AgentKnowledgeTask,
+  ResumeExampleProfile,
 } from "./types";
 
 type CompiledDocument = (typeof compiledKnowledge.documents)[number];
@@ -67,6 +68,7 @@ function mapDocument(document: CompiledDocument): AgentKnowledgeDocument {
       publishedAt: evidence.published_at,
       summary: evidence.summary,
     })),
+    resumeProfile: (document as unknown as { resume_profile?: ResumeExampleProfile }).resume_profile,
   };
 }
 
@@ -78,6 +80,9 @@ function scoreDocument(document: CompiledDocument, input: {
   stage?: string | null;
 }) {
   if (document.status !== "active") return Number.NEGATIVE_INFINITY;
+  // Cases require background matching, not just a task/role bonus. They must
+  // never leak through the generic retrieval fallback as a "similar résumé".
+  if ("resume_profile" in document) return Number.NEGATIVE_INFINITY;
 
   let score = document.tasks.includes(input.task) ? 12 : -18;
   const company = normalized(input.company);
@@ -107,6 +112,10 @@ function scoreDocument(document: CompiledDocument, input: {
     if (haystack.includes(term)) lexicalScore += weight;
   }
   return score + Math.min(lexicalScore, 36);
+}
+
+export function reviewedResumeExamples(): AgentKnowledgeDocument[] {
+  return compiledKnowledge.documents.filter(document => document.status === "active" && "resume_profile" in document).map(mapDocument);
 }
 
 export function retrieveKnowledgeDocuments(input: {

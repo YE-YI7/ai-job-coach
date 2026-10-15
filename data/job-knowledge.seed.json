@@ -1,5 +1,37 @@
 [
   {
+    "platform":"other", "source_kind":"guide",
+    "canonical_url":"https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-MastersII.pdf",
+    "title":"MIT CAPD Masters II résumé teaching sample", "author":"MIT CAPD", "published_at":null,
+    "language":"en", "company":null, "roles":["软件工程师"], "stages":["简历"],
+    "summary":"公开教学样例：计算机/HCI 研究、软件实习与带教的动作/交付写法。仅提炼结构，不保存个人信息，不证明录用。",
+    "key_points":["使用者和问题先于技术名词","开发中保持未完成口径"], "interview_questions":[]
+  },
+  {
+    "platform":"other", "source_kind":"guide",
+    "canonical_url":"https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-UndergraduateII.pdf",
+    "title":"MIT CAPD Undergraduate II résumé teaching sample", "author":"MIT CAPD", "published_at":null,
+    "language":"en", "company":null, "roles":["数据分析师"], "stages":["简历"],
+    "summary":"公开教学样例：数学计算机背景、广告交易分析和实验流程改善。只借鉴结构，不迁移数字或个人事实，不证明录用。",
+    "key_points":["动作、方法和结果分开","校园经历不冒充工作责任"], "interview_questions":[]
+  },
+  {
+    "platform":"other", "source_kind":"guide",
+    "canonical_url":"https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Undergraduate.pdf",
+    "title":"MIT CAPD Biology undergraduate résumé teaching sample", "author":"MIT CAPD", "published_at":null,
+    "language":"en", "company":null, "roles":["医药咨询"], "stages":["简历"],
+    "summary":"公开教学样例：生物医药研究、咨询访谈与分析交付。预测不能冒充实际效果，不保存个人身份与联系方式。",
+    "key_points":["研究方法与交付相连","预测性收益保持预测口径"], "interview_questions":[]
+  },
+  {
+    "platform":"other", "source_kind":"guide",
+    "canonical_url":"https://cdn.uconnectlabs.com/wp-content/uploads/sites/123/2025/05/MITCAPD-Alum-1.pdf",
+    "title":"MIT CAPD Alum résumé teaching sample", "author":"MIT CAPD", "published_at":null,
+    "language":"en", "company":null, "roles":["策略分析师"], "stages":["简历"],
+    "summary":"公开校友教学样例：资深策略金融背景、跨组织交付与经历排序。不适合学生套用，不证明国内录用结果。",
+    "key_points":["工作经历优先","区分本人和共同责任"], "interview_questions":[]
+  },
+  {
     "platform": "github",
     "source_kind": "guide",
     "canonical_url": "https://github.com/readme/guides/first-job-in-tech",

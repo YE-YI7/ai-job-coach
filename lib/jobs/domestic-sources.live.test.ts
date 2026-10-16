@@ -21,6 +21,27 @@ liveTest("domestic official sources return traceable domestic job descriptions",
   }
 }, 40000);
 
+liveTest("Xiaohongshu anonymous social keywords differ with full domestic requirements", async () => {
+  const products = await searchLiveJobs(["产品"], { sourceIds: ["xiaohongshu"], maxCalls: 1 });
+  const logistics = await searchLiveJobs(["物流"], { sourceIds: ["xiaohongshu"], maxCalls: 1 });
+  expect(products.failures).toEqual([]);
+  expect(logistics.failures).toEqual([]);
+  expect(products.calls).toBe(1);
+  expect(logistics.calls).toBe(1);
+  expect(products.postings.length).toBeGreaterThan(0);
+  expect(logistics.postings.length).toBeGreaterThan(0);
+  const productIds = new Set(products.postings.map(p => p.sourceId));
+  expect(logistics.postings.some(p => !productIds.has(p.sourceId))).toBe(true);
+  for (const job of [...products.postings, ...logistics.postings]) {
+    expect(job.url).toMatch(/^https:\/\/job\.xiaohongshu\.com\/social\/position\/[1-9]\d*$/);
+    expect(job.location).not.toMatch(/新加坡|纽约|伦敦/);
+    expect(job.rawPageText).toContain("岗位职责");
+    expect(job.rawPageText).toContain("任职要求");
+    expect(job.rawPageText!.length).toBeGreaterThan(80);
+  }
+  console.info("Xiaohongshu keyword contrast", JSON.stringify({ productCount: products.postings.length, logisticsCount: logistics.postings.length, differentIds: logistics.postings.filter(p => !productIds.has(p.sourceId)).length }));
+}, 40000);
+
 liveTest("Didi anonymous keywords differ and retain traceable domestic requirements", async () => {
   const products = await searchLiveJobs(["产品"], { sourceIds: ["didi"], maxCalls: 1 });
   const logistics = await searchLiveJobs(["物流"], { sourceIds: ["didi"], maxCalls: 1 });

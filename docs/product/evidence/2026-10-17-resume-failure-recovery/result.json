@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "synthetic": true,
+  "cloud": true,
+  "origin": "https://www.ai-job-coach.xin",
+  "deployment": "dpl_12u1xV7h5jSGJq69oobGjyhqv3VC",
+  "runtime": "959d1a0",
+  "checks": [
+    "Old persisted failed task now shows a usable revision composer and neutral recovery copy",
+    "Scoped network failure preserves typed request, refresh restores it before any model call",
+    "Failed state still supports clicking ordinary paper text, opening the correct inline editor and canceling without mutation",
+    "A second real HTTP request reuses the running task instead of starting a second generation",
+    "Real model returned three grounded useful changes; same generation and changes survive server GET and full browser refresh",
+    "All three actual inline adoption decisions persist after refresh",
+    "Manual-edit PATCH 503 leaves text in the paper but not cloud; retry receives a real save receipt and refresh restores the text",
+    "Actual export window contains adopted and saved text without controls; Save as PDF invokes Chrome print and writes a real PDF",
+    "390px workspace fits without horizontal page overflow"
+  ],
+  "model": "step-3.7-flash",
+  "realModelGenerations": 1,
+  "pageErrors": [],
+  "changes": [
+    {
+      "before": "- 我负责的是商品上架工作，在这个工作中我逐条核对商品规格、价格与图片，最后完成了 260 条商品链接上架，并且把异常信息整理在 Excel 表里交给运营同学处理。",
+      "after": "- 逐条核对商品规格、价格与图片，完成 260 条商品链接上架；整理异常信息至 Excel 表，提交运营同学处理。",
+      "reason": "删除冗余的自述性表述，拆分核对上架、异常整理两个独立动作，明确交付物与对接人，提升信息密度。"
+    },
+    {
+      "before": "- 参与客户咨询相关工作。",
+      "after": "- 按咨询的商品分类记录问题，整理成表格提交运营同学。",
+      "reason": "补充具体动作与交付，替换空泛的参与表述，明确客户咨询模块的实际工作内容，基于用户已提供的自述事实修改，未新增信息。"
+    },
+    {
+      "before": "- 实训过程中我参与了选品工作，参与了商品上架工作，参与了运营数据整理工作，最后把访客和转化数据汇总成周报交给组长查看，完成 103 款商品上架。",
+      "after": "- 参与选品、商品上架及运营数据整理工作；汇总访客与转化数据为周报，提交组长查看；完成 103 款商品上架。",
+      "reason": "删除重复的参与了堆砌，拆分动作与交付，明确实训的具体产出，避免名词罗列，保留模拟实训的性质限定。"
+    }
+  ],
+  "limitations": [
+    "Initial failed task was explicitly seeded for isolated recovery replay, not an actual new model failure",
+    "One fictional ecommerce resume and one actual model generation, not general quality across models"
+  ]
+}

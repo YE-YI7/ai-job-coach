@@ -73,7 +73,7 @@ export default function ResumeToolbar({
         {showMarks && !showOriginal ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}修改标记
       </button>
       <small id={feeId} className={styles.fee}>{fee}</small>
-      <button ref={trigger} type="button" className={styles.more} aria-label="简历更多选项" aria-expanded={open} aria-haspopup="dialog" aria-controls="resume-options-popover" data-tooltip="更多选项" onClick={toggle}>
+      <button ref={trigger} type="button" className={styles.more} aria-label="简历更多选项" aria-expanded={open} aria-haspopup="dialog" aria-controls="resume-options-popover" popoverTarget="resume-options-popover" popoverTargetAction="toggle" data-tooltip="更多选项" onClick={event=>{event.preventDefault();toggle();}}>
         <MoreHorizontal size={19} aria-hidden="true" />
       </button>
     </div>

@@ -51,4 +51,26 @@
 
 ## 发布
 
-待本次精确提交的干净快照完成生产构建、受保护候选冒烟与同构建 promote 后追加部署 ID 和正式域名核验。发布前 www 仍为 `dpl_Fmb9XPpp9qAY4FWzbXt2CVrQKRZQ` / READY，当前 HEAD 相比原生产提交仅多两次验收文档提交；共享主工作树的认证/支付/样式脏改动不进入发布包。
+运行提交 `ca2b2f2ecfdeea6f0c58da073baa873b7b98374a` 已推 `origin/codex/qisi-resume-ui-1017`，远端 SHA 回读一致；只提交本轮 24 个文件。Git 精确归档独立发布目录，未带入共享主工作树的认证/支付/样式脏改动或未提交的首轮截图。
+
+先以 `--prod --skip-domain` 云端构建，知识库仍为 34 篇 / 103 来源，Next.js 编译和 TypeScript 通过。受保护候选使用同项目既有 CLI 授权访问：首页 200 且实际含益职与登录正文，健康 200 / database ok，匿名 POST resume-agent 为应用 401 / 未认证。切换前再次确认 www 仍指向旧 `dpl_Fmb9XPpp9qAY4FWzbXt2CVrQKRZQ`，没有覆盖另一窗口的新发布。
+
+随后成功 promote **同一构建**，无重新打包。正式 www 和裸域 API 核对均为 `dpl_3GvpzJ2eTpGtixaMtjNodRgty6t9` / production / READY，projectId 与 metadata.releaseCommit 一致；两个正式域名的 health 跟随既有规范域名跳转后均 200 / database ok，正式 www 匿名 resume-agent 仍为应用 401。没有变更环境变量、支付、数据库或用户记录。上述是发布与权限边界检查，不冒充正式登录后台整条保存流程复验。
+
+## Deploy Result
+
+- **URL**: https://www.ai-job-coach.xin/cockpit
+- **Target**: production
+- **Status**: READY
+- **Commit**: ca2b2f2
+- **Framework**: Next.js 16.3.0 / webpack
+- **Build Duration**: 129.914 秒（deployment buildingAt → ready，不含排队）
+- **Deployment**: dpl_3GvpzJ2eTpGtixaMtjNodRgty6t9
+- **Candidate**: https://ai-job-coach-acsnzson6-velmavalienteqejimu22-jpgs-projects.vercel.app
+- **Previous production**: dpl_Fmb9XPpp9qAY4FWzbXt2CVrQKRZQ（保留为回退目标，未执行回退）
+
+### Post-Deploy Observability
+
+- **Error scan**: 本部署近 5 分钟、error 级别、最多 50 条，无返回条目；不是长期零故障结论。
+- **Drains**: 当前项目列表为空，0 个。
+- **Monitoring**: 只有本次健康、权限和短窗日志核验；长期模型、计费上游和真实使用监控仍有缺口，未在 UI 重构中宣称解决。

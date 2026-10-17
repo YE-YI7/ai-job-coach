@@ -46,7 +46,7 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
   </div>
   </>}
   <button className={`${styles.secondaryButton} ${styles.exportAction}`} title={disabledReason||"预览简历并保存 PDF"} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>pendingCount?confirmation.current?.showModal():void open()}><FileDown size={16} aria-hidden="true"/>{busy?"正在准备…":compact?"导出 PDF":"预览 / 保存 PDF"}</button>
-  <dialog ref={confirmation} className={styles.resumeExportConfirmation} aria-labelledby={`resume-export-confirm-${opportunityId}`}><p id={`resume-export-confirm-${opportunityId}`}>还有 {pendingCount} 处修改未逐一确认。要导出的话，按我们最后给你修改的版本导出，你同不同意？</p><p>已拒绝的修改不会重新采用，导出不会替你更改采纳状态。</p><div><button type="button" onClick={()=>confirmation.current?.close()}>返回继续选择</button><button type="button" onClick={()=>{confirmation.current?.close();void open();}}>同意，导出修改后版本</button></div></dialog>
+  <dialog ref={confirmation} className={styles.resumeExportConfirmation} aria-labelledby={`resume-export-confirm-${opportunityId}`}><h2 id={`resume-export-confirm-${opportunityId}`}>导出这份修改稿？</h2><p>还有 {pendingCount} 处修改未逐一确认。要导出的话，按我们最后给你修改的版本导出，你同不同意？</p><p>已拒绝的修改不会重新采用，导出不会替你更改采纳状态。</p><div><button type="button" onClick={()=>confirmation.current?.close()}>继续核对</button><button type="button" onClick={()=>{confirmation.current?.close();void open();}}>同意并导出</button></div></dialog>
   {(!compact||disabledReason)&&<small>{disabledReason||"在打印窗口选择「另存为 PDF」。"}</small>}
   {error&&<p role="alert">{error}</p>}
  </div>;

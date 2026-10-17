@@ -1394,6 +1394,7 @@
 @media(max-width:700px){.demoNotice{padding-inline:20px}.interviewIntro .interviewActions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}.interviewIntro .interviewActions button{width:auto}.practicePanel h3{font-size:21px}.practicePanel textarea{font-size:16px}}
 .resumeExportConfirmation{position:fixed;inset:0;margin:auto;max-height:calc(100dvh - 32px);max-width:min(460px,calc(100vw - 32px));padding:24px;border:0;border-radius:14px;background:var(--cockpit-studio-surface,#fdfdfb);color:var(--cockpit-studio-ink,#272b27);box-shadow:0 12px 40px rgb(39 43 39 / .2);font:15px/1.7 "Outfit","PingFang SC",sans-serif}.resumeExportConfirmation::backdrop{background:rgb(39 43 39 / .25)}
 .resumeExportConfirmation p{margin:0 0 14px}.resumeExportConfirmation p+p{font-size:13px;color:var(--cockpit-studio-muted,#636861)}.resumeExportConfirmation>div{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}.resumeExportConfirmation button{border:0;background:transparent;color:inherit;font:inherit;min-height:40px;padding:8px 10px;cursor:pointer}.resumeExportConfirmation button:last-child{background:var(--cockpit-studio-action,#aa4f2e);color:white;border-radius:8px}.resumeExportConfirmation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.resumeExportConfirmation h2{font-size:18px;font-weight:600;line-height:1.5;margin:0 0 12px}.resumeExportConfirmation p{font-size:14px}.resumeExportConfirmation>div{margin-top:22px;gap:8px}.resumeExportConfirmation button{font-size:13px;border-radius:7px;transition:background-color 160ms ease}.resumeExportConfirmation button:hover{background:var(--cockpit-studio-selected,#dddfd6)}.resumeExportConfirmation button:last-child:hover{background:var(--cockpit-studio-action-deep,#944429)}.resumeExportConfirmation button:active{opacity:.85}
 
 /* Résumé-only density: leave the approved navigation intact. */
 .profileWorkspace .profileViewTabs{margin-bottom:12px}.profileWorkspace .profileHeading{margin-bottom:4px}
@@ -1411,7 +1412,7 @@
 .resumeDocument .saveReceipt{padding-top:8px;min-height:23px;color:var(--cockpit-studio-muted,#636861)}
 .resumeCanvas{min-width:0;padding:0}
 .resumeStudio .exportControls.exportCompact{position:relative;max-width:270px;justify-content:flex-end}
-.resumeStudio .exportControls .exportAction{min-height:38px;padding:8px 13px;font-size:13px;border:0;border-radius:7px;white-space:nowrap}
+.resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 13px;font-size:13px;border:0;border-radius:7px;white-space:nowrap}
 .resumeStudio .exportControls small{font-size:11px;max-width:29ch;text-align:right;line-height:1.5}
 .resumeReplacement{margin:0 0 22px;padding:0 0 16px;border-bottom:1px solid var(--line)}
 .resumeReplacement>div:first-child{display:flex;align-items:center;justify-content:space-between;font-size:14px}

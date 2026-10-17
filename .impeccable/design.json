@@ -77,6 +77,7 @@
       { "name": "resume-decision", "value": "0 8px 30px rgb(39 43 39 / .15)", "purpose": "就近采纳浮层，按内容实高调整位置。" }
     ],
     "motion": [
+      { "name": "resume-context-menu", "value": "160ms cubic-bezier(.22,1,.36,1), translateY(-4px)", "purpose": "简历上下文菜单轻入场，减少动态效果时关闭，不用于正文入场。" },
       { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" },
       { "name": "home-action", "value": "background-color 150ms ease", "purpose": "首页墨色主动作的悬停反馈；减少动态效果时关闭。" },
       { "name": "cockpit-studio-action", "value": "background-color 150ms ease,border-color 150ms ease", "purpose": "当前壳紧凑动作的状态反馈，减少动态效果时关闭。" },

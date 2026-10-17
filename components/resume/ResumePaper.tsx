@@ -16,7 +16,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
   showZoom?: boolean;
   controlsBelow?: boolean;
   highlight?: string;
-  review?: { ink: ResumeInk[]; blockIds: string[]; onMark: (id: string, rect: {left:number;top:number;bottom:number}, interaction:{keyboard:boolean;restoreFocus:()=>void}) => void; onReorder: (from: string, to: string) => void; onDismiss?:()=>void; onEditBlock?:(id:string)=>void; disabled?:boolean };
+  review?: { ink: ResumeInk[]; blockIds: string[]; onMark: (id: string, rect: {left:number;top:number;bottom:number}, interaction:{keyboard:boolean;restoreFocus:()=>void}) => void; onReorder: (from: string, to: string) => void; onDismiss?:(restoreFocus?:boolean)=>void; onEditBlock?:(id:string)=>void; disabled?:boolean };
 }) {
   const host = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -66,7 +66,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
         if(event.type==='keydown'&&(event as KeyboardEvent).key==='Escape'){reviewRef.current?.onDismiss?.();return;}
         if(returningFocus||reviewRef.current?.disabled)return;
         const target=event.target as HTMLElement, mark=target.closest<HTMLElement>("[data-change-id]");
-        if(!mark)return;
+        if(!mark){if(event.type==='click')reviewRef.current?.onDismiss?.(false);return;}
         if(event.type==='keydown'&&!['Enter',' '].includes((event as KeyboardEvent).key))return;
         if(event.type==='click'||event.type==='keydown')event.preventDefault();
         const outer=frame.current!.getBoundingClientRect(),r=mark.getBoundingClientRect(),ratio=outer.width/(document.documentElement.clientWidth||RESUME_PAPER_WIDTH);

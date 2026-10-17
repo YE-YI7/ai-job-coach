@@ -57,7 +57,7 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     row = updated.data;
   };
   if (row.fingerprint !== source.fingerprint) {
-    if (input.action === "answer") throw new ResumeTaskError("简历已更换，这条补问不再适用；输入仍保留");
+    if (input.action === "answer" || input.action === "revise") throw new ResumeTaskError("简历已更换，这条补充不再适用；输入仍保留");
     const retained=source.revision&&row.source_revision===source.revision?row.answers.filter(answer=>source.resume.includes(answer.sourceExcerpt)):[];
     await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, result: null, error: null, lease_id: null });
   }
@@ -67,7 +67,16 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 330_000) return { task: publicResumeTask(row!), source, claimed: false };
     await write({ state: "failed", lease_id: null, error: "上一轮未完成，已保留补充" });
   }
-  if (input.action === "answer" || input.action === "skip") {
+  if (input.action === "revise") {
+    const answer=String(input.answer||"").trim();
+    if(!answer||answer.length>2000)throw new ResumeTaskError("请填写1–2000字修改要求",400);
+    const id=`instruction:${createHash('sha256').update(answer).digest('hex')}`;
+    if(!row!.answers.some(item=>item.id===id)) {
+      if(row!.answers.filter(item=>item.kind==='instruction').length>=10)throw new ResumeTaskError('本轮修改要求已较多，请先重试或直接编辑简历',400);
+      if(row!.answers.filter(item=>item.kind==='instruction').reduce((sum,item)=>sum+item.answer.length,0)+answer.length>4000)throw new ResumeTaskError('本轮修改要求已较多，请先重试或直接编辑简历',400);
+      await write({state:'idle',question:null,error:null,answers:[...row!.answers,{id,kind:'instruction',field:'context',sourceExcerpt:'',question:'修改要求',answer,savedAt:new Date().toISOString()}]});
+    } else if(row!.state!=='idle'&&row!.state!=='failed')return {task:publicResumeTask(row!),source,claimed:false};
+  } else if (input.action === "answer" || input.action === "skip") {
     if (input.action === "skip" && row!.state === "ready" && row!.result && row!.question?.id === input.questionId) {
       await write({ question: null, error: null, answers: [...row!.answers, { ...row!.question!, answer: "", skipped: true, savedAt: new Date().toISOString() }] });
       return { task: publicResumeTask(row!), source, claimed: false };
@@ -100,7 +109,7 @@ export async function resumeTaskInput(userId: string, taskId: string, lease: str
 
 export async function persistResumeAnswerClaims(row: Row): Promise<CareerClaim[]> {
   const db = requireDb(await getDbClient());
-  const answers = row.answers.filter(answer => !answer.skipped && answer.claimId && answer.answer.trim());
+  const answers = row.answers.filter(answer => answer.kind !== 'instruction' && !answer.skipped && answer.claimId && answer.answer.trim());
   if (!answers.length) return [];
   const rows = answers.map(answer => ({ id: answer.claimId!, user_id: row.user_id, opportunity_id: row.opportunity_id,
     entity_type: "experience", entity_key: `resume-task-${row.id}-${createHash("sha256").update(answer.id).digest("hex").slice(0,16)}`,

@@ -1,5 +1,5 @@
 .conversation{margin:8px 0 30px;max-width:680px;color:var(--cockpit-studio-ink,#272b27)}
-.conversation form>label{font-size:20px;line-height:1.65;font-weight:500;letter-spacing:0}
+.conversation form>label{font-size:18px;line-height:1.65;font-weight:500;letter-spacing:0}
 .conversation form{padding-top:12px}
 .complete,.waiting>p:first-child{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:500;color:#343e30}
 .conversation>p+ p,.waiting>p+ p{font-size:14px;line-height:1.8;color:#636861;margin:10px 0 24px}
@@ -19,4 +19,5 @@
 .failed p,.conversation [role=alert]{line-height:1.6;color:var(--cockpit-studio-action-deep,#944429)}
 .failed button{padding-left:0;text-decoration:underline;text-underline-offset:4px}.waiting{font-size:14px;line-height:1.7;color:var(--cockpit-studio-muted,#636861);margin-block:12px 24px}
 @media(prefers-reduced-motion:reduce){.working{animation:none}}
+.failed .editHint{font-size:13px;color:var(--cockpit-studio-muted,#636861);margin:12px 0 20px}.conversation textarea{box-sizing:border-box}.conversation{overflow-wrap:anywhere}
 @media(max-width:700px){.conversation label{font-size:17px}.conversation textarea{font-size:16px}.conversation button{min-height:44px}}

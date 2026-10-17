@@ -2,6 +2,7 @@ import { getDbClient } from '@/lib/db';
 import { FakeDb } from './run-ledger/testing/fake-db';
 import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims } from './resume-task';
 import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from './resume-task-types';
+import {currentResumeAnswer} from './resume-supplement';
 jest.mock('@/lib/db');
 const source='参加校园工具项目，负责需求工作，想不起来具体交付。';
 const q=nextResumeQuestion(source,{sourceExcerpt:source,question:'你当时亲手处理的第一份材料是什么？',field:'action'},[])!;
@@ -9,6 +10,24 @@ test('一个问号也不能同时索要三个事实',()=>{expect(nextResumeQuest
 test('动作与交付加案例清单也收敛成一个事实槽位',()=>{expect(nextResumeQuestion(source,{sourceExcerpt:source,field:'action',question:'请补充具体动作与交付成果，例如是否参与过调研、原型绘制、文档撰写等事项？'},[])?.question).toBe('这段经历里，你本人实际做的第一件事是什么？');});
 let db:FakeDb;
 beforeEach(()=>{db=new FakeDb({coach_opportunities:[{id:'opp',user_id:'owner',status:'active',jd_text:'',metadata:{resumeText:source,workspaceType:'preparation',resumeRevision:'rev'}}],coach_resume_tasks:[{id:'task',user_id:'owner',opportunity_id:'opp',fingerprint:resumeTaskFingerprint(source,'','rev'),state:'needs_detail',question:q,answers:[],result:null,error:null,lease_id:null,version:1,updated_at:new Date().toISOString()}]});(getDbClient as jest.Mock).mockResolvedValue(db);});
+test('failed task accepts editing directions without turning them into career facts',async()=>{
+  Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed',question:null,error:'旧校验失败'});
+  const result=await claimResumeTask('owner','opp',{action:'revise',answer:'请精简实习那段，不要加新事实。'});
+  expect(result.claimed).toBe(true);expect(result.task.answers[0]).toMatchObject({kind:'instruction',sourceExcerpt:'',answer:'请精简实习那段，不要加新事实。'});
+  expect(factualResumeAnswers(result.task.answers)).toEqual([]);expect(currentResumeAnswer(result.task.answers)).toBeNull();
+  expect(await persistResumeAnswerClaims(db.rows('coach_resume_tasks')[0] as never)).toEqual([]);expect(db.rows('coach_claims')).toEqual([]);
+  expect(db.rows('coach_opportunities')[0].metadata).toMatchObject({resumeText:source});
+  Object.assign(db.rows('coach_resume_tasks')[0],{state:'ready'});
+  expect((await claimResumeTask('owner','opp',{action:'revise',answer:'请精简实习那段，不要加新事实。'})).claimed).toBe(false);
+  expect(db.rows('coach_resume_tasks')[0].answers).toHaveLength(1);
+});
+test('revision directions are bounded and concurrent requests cannot double-generate',async()=>{
+  Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed',question:null});
+  await expect(claimResumeTask('owner','opp',{action:'revise',answer:' '.repeat(3)})).rejects.toThrow('1–2000');
+  await expect(claimResumeTask('owner','opp',{action:'revise',answer:'长'.repeat(2001)})).rejects.toThrow('1–2000');
+  const results=await Promise.allSettled([1,2].map(()=>claimResumeTask('owner','opp',{action:'revise',answer:'精简已有文字'})));
+  expect(results.filter(item=>item.status==='fulfilled'&&item.value.claimed)).toHaveLength(1);expect(db.rows('coach_resume_tasks')[0].answers).toHaveLength(1);
+});
 test('刷新只读当前一问；显式开始允许先修改已有事实，不被旧补问卡住',async()=>{expect((await readResumeTask('owner','opp'))?.question).toEqual(q);expect(db.rows('coach_resume_tasks')[0].state).toBe('needs_detail');const result=await claimResumeTask('owner','opp',{action:'start'});expect(result.claimed).toBe(true);expect(result.task.answers).toEqual([]);expect(JSON.stringify(result.task)).not.toContain('lease_id');});
 test('先保存回答再持有生成租约，原简历和旧作答不变',async()=>{const result=await claimResumeTask('owner','opp',{action:'answer',questionId:q.id,answer:'我把访谈记录分成三类。'});expect(result.claimed).toBe(true);expect(result.task.answers[0]).toMatchObject({answer:'我把访谈记录分成三类。',field:'action'});expect(result.task.answers[0].claimId).toMatch(/^[a-f0-9-]{36}$/);expect(db.rows('coach_opportunities')[0].metadata).toMatchObject({resumeText:source});expect(db.rows('interview_answers')).toEqual([]);});
 test('双并发只有一个租约，重复答复不会增加第二条材料',async()=>{const results=await Promise.allSettled([1,2].map(()=>claimResumeTask('owner','opp',{action:'answer',questionId:q.id,answer:'本人整理了访谈记录。'})));expect(results.filter(r=>r.status==='fulfilled'&&r.value.claimed)).toHaveLength(1);expect((db.rows('coach_resume_tasks')[0].answers as unknown[])).toHaveLength(1);});

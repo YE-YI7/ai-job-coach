@@ -263,6 +263,21 @@ describe("resume draft source mapping", () => {
     expect(await response.json()).toMatchObject({reasonCode:'resume_draft_unverified',retryable:true});
   });
 
+  test('safe valuable edits elsewhere survive an unhandled supplement after one bounded repair',async()=>{
+    const gap='参与校园工具项目，负责需求整理和讨论。';
+    const resume=gap+'\n负责模型评测';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[{id:'answer-1',sourceExcerpt:gap,answer:'我整理了需求清单。',claimId:'claim-1'}]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    const draft=JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(draft).mockResolvedValueOnce(draft).mockResolvedValueOnce(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:resume,findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:resume,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    const body=await response.json();expect(body).toMatchObject({ok:true});expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);
+    expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),expect.objectContaining({ok:true,summary:expect.stringContaining('刚才补充的那段暂未形成可靠改写')}));
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+  });
+
   test('guided task repairs one rejected draft within the same quota reservation',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'主导模型评测全流程',sourceIds:['claim-1']}]}))
@@ -432,7 +447,7 @@ describe("resume draft source mapping", () => {
     }));
 
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, reasonCode: "resume_draft_unverified", error: expect.stringContaining("未通过事实校验"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
+await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, reasonCode: "resume_draft_unverified", error: expect.stringContaining("没能生成可用的修改"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
     expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({

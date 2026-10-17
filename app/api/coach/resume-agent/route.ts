@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     if (!uuid.test(body.opportunityId || "")) return reply({ ok: false, error: "简历编号无效" }, 400);
-    if(!['start','restart','answer','skip','retry'].includes(body.action))return reply({ok:false,error:'改稿动作无效'},400);
+    if(!['start','restart','answer','skip','retry','revise'].includes(body.action))return reply({ok:false,error:'改稿动作无效'},400);
     claimed = await claimResumeTask(user.id, body.opportunityId, body);
     if (!claimed.claimed) return reply({ ok: true, task: claimed.task, replayed: true });
     const response = await draftResume(new Request(request.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({

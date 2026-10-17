@@ -8,6 +8,8 @@ export interface ResumeAgentQuestion {
   field: ResumeQuestionField;
 }
 export interface ResumeAgentAnswer extends ResumeAgentQuestion {
+  /** Editing directions are private context, never evidence of experience. */
+  kind?: "instruction";
   answer: string;
   skipped?: boolean;
   savedAt: string;
@@ -25,7 +27,7 @@ export interface ResumeAgentTask {
 
 /** 不把待回答、模型推断或“暂不补充”变成经历事实。 */
 export function factualResumeAnswers(answers: ResumeAgentAnswer[]) {
-  return answers.filter(item => !item.skipped && item.answer.trim());
+  return answers.filter(item => item.kind !== "instruction" && !item.skipped && item.answer.trim());
 }
 
 export function anchoredResumeExcerpt(source:string,excerpt:string){

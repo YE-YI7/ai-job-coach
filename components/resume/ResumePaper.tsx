@@ -120,7 +120,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
       const sections=Array.from(main.querySelectorAll<HTMLElement>('section[data-resume-block]'));
       const selectSection=(event:Event)=>{
         const target=event.target as HTMLElement;
-        if(!window.matchMedia('(hover: none)').matches||target.closest('button,a,[data-change-id]'))return;
+        if(target.closest('button,a,[data-change-id],.resume-live-editor'))return;
         const selected=target.closest<HTMLElement>('section[data-resume-block]');
         sections.forEach(section=>{if(section===selected)section.dataset.editingActive='true';else delete section.dataset.editingActive;});
       };

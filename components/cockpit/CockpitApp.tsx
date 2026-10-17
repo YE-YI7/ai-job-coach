@@ -1141,7 +1141,7 @@ function CockpitWorkspace({
         {creating && <CreationRail />}
         {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
           resumeContext={active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume"}
-          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume} onAnswer={supplementResumeDraft} onContinue={()=>generateResumeDraft()} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
+          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume} onAnswer={supplementResumeDraft} onRequest={request=>runResumeAgent("revise",request)} onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}

@@ -1404,7 +1404,7 @@
 @media(max-width:700px){.resumeContinueLink,.resumeExportConfirmation button{min-height:44px}}
 
 /* 编辑区按文档组织，低频工具由 ResumeToolbar 的原生浮层承载。 */
-.resumeDocument{background:#f2f3ef;border-radius:12px}
+.resumeDocument{background:linear-gradient(150deg,#f5f6f2 0%,#eef0ea 100%);border-radius:12px}
 .resumeDocument .documentBody{padding:22px 32px 48px}
 .resumeDocument .demoNotice{padding-top:10px;padding-bottom:0}
 .resumeDocument .profileWorkspace{padding-top:22px;padding-inline:28px}
@@ -1415,9 +1415,13 @@
 .workspace:has(>.resumeDocument)>.actionRail{padding:28px 22px 16px;background:#fafbf8;border-radius:12px 0 0 12px}
 .resumeCanvas{min-width:0;padding:0}
 .resumeStudio .exportControls.exportCompact{position:relative;max-width:270px;justify-content:flex-end}
-.resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 13px;font-size:13px;border:0;border-radius:8px;white-space:nowrap;box-shadow:0 1px 2px rgb(32 39 31 / .12),inset 0 1px 0 rgb(255 255 255 / .08)}
+.resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 14px;font-size:13px;border:0;border-radius:9px;white-space:nowrap;background:linear-gradient(180deg,#3a4239 0%,#272e27 100%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .16),inset 0 -1px 0 rgb(0 0 0 / .22),0 1px 2px rgb(32 39 31 / .18),0 3px 6px rgb(32 39 31 / .07);transition:background-color 160ms ease,box-shadow 160ms ease,transform 160ms cubic-bezier(.22,1,.36,1)}
+.resumeStudio .exportControls .exportAction:hover:not(:disabled){background:linear-gradient(180deg,#485045 0%,#343c32 100%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .18),inset 0 -1px 0 rgb(0 0 0 / .2),0 2px 3px rgb(32 39 31 / .16),0 5px 10px rgb(32 39 31 / .1)}
+.resumeStudio .exportControls .exportAction:active:not(:disabled){transform:translateY(1px);background:#272e27;box-shadow:inset 0 1px 2px rgb(0 0 0 / .2),0 1px 1px rgb(32 39 31 / .08)}
+.resumeStudio .exportControls .exportAction:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
 .resumeStudio .exportControls small{font-size:11px;max-width:29ch;text-align:right;line-height:1.5}
 .resumeReplacement{margin:0 0 22px;padding:0 0 16px;border-bottom:1px solid var(--line)}
 .resumeReplacement>div:first-child{display:flex;align-items:center;justify-content:space-between;font-size:14px}
 .resumeReplacement>div:first-child>button{min-height:36px;padding:6px 0 6px 12px;border:0;background:transparent;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
 @media(max-width:700px){.resumeDocument .documentBody,.resumeDocument .profileWorkspace{padding-inline:16px;padding-top:16px}.resumeStudio .exportControls .exportAction{min-height:44px}.resumeStudio .exportControls.exportCompact{max-width:220px}.resumeStudio .exportControls small{max-width:25ch}.resumeReplacement>div:first-child>button{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.resumeStudio .exportControls .exportAction{transition:none}.resumeStudio .exportControls .exportAction:active:not(:disabled){transform:none}}

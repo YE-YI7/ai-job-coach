@@ -25,9 +25,12 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
   const contentObserver = useRef<ResizeObserver | null>(null);
   const contentCleanup = useRef<(() => void) | null>(null);
   const pendingFocus = useRef<string | null>(null);
+  const expectedDocument = useRef("");
   const restoreEditorFocus = useCallback(() => {
     const document = frame.current?.contentDocument;
-    if (!pendingFocus.current || document?.readyState !== "complete") return;
+    // srcDoc changes asynchronously: a complete *previous* Document must not
+    // consume the focus receipt before the new document has loaded.
+    if (!pendingFocus.current || document?.readyState !== "complete" || document.documentElement.dataset.resumeRender !== expectedDocument.current) return;
     const section = document.querySelector<HTMLElement>(`section[data-resume-block="${CSS.escape(pendingFocus.current)}"]`);
     const control = section?.querySelector<HTMLButtonElement>(".resume-edit") || document.querySelector<HTMLButtonElement>(".resume-edit");
     if (control) { control.focus({preventScroll:true}); pendingFocus.current = null; }
@@ -64,6 +67,13 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
   const paperWidth=reading?Math.max(280,width):RESUME_PAPER_WIDTH;
   const ink=review?.ink,interactive=Boolean(review);
   const html = useMemo(() => resumePrintHtml(text, template, title, { toolbar: false, highlight, ink, interactive, reading }), [text, template, title, highlight, ink, interactive,reading]);
+  const frameHtml = useMemo(() => {
+    let fingerprint = 2166136261;
+    for (let index = 0; index < html.length; index++) fingerprint = Math.imul(fingerprint ^ html.charCodeAt(index), 16777619);
+    const key = (fingerprint >>> 0).toString(36);
+    return { key, source: html.replace('<html lang="zh-CN"', `<html lang="zh-CN" data-resume-render="${key}"`) };
+  }, [html]);
+  useLayoutEffect(() => { expectedDocument.current = frameHtml.key; }, [frameHtml.key]);
   const scale = actualSize||reading ? 1 : Math.min(1, width / RESUME_PAPER_WIDTH);
 
   useEffect(() => {
@@ -170,8 +180,8 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
     {!controlsBelow && zoom}
     <div className={styles.viewport} ref={host}>
       <div className={styles.paperSize} style={{ width: paperWidth * scale, height: height * scale }}>
-        <iframe ref={frame} className={styles.paper} title={title} sandbox="allow-same-origin" srcDoc={html}
-          style={{ width: paperWidth, height, transform: `scale(${scale})` }} onLoad={() => { const document=frame.current?.contentDocument; if(document)setLoadedFrame({document}); measureContent(); }} />
+        <iframe ref={frame} className={styles.paper} title={title} sandbox="allow-same-origin" srcDoc={frameHtml.source}
+          style={{ width: paperWidth, height, transform: `scale(${scale})` }} onLoad={() => { const document=frame.current?.contentDocument; if(document)setLoadedFrame({document}); measureContent(); requestAnimationFrame(restoreEditorFocus); }} />
       </div>
     </div>
     {controlsBelow && zoom}

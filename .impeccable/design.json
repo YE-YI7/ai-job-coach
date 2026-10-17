@@ -43,7 +43,9 @@
       "cockpit-studio-composer": { "role": "neutral", "displayName": "导师输入近白底" },
       "cockpit-studio-composer-line": { "role": "neutral", "displayName": "导师输入边界" },
       "cockpit-studio-composer-focus": { "role": "neutral", "displayName": "导师聚焦边界" },
-      "resume-workspace": { "role": "neutral", "displayName": "简历编辑衬底", "canonical": "#f5f6f2" }
+      "resume-workspace": { "role": "neutral", "displayName": "简历编辑衬底", "canonical": "#f5f6f2", "tonalRamp": ["#f5f6f2", "#eef0ea"] },
+      "resume-tool-ink": { "role": "neutral", "displayName": "简历墨色工具面", "canonical": "#272e27", "tonalRamp": ["#485045", "#3a4239", "#343c32", "#272e27"] },
+      "resume-tool-ceramic": { "role": "neutral", "displayName": "简历近白工具面", "canonical": "#fafbf8", "tonalRamp": ["#ffffff", "#fafbf8", "#f1f3ed"] }
     },
     "typographyMeta": {
       "display": { "displayName": "岗位标题", "purpose": "当前机会的唯一一级标题。" },
@@ -73,8 +75,9 @@
       { "name": "resume-paper-screen", "value": "0 8px 28px rgba(41,40,35,.06)", "purpose": "共用文档 HTML 的屏幕阴影；打印关闭。" },
       { "name": "cockpit-studio-account", "value": "0 12px 40px rgba(33,37,31,.16)", "purpose": "工作室账户展开浮层，不用于常规内容面。" },
       { "name": "cockpit-studio-mode", "value": "0 9px 28px rgba(37,43,31,.15)", "purpose": "导师输入附近的模式菜单。" },
-      { "name": "resume-options", "value": "0 8px 32px rgb(29 35 28 / .15)", "purpose": "原生顶层简历选项菜单，不用于正文容器。" },
-      { "name": "resume-decision", "value": "0 8px 30px rgb(39 43 39 / .15)", "purpose": "就近采纳浮层，按内容实高调整位置。" }
+      { "name": "resume-options", "value": "inset 0 1px 0 #fff,inset 0 -1px 0 rgb(39 43 39 / .07),0 2px 4px rgb(29 35 28 / .1),0 16px 40px -8px rgb(29 35 28 / .22)", "purpose": "原生顶层简历选项菜单，近白透色面局部blur12px，文字不虚化；不用于正文容器。" },
+      { "name": "resume-decision", "value": "inset 0 1px 0 #fff,inset 0 -1px 0 rgb(39 43 39 / .07),0 2px 4px rgb(29 35 28 / .1),0 16px 40px -8px rgb(29 35 28 / .22)", "purpose": "就近采纳浮层，与选项同材质，按内容实高调整位置。" },
+      { "name": "resume-review-paper", "value": "0 1px 1px rgb(34 40 33 / .12),0 4px 8px -3px rgb(34 40 33 / .1),0 18px 36px -12px rgb(34 40 33 / .14)", "purpose": "仅reviewViewer的屏幕纸张：接触影与环境影，iframe外1px极浅内沿，不进PDF。" }
     ],
     "motion": [
       { "name": "resume-context-menu", "value": "160ms cubic-bezier(.22,1,.36,1), translateY(-4px)", "purpose": "简历上下文菜单轻入场，减少动态效果时关闭，不用于正文入场。" },

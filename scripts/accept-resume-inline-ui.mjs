@@ -17,13 +17,31 @@ const checks=[];
 let page;
 try{
  page=await browser.newPage({viewport:{width:1512,height:982}});
- page.setDefaultTimeout(6000);
+ page.setDefaultTimeout(15000);
  await page.goto(origin+'/cockpit/preview?studio=1&tab=resume',{waitUntil:'domcontentloaded',timeout:30000});
  await page.getByRole('heading',{name:'把经历写清楚，也写出分量。'}).waitFor();
  const paper=page.frameLocator('iframe[title="简历 · 原位修改"]');
  await paper.getByRole('heading',{name:'工作经历',exact:true}).waitFor();
  await page.evaluate(()=>window.scrollTo(0,0));
- await page.screenshot({path:join(output,'desktop.png')});
+ await page.screenshot({path:join(output,'desktop.png'),timeout:30000});
+ await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ const options=page.getByRole('dialog',{name:'简历选项',exact:true});
+ await options.waitFor();
+ assert.equal(await options.getByRole('button').first().evaluate(element=>element===document.activeElement),true);
+ await page.screenshot({path:join(output,'desktop-menu.png'),timeout:30000,animations:'disabled'});
+ await options.press('Escape');
+ assert.equal(await page.getByRole('button',{name:'简历更多选项',exact:true}).evaluate(element=>element===document.activeElement),true);
+ await paper.locator('[data-change-id]').first().click();
+ await page.getByRole('dialog',{name:'处理这处修改',exact:true}).waitFor();
+ await page.screenshot({path:join(output,'desktop-decision.png'),timeout:30000});
+ await paper.getByRole('heading',{name:'工作经历',exact:true}).click();
+ await page.getByRole('dialog',{name:'处理这处修改',exact:true}).waitFor({state:'detached'});
+ await page.getByRole('button',{name:'导出 PDF',exact:true}).click();
+ const consent=page.getByRole('dialog').filter({has:page.getByRole('heading',{name:'导出这份修改稿？',exact:true})});
+ await consent.waitFor();
+ await page.screenshot({path:join(output,'desktop-export-consent.png'),timeout:30000});
+ await consent.getByRole('button',{name:'继续核对',exact:true}).click();
+ checks.push('Context menu keyboard entry and return, in-place decision dismissal and export cancellation remain usable');
  const editHeading=()=>paper.getByRole('button',{name:/^编辑工作经历/}).click();
  await editHeading();
  await paper.getByRole('textbox',{name:'简历区块标题',exact:true}).fill('工作经历与成果');
@@ -92,7 +110,7 @@ try{
  await paper.getByRole('heading',{name:/松间网络/}).waitFor();
  checks.push('Confirmed block deletion can be undone');
  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
- const phone=await mobile.newPage();phone.setDefaultTimeout(6000);
+ const phone=await mobile.newPage();phone.setDefaultTimeout(15000);
  await phone.goto(origin+'/cockpit/preview?studio=1&tab=resume',{waitUntil:'domcontentloaded',timeout:30000});
  await phone.getByRole('button',{name:'阅读视图',exact:true}).waitFor();
  const mp=phone.frameLocator('iframe[title="简历 · 原位修改"]');
@@ -104,9 +122,23 @@ try{
  await mp.getByRole('heading',{name:'移动端标题验收',exact:true}).waitFor();
  assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await phone.screenshot({path:join(output,'mobile.png')});
+ await phone.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ const phoneMenu=phone.getByRole('dialog',{name:'简历选项',exact:true});
+ const menuRect=await phoneMenu.boundingBox();
+ assert.ok(menuRect&&menuRect.x>=12&&menuRect.x+menuRect.width<=378);
+ await phone.screenshot({path:join(output,'mobile-menu.png'),timeout:30000,animations:'disabled'});
+ assert.equal(await phoneMenu.evaluate(element=>getComputedStyle(element).opacity),'1');
+ await phoneMenu.press('Escape');
  checks.push('Touch selection, inline save and 390px reflow work without horizontal page overflow');
+ await page.setViewportSize({width:1100,height:900});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.screenshot({path:join(output,'intermediate.png'),timeout:30000});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const revise=page.getByRole('button',{name:'重新修改',exact:true});
+ assert.equal(await revise.evaluate(element=>getComputedStyle(element).transitionDuration),'0s');
+ checks.push('Intermediate layout fits; reduced motion disables new control transitions');
  console.log(JSON.stringify({passed:true,synthetic:true,cloud:false,checks,output},null,2));
 }catch(error){
- if(page){await page.screenshot({path:join(output,'failure.png')});console.error(JSON.stringify({failed:true,checks,output,focus:await page.evaluate(()=>({parent:document.activeElement?.outerHTML.slice(0,160),frame:document.querySelector('iframe')?.contentDocument?.activeElement?.outerHTML.slice(0,200)})),frame:await page.frameLocator('iframe[title="简历 · 原位修改"]').locator('body').evaluate(b=>({template:b.className,editors:b.querySelectorAll('.resume-live-editor').length,sections:[...b.querySelectorAll('section[data-resume-block]')].map(s=>({id:s.dataset.resumeBlock,editing:s.dataset.inlineEditing,heading:s.querySelector('h2,h3')?.textContent}))})).catch(()=>null)}));}
+ if(page){await page.screenshot({path:join(output,'failure.png'),timeout:30000}).catch(()=>{});console.error(JSON.stringify({failed:true,error:String(error),checks,output,focus:await page.evaluate(()=>({parent:document.activeElement?.outerHTML.slice(0,160),frame:document.querySelector('iframe')?.contentDocument?.activeElement?.outerHTML.slice(0,200)})),frame:await page.frameLocator('iframe[title="简历 · 原位修改"]').locator('body').evaluate(b=>({template:b.className,editors:b.querySelectorAll('.resume-live-editor').length,sections:[...b.querySelectorAll('section[data-resume-block]')].map(s=>({id:s.dataset.resumeBlock,editing:s.dataset.inlineEditing,heading:s.querySelector('h2,h3')?.textContent}))})).catch(()=>null)}));}
  throw error;
 }finally{await browser.close();}

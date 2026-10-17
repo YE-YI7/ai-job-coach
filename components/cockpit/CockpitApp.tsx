@@ -57,6 +57,7 @@ import ResumeToolbar from "./ResumeToolbar";
 import {getTodayMentorPlan} from "@/lib/coach-harness/next-action";
 import { applyResumeChanges } from "@/lib/coach-harness/application-quality";
 import ResumeBlockBoard from "./ResumeInlineReview";
+import { ResumeDraftSession } from "./ResumeDraftSession";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
 import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
@@ -147,7 +148,17 @@ function coverageTotal(opportunity: Opportunity) {
   return strong + weak + missing + unverified;
 }
 
-export function CockpitApp({
+export function CockpitApp(props: {
+  initialOpportunities: Opportunity[];
+  userEmail?: string;
+  userId?: string;
+  dataMode?: "demo" | "live";
+  initialTab?: CockpitTab;
+}) {
+  return <ResumeDraftSession key={props.userId || props.userEmail || props.dataMode || "demo"}><CockpitWorkspace {...props} /></ResumeDraftSession>;
+}
+
+function CockpitWorkspace({
   initialOpportunities,
   userEmail,
   userId,

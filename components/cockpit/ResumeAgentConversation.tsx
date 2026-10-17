@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Check, ArrowUp, Loader2 } from "lucide-react";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import styles from "./ResumeAgentConversation.module.css";
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
@@ -10,17 +11,17 @@ export default function ResumeAgentConversation({task,busy,onAnswer,onContinue,o
   const [now,setNow]=useState(()=>Date.now());
   useEffect(()=>{if(task.state!=='running')return;const timer=setInterval(()=>setNow(Date.now()),5000);return()=>clearInterval(timer);},[task.state]);
   if(task.state==='idle'||task.state==='stale')return null;
-  if(task.state==='ready'&&!task.question)return <div className={styles.conversation}><p role="status">{task.result?.unchanged?'已检查，当前内容可以保留。':'修改稿已保存。'}</p><p>{task.result?.unchanged?'本轮没有新增修改，仍可直接编辑或导出。':'可以直接编辑文字、确认建议，或预览 PDF。'}</p>{task.answers.length>0&&<details><summary>本次补充</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充':item.answer}</p></div>)}</details>}</div>;
-  if(task.state==='running')return <div className={styles.waiting}><p role="status">导师正在整理你的材料，已保存的补充不会丢失。</p>{now-Date.parse(task.updatedAt)>=330_000&&<button type="button" disabled={busy} onClick={onContinue}>这次等待较久，从已保存材料重试</button>}</div>;
+  if(task.state==='ready'&&!task.question)return <div className={styles.conversation}><p role="status" className={styles.complete}><Check size={17} aria-hidden="true"/>{task.result?.unchanged?'已检查，当前内容可以保留。':'修改稿已保存。'}</p><p>{task.result?.unchanged?'本轮没有新增修改，仍可直接编辑或导出。':'回到左侧简历，逐处核对，或直接编辑文字。'}</p>{task.answers.length>0&&<details><summary>本次补充</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充':item.answer}</p></div>)}</details>}</div>;
+  if(task.state==='running')return <div className={styles.waiting}><p role="status"><Loader2 size={17} className={styles.working} aria-hidden="true"/>正在整理你的材料</p><p>已保存的补充会继续用于这次修改。</p>{now-Date.parse(task.updatedAt)>=330_000&&<button type="button" disabled={busy} onClick={onContinue}>等待较久，从已保存材料重试</button>}</div>;
   return <div className={styles.conversation}>
     {task.answers.length>0&&<details><summary>已补充 {task.answers.length} 条</summary>{task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}</details>}
     {task.state==='failed'?<div className={styles.failed}><p role="alert">{task.error||'这次修改暂未完成，补充仍保留。'}</p><button type="button" disabled={busy} onClick={onContinue}>从已保存材料继续</button></div>:task.question&&<form onSubmit={async event=>{event.preventDefault();if(!answer.trim()||busy)return;setError('');try{await onAnswer(answer);setAnswer('');localStorage.removeItem(key);}catch(cause){setError(readableError(cause));}}}>
-      <p className={styles.voice}>{task.state==='ready'?'修改稿已保存。这处可以稍后补充，不影响查看和导出。':'导师'}</p>
+      {task.state==='ready'&&<p className={styles.voice}>修改稿已保存。这处可以稍后补充。</p>}
       <label htmlFor={`resume-answer-${task.id}`}>{task.question.question}</label>
       <details className={styles.anchor}><summary>对应原文</summary><p>{task.question.sourceExcerpt}</p></details>
       <textarea id={`resume-answer-${task.id}`} rows={3} maxLength={2000} value={answer} disabled={busy} placeholder="写你实际做过的内容；不知道也可以直接说。" onChange={event=>{setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* 内存中的输入保留。 */}}}/>
       {error&&<p role="alert">{error}</p>}
-      <div className={styles.actions}><button type="button" disabled={busy} onClick={async()=>{setError('');try{await onSkip();}catch(cause){setError(readableError(cause));}}}>{task.state==='ready'?'暂不补充':'先修改已有内容'}</button><button type="submit" disabled={busy||!answer.trim()}>{busy?'正在保存并整理…':'保存并继续'}</button></div>
+      <div className={styles.actions}><button type="button" disabled={busy} onClick={async()=>{setError('');try{await onSkip();}catch(cause){setError(readableError(cause));}}}>{task.state==='ready'?'暂不补充':'先修改已有内容'}</button><button type="submit" disabled={busy||!answer.trim()}>{busy?<Loader2 size={15} className={styles.working} aria-hidden="true"/>:<ArrowUp size={15} aria-hidden="true"/>}{busy?'正在保存…':'保存并继续'}</button></div>
     </form>}
   </div>;
 }

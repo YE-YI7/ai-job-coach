@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-14T23:49:44+08:00",
+  "generatedAt": "2026-10-17T06:13:09Z",
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
@@ -97,6 +97,13 @@
     ]
   },
   "components": [
+    {
+      "name": "Resume Inline Block Editor",
+      "kind": "custom",
+      "description": "普通区块在同一纸面位置临时展开，复用文档、墨色动作和外焦点；触屏为16px输入、44px动作。原文件与PDF不含编辑控件；会话内输入保留不等于云保存或模型验收，不扩展为全站输入或阴影规则。",
+      "html": "<div class=\"ds-resume-inline\" role=\"group\" aria-label=\"编辑简历段落\"><textarea aria-label=\"简历段落正文\" rows=\"3\">梳理高频客户问题，跟进需求与上线验收。</textarea><footer><button type=\"button\" aria-label=\"删除此块\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18M5 6l1 14h12l1-14M9 6V4h6v2M10 10v6M14 10v6\"/></svg></button><button type=\"button\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"m6 6 12 12M18 6 6 18\"/></svg>取消</button><button type=\"button\" data-save><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m20 6-11 11-5-5\"/></svg>保存这段文字</button></footer></div>",
+      "css": ".ds-resume-inline{padding:10px;border:0;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgb(27 34 27 / .08),0 6px 24px rgb(27 34 27 / .09);font:13px/1.6 'PingFang SC','Microsoft YaHei',sans-serif;color:var(--cockpit-studio-ink,#272b27)}.ds-resume-inline textarea{display:block;box-sizing:border-box;width:100%;min-height:34px;max-height:55vh;resize:vertical;margin:0;padding:4px 2px;border:0;border-radius:3px;background:transparent;font:inherit;font-size:14px;line-height:1.8;color:inherit;caret-color:var(--cockpit-studio-action-deep,#944429);outline:none}.ds-resume-inline:has(textarea:focus-visible){outline:2px solid #65745d;outline-offset:2px}.ds-resume-inline footer{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px}.ds-resume-inline button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:6px 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:12px/1.4 'PingFang SC',sans-serif;cursor:pointer}.ds-resume-inline button:first-child{margin-right:auto;color:#73766f}.ds-resume-inline button:hover:not(:disabled){background:#f0f1ed}.ds-resume-inline button[data-save]{background:var(--cockpit-studio-ink,#272b27);color:#fff;box-shadow:0 1px 2px rgb(27 34 27 / .14)}.ds-resume-inline button[data-save]:hover:not(:disabled){background:#41483f}.ds-resume-inline button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}.ds-resume-inline button:disabled{opacity:.45;cursor:default}.ds-resume-inline svg{width:14px;height:14px;flex:none}@media(max-width:700px){.ds-resume-inline textarea{font-size:16px}.ds-resume-inline button{min-height:44px;padding-inline:8px}}"
+    },
     {
       "name": "Resume Toolbar",
       "kind": "custom",

@@ -8,9 +8,11 @@ import { resumeInlineProjection } from "@/lib/opportunities/resume-inline";
 import { editableResumeBlock } from "@/lib/opportunities/resume-edit-history";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import ResumePaper from "@/components/resume/ResumePaper";
+import ResumeInlineEditor from "./ResumeInlineEditor";
+import { useResumeBlockDraft } from "./ResumeDraftSession";
 import styles from "./ResumeInlineReview.module.css";
 
-export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onReorder, onEditBlock, disabled=false, showMarks=true }: {
+type ResumeInlineReviewProps = {
   opportunity: Opportunity; onOpenEvidence?: () => void;
   onUpdate: (id: string, status: "accepted" | "rejected") => void;
   onEdit: (id: string, after: string) => void;
@@ -18,13 +20,18 @@ export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onRe
   showMarks?: boolean;
   disabled?:boolean;
   onEditBlock?:(id:string,text:string,expectedText:string)=>void;
-}) {
+};
+
+export default function ResumeInlineReview(props: ResumeInlineReviewProps) {
+  return <ResumeInlineReviewSession key={`${props.opportunity.id}:${props.opportunity.resumeRevision || ""}`} {...props} />;
+}
+
+function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, onEditBlock, disabled=false, showMarks=true }: ResumeInlineReviewProps) {
   const [template]=useResumeTemplate();
   const [active,setActive]=useState<{id:string;left:number;top:number;bottom:number;keyboard:boolean;restoreFocus:()=>void}|null>(null);
   const [editing,setEditing]=useState(false),[value,setValue]=useState("");
   const bubble=useRef<HTMLDivElement>(null);
-  const editor=useRef<HTMLDialogElement>(null);
-  const [blockEdit,setBlockEdit]=useState<{id:string;original:string;text:string;headingOnly:boolean}|null>(null);
+  const [blockEdit,setBlockEdit]=useResumeBlockDraft(`${opportunity.id}:${opportunity.resumeRevision || ""}`);
   const [confirmDelete,setConfirmDelete]=useState(false);
   const [editError,setEditError]=useState('');
   const projection=useMemo(()=>resumeInlineProjection(opportunity.resumeText||"",opportunity.resumeChanges,showMarks),[opportunity.resumeText,opportunity.resumeChanges,showMarks]);
@@ -36,6 +43,12 @@ export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onRe
     return original.length===shown.length&&original.every((id,index)=>id===shown[index])?original:[];
   },[opportunity.resumeText,projection.text]);
   const change=opportunity.resumeChanges.find(item=>item.id===active?.id&&item.status==='pending');
+  const saveBlock = () => {
+    if (!blockEdit || disabled) return;
+    if (!blockEdit.text.trim() && !confirmDelete) { setConfirmDelete(true); return; }
+    try { onEditBlock?.(blockEdit.id, confirmDelete ? '' : blockEdit.text, blockEdit.original); requestAnimationFrame(()=>blockEdit.restoreFocus?.()); setBlockEdit(null); setEditError(''); }
+    catch (error) { setEditError(error instanceof Error ? error.message : '保存失败，文字仍在。'); }
+  };
   useLayoutEffect(()=>{
     if(!active||!bubble.current)return;
     const height=bubble.current.getBoundingClientRect().height;
@@ -50,16 +63,8 @@ export default function ResumeInlineReview({ opportunity, onUpdate, onEdit, onRe
     return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',close);window.removeEventListener('resize',close);window.removeEventListener('scroll',close,true);};
   },[active]);
   return <div className={styles.workbench}>
-    <ResumePaper text={projection.text} template={template} title="简历 · 原位修改" showZoom controlsBelow review={{ink:projection.ink,blockIds,disabled,onMark:(id,rect,interaction)=>{if(active?.id!==id||interaction.keyboard){setEditing(false);setActive({id,...rect,...interaction});}},onDismiss:(restoreFocus=true)=>{if(restoreFocus)active?.restoreFocus();setActive(null);setEditing(false);},onReorder,onEditBlock:onEditBlock?id=>{const block=editableResumeBlock(opportunity,id);if(!block){setEditError('这块内容暂时无法定位，请先处理重叠建议后再编辑。');return;}setBlockEdit({id,original:block.text,text:block.text,headingOnly:block.headingOnly});setConfirmDelete(false);setEditError('');editor.current?.showModal();}:undefined}}/>
+    <ResumePaper text={projection.text} template={template} title="简历 · 原位修改" showZoom controlsBelow inlineEditor={blockEdit ? {blockId:blockEdit.id,content:<ResumeInlineEditor value={blockEdit.text} headingOnly={blockEdit.headingOnly} confirmingDelete={confirmDelete} disabled={disabled} error={editError} onChange={text=>setBlockEdit(current=>current?{...current,text}:null)} onDelete={()=>setConfirmDelete(true)} onCancel={()=>{if(confirmDelete)setConfirmDelete(false);else{requestAnimationFrame(()=>blockEdit.restoreFocus?.());setBlockEdit(null);}}} onSubmit={saveBlock}/>} : undefined} review={{ink:projection.ink,blockIds,disabled,onMark:(id,rect,interaction)=>{if(!blockEdit&&(active?.id!==id||interaction.keyboard)){setEditing(false);setActive({id,...rect,...interaction});}},onDismiss:(restoreFocus=true)=>{if(restoreFocus)active?.restoreFocus();setActive(null);setEditing(false);},onReorder,onEditBlock:onEditBlock?(id,restoreFocus)=>{if(blockEdit&&blockEdit.id!==id&&blockEdit.text!==blockEdit.original&&!window.confirm('当前段落还没有保存，放弃这次修改？'))return;const block=editableResumeBlock(opportunity,id);if(!block){setEditError('这块内容暂时无法定位，请先处理重叠建议后再编辑。');return;}setBlockEdit({id,original:block.text,text:block.text,headingOnly:block.headingOnly,restoreFocus});setConfirmDelete(false);setEditError('');setActive(null);}:undefined}}/>
     {editError&&!blockEdit&&<p role="alert">{editError}</p>}
-    <dialog ref={editor} className={styles.editor} aria-labelledby="resume-block-editor-title" onClose={()=>setBlockEdit(null)}>
-      <form onSubmit={event=>{event.preventDefault();if(!blockEdit||disabled)return;if(!blockEdit.text.trim()&&!confirmDelete){setConfirmDelete(true);return;}try{onEditBlock?.(blockEdit.id,confirmDelete?'':blockEdit.text,blockEdit.original);editor.current?.close();}catch(error){setEditError(error instanceof Error?error.message:'保存失败，文字仍在。');}}}>
-        <h2 id="resume-block-editor-title">{confirmDelete?'删除这块内容？':blockEdit?.headingOnly?'修改标题':'修改这段文字'}</h2>
-        {confirmDelete?<p role="status">只删除当前这块，不影响其他内容和原文件。删除后可以撤销。</p>:<textarea autoFocus aria-label={blockEdit?.headingOnly?'简历区块标题':'简历段落正文'} rows={blockEdit?.headingOnly?2:8} className={blockEdit?.headingOnly?styles.headingEditor:undefined} value={blockEdit?.text||''} maxLength={6000} onChange={event=>setBlockEdit(current=>current?{...current,text:event.target.value}:null)}/>}
-        {!confirmDelete&&<p>只修改当前工作稿，原文件保留。保存后也可以撤销。</p>}{editError&&<p role="alert">{editError}</p>}
-        <footer>{!confirmDelete&&<button type="button" className={styles.deleteBlock} disabled={disabled} onClick={()=>setConfirmDelete(true)}>删除此块</button>}<button type="button" onClick={()=>confirmDelete?setConfirmDelete(false):editor.current?.close()}>{confirmDelete?'继续编辑':'取消'}</button><button type="submit" disabled={disabled}>{confirmDelete?'确认删除':!blockEdit?.text.trim()?'删除此块':blockEdit.headingOnly?'保存标题':'保存这段文字'}</button></footer>
-      </form>
-    </dialog>
     {projection.findings.length>0&&<details className={styles.unlocated}><summary>有 {projection.findings.length} 处建议无法定位，原文未变</summary>{projection.findings.map(finding=><p key={finding.changeId}>{finding.message}<button type="button" onClick={()=>onUpdate(finding.changeId!,"rejected")}>保留原文</button></p>)}</details>}
     {active&&change&&showMarks&&!disabled&&createPortal(<div ref={bubble} role="dialog" aria-label="处理这处修改" className={styles.bubble} style={{left:Math.max(12,Math.min(active.left,window.innerWidth-332)),top:Math.max(12,Math.min(active.bottom+8,window.innerHeight-(editing?300:150)))}}>
       <div className={styles.decisions}><button type="button" aria-label="采纳这处修改" title="采纳" onClick={()=>{active.restoreFocus();onUpdate(change.id,"accepted");setActive(null);}}><Check size={16}/><span>采纳</span></button><button type="button" aria-label="拒绝这处修改，保留原文" title="保留原文" onClick={()=>{active.restoreFocus();onUpdate(change.id,"rejected");setActive(null);}}><X size={16}/><span>保留原文</span></button><button type="button" aria-label="自己修改这处文字" title="自己改" onClick={()=>{setValue(change.after);setEditing(true);}}><Pencil size={15}/></button></div>

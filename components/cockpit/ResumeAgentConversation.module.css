@@ -1,15 +1,22 @@
 .conversation{margin:8px 0 30px;max-width:680px;color:var(--cockpit-studio-ink,#272b27)}
+.conversation form>label{font-size:20px;line-height:1.65;font-weight:500;letter-spacing:0}
+.conversation form{padding-top:12px}
+.complete,.waiting>p:first-child{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:500;color:#343e30}
+.conversation>p+ p,.waiting>p+ p{font-size:14px;line-height:1.8;color:#636861;margin:10px 0 24px}
+.working{flex:none;animation:resume-progress 1s linear infinite}
+@keyframes resume-progress{to{transform:rotate(360deg)}}
 .conversation form{display:grid;gap:10px}.voice{margin:0;color:var(--cockpit-studio-muted,#636861);font-size:13px}
 .conversation label{font-size:18px;line-height:1.6;font-weight:500}
 .conversation details{font-size:13px;line-height:1.65;color:var(--cockpit-studio-muted,#636861)}
 .conversation details>div{margin-block:12px}.conversation details p{margin:6px 0}.conversation summary{cursor:pointer}
-.conversation textarea{font-family:inherit;font-size:15px;line-height:1.7;min-height:96px;width:100%;resize:vertical;border:0;border-radius:10px;background:var(--cockpit-studio-canvas,#eae9e4);padding:14px 16px;color:inherit;caret-color:var(--cockpit-studio-action,#aa4f2e)}
+.conversation textarea{font-family:inherit;font-size:15px;line-height:1.7;min-height:120px;width:100%;resize:vertical;border:0;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgb(35 42 32 / .06),0 5px 16px rgb(35 42 32 / .04);padding:14px 16px;color:inherit;caret-color:var(--cockpit-studio-action,#aa4f2e)}
 .conversation textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
 .conversation textarea:focus-visible,.conversation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
 .actions{display:flex;justify-content:flex-end;gap:16px;align-items:center;flex-wrap:wrap}
 .conversation button{font:inherit;color:inherit;border:0;background:transparent;padding:9px 12px;min-height:38px;cursor:pointer;border-radius:8px}
-.actions button[type=submit]{color:white;background:var(--cockpit-studio-action,#aa4f2e)}
+.actions button[type=submit]{display:inline-flex;align-items:center;gap:5px;color:white;background:#343d31}
 .conversation button:disabled{opacity:.6;cursor:default}.conversation button:hover:not(:disabled){filter:brightness(.94)}
 .failed p,.conversation [role=alert]{line-height:1.6;color:var(--cockpit-studio-action-deep,#944429)}
 .failed button{padding-left:0;text-decoration:underline;text-underline-offset:4px}.waiting{font-size:14px;line-height:1.7;color:var(--cockpit-studio-muted,#636861);margin-block:12px 24px}
+@media(prefers-reduced-motion:reduce){.working{animation:none}}
 @media(max-width:700px){.conversation label{font-size:17px}.conversation textarea{font-size:16px}.conversation button{min-height:44px}}

@@ -1404,15 +1404,18 @@
 @media(max-width:700px){.resumeContinueLink,.resumeExportConfirmation button{min-height:44px}}
 
 /* 编辑区按文档组织，低频工具由 ResumeToolbar 的原生浮层承载。 */
-.resumeDocument{background:#f5f6f2}
-.resumeDocument .documentBody{padding-top:20px;padding-inline:28px}
+.resumeDocument{background:#f2f3ef;border-radius:12px}
+.resumeDocument .documentBody{padding:22px 32px 48px}
 .resumeDocument .demoNotice{padding-top:10px;padding-bottom:0}
 .resumeDocument .profileWorkspace{padding-top:22px;padding-inline:28px}
 .resumeDocument .profileHeading{margin-bottom:6px}
 .resumeDocument .saveReceipt{padding-top:8px;min-height:23px;color:var(--cockpit-studio-muted,#636861)}
+.resumeDocument .saveReceipt{padding:12px 28px 0;text-align:right;font-size:12px;line-height:1.5}
+.resumeDocument .saveReceipt button{margin-left:8px}
+.workspace:has(>.resumeDocument)>.actionRail{padding:28px 22px 16px;background:#fafbf8;border-radius:12px 0 0 12px}
 .resumeCanvas{min-width:0;padding:0}
 .resumeStudio .exportControls.exportCompact{position:relative;max-width:270px;justify-content:flex-end}
-.resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 13px;font-size:13px;border:0;border-radius:7px;white-space:nowrap}
+.resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 13px;font-size:13px;border:0;border-radius:8px;white-space:nowrap;box-shadow:0 1px 2px rgb(32 39 31 / .12),inset 0 1px 0 rgb(255 255 255 / .08)}
 .resumeStudio .exportControls small{font-size:11px;max-width:29ch;text-align:right;line-height:1.5}
 .resumeReplacement{margin:0 0 22px;padding:0 0 16px;border-bottom:1px solid var(--line)}
 .resumeReplacement>div:first-child{display:flex;align-items:center;justify-content:space-between;font-size:14px}

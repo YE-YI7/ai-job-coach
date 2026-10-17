@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { resumePrintHtml, type PrintTemplate } from "@/lib/resume-print";
 import styles from "./ResumePaper.module.css";
 import type { ResumeInk } from "@/lib/opportunities/resume-inline";
@@ -9,25 +10,56 @@ import type { ResumeInk } from "@/lib/opportunities/resume-inline";
 export const RESUME_PAPER_WIDTH = 210 * 96 / 25.4;
 const PAGE_HEIGHT = 297 * 96 / 25.4;
 
-export default function ResumePaper({ text, template, title = "简历成稿", showZoom = false, controlsBelow = false, highlight, review }: {
+export default function ResumePaper({ text, template, title = "简历成稿", showZoom = false, controlsBelow = false, highlight, review, inlineEditor }: {
   text: string;
   template: PrintTemplate;
   title?: string;
   showZoom?: boolean;
   controlsBelow?: boolean;
   highlight?: string;
-  review?: { ink: ResumeInk[]; blockIds: string[]; onMark: (id: string, rect: {left:number;top:number;bottom:number}, interaction:{keyboard:boolean;restoreFocus:()=>void}) => void; onReorder: (from: string, to: string) => void; onDismiss?:(restoreFocus?:boolean)=>void; onEditBlock?:(id:string)=>void; disabled?:boolean };
+  inlineEditor?: { blockId: string; content: ReactNode };
+  review?: { ink: ResumeInk[]; blockIds: string[]; onMark: (id: string, rect: {left:number;top:number;bottom:number}, interaction:{keyboard:boolean;restoreFocus:()=>void}) => void; onReorder: (from: string, to: string) => void; onDismiss?:(restoreFocus?:boolean)=>void; onEditBlock?:(id:string,restoreFocus?:()=>void)=>void; disabled?:boolean };
 }) {
   const host = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const contentObserver = useRef<ResizeObserver | null>(null);
   const contentCleanup = useRef<(() => void) | null>(null);
+  const pendingFocus = useRef<string | null>(null);
+  const restoreEditorFocus = useCallback(() => {
+    const document = frame.current?.contentDocument;
+    if (!pendingFocus.current || document?.readyState !== "complete") return;
+    const section = document.querySelector<HTMLElement>(`section[data-resume-block="${CSS.escape(pendingFocus.current)}"]`);
+    const control = section?.querySelector<HTMLButtonElement>(".resume-edit") || document.querySelector<HTMLButtonElement>(".resume-edit");
+    if (control) { control.focus({preventScroll:true}); pendingFocus.current = null; }
+  }, []);
   const reviewRef = useRef(review);
   useEffect(()=>{reviewRef.current=review;},[review]);
   const [width, setWidth] = useState(RESUME_PAPER_WIDTH);
   const [height, setHeight] = useState(PAGE_HEIGHT);
   const [actualSize, setActualSize] = useState(false);
   const [mobile,setMobile]=useState(false);
+  // srcDoc navigation may expose a document before its sections are ready.
+  // A load receipt always rerenders the portal, even if the Document identity
+  // was already observed by the hydration fallback.
+  const [loadedFrame, setLoadedFrame] = useState<{document: Document} | null>(null);
+  const loadedDocument = loadedFrame?.document;
+  const editorBlockId = inlineEditor?.blockId;
+  const previousEditorBlock = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const previous = previousEditorBlock.current;
+    previousEditorBlock.current = editorBlockId;
+    // Restored drafts intentionally contain no old DOM callbacks. The current
+    // iframe owns focus on every close, including after a view remount.
+    if (previous && !editorBlockId) {
+      pendingFocus.current = previous;
+    }
+  }, [editorBlockId]);
+  const editTarget = editorBlockId && loadedDocument?.querySelector<HTMLElement>(`section[data-resume-block="${CSS.escape(editorBlockId)}"]`);
+  useLayoutEffect(() => {
+    if (!editTarget) return;
+    editTarget.dataset.inlineEditing = "true";
+    return () => { delete editTarget.dataset.inlineEditing; };
+  }, [editTarget]);
   const reading=Boolean(review)&&mobile&&!actualSize;
   const paperWidth=reading?Math.max(280,width):RESUME_PAPER_WIDTH;
   const ink=review?.ink,interactive=Boolean(review);
@@ -63,6 +95,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
     if (reviewRef.current && !reviewRef.current.disabled) {
       let returningFocus=false;
       const activate=(event:Event)=>{
+        if((event.target as HTMLElement).closest('.resume-live-editor'))return;
         if(event.type==='keydown'&&(event as KeyboardEvent).key==='Escape'){reviewRef.current?.onDismiss?.();return;}
         if(returningFocus||reviewRef.current?.disabled)return;
         const target=event.target as HTMLElement, mark=target.closest<HTMLElement>("[data-change-id]");
@@ -112,8 +145,17 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
   useEffect(() => {
     // srcDoc can finish loading before React hydrates and attaches onLoad.
     // Bind the already-loaded document too, including after a markup refresh.
-    measureContent();
-  }, [html, measureContent, review?.disabled]);
+    let focusTick = 0;
+    const tick = requestAnimationFrame(() => {
+      const document = frame.current?.contentDocument;
+      if (document?.readyState === 'complete' && document.querySelector('main')) setLoadedFrame({document});
+      measureContent();
+      // Bind both hydration and srcDoc controls before returning focus. A
+      // second frame avoids focusing a button that measureContent replaces.
+      focusTick = requestAnimationFrame(restoreEditorFocus);
+    });
+    return () => { cancelAnimationFrame(tick); cancelAnimationFrame(focusTick); };
+  }, [html, editorBlockId, measureContent, restoreEditorFocus, review?.disabled]);
 
   function revealHighlight() {
     setActualSize(true);
@@ -124,15 +166,16 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
     <button type="button" aria-pressed={actualSize} onClick={() => setActualSize(true)}>A4 原尺寸</button>
     {highlight && <button type="button" onClick={revealHighlight}>定位这处修改</button>}
   </div>;
-  return <div className={styles.viewer}>
+  return <div className={`${styles.viewer} ${review ? styles.reviewViewer : ""}`}>
     {!controlsBelow && zoom}
     <div className={styles.viewport} ref={host}>
       <div className={styles.paperSize} style={{ width: paperWidth * scale, height: height * scale }}>
         <iframe ref={frame} className={styles.paper} title={title} sandbox="allow-same-origin" srcDoc={html}
-          style={{ width: paperWidth, height, transform: `scale(${scale})` }} onLoad={measureContent} />
+          style={{ width: paperWidth, height, transform: `scale(${scale})` }} onLoad={() => { const document=frame.current?.contentDocument; if(document)setLoadedFrame({document}); measureContent(); }} />
       </div>
     </div>
     {controlsBelow && zoom}
     {reading&&<p className={styles.readingNote}>阅读视图 · 导出仍按 A4 排版</p>}
+    {inlineEditor && editTarget && createPortal(inlineEditor.content, editTarget)}
   </div>;
 }

@@ -177,12 +177,13 @@
 .panel[data-resume] .metadata{padding-bottom:12px}
 .panel[data-resume] .metadata .context{font-size:12px;line-height:1.6;color:var(--cockpit-studio-muted,#636861)}
 .panel[data-resume] .welcome{padding:20px 0}
+.panel[data-resume] .welcome>svg{display:none}
 .panel[data-resume] .welcome h3{max-width:13em;font-size:22px;font-weight:500;line-height:1.55;color:var(--cockpit-studio-ink,#272b27);margin:0 0 14px;letter-spacing:0}
 .panel[data-resume] .welcome p{font-size:14px;line-height:1.8;color:var(--cockpit-studio-muted,#636861)}
 .panel[data-resume] .welcome>p:last-child:not(:first-of-type){font-size:12px;margin-top:22px}
 .panel[data-resume] .welcome .quickStarts:empty{display:none}
-.panel[data-resume] form{padding:14px 14px 10px;background:#fff;border:1px solid var(--cockpit-studio-composer-line,#d2d6ca);border-radius:14px;box-shadow:none}
-.panel[data-resume] form:focus-within{border-color:var(--cockpit-studio-composer-focus,#8d9a7c)}
+.panel[data-resume] form{padding:14px 14px 10px;background:#fff;border:0;border-radius:14px;box-shadow:0 1px 3px rgb(32 39 31 / .07),0 5px 18px rgb(32 39 31 / .05)}
+.panel[data-resume] form:focus-within{outline:2px solid #8d9a7c;outline-offset:2px}
 .panel[data-resume] textarea{font-size:14px;min-height:72px;line-height:1.75;color:var(--cockpit-studio-ink,#272b27)}
 .panel[data-resume] textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
 .panel[data-resume] footer [type=submit]{min-width:34px;min-height:34px}

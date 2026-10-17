@@ -39,3 +39,44 @@
 ## 发布与正式验收
 
 首发 a44b317 / dpl_AaLyCuUoWY4EJBqRixytreUh7Zjz 双域 READY，云构建 98.499 秒、健康 database ok、匿名 401。正式独立 QA 的标题保存刷新、只针对自己机会的 PATCH503 失败保留/云端无新字/重试刷新已两次通过；但导出首次点击未触发，未提前签收 PDF。就绪保护修复后将发布替代版本，重验完整路径，完成后追加证据。
+
+### 最终 Deploy Result
+
+- URL：https://www.ai-job-coach.xin/cockpit；裸域同版。
+- Target：production；Status：READY。
+- Commit：`354eefffc08178c7af7cdc2a718a2b3515980199`。
+- Deployment：`dpl_4UphbEu4VvKLNViLvy1iFsj3Rxym`。
+- Framework：Next.js 16.3.0 / webpack。
+- Build Duration：97.629 秒（buildingAt → ready）。
+- Candidate：https://ai-job-coach-5dz74pg3h-velmavalienteqejimu22-jpgs-projects.vercel.app。
+
+先以本提交干净 Git archive 构建 production、`--skip-domain`，核实健康 database ok、匿名 resume-agent 401，确认正式双域仍是上一提交后 promote 同一构建，没有重建。www 与裸域 API 已回读到同一 deployment/commit/READY。中间 `4a5f211` 的就绪修复版也已被本版本替代；之前的“待验”是过程，不是当前发布状态。
+
+### 最终正式 Chrome 回放
+
+`scripts/accept-resume-material-production.mjs` 使用独立 Google Chrome（headless channel chrome），正常登录一次性免费 QA 身份，只用明示虚构的陈知远简历，不读取现有浏览器 Cookie 或真人旧材料。
+
+1. 原位改标题，等实际云存回执，刷新和同账号 GET 都恢复“项目实践与产出”。
+2. 只对 QA 机会的 PATCH 返回受控 503；段落仍在界面，同账号 GET 尚无新文字。移除拦截，点重试、等成功回执，再刷新后段落恢复。
+3. 经典、蓝灰、暖色逐个选版式，实际收起菜单后**单次**点击导出，三个新窗口真实出现；点击“保存为 PDF”各触发一次 beforeprint，再由同一 Chrome 打印引擎落盘。没有另造渲染器或改成截图 PDF。
+4. 三份导出均无编辑器、编辑按钮、拖柄或荧光标记；已保存标题和重试段落都在。每份逐页重渲染核看，均一页 A4、无文字截断、重叠或空白页，纸面阴影没有进 PDF。
+5. 390px 正式工作区无页面横向溢出；全程 pageerror 0、resume-agent 请求 0。本轮没有评价或改写模型质量。
+
+| 版式 | 页数 / 页面 | 文件大小 | 文字核对 |
+|---|---|---|---|
+| 经典黑白 | 1 / 594.96×841.92pt | 50377 bytes | 244 字符，NFKC 后保存标题/段落匹配 |
+| 简洁蓝灰 | 1 / 594.96×841.92pt | 189282 bytes | 同上 |
+| 温润纸感 | 1 / 594.96×841.92pt | 189279 bytes | 同上 |
+
+Chrome 导出的文字层含部分康熙部首兼容字形，按 Unicode NFKC 归一化后核对；未冒称任意 ATS 或所有长简历都一页。输出几何和正文渲染器未在本次修改。
+
+证据：[正式桌面](evidence/2026-10-17-resume-material/production-desktop.png)、[受控保存失败](evidence/2026-10-17-resume-material/production-save-failure.png)、[正式手机](evidence/2026-10-17-resume-material/production-mobile.png)；[经典 PDF](evidence/2026-10-17-resume-material/production-classic.pdf)、[蓝灰 PDF](evidence/2026-10-17-resume-material/production-modern.pdf)、[暖色 PDF](evidence/2026-10-17-resume-material/production-warm.pdf)。对应 `*-render.png` 为逐页核看产物。
+
+### 数据保护与运行边界
+
+- 旧 interview_answers 全程只读聚合、不读正文；起始、清理前后始终 41 条、同一整行聚合 MD5 `e07577b07eec07d4f8092ccf2594d2a1`。没有修改旧作答、真人简历、余额或额度。
+- QA 工作区经正常 DELETE 清理；退出登录后，只按已核对的精确 UUID、测试邮箱及邀请码删除虚构 public/auth 用户、会话、34 条 QA 产品事件和一次性 invite，回读工作区/用户/Auth/事件/invite 全 0。可按脚本重建虚构材料，不是删除真人历史；本地验收文件保留。
+- 首轮默认 Chrome 连接的登录等待超时、过短的测试等待和未关联 invoker 的菜单问题分别记录。最终独立 QA Chrome 仅在该进程禁用 HTTP/2/QUIC 完成真实 UI 回放，未改用户 Chrome 配置、安全限制或宣称所有连接问题已根治。
+- 最终提交再跑 2297 项回归通过、5 套件/9 项 opt-in 跳过，类型/lint、12 项本地 Chrome 和云构建通过。原文件上传/替换与新模型质量没有在本次扩大签收。
+- Post-deploy observability：该部署最近 5 分钟 error 查询无条目；project drains 0。仅短窗证据，长期监控仍有缺口，没有擅自购买服务。
+- 仅产品任务文件提交/推送；未跟踪的 `.impeccable/review/qisi-20261017/` 未混入，ME 共享状态存在其他会话暂存改动，留在工作树、不一起提交。

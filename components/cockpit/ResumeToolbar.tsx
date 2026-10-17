@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ChevronDown, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Redo2, Sparkles, Undo2, Upload } from "lucide-react";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import styles from "./ResumeToolbar.module.css";
+
+const subscribeReady = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 export default function ResumeToolbar({
   busy, canGenerate, needsDetail, hasChanges, pendingCount, fee, canUndo, canRedo,
@@ -21,6 +25,9 @@ export default function ResumeToolbar({
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  // The SSR paper can appear before React attaches actions. Native disabled
+  // controls must not look actionable during that gap (including popovers).
+  const ready = useSyncExternalStore(subscribeReady, clientReady, serverReady);
   const feeId = "resume-toolbar-fee";
 
   useEffect(() => {
@@ -57,23 +64,23 @@ export default function ResumeToolbar({
         <h2>{showOriginal ? "原简历" : "简历"}</h2>
         <span role="status">{busy ? "正在修改" : pendingCount ? `${pendingCount} 处待确认` : hasChanges ? "修改已处理" : "工作稿"}</span>
       </div>
-      <div className={styles.actions}>
+      <fieldset className={styles.actions} disabled={!ready} aria-label="简历主要操作" aria-busy={!ready}>
         <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy} disabled={busy || !canGenerate} onClick={onGenerate}>
           {busy ? <Loader2 size={16} className={styles.busyIcon} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改" : "开始修改"}
         </button>
         {exportControl}
-      </div>
+      </fieldset>
     </div>
     <div className={styles.utilityRow}>
       <div className={styles.history} role="group" aria-label="简历编辑历史">
-        <button type="button" aria-label="撤销简历修改" data-tooltip={canUndo ? "撤销" : "暂无可撤销的修改"} disabled={busy || !canUndo} onClick={onUndo}><Undo2 size={16} aria-hidden="true" /></button>
-        <button type="button" aria-label="重做简历修改" data-tooltip={canRedo ? "重做" : "暂无可重做的修改"} disabled={busy || !canRedo} onClick={onRedo}><Redo2 size={16} aria-hidden="true" /></button>
+        <button type="button" aria-label="撤销简历修改" data-tooltip={canUndo ? "撤销" : "暂无可撤销的修改"} disabled={!ready || busy || !canUndo} onClick={onUndo}><Undo2 size={16} aria-hidden="true" /></button>
+        <button type="button" aria-label="重做简历修改" data-tooltip={canRedo ? "重做" : "暂无可重做的修改"} disabled={!ready || busy || !canRedo} onClick={onRedo}><Redo2 size={16} aria-hidden="true" /></button>
       </div>
-      <button type="button" className={styles.marks} aria-label="修改标记" aria-pressed={showMarks && !showOriginal} data-tooltip={showMarks && !showOriginal ? "隐藏修改标记" : "显示修改标记"} onClick={() => onShowMarks(!showMarks || showOriginal)}>
+      <button type="button" className={styles.marks} disabled={!ready} aria-label="修改标记" aria-pressed={showMarks && !showOriginal} data-tooltip={showMarks && !showOriginal ? "隐藏修改标记" : "显示修改标记"} onClick={() => onShowMarks(!showMarks || showOriginal)}>
         {showMarks && !showOriginal ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}修改标记
       </button>
       <small id={feeId} className={styles.fee}>{fee}</small>
-      <button ref={trigger} type="button" className={styles.more} aria-label="简历更多选项" aria-expanded={open} aria-haspopup="dialog" aria-controls="resume-options-popover" popoverTarget="resume-options-popover" popoverTargetAction="toggle" data-tooltip="更多选项" onClick={event=>{event.preventDefault();toggle();}}>
+      <button ref={trigger} type="button" className={styles.more} disabled={!ready} aria-label="简历更多选项" aria-expanded={open} aria-haspopup="dialog" aria-controls="resume-options-popover" popoverTarget="resume-options-popover" popoverTargetAction="toggle" data-tooltip="更多选项" onClick={event=>{event.preventDefault();toggle();}}>
         <MoreHorizontal size={19} aria-hidden="true" />
       </button>
     </div>

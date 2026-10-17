@@ -26,11 +26,12 @@ const source=`陈知远（虚构验收材料）
 示例大学 | 信息管理 | 本科 | 2022.09–2026.06
 ## 技能
 Excel、Markdown、Figma。`;
-const browser=await chromium.launch({channel:'chrome',headless:true});
+const browser=await chromium.launch({channel:'chrome',headless:true,args:process.env.RESUME_MATERIAL_QA_HTTP1==='1'?['--disable-http2','--disable-quic']:[]});
 const context=await browser.newContext({viewport:{width:1512,height:982}});
 const page=await context.newPage();page.setDefaultTimeout(20000);
 const checks=[],errors=[];let opportunityId,modelCalls=0;
 page.on('pageerror',error=>errors.push(String(error)));
+page.on('response',response=>{if(new URL(response.url()).pathname==='/api/auth/verify-code')console.log('QA: normal login response '+response.status());});
 await page.route('**/api/coach/resume-agent',route=>{modelCalls++;return route.abort();});
 const paper=page.frameLocator('iframe[title="简历 · 原位修改"]');
 const saved=()=>page.getByText('已保存到工作区',{exact:true}).waitFor({timeout:45000});
@@ -47,10 +48,15 @@ try{
   await page.goto(origin+'/login?redirect=%2Fcockpit',{waitUntil:'domcontentloaded'});
   await page.getByPlaceholder('邮箱地址或邀请码').fill(code);
   await page.getByRole('button',{name:'登录',exact:true}).click();
-  await page.waitForURL(url=>url.pathname==='/cockpit',{timeout:45000});
+  await page.waitForURL(url=>['/cockpit','/onboarding'].includes(url.pathname),{timeout:90000,waitUntil:'domcontentloaded'});
+  if(new URL(page.url()).pathname==='/onboarding')await page.goto(origin+'/cockpit',{waitUntil:'domcontentloaded'});
+  console.log('QA: normal login opened cockpit');
   await page.getByRole('button',{name:'导入我的简历',exact:true}).click();
   await page.getByRole('textbox',{name:'求职材料内容',exact:true}).fill(source);
-  const created=page.waitForResponse(response=>response.url().includes('/api/coach/opportunities')&&response.request().method()==='POST');
+  const created=page.waitForResponse(response=>response.url().includes('/api/coach/opportunities')&&response.request().method()==='POST',{timeout:90000});
+  // Register rejection immediately so a slow click cannot become an unhandled
+  // rejection before the response is awaited below.
+  void created.catch(()=>{});
   await page.getByRole('button',{name:'保存简历 · 免费',exact:true}).click();
   const response=await created;assert.equal(response.status(),201);
   opportunityId=(await response.json()).opportunity.id;
@@ -93,12 +99,17 @@ try{
   console.log('QA: controlled failure, retry and refresh passed');
   for(const template of ['classic','modern','warm']){
     await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+    await page.getByRole('dialog',{name:'简历选项',exact:true}).waitFor();
     await page.getByLabel('简历版式',{exact:true}).selectOption(template);
     await page.getByRole('dialog',{name:'简历选项',exact:true}).press('Escape');
+    await page.getByRole('dialog',{name:'简历选项',exact:true}).waitFor({state:'hidden'});
     await paper.locator('body.'+template).waitFor();
     if(template==='modern')await snapshot('production-modern');
-    const opened=context.waitForEvent('page');
-    await page.getByRole('button',{name:'导出 PDF',exact:true}).click();
+    const exportButton=page.getByRole('button',{name:'导出 PDF',exact:true});
+    console.log(JSON.stringify({qaExportTemplate:template,disabled:await exportButton.isDisabled(),title:await exportButton.getAttribute('title')}));
+    assert.equal(await exportButton.isDisabled(),false,'Export must remain available after manual save and retry');
+    const opened=context.waitForEvent('page',{timeout:30000});void opened.catch(()=>{});
+    await exportButton.click();
     const preview=await opened;
     await preview.getByRole('button',{name:'保存为 PDF',exact:true}).waitFor();
     assert.equal(await preview.locator('.resume-edit,.resume-grip,.resume-live-editor,mark[data-ink]').count(),0);

@@ -171,3 +171,23 @@
 @container mentor (max-width:350px){.composerOptions{gap:2px}.panel form{padding:11px 12px}.panel header strong{font-size:16px}}
 @media(max-width:700px){.modeDisclosure>summary{min-height:44px}.modeDisclosure .modeSwitch button{min-height:44px}.panel footer [type="submit"]{min-height:44px;min-width:44px}.panel textarea{font-size:16px}}
 .welcome .quickStarts button:disabled{background:transparent;color:#65705d}.panel header button:disabled{background:transparent}
+
+/* 简历场景：安静的阅读区与就近的输入工具。 */
+.panel[data-resume]{color:var(--cockpit-studio-ink,#272b27);--mentor-reading:15px}
+.panel[data-resume] .metadata{padding-bottom:12px}
+.panel[data-resume] .metadata .context{font-size:12px;line-height:1.6;color:var(--cockpit-studio-muted,#636861)}
+.panel[data-resume] .welcome{padding:20px 0}
+.panel[data-resume] .welcome h3{max-width:13em;font-size:22px;font-weight:500;line-height:1.55;color:var(--cockpit-studio-ink,#272b27);margin:0 0 14px;letter-spacing:0}
+.panel[data-resume] .welcome p{font-size:14px;line-height:1.8;color:var(--cockpit-studio-muted,#636861)}
+.panel[data-resume] .welcome>p:last-child:not(:first-of-type){font-size:12px;margin-top:22px}
+.panel[data-resume] .welcome .quickStarts:empty{display:none}
+.panel[data-resume] form{padding:14px 14px 10px;background:#fff;border:1px solid var(--cockpit-studio-composer-line,#d2d6ca);border-radius:14px;box-shadow:none}
+.panel[data-resume] form:focus-within{border-color:var(--cockpit-studio-composer-focus,#8d9a7c)}
+.panel[data-resume] textarea{font-size:14px;min-height:72px;line-height:1.75;color:var(--cockpit-studio-ink,#272b27)}
+.panel[data-resume] textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
+.panel[data-resume] footer [type=submit]{min-width:34px;min-height:34px}
+.panel[data-resume] .guidedWorkflow form{padding:0;border:0;background:transparent;box-shadow:none}
+.panel[data-resume] .workflowSwitch{gap:22px;margin:4px 0 20px}
+.panel[data-resume] .workflowSwitch button{font-size:13px;text-decoration-thickness:1px}
+.panel[data-resume] .disclaimer{font-size:11px;line-height:1.6}
+@media(max-width:700px){.panel[data-resume] textarea{font-size:16px}.panel[data-resume] footer [type=submit]{min-height:44px;min-width:44px}}

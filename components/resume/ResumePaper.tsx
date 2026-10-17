@@ -75,6 +75,13 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
       };
       for(const name of ['mouseover','focusin','click','keydown'])main.addEventListener(name,activate);
       const sections=Array.from(main.querySelectorAll<HTMLElement>('section[data-resume-block]'));
+      const selectSection=(event:Event)=>{
+        const target=event.target as HTMLElement;
+        if(!window.matchMedia('(hover: none)').matches||target.closest('button,a,[data-change-id]'))return;
+        const selected=target.closest<HTMLElement>('section[data-resume-block]');
+        sections.forEach(section=>{if(section===selected)section.dataset.editingActive='true';else delete section.dataset.editingActive;});
+      };
+      main.addEventListener('click',selectSection);
       const ids=reviewRef.current.blockIds;
       let moving:string|null=null;
       let showHint=false;
@@ -98,7 +105,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
         grip.addEventListener('keydown',event=>{if(!event.altKey||!['ArrowUp','ArrowDown'].includes(event.key))return;const target=sections[index+(event.key==='ArrowUp'?-1:1)];if(target&&target.dataset.kind!=='header'&&ids.includes(target.dataset.resumeBlock!)){event.preventDefault();reviewRef.current?.onReorder(id,target.dataset.resumeBlock!);}});
         section.prepend(grip);
       });
-      contentCleanup.current=()=>{for(const name of ['mouseover','focusin','click','keydown'])main.removeEventListener(name,activate);};
+      contentCleanup.current=()=>{for(const name of ['mouseover','focusin','click','keydown'])main.removeEventListener(name,activate);main.removeEventListener('click',selectSection);};
     }
   }, []);
 

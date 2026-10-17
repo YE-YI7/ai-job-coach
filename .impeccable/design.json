@@ -42,7 +42,8 @@
       "cockpit-studio-selected": { "role": "neutral", "displayName": "当前岗位表面" },
       "cockpit-studio-composer": { "role": "neutral", "displayName": "导师输入近白底" },
       "cockpit-studio-composer-line": { "role": "neutral", "displayName": "导师输入边界" },
-      "cockpit-studio-composer-focus": { "role": "neutral", "displayName": "导师聚焦边界" }
+      "cockpit-studio-composer-focus": { "role": "neutral", "displayName": "导师聚焦边界" },
+      "resume-workspace": { "role": "neutral", "displayName": "简历编辑衬底", "canonical": "#f5f6f2" }
     },
     "typographyMeta": {
       "display": { "displayName": "岗位标题", "purpose": "当前机会的唯一一级标题。" },
@@ -58,6 +59,7 @@
       "resume-paper-contact": { "displayName": "成稿联系与日期", "purpose": "联系方式和条目右侧日期。" },
       "cockpit-studio-heading": { "displayName": "工作室岗位标题", "purpose": "当前岗位身份，不扩散到首页或纸张。" },
       "cockpit-studio-section": { "displayName": "工作室分节", "purpose": "任务说明与区域标题。" },
+      "resume-context": { "displayName": "简历岗位上下文", "purpose": "简历区紧凑岗位身份，17px 桌面、16px 手机，不抢占文档标题。" },
       "cockpit-studio-question": { "displayName": "工作室单题", "purpose": "单题练习的当前问题。" },
       "cockpit-studio-body": { "displayName": "工作室解释正文", "purpose": "当前任务的说明与理由。" },
       "cockpit-studio-control": { "displayName": "工作室控件", "purpose": "紧凑动作与提交。" },
@@ -70,7 +72,9 @@
       { "name": "resume-paper-frame", "value": "0 8px 28px rgba(41,40,35,.07)", "purpose": "固定纸张外框与屏幕环境分离。" },
       { "name": "resume-paper-screen", "value": "0 8px 28px rgba(41,40,35,.06)", "purpose": "共用文档 HTML 的屏幕阴影；打印关闭。" },
       { "name": "cockpit-studio-account", "value": "0 12px 40px rgba(33,37,31,.16)", "purpose": "工作室账户展开浮层，不用于常规内容面。" },
-      { "name": "cockpit-studio-mode", "value": "0 9px 28px rgba(37,43,31,.15)", "purpose": "导师输入附近的模式菜单。" }
+      { "name": "cockpit-studio-mode", "value": "0 9px 28px rgba(37,43,31,.15)", "purpose": "导师输入附近的模式菜单。" },
+      { "name": "resume-options", "value": "0 8px 32px rgb(29 35 28 / .15)", "purpose": "原生顶层简历选项菜单，不用于正文容器。" },
+      { "name": "resume-decision", "value": "0 8px 30px rgb(39 43 39 / .15)", "purpose": "就近采纳浮层，按内容实高调整位置。" }
     ],
     "motion": [
       { "name": "drawer", "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "机会与行动抽屉进出。" },
@@ -92,6 +96,13 @@
     ]
   },
   "components": [
+    {
+      "name": "Resume Toolbar",
+      "kind": "custom",
+      "description": "简历标题和待确认数靠左，改稿与导出靠右；撤销重做、标记和费用为轻量工具。原件、替换和版式进入原生popover，Escape返回触发器，滚动或缩放关闭。",
+      "html": "<header class=\"ds-resume-toolbar\"><div><h2>简历</h2><span>1处待确认</span></div><button>开始修改</button><button class=\"ds-resume-export\">导出 PDF</button></header>",
+      "css": ".ds-resume-toolbar{display:flex;align-items:center;gap:12px;background:#f5f6f2;color:#272b27;font:13px 'Outfit','PingFang SC',sans-serif}.ds-resume-toolbar>div{display:flex;align-items:baseline;gap:12px;margin-right:auto}.ds-resume-toolbar h2{font-size:20px;font-weight:600}.ds-resume-toolbar span{color:#636861;font-size:12px}.ds-resume-toolbar button{border:0;background:none;min-height:38px;padding:8px 12px;border-radius:7px;color:#944429;font:inherit}.ds-resume-toolbar .ds-resume-export{background:#272b27;color:#fff}.ds-resume-toolbar button:focus-visible{outline:2px solid #aa4f2e;outline-offset:3px}"
+    },
     {
       "name": "Primary Button",
       "kind": "button",

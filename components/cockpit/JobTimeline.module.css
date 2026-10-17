@@ -14,7 +14,14 @@
 .current{margin-top:12px}
 .returnButton{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:2px 0;background:none;border:0;border-radius:3px;color:#647257;font:inherit;font-size:11px;cursor:pointer}
 .returnButton:hover{color:#944429}
-.compact{padding-top:24px}
-.compact .identity h1{font-size:22px}
+.compact{padding-top:20px}
+.compact .identity{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.compact .identity h1{font-size:17px;line-height:1.5;margin:0}
+.compact .identity>div{gap:10px;font-size:11px}
+.compact ol{margin-top:9px;gap:24px}
+.compact li button{min-height:34px;padding:6px 0 8px}
+.compact li strong{font-size:12px}
+.compact li button[aria-current]::after{height:1px}
 @media(max-width:1180px){.timeline{padding-inline:24px}.timeline ol{gap:20px}}
 @media(max-width:700px){.timeline{padding:22px 20px 0}.identity h1,.compact .identity h1{font-size:22px}.timeline ol{gap:22px;margin-top:17px}.timeline li button{min-height:44px}.timeline li strong{font-size:13px}.returnButton{min-height:44px}}
+@media(max-width:700px){.compact{padding-top:18px}.compact .identity{gap:4px 12px}.compact .identity h1{font-size:16px}.compact .identity>div{font-size:11px}.compact ol{margin-top:8px;gap:20px}.compact li button{min-height:44px}.compact li strong{font-size:12px}}

@@ -64,6 +64,7 @@ colors:
   cockpit-studio-composer: "#fdfefb"
   cockpit-studio-composer-line: "#d2d6ca"
   cockpit-studio-composer-focus: "#8d9a7c"
+  resume-workspace: "#f5f6f2"
 typography:
   studio-heading:
     fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
@@ -196,6 +197,11 @@ typography:
     fontSize: "22px"
     fontWeight: 600
     lineHeight: 1.45
+  resume-context:
+    fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.5
   cockpit-studio-question:
     fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
     fontSize: "22px"
@@ -459,6 +465,12 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 单题练习展开后隐藏重复介绍和旧题目列表，换题放入原生选择器；题目、回答、提交与反馈保留。示例说明折叠但不删除；用量与保存边界在操作附近保持可见，不把清爽理解为去掉付费或保存说明。
 
 ### Resume Paper and Reading Controls
+
+2026-10-17 奇思喵想参考后的简历区重构：保留现有左侧导航与纸面排版。岗位上下文和阶段缩成紧凑导航，桌面岗位上下文为 `resume-context` 的 17px / 600，手机为 16px，不放大成正文标题；简历标题、待确认数、改稿与导出集中在一组；撤销/重做和修改标记使用轻量控件。原件、替换上传和版式藏入原生 popover 顶层菜单，支持点击外部、Escape、滚动及窗口尺寸变化关闭，避免被文档滚动区裁切。费用说明保留在改稿附近。简历编辑区采用 `resume-workspace` 浅色衬底，白色文档是主体，不增加包裹内容的卡片。
+
+手机纸面默认不展示一排“编辑”。轻点普通段落只显示当前段落的编辑入口，点击修改标记仍处理建议；键盘焦点可展开同一入口。手机中标题和状态纵向对齐，改稿与导出并排。采纳浮层使用“采纳／保留原文”短标签，按内容实高决定上方或下方展示并限制视口高度。PDF 不包含这些编辑控件。导师区继续使用工作室墨色与辅助灰，22px欢迎标题、14px正文和14px输入，手机输入16px；没有改变模型、保存或付费行为。
+
+公开参考来源：奇思喵想的弹窗设计 `work_1279_01`、浮窗布局 `work_1246`、UI细节 `work_1250_01`。仅提取层级、就近操作与控件密度，没有使用第三方图片作为产品素材；详情点击触发登录，未宣称已登录体验参考案例。该实现仍待用户视觉反馈，不记录为审美批准。
 
 2026-10-16 区块编辑：只有标题的区块也打开编辑器，使用紧凑标题输入，不再静默无响应。删除动作只在当前编辑器内出现；清空正文也进入同一删除确认，取消保留未提交输入，确认后可撤销。删除唯一条目时移除空标题，共享标题仍有其他条目时保留。不为纸面增加常驻删除按钮或新卡片，左栏不变。
 

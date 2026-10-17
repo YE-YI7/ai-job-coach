@@ -317,6 +317,8 @@ export async function POST(request: Request) {
         status: "pending" as const,
       }];
     });
+    // Retry the requested paragraph once. Its failure must not discard other
+    // grounded edits: those still need the independent fact/value review below.
     if (!changes.length || (rejected.length > 0 && changes.every(change=>!change.after.trim())) || (agentTask&&attempt===0&&!coversSupplement(changes))) {
       if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
       const onlyCosmetic=rejected.length>0&&rejected.every(item=>item.reasons.length>0&&item.reasons.every(reason=>/仅改标签|技能列表|仅同义换词/.test(reason)));

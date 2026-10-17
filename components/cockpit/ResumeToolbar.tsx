@@ -50,7 +50,10 @@ export default function ResumeToolbar({
     const element = menu.current;
     if (!rect || !element) return;
     if (element.matches(":popover-open")) { close(true); return; }
-    element.showPopover();
+    // Establish the native invoker too: otherwise light-dismiss can close the
+    // popover on pointerdown, then this click sees "closed" and reopens it.
+    // The project's DOM types predate the standard source option.
+    (element.showPopover as (options: {source: HTMLElement}) => void).call(element, {source: trigger.current!});
     const { width, height } = element.getBoundingClientRect();
     element.style.left = `${Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12))}px`;
     const below = rect.bottom + 8;

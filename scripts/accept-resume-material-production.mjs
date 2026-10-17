@@ -101,7 +101,7 @@ try{
     await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
     await page.getByRole('dialog',{name:'简历选项',exact:true}).waitFor();
     await page.getByLabel('简历版式',{exact:true}).selectOption(template);
-    await page.getByRole('dialog',{name:'简历选项',exact:true}).press('Escape');
+    await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
     await page.getByRole('dialog',{name:'简历选项',exact:true}).waitFor({state:'hidden'});
     await paper.locator('body.'+template).waitFor();
     if(template==='modern')await snapshot('production-modern');

@@ -15,9 +15,11 @@
 
 正式导出验收又暴露 SSR 就绪窗口：纸面已显示、原生 popover 可以打开，但 React 事件尚未绑定，过早点导出没有反应。已补 `useSyncExternalStore` 的 server-false/client-true 就绪状态；主要动作由原生 disabled fieldset 一起保护，其余工具同步禁用，不显示虚假的可操作状态。Chrome 实际拦住 hydration 脚本复现：SSR 工具不可点，放行脚本后一次点击即可打开同意弹窗和真正打印窗口。不是用重试双击掩盖问题。
 
+后续完整路径再抓到菜单的原生 invoker 缺失：手动 `showPopover()` 打开没有关联触发按钮，第二次点触发器时先被 light-dismiss 关闭、click 又打开。现在通过标准 `source` 选项关联当前按钮，实测第二次点击确实关闭，选版式后导出也不再被菜单状态吞掉。DOM 类型旧于该选项，仅对这一调用窄化类型，没有升级依赖或换自制弹窗。[API 行为参考](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover#parameters)。
+
 ## 本地验收
 
-`scripts/accept-resume-inline-ui.mjs`：11 项真实 Chrome 回放通过，明确为本地虚构 fixture、不是云保存或模型质量验收。包括真实延迟 hydration 的就绪保护与单次导出；菜单键盘进出、采纳浮层关闭、未决导出取消；标题/段落编辑、删空确认/取消、删除撤销、历史重做；草稿跨阶段/原件/版式保留及当前文档回焦；390px 触屏、1100px 中间尺寸与减少动态。截图等待菜单入场结束，不把透明补间误记成静态质感。
+`scripts/accept-resume-inline-ui.mjs`：12 项真实 Chrome 回放通过，明确为本地虚构 fixture、不是云保存或模型质量验收。包括真实延迟 hydration 的就绪保护与单次导出；触发按钮第二次点击关闭/选版式后单次导出；菜单键盘进出、采纳浮层关闭、未决导出取消；标题/段落编辑、删空确认/取消、删除撤销、历史重做；草稿跨阶段/原件/版式保留及当前文档回焦；390px 触屏、1100px 中间尺寸与减少动态。截图等待菜单入场结束，不把透明补间误记成静态质感。
 
 229 套件 / 2297 项自动回归通过，5 套件 / 9 项 opt-in 跳过；类型与本次 TSX/脚本 lint 通过。后续正式 Chrome 回放单独记载，不提前签收。
 

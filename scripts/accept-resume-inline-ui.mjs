@@ -50,6 +50,10 @@ try{
  await options.waitFor();
  assert.equal(await options.getByRole('button').first().evaluate(element=>element===document.activeElement),true);
  await page.screenshot({path:join(output,'desktop-menu.png'),timeout:30000,animations:'disabled'});
+ await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ await options.waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ await options.waitFor();
  await options.press('Escape');
  assert.equal(await page.getByRole('button',{name:'简历更多选项',exact:true}).evaluate(element=>element===document.activeElement),true);
  await paper.locator('[data-change-id]').first().click();
@@ -63,6 +67,14 @@ try{
  await page.screenshot({path:join(output,'desktop-export-consent.png'),timeout:30000});
  await consent.getByRole('button',{name:'继续核对',exact:true}).click();
  checks.push('Context menu keyboard entry and return, in-place decision dismissal and export cancellation remain usable');
+ await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ await page.getByLabel('简历版式',{exact:true}).selectOption('classic');
+ await page.getByRole('button',{name:'简历更多选项',exact:true}).click();
+ await options.waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'导出 PDF',exact:true}).click();
+ await consent.waitFor();
+ await consent.getByRole('button',{name:'继续核对',exact:true}).click();
+ checks.push('Native invoker closes on its second click and export opens after selecting a template without a dead click');
  const editHeading=()=>paper.getByRole('button',{name:/^编辑工作经历/}).click();
  await editHeading();
  await paper.getByRole('textbox',{name:'简历区块标题',exact:true}).fill('工作经历与成果');

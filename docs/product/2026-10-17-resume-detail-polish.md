@@ -42,4 +42,29 @@
 
 ## 发布
 
-待干净提交生产构建、候选冒烟和同构建 promote 后记录正式版本；另窗转来的 Drives 评估不进入本次运行时。
+首批20文件 `2b58af0` 构建为 `dpl_4kNyPwxmTqpk1Y5oVJCKp98qkbph`，候选首页200/实际益职正文、健康200/数据库ok、匿名resume-agent401后曾promote。补查二次点击边界后单独修为 `1aeb719`，本地类型/lint通过；真实Chrome连点四次为 true/false/true/false，键盘Enter打开、Escape还焦通过。没有用首批“构建成功”掩盖该问题。
+
+最终运行提交 `1aeb71984333d782ac6f2951974dcb579c02c507` 已推 `origin/codex/resume-detail-polish-1017`。干净Git归档生产暂存，Next编译/类型检查成功、知识库保持34篇103来源；候选健康200/数据库ok、匿名resume-agent401，API核对项目/production/READY/releaseCommit。切换前再次核对正式仍2b58af0，随后promote同一已验构建，没有重建。
+
+正式www及裸域实际API均指向下方同一READY部署和同一提交；两个health跟随既有规范域名跳转后均200/数据库ok，正式www匿名resume-agent401。未写数据库、真人原件、旧作答、余额或模型请求。共享ME状态不提交，其他会话的暂存未混入；`.impeccable/review/qisi-20261017/`保留未动。
+
+另窗转来的 Drives 评估是后续独立文档，未进入上述运行提交/归档，不含新的基础设施功能、SDK或云资源。
+
+React组件复核：未新增数据获取或运行时依赖，交互保持在事件回调；窗口/文档监听保持清理，开关和焦点语义按本次Chrome路径核对。不是性能基准或全站审查。
+
+## Deploy Result
+
+- **URL**: https://www.ai-job-coach.xin/cockpit
+- **Target**: production
+- **Status**: READY
+- **Commit**: 1aeb719
+- **Framework**: Next.js16.3.0 / webpack
+- **Build Duration**: 84.860秒（buildingAt→ready，不含排队）
+- **Deployment**: dpl_6RUCdAWZ89TiXgQoMeqgT9CK4wae
+- **Candidate**: https://ai-job-coach-477m3swrg-velmavalienteqejimu22-jpgs-projects.vercel.app
+
+### Post-Deploy Observability
+
+- **Error scan**: 最终部署近5分钟error、最多50条，无返回条目。
+- **Drains**: 当前项目0个。
+- **Monitoring**: 仅本轮健康/权限和短窗错误检查；不证明长期模型/计费上游稳定，也不替代正式登录后台保存刷新验收。

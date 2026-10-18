@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { createSessionToken } from "@/lib/session";
-import { checkPhoneCode, sendPhoneCode } from "./provider";
+import { checkPhoneCode, sendPhoneCode, SmsProviderError } from "./provider";
 import { phoneSend, phoneStatus, phoneVerify } from "./handlers";
 import { phoneCookie } from "./security";
 import { FakeDb } from "@/lib/coach-harness/run-ledger/testing/fake-db";
@@ -10,7 +10,9 @@ import { FakeDb } from "@/lib/coach-harness/run-ledger/testing/fake-db";
 jest.mock("@/lib/db");
 jest.mock("@/lib/auth");
 jest.mock("@/lib/session", () => ({ createSessionToken: jest.fn(async () => "signed-session"), sessionCookie: { name: "sb-access-token", options: { httpOnly: true, path: "/" } } }));
-jest.mock("./provider", () => ({ phoneAuthConfigured: jest.fn(() => true), smsSignName: () => "恒创联众", sendPhoneCode: jest.fn(), checkPhoneCode: jest.fn() }));
+jest.mock("./provider", () => ({ phoneAuthConfigured: jest.fn(() => true), smsSignName: () => "恒创联众", sendPhoneCode: jest.fn(), checkPhoneCode: jest.fn(),
+  SmsProviderError: class extends Error { constructor(public readonly kind: "limited" | "unavailable") { super("短信认证暂时不可用"); } },
+}));
 
 const challenge = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -33,6 +35,7 @@ beforeEach(() => {
   });
   (getDbClient as jest.Mock).mockResolvedValue(db);
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
+  (sendPhoneCode as jest.Mock).mockResolvedValue(undefined);
   (checkPhoneCode as jest.Mock).mockResolvedValue(true);
 });
 test("rejects cross-origin and missing-origin requests before provider or database writes", async () => {
@@ -63,6 +66,13 @@ test("does not send past a rate limit or without explicit SMS consent", async ()
   db.rpc.mockResolvedValue({ data: [{ allowed: false, retry_after_seconds: 60 }], error: null });
   expect((await phoneSend(request({ purpose: "login", phone: "13800138000", consent: true }))).status).toBe(429);
   expect(sendPhoneCode).not.toHaveBeenCalled();
+});
+test.each(["limited", "unavailable"] as const)("handles provider %s errors without hiding rate limits behind generic 503", async kind => {
+  (sendPhoneCode as jest.Mock).mockRejectedValue(new SmsProviderError(kind));
+  const response = await phoneSend(request({purpose:"login",phone:"13800138000",consent:true}));
+  expect(response.status).toBe(kind === "limited" ? 429 : 503);
+  expect(await response.json()).toMatchObject({ok:false,code:kind === "limited" ? "provider_limited" : "unavailable"});
+  expect(sendPhoneCode).toHaveBeenCalledTimes(1);
 });
 test("requires browser proof before verifying any OTP", async () => {
   expect((await phoneVerify(request(verifyBody, { Cookie: "" }))).status).toBe(410);

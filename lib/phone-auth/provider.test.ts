@@ -10,11 +10,13 @@ import { checkPhoneCode, sendPhoneCode, phoneAuthConfigured } from "./provider";
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.spyOn(console, "warn").mockImplementation(() => {});
   process.env.PHONE_AUTH_ENABLED = "1";
   process.env.ALIYUN_PNVS_ACCESS_KEY_ID = "test-only-not-a-key";
   process.env.ALIYUN_PNVS_ACCESS_KEY_SECRET = "test-only-not-a-secret";
   mockSend.mockResolvedValue({ body: { code: "OK", success: true } });
 });
+afterEach(() => jest.restoreAllMocks());
 test("fails closed without credentials or the explicit switch", () => {
   delete process.env.PHONE_AUTH_ENABLED;
   expect(phoneAuthConfigured()).toBe(false);
@@ -36,6 +38,27 @@ test("accepts only PASS from the exact same purpose, phone and OutId", async () 
   expect(mockCheck).toHaveBeenCalledWith(expect.objectContaining({ phoneNumber: "13800138000", schemeName: "yizhi-login-v1", outId: "challenge" }), expect.anything());
 });
 test("does not propagate SDK errors containing request secrets", async () => {
-  mockSend.mockRejectedValue(new Error("request-secret-and-phone"));
+  mockSend.mockRejectedValue(Object.assign(new Error("request-secret-and-phone"), {
+    code: "untrusted-secret-code", data: { RequestId: "untrusted-secret-id", phone: "13800138000", verifyCode: "123456" },
+  }));
   await expect(sendPhoneCode("+8613800138000", "login", "challenge")).rejects.toThrow("短信认证暂时不可用");
+  expect(console.warn).toHaveBeenCalledWith("phone_auth_provider_failure", {
+    operation: "send", purpose: "login", code: "UNRECOGNIZED",
+  });
+});
+test.each(["biz.FREQUENCY", "isv.BUSINESS_LIMIT_CONTROL", "FREQUENCY_FAIL", "LimitExceeded.SmsCode"])(
+  "classifies documented rate-limit status without losing the safe diagnostic: %s", async code => {
+    mockSend.mockResolvedValue({ body: { code, success: false, message: "secret response", requestId: "12345678-abcd-4abc-8def-123456789abc" } });
+    await expect(sendPhoneCode("+8613800138000", "login", "challenge")).rejects.toMatchObject({kind:"limited"});
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith("phone_auth_provider_failure", {
+      operation:"send",purpose:"login",code,requestId:"12345678-abcd-4abc-8def-123456789abc",
+    });
+  });
+test("keeps SDK-thrown documented codes but never its message or signed request", async () => {
+  mockSend.mockRejectedValue({ code:"isv.BUSINESS_LIMIT_CONTROL", message:"sensitive signed request",data:{RequestId:"12345678-abcd-4abc-8def-123456789abc",secret:"never-log-this"} });
+  await expect(sendPhoneCode("+8613800138000","login","challenge")).rejects.toMatchObject({kind:"limited"});
+  expect(console.warn).toHaveBeenCalledWith("phone_auth_provider_failure",{
+    operation:"send",purpose:"login",code:"isv.BUSINESS_LIMIT_CONTROL",requestId:"12345678-abcd-4abc-8def-123456789abc",
+  });
 });

@@ -134,7 +134,8 @@ export async function phoneSend(request: NextRequest) {
       await sendPhoneCode(phone, purpose, challengeId);
     } catch (cause) {
       await db.from("phone_auth_challenges").update({ state: "failed" }).eq("id", challengeId).eq("state", "sending");
-      if (cause instanceof SmsProviderError && cause.kind === "limited") return resultError("cooldown");
+      if (cause instanceof SmsProviderError && cause.kind === "limited") return json({ ok: false,
+        error: "短信服务已限制本次发送，请稍后再试，或使用原登录方式。", code: "provider_limited" }, 429, { "Retry-After": "60" });
       return unavailable();
     }
     const { data, error: dbError } = await db.from("phone_auth_challenges").update({ state: "sent" })

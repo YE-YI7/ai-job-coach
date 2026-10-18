@@ -10,6 +10,18 @@
 - 当前运行构建仍为 `dpl_7tmQ7vsWuiskwstvnuvkg3ctZcgn`，运行提交 `be3dd2fb2989e162be42b6d15bbb77c95dc6d66f`。未新部署、未改环境变量、canonical／站点主地址／支付回调或认证逻辑。
 - **未签收新域真实登录与刷新；未切主域。** 真实观猹授权发现下面的供应方白名单阻塞。
 
+### 后续 HTTPS 警告复验（2026-10-18 09:54–09:57 UTC）
+
+用户截图为 Chrome “This site doesn’t support a secure connection”，不是应点击继续忽略的提示。浏览器只读清单定位到本人另一个标签停在 `http://yizhioffer.com/`，而新域 HTTPS 登录标签仍正常。未点击 Continue、修改安全设置或清理全局浏览数据。
+
+- 当前公共 DNS A 为 `216.198.79.1`、AAAA 无记录，Vercel 再验为 configured-correctly，无冲突。
+- 直连 Vercel 推荐 IP 且正常验证证书：TLS 1.3、Let’s Encrypt YR1、CN/SAN 均匹配新裸域，`SSL certificate verify ok`；证书有效至 2027-01-16 08:42:59 UTC，平台显示两个新域均自动续期。
+- 真实 HTTP 请求返回 308 到 HTTPS；真实 HTTPS 返回 200，www HTTPS 返回 307 到裸域 HTTPS。没有用 `-k` 或跳过证书验证。
+- 新 Chrome 标签从 `http://yizhioffer.com/` 正常进入 HTTPS 首页；新 www 在 Chrome 跳裸域 HTTPS 正常。原警告标签显式导航安全的 HTTPS 地址后首页可读，整页刷新仍正常，未绕过浏览器警告。
+- 当前未复现持续的证书故障。初次拦截可能与接入时的瞬时 TLS／解析状态有关，但没有当时的握手错误，不能断言唯一根因是缓存或传播。复验截图仅留本机 `/tmp/yizhioffer-https-rechecked.png`。
+
+本节只签收当前传输层与页面访问，不替代新域手机号／观猹真实登录及原账号数据刷新验收。未改生产配置、应用代码、账号或旧作答，仍未切主域。
+
 ## 实际基础设施变更
 
 Vercel 项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`，团队 `team_7qIutahimwnjCje1fOtQEPyT`。使用已有正常 CLI 身份；连接器 403 后没有修改权限或重复请求同一连接器。

@@ -28,7 +28,7 @@ export default function ResumeInlineEditor({ value, headingOnly, confirmingDelet
       section[data-inline-editing=true] > :not(.resume-live-editor){display:none!important}
       .resume-live-editor{margin:-8px -10px;padding:12px;border:0;border-radius:9px;background:#fff;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgb(27 34 27 / .12),0 8px 24px -6px rgb(27 34 27 / .16);font:13px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;color:#272b27}
       .resume-live-editor textarea{display:block;box-sizing:border-box;width:100%;min-height:34px;max-height:55vh;resize:vertical;margin:0;padding:4px 2px;border:0;border-radius:3px;background:transparent;font:inherit;font-size:14px;line-height:1.8;color:inherit;caret-color:#944429;outline:none}
-      .resume-live-editor:has(textarea:focus-visible){outline:2px solid #65745d;outline-offset:2px}
+      .resume-live-editor textarea:focus-visible{box-shadow:inset 0 -1px #777d78}
       .resume-live-editor p{font:12px/1.6 "PingFang SC",sans-serif;margin:10px 2px;color:#62675f}
       .resume-live-editor p[role=alert]{color:#944429}
       .resume-live-editor footer{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px}

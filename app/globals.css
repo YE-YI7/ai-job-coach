@@ -11,6 +11,7 @@
 }
 
 :root {
+  --field-focus: #777d78;
   /* ========== 设计系统 - 色彩变量 ========== */
   
   /* 主色调 - 蓝色系 (专业、信任) */
@@ -381,6 +382,17 @@
 }
 
 /* 输入框样式 */
+/* Text entry has one quiet, local focus cue; buttons and checkboxes keep their
+   own keyboard indicators. Unlayered CSS also replaces legacy utility halos. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea):focus {
+  outline: none;
+  box-shadow: inset 0 -1px var(--field-focus);
+}
+
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea):focus:not([aria-invalid="true"]) {
+  border-color: var(--field-focus);
+}
+
 .input {
   width: 100%;
   padding: var(--spacing-3) var(--spacing-4);
@@ -395,8 +407,8 @@
 
 .input:focus {
   outline: none;
-  border-color: #737c76;
-  box-shadow: 0 0 0 1px #737c76;
+  border-color: var(--field-focus);
+  box-shadow: inset 0 -1px var(--field-focus);
 }
 
 .input::placeholder {

@@ -12,7 +12,7 @@
 .teachingInvite p{margin:0 0 10px;line-height:1.65;font-size:14px}
 .teachingInvite div{display:flex;gap:8px}.teachingInvite div button:first-child{background:#8d3a17;color:#fff;padding:8px 12px;border-radius:8px}
 .teachingInvite small{display:block;color:#605c55;margin-top:8px}
-.panel.panel textarea:focus-visible{outline:none;box-shadow:none}
+.panel.panel textarea:focus-visible{outline:none;box-shadow:inset 0 -1px var(--field-focus)}
 .panel button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;color:inherit;padding:8px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;min-height:36px}
 .panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #a64317;outline-offset:3px}
 .panel button:disabled{opacity:.45;cursor:not-allowed}
@@ -157,7 +157,7 @@
 .messages{padding-inline:2px;padding-bottom:20px}.welcome{padding:20px 0}.welcome h3{font-size:20px;color:#2b3524;line-height:1.5;margin-bottom:12px}
 .welcome .quickStarts{gap:4px;padding-top:16px}.welcome .quickStarts button{justify-content:flex-start;padding:8px 0;min-height:40px;background:none;border:0;border-radius:0;font-size:13px;line-height:1.65;color:#5b6751;text-align:left}
 .welcome .quickStarts button:hover:not(:disabled){background:none;color:#91462c;text-decoration:underline;text-underline-offset:4px}
-.panel form{padding:13px 14px;border-color:#d2d6ca;background:#fdfefb;border-radius:12px;box-shadow:none}.panel form:focus-within{border-color:#8d9a7c;box-shadow:none}
+.panel form{padding:13px 14px;border-color:#d2d6ca;background:#fdfefb;border-radius:12px;box-shadow:none}.panel form:focus-within{border-color:var(--field-focus);box-shadow:none}
 .panel textarea{min-height:68px;line-height:1.65;color:#313b29;caret-color:#944429}.panel textarea::placeholder{color:#666f5c}
 .panel footer{gap:5px;align-items:center}.composerOptions{display:flex;align-items:center;gap:5px;flex:1;min-width:0;flex-wrap:wrap}
 .modeDisclosure{position:relative;flex:none;font-size:11px;color:#626d56}.modeDisclosure>summary{display:flex;align-items:center;gap:6px;min-height:32px;list-style:none;cursor:pointer;padding:5px 3px}.modeDisclosure>summary::-webkit-details-marker{display:none}.modeDisclosure>summary:focus-visible{outline:2px solid #944429;outline-offset:3px;border-radius:4px}
@@ -183,7 +183,7 @@
 .panel[data-resume] .welcome>p:last-child:not(:first-of-type){font-size:12px;margin-top:22px}
 .panel[data-resume] .welcome .quickStarts:empty{display:none}
 .panel[data-resume] form{padding:14px 14px 10px;background:#fff;border:0;border-radius:14px;box-shadow:0 1px 3px rgb(32 39 31 / .07),0 5px 18px rgb(32 39 31 / .05)}
-.panel[data-resume] form:focus-within{outline:2px solid #8d9a7c;outline-offset:2px}
+.panel[data-resume] form:focus-within{outline:none}
 .panel[data-resume] textarea{font-size:14px;min-height:72px;line-height:1.75;color:var(--cockpit-studio-ink,#272b27)}
 .panel[data-resume] textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
 .panel[data-resume] footer [type=submit]{min-width:34px;min-height:34px}

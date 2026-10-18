@@ -7,7 +7,8 @@
 .bubble p{margin:7px 6px 0;color:var(--cockpit-studio-muted,#636861);font-size:12px;line-height:1.7}
 .bubble textarea{width:100%;padding:8px;margin-top:8px;border:1px solid var(--cockpit-studio-line-strong,#d4d6ce);background:white;color:inherit;font:inherit;resize:vertical}
 .bubble form>button,.unlocated button{border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;padding:8px 0;color:inherit;font:inherit;cursor:pointer}
-.bubble button:focus-visible,.bubble textarea:focus-visible,.unlocated button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.bubble button:focus-visible,.unlocated button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.bubble textarea:focus-visible{outline:none;box-shadow:inset 0 -1px var(--field-focus)}
 .unlocated{font-size:13px;line-height:1.7;margin-block:16px;color:var(--cockpit-studio-muted,#636861)}
 .unlocated p{margin:10px 0}.unlocated button{margin-left:12px}
 @media(max-width:700px){.decisions button{min-height:44px;min-width:44px}.bubble textarea{font-size:16px}}

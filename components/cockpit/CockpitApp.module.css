@@ -28,7 +28,7 @@
 .shell button:focus-visible { outline: 2px solid #777d78; outline-offset: 2px; }
 /* No inner rectangular focus frame. Text inputs use an underline; grouped
    composers keep focus on their existing rounded outer container. */
-.shell input:focus-visible, .shell textarea:focus-visible { outline: none; box-shadow: inset 0 -2px #777d78; }
+.shell input:focus-visible, .shell textarea:focus-visible { outline: none; box-shadow: inset 0 -1px var(--field-focus); }
 .shell .searchBox input:focus-visible, .shell .intakeComposer textarea:focus-visible { box-shadow: none; }
 .searchBox:focus-within { border-color: #777d78; }
 .profileEntry{display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:18px 4px;color:var(--ink);width:100%}
@@ -1383,7 +1383,7 @@
 .practicePanel h3{margin:24px 0 12px;font-size:22px;line-height:1.5;font-weight:600;letter-spacing:0;font-family:inherit}
 .practicePanel>p{font-size:13px;line-height:1.75;color:var(--muted);margin:0 0 20px}
 .practicePanel textarea{font:inherit;font-size:15px;line-height:1.75;min-height:200px;border:1px solid var(--line-strong);border-radius:8px;padding:16px;background:#fff;color:var(--ink)}
-.practicePanel textarea:focus-visible{box-shadow:none;outline:2px solid #b0b6a7;outline-offset:2px}
+.practicePanel textarea:focus-visible{box-shadow:inset 0 -1px var(--field-focus);outline:none}
 .practicePanel>div:last-child{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px}
 .interviewWorkbench:has(.practicePanel) .focusStepper{display:none}
 .practiceQuestionSelect{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;width:fit-content;max-width:100%;min-height:36px;padding:6px 0;margin:16px 0 8px;color:var(--muted);font-size:12px;cursor:pointer}

@@ -378,10 +378,12 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
         }
 
         .input-field:focus-within {
-          border-color: #f97316;
+          border-color: var(--field-focus);
           background: rgba(255, 255, 255, 0.9);
-          box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+          box-shadow: inset 0 -1px var(--field-focus);
         }
+
+        .input-field input:focus { outline: none; box-shadow: none; }
 
         .glow-button {
           background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
@@ -426,9 +428,9 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
         }
 
         .code-input:focus {
-          border-color: #f97316;
+          border-color: var(--field-focus);
           background: rgba(255, 255, 255, 0.95);
-          box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+          box-shadow: inset 0 -1px var(--field-focus);
         }
 
         .loading-spinner {

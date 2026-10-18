@@ -11,7 +11,8 @@
 .conversation details>div{margin-block:12px}.conversation details p{margin:6px 0}.conversation summary{cursor:pointer}
 .conversation textarea{font-family:inherit;font-size:15px;line-height:1.7;min-height:120px;width:100%;resize:vertical;border:0;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgb(35 42 32 / .06),0 5px 16px rgb(35 42 32 / .04);padding:14px 16px;color:inherit;caret-color:var(--cockpit-studio-action,#aa4f2e)}
 .conversation textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
-.conversation textarea:focus-visible,.conversation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.conversation textarea:focus-visible{outline:none;box-shadow:inset 0 -1px var(--field-focus)}
+.conversation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
 .actions{display:flex;justify-content:flex-end;gap:16px;align-items:center;flex-wrap:wrap}
 .conversation button{font:inherit;color:inherit;border:0;background:transparent;padding:9px 12px;min-height:38px;cursor:pointer;border-radius:8px}
 .actions button[type=submit]{display:inline-flex;align-items:center;gap:5px;color:white;background:#343d31}

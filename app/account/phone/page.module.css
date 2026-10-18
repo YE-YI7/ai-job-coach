@@ -1,0 +1,6 @@
+.page{min-height:100dvh;background:#f5f6f2;color:#292823;padding:48px 24px 80px;font-family:var(--font-outfit),"PingFang SC",sans-serif}
+.content{max-width:420px;margin:0 auto}.back{display:inline-flex;align-items:center;min-height:44px;color:#536a40;font-size:14px;text-decoration:underline;text-underline-offset:4px;margin-bottom:36px}
+.content h1{font-size:28px;line-height:1.4;font-weight:600;margin:0 0 14px;letter-spacing:0}
+.intro{font-size:15px;color:#5c6257;line-height:1.8;margin:0 0 32px}.back:focus-visible{outline:2px solid #984320;outline-offset:3px}
+.page ::selection{background:#dfe6d4;color:#272b27}
+@media(max-width:480px){.page{padding-top:24px}.back{margin-bottom:28px}}

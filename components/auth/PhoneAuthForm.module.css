@@ -1,0 +1,22 @@
+.form{color:#292823;font-size:15px;line-height:1.65;text-align:left;min-width:0}
+.form form{display:grid;gap:14px}.form label:not(.consent){font-size:14px;font-weight:500}
+.form input[type=text],.phoneInput{width:100%;min-width:0;min-height:48px;border:1px solid #69707d;border-radius:9px;background:#fff;color:#292823;font-size:16px}
+.form input[type=text]{padding:10px 14px;letter-spacing:.14em;font-variant-numeric:tabular-nums}
+.phoneInput{display:flex;align-items:center;gap:12px;padding-inline:14px}.phoneInput>span{color:#555b50;font-size:15px}
+.phoneInput input{border:0;outline:0;background:none;min-width:0;width:100%;min-height:48px;font-size:16px;color:inherit}
+.phoneInput:focus-within{outline:2px solid #984320;outline-offset:3px}
+.form input::placeholder{color:#6b7066;opacity:1}.form input{accent-color:#526442;caret-color:#984320}
+.form ::selection{background:#dfe6d4;color:#272b27}
+.form :is(button,a,input):focus-visible{outline:2px solid #984320;outline-offset:3px}
+.form button{font:inherit;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.primary{border:0;border-radius:9px;padding:12px 18px;min-height:48px;width:100%;background:#292823;color:#fff;font-weight:500!important}
+.primary:hover:not(:disabled){background:#45443c}.primary:disabled{background:#77736c;color:#fff;cursor:not-allowed}
+.textButton{min-height:44px;padding:8px 0;border:0;background:none;color:#536a40;text-decoration:underline;text-underline-offset:4px}
+.textButton:disabled{color:#62645d;cursor:default;text-decoration:none}.textButton:hover:not(:disabled){color:#944429}
+.consent{display:flex;align-items:flex-start;gap:9px;font-size:14px;cursor:pointer;padding-block:5px}.consent input{width:17px;height:17px;flex-shrink:0;margin-top:3px}
+.hint,.privacy,.status{color:#5c6257;font-size:14px;line-height:1.75;margin:0;overflow-wrap:anywhere}.status{padding-block:20px}
+.privacy{font-size:13px}.privacy a,.returnLink{color:#536a40;text-decoration:underline;text-underline-offset:4px}
+.destination{font-size:15px;font-weight:500;margin:0}.success{font-size:19px;color:#287a57;font-weight:500;margin:0 0 12px}
+.returnLink{display:inline-block;margin-top:20px;min-height:44px;padding-block:10px}.error{color:#944429;font-size:14px;line-height:1.7;margin:14px 0 0;overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+@media(prefers-reduced-motion:reduce){.form button{transition:none}}

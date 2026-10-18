@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         "面试对话记录（用户主动粘贴上传）",
         "面试基础信息（公司名称、轮次、时间、标签）",
         "简历内容（用户选择关联时）",
-        "账户基本信息（邮箱、注册时间）",
+        "账户基本信息（邮箱、注册时间；选择手机登录或绑定时还包括手机号）",
       ],
     },
     {
@@ -22,6 +22,7 @@ export default function PrivacyPage() {
       title: "数据使用方式",
       items: [
         "仅用于面试复盘分析、简历评审等产品功能",
+        "手机号仅用于你发起的登录或账号绑定验证，不用于营销短信；已有账号需先通过原方式登录后绑定，不自动合并不同账号",
         "益职不会主动将求职材料用于训练模型；模型供应商的数据处理规则以其政策为准",
         "不会出售求职材料；为完成你发起的 AI 分析，会向相应模型供应商传输任务所需文本",
         "站点模型可能使用 StepFun（阶跃星辰）或 DeepSeek；连接 TokenPay 后使用用户授权的 TokenDance 模型服务。材料入口展示当前提供方",
@@ -93,7 +94,7 @@ export default function PrivacyPage() {
           <p className="text-sm text-slate-700 leading-relaxed">
             AI求职教练（以下简称“本应用”）非常重视用户隐私。本政策说明我们如何收集、使用、存储和保护您的个人数据。使用本应用即表示您同意本隐私政策的条款。
           </p>
-          <p className="text-xs text-slate-400 mt-2">最后更新：2026年10月9日</p>
+          <p className="text-xs text-slate-400 mt-2">最后更新：2026年10月17日</p>
         </div>
 
         {/* 各部分 */}
@@ -121,9 +122,11 @@ export default function PrivacyPage() {
             第三方服务说明
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed mb-3">
-            本应用可能使用以下第三方服务完成 AI 分析与账户充值：
+            本应用可能使用以下第三方服务完成账号验证、AI 分析与账户充值：
           </p>
           <div className="bg-slate-50 rounded-xl p-3 space-y-1.5">
+            <p className="text-xs text-slate-700"><span className="font-medium">阿里云号码认证服务</span> — 按你的请求发送与核验 +86 手机验证码</p>
+            <p className="text-xs text-slate-600">为发送和核验短信，服务端向阿里云传输手机号、验证用途及你输入的验证码。验证码由阿里云生成，益职不保存验证码正文；短期验证记录仅限服务端访问，账号手机号用于后续登录，前端只展示脱敏号码。</p>
             <p className="text-xs text-slate-700">
               <span className="font-medium">StepFun（阶跃星辰） / DeepSeek</span> — 站点模型用于求职材料整理、面试辅导与复盘等 AI 任务
             </p>

@@ -16,6 +16,9 @@
     "ops:tokenpay-pricing": "node --env-file=.env.ops.local scripts/report-tokenpay-profit-share.mjs"
   },
   "dependencies": {
+    "@alicloud/dypnsapi20170525": "2.0.0",
+    "@alicloud/openapi-core": "1.0.8",
+    "@darabonba/typescript": "1.0.5",
     "@phosphor-icons/react": "^2.1.10",
     "@supabase/auth-helpers-nextjs": "^0.14.0",
     "@supabase/supabase-js": "^2.39.0",

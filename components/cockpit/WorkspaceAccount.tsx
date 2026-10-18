@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ChevronDown, LogOut } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, LogOut, Smartphone } from "lucide-react";
 import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import WatchaPayWidget from "@/components/payments/WatchaPayWidget";
 import styles from "./WorkspaceAccount.module.css";
@@ -37,6 +38,8 @@ export default function WorkspaceAccount({ label, live, disabled, onLogout }: {
     <div className={styles.menu}>
       <div className={styles.identity}><strong>{label}</strong><span>{live ? "个人工作区" : "示例工作区"}</span></div>
       <div className={styles.billing} aria-label="余额与支付"><TokenPayWidget compact />{live && <WatchaPayWidget />}</div>
+      {live && <Link href="/account/phone" className={styles.phoneLink} aria-disabled={disabled || undefined}
+        onClick={(event) => { if (disabled) event.preventDefault(); }}><Smartphone size={16} aria-hidden="true" />手机号与登录</Link>}
       <button type="button" disabled={disabled} onClick={onLogout}><LogOut size={16} aria-hidden="true" />退出登录</button>
     </div>
   </details>;

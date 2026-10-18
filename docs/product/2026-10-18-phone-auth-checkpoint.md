@@ -1,5 +1,18 @@
 # +86 手机登录 / 原账号绑定：实现与验收边界
 
+## 最终发布与真实短信验收（2026-10-18 UTC）
+
+本节为最终状态；下方续接、候选及待办段落保留为当时的历史记录，不表示仍在等待密钥或发布。
+
+- **已发布**：运行代码 `1d8afd00c6fb74e0385a15a1350c1e404b1a1957`，同一已实测 Production 构建 `dpl_EVJAo1mQE4McWCWDrbHtXtjopfnb` 经 `vercel promote` 发布，没有换一份构建。裸域、www 分别 `vercel inspect` 均解析到该部署 / Production / READY；部署地址为 `https://ai-job-coach-18yxto37d-velmavalienteqejimu22-jpgs-projects.vercel.app`。另已把非敏感 `PHONE_AUTH_ENABLED=1` 保存到项目 Production 配置，避免下次正常部署丢开关；未读取短信 Secret 值。
+- **真实短信与 Chrome**：本人收到绑定短信，待验证页刷新恢复；本人输入验证码完成绑定，绑定后刷新仍已绑定。本人在修复版重新输入同一号码并完成短信登录，成功挑战 `e1d7ff62-7df9-4c69-ae00-14990eca0eaf` 为 consumed / attempts=1。浏览器实际回到 `/cockpit`，只读会话核对仍为隔离 QA 用户 `2268402f-9c7c-427b-be64-f5b1175551c7`；进入绑定页、刷新、再核对会话，同一用户 ID 保留。DB 中原 provider=invite、模拟额度 chat/resume/interview=11/7/5 未重置。共收到两条真实短信，另一次供应商发送失败；浏览器遮蔽占位符的格式拒绝未计为短信请求。
+- **发布后核验**：双域 `/api/health` 均 `ok=true,database=ok`；匿名新 `/api/auth/phone?purpose=login` 为 enabled=true、authenticated=false、无绑定及 pending。旧 `/api/sms` 仍 410，不重新启用旧内存验证码链路。Chrome 正式站保留原登录用户的会话，`/account/phone` 可输入 +86 号码，未替旧用户填写、发送或绑定；此页已保留供本人操作。要让手机号进入原资料，需先在该旧账号中本人绑定，不能把测试账号或新账号与旧资料自动合并。
+- **仅清理本次 QA**：先从 QA 正常菜单退出，实际会话为 authenticated=false，再用带身份、额度与关联表断言的事务精确清理上述 QA 用户、临时邀请码、模拟额度、2 条 QA 产品事件与 3 个本次挑战。没有 QA 简历、岗位、作答、Auth 用户或支付资料需要迁移；不清空全站或号码限流。测试号码已随 QA 绑定释放，不占着本人后续绑定旧账号。临时 QA 标签已关闭，正式旧账号未退出。
+- **旧数据完整性**：清理后用户数恢复 56、QA 用户 0、挑战 0；旧作答 41 条。旧用户整行 MD5 `095d94e2d3c26aee5615a955cad085dd`、旧额度 `facb25f917190aa600a1033754607b1b`、旧作答 `0881efbb0a4a159ba1e7b5460c6007d8` 与验收前完全一致。按 `md5(string_agg(row_to_json(x)::text, '' order by x.id))` 同口径核对；不是只比较数量。
+- **首次发送失败的边界**：首次 503 发生在供应商发送，原代码未留错误码，根因不能回溯确认。`1d8afd0` 修的是安全诊断和官方限流码对应 429；随后一次本人重新尝试真实登录成功，不据此断言最初失败一定是频控、模板或网络。修复版近 1 小时 provider failure 查询匹配 0，发布后近 15 分钟 error 请求 0；这只是短窗日志，不是持续监控或长期成功率。持续告警 / Drains 本轮未评估或配置。
+- **测试边界**：9 套 / 65 项定向回归、tsc 与云端构建通过；全量 2368 通过 / 9 跳过 / 4 个原有 JD 链接导入失败（Manus、Greenhouse、Lever、Ashby）。真实绑定、待验证/绑定/登录后刷新、同 ID 与额度已验；新号码直接注册、错码/重放/并发和真实断网仍仅有单测/SQL 或未完成证据，不冒充阿里云真实负面验收。本轮未购买套餐、充值或调用付费模型。
+- **私有截图**：`/tmp/yizhi-phone-login-refresh-passed.png`（登录后刷新仍绑定，号码掩码），`/tmp/yizhi-phone-production-bind-ready.png`（正式旧账号空白绑定入口）。不入库完整号码、验证码、密钥或可登录邀请码。
+
 ## 密钥到位后的真实验收续接（2026-10-18 UTC）
 
 - 本人已确认保存两项密钥。Vercel CLI 只查到 `ALIYUN_PNVS_ACCESS_KEY_ID` / `ALIYUN_PNVS_ACCESS_KEY_SECRET` 为 Production 加密变量；未读取值、拉取环境文件或写入 Git。

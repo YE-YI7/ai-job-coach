@@ -1,63 +1,15 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { callLLM } from "@/lib/llm";
 import { getGenerationContext } from "@/lib/generation-context";
+import { getEvalObserver, redactEval, type EvalSpan } from "./eval-scope";
+export { withEvalObserver, redactEval, type EvalSpan } from "./eval-scope";
 
-export interface EvalSpan {
-  id: string;
-  name: string;
-  agent: string;
-  kind: "agent";
-  status: "running" | "completed" | "failed";
-  startedAt: string;
-  durationMs: number;
-  input: unknown;
-  output: unknown;
-  model?: string;
-  knowledge: Array<{
-    id: string;
-    title: string;
-    included: boolean;
-    kind: string;
-  }>;
-}
-type Observer = { spans: EvalSpan[]; save: () => Promise<void> };
-const scope = new AsyncLocalStorage<Observer>();
-export function withEvalObserver<T>(
-  observer: Observer,
-  action: () => Promise<T>,
-) {
-  return scope.run(observer, action);
-}
-export function redactEval(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactEval);
-  if (value && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(
-          ([key]) => !["__proto__", "constructor", "prototype"].includes(key),
-        )
-        .map(([key, v]) => [
-          key,
-          /^(authorization|cookie|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)$/i.test(
-            key,
-          )
-            ? "[已屏蔽凭据]"
-            : redactEval(v),
-        ]),
-    );
-  return typeof value === "string"
-    ? value
-        .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [已屏蔽]")
-        .replace(/\bsk-[A-Za-z0-9_-]{12,}/g, "[已屏蔽 API Key]")
-    : value;
-}
-/** Only the explicit, admin-authorized eval route installs a scope. Normal rewrites
- * keep the original LLM behavior and do not persist prompts or answers. */
+/** Only authorized workspace accounts and explicit admin samples install a scope.
+ * Other users retain the original LLM behavior with no prompt capture. */
 export async function observedResumeLLM(
   ...args: Parameters<typeof callLLM>
 ): Promise<string> {
-  const observer = scope.getStore();
+  const observer = getEvalObserver();
   if (!observer) return callLLM(...args);
   const context = getGenerationContext(),
     start = Date.now();
@@ -112,6 +64,11 @@ export async function observedResumeLLM(
     span.output = {
       error: "模型调用未完成",
       errorType: error instanceof Error ? error.name : "UnknownError",
+      message: redactEval(
+        error instanceof Error
+          ? error.message.slice(0, 2000)
+          : String(error).slice(0, 2000),
+      ),
     };
     throw error;
   } finally {

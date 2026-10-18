@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getDbClient } from "@/lib/db";
+import { captureEvalStage, type EvalStageIO } from "./eval-scope";
 
 export const RESUME_TRACE_EVENT = "resume_agent_trace";
 export type ResumeTraceOutcome = "running" | "completed" | "unchanged" | "needs_detail" | "blocked" | "failed" | "quota_denied";
@@ -33,8 +34,10 @@ export async function startResumeTrace(userId: string, requestId: string, genera
   await write(); // Fail before quota/model calls if the initial audit cannot be saved.
   return {
     data: trace,
-    step(stage: ResumeTrace["steps"][number]["stage"], code: string, count?: number) {
-      if (trace.steps.length < 16) trace.steps.push({ stage, code, elapsedMs: Date.now() - started, ...(count === undefined ? {} : { count }) });
+    step(stage: ResumeTrace["steps"][number]["stage"], code: string, count?: number, io?: EvalStageIO) {
+      const now = Date.now(), previous = trace.steps.at(-1)?.elapsedMs || 0;
+      captureEvalStage(stage, code, io, started + previous, Math.max(0, now - started - previous));
+      if (trace.steps.length < 16) trace.steps.push({ stage, code, elapsedMs: now - started, ...(count === undefined ? {} : { count }) });
     },
     async finish(outcome: ResumeTraceOutcome) { trace.outcome = outcome; await write(); },
   };

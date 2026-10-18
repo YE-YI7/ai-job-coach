@@ -18,6 +18,7 @@ import {
   resumeRequestHash,
 } from "@/lib/coach-harness/resume-trace";
 import type { ResumeChange } from "@/lib/opportunities/types";
+import { withEvalStages as withStages } from "@/lib/coach-harness/eval-scope";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,16 +30,6 @@ const uuid = (s: unknown): s is string =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     s,
   );
-function withStages(run: Record<string, unknown>) {
-  const spans = [
-    ...(Array.isArray(run.stages) ? run.stages : []),
-    ...(Array.isArray(run.spans) ? run.spans : []),
-  ];
-  spans.sort(
-    (a, b) => (Date.parse(a.startedAt) || 0) - (Date.parse(b.startedAt) || 0),
-  );
-  return { ...run, spans };
-}
 async function access() {
   const user = await getCurrentUserFromRequest();
   return {

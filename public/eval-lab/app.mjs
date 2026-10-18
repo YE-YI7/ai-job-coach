@@ -8,10 +8,15 @@ import {
   PROBLEMS,
   VERSION,
   MAX_BYTES,
+  preferredSpan,
 } from "./core.mjs";
 import { samples } from "./samples.mjs";
 const $ = (id) => document.getElementById(id);
 const live = new URLSearchParams(location.search).get("live") === "1";
+// Internal acceptance link: exercises the ordinary authenticated business API,
+// not a second rewrite implementation. Never runs automatically on load.
+const workspaceEntry =
+  live && new URLSearchParams(location.search).get("workspace-entry") === "1";
 let runs = [],
   selected = null,
   tab = "trace",
@@ -79,6 +84,11 @@ function payload(value) {
   return `<pre class="payload">${esc(text(value))}</pre>`;
 }
 function io(s) {
+  if (s.input == null && s.output == null)
+    return missing(
+      "阶段摘要，没有内容快照",
+      "这条打点只保存了状态与时间，不是完整的输入输出记录。请查看有 I/O 的模型调用；历史未存内容无法恢复。",
+    );
   return `<div class="io-columns"><div class="io-block"><h3>输入 Input</h3>${payload(s.input)}</div><div class="io-block"><h3>输出 Output</h3>${payload(s.output)}</div></div>`;
 }
 function knowledgeHTML(entries, scopeLabel = "知识库使用") {
@@ -164,7 +174,12 @@ async function select(id) {
       if (seq !== requestSequence) return;
       const full = parseImport(JSON.stringify(data))[0];
       runs = runs.map((x) => (x.id === id ? full : x));
-      notice("正式管理员记录 · 只读查看，不会自动调用模型");
+      notice(
+        full.format === "resume_trace_v1"
+          ? "历史阶段摘要 · 当时未保存输入输出，不能完整回放。已授权账号今后的工作区改稿会直接采集。"
+          : full.captureWarning ||
+              "正式管理员记录 · 只读查看，不会自动调用模型",
+      );
     } catch (e) {
       notice(e.message, true);
     } finally {
@@ -203,7 +218,9 @@ function renderDetail() {
     r.provenance === "synthetic"
       ? "演示运行 · 虚构样本，未调用模型"
       : loadedSource === "production"
-        ? "益职正式站 · 管理员观察"
+        ? r.source === "workspace"
+          ? "工作区真实请求 · 直接采集"
+          : "益职正式站 · 管理员观察"
         : "本地导入 · 仅当前标签页";
   $("run-status").className = `status ${r.status}`;
   $("run-status").textContent = STATUS[r.status] || "状态未记录";
@@ -254,10 +271,7 @@ function renderPanel() {
       '<p class="section-intro">点击一个阶段，核对它实际拿到了什么、交出了什么。</p>';
     if (!r.spans.length) h += missing("没有阶段记录");
     else {
-      const s =
-        r.spans.find((x) => x.id === spanId) ||
-        r.spans.find((x) => ["failed", "blocked"].includes(x.status)) ||
-        r.spans[0];
+      const s = preferredSpan(r.spans, spanId);
       spanId = s.id;
       h += `<div class="trace-grid"><div class="stage-list" aria-label="阶段时间线">${r.spans.map((s) => `<button class="stage-button" data-span="${esc(s.id)}" aria-pressed="${s.id === spanId}">${esc(s.name)}<span>${esc(formatMs(s.durationMs))} · ${esc(STATUS[s.status] || "未记录")}</span></button>`).join("")}</div><div class="span-detail"><div class="span-title"><h2>${esc(s.name)}</h2>${statusHTML(s.status)}</div>${s.code ? `<p class="code-label">${esc(s.code)}</p>` : ""}${s.model ? `<p class="code-label">${esc(s.model)}</p>` : ""}${io(s)}${knowledgeHTML(s.knowledge?.length ? s.knowledge : r.knowledge, s.knowledge?.length ? "本阶段知识" : "本次运行知识（未映射到阶段）")}</div></div>`;
     }
@@ -275,7 +289,7 @@ function renderPanel() {
           .join("")
       : missing(
           "尚未记录 Agent 级输入输出",
-          "旧阶段打点不会被当成 Agent 的完整输入输出。新建管理员实测会记录可见消息与响应，不收集隐藏推理。",
+          "这条历史记录当时没有保存模型 I/O。已授权账号的新工作区改稿会直接记录可见消息与响应，不收集隐藏推理。",
         );
   }
   if (tab === "result") {
@@ -416,7 +430,10 @@ async function refresh() {
       })),
       ...parseLegacyRows(data.traces || []),
     ].sort(
-      (a, b) => (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0),
+      (a, b) =>
+        Number(b.format !== "resume_trace_v1") -
+          Number(a.format !== "resume_trace_v1") ||
+        (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0),
     );
     loadedSource = "production";
     $("connection").textContent = "正式站 · 管理员";
@@ -651,18 +668,40 @@ $("new-form").onsubmit = async (e) => {
     } catch {}
   }, 6000);
   try {
-    const data = await api("", {
+    const submission = {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         requestId: id,
         resumeText: $("resume-input").value,
         jobDescription: $("jd-input").value,
-        selfEvaluate: $("self-eval").checked,
+        selfEvaluate: !workspaceEntry && $("self-eval").checked,
         label: $("case-name").value,
         acknowledgeCost: true,
+        ...(workspaceEntry
+          ? {
+              evalCaptureId: id,
+              evalLabel: $("case-name").value,
+              mode: $("jd-input").value.trim()
+                ? "target_resume"
+                : "general_resume",
+            }
+          : {}),
       }),
-    });
+    };
+    let data;
+    if (workspaceEntry) {
+      const response = await fetch("/api/coach/resume-draft", {
+        ...submission,
+        credentials: "same-origin",
+      });
+      data = await response.json();
+      // An actual business failure is also inspectable evidence, not a reason
+      // to invent success or resubmit a second model request.
+      if (!response.headers.get("x-yizhi-eval-id") && response.status !== 202)
+        throw Error(data.error || `业务请求失败（${response.status}）`);
+      data = { runs: true };
+    } else data = await api("", submission);
     if (data.runs) {
       uncertainId = null;
       try {
@@ -690,6 +729,13 @@ $("new-form").onsubmit = async (e) => {
     $("start-run").disabled = false;
   }
 };
+if (workspaceEntry) {
+  $("self-eval").checked = false;
+  $("self-eval").disabled = true;
+  $("self-eval").closest("label").hidden = true;
+  $("new-form").querySelector("p").textContent =
+    "业务入口验收：直接调用正式改稿接口，只使用本次样本，不关联旧岗位，不额外调用自评模型。";
+}
 if (live) refresh().then(reconcilePending);
 else {
   notice("界面预览 · 未连接正式数据。正式评测请进入益职同域的管理员入口");

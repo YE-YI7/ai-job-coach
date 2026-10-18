@@ -12,6 +12,7 @@ import {
 } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import { observedResumeLLM as callLLM } from "@/lib/coach-harness/eval-observer";
+import { recordWorkspaceResume } from "@/lib/coach-harness/workspace-eval";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
@@ -58,6 +59,9 @@ function parseJson(text: string) {
 export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
+  return recordWorkspaceResume(user, request, (input) => runResumeDraft(input, user));
+}
+async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>) {
   let reservation: QuotaReservation | null = null;
   let trace: Awaited<ReturnType<typeof startResumeTrace>> | undefined;
   let outcome: ResumeTraceOutcome = "failed";
@@ -126,7 +130,7 @@ export async function POST(request: Request) {
       context = compileContextBundle({ ...context, knowledgeContext: "", claims: [...context.claims.filter(claim=>claim.claimType!=="resume_task_supplement"), ...supplementClaims],
         attachments: [...context.attachments, ...answers.map((answer, index) => ({ id: `resume-answer-source-${index}`, label: "已保存的本人补充（自述）", text: answer.answer, required: true }))] });
     }
-    trace.step("context", "own_materials_compiled");
+    trace.step("context", "own_materials_compiled", undefined, { input: { resumeText, jobDescription, opportunityId, mode: body.mode }, output: context });
     const references = selectResumeDraftKnowledge(resumeText, jobDescription, context.knowledge);
     const { examples, methods } = references;
     // All branches, including no opportunity / no JD, use reviewed methods.
@@ -142,7 +146,7 @@ export async function POST(request: Request) {
       excludedByBudgetIds: references.knowledge.filter(item => !includedIds.has(item.id)).map(item => item.id),
       matches: examples.map(item => ({ id: item.document.id, similarity: item.score, dimensions: item.matchedDimensions, signals: item.matchedSignals, stageMatched: item.stageMatched })) };
     trace.step("retrieval", examples.length ? "background_examples_selected" : "no_close_example", examples.length);
-    trace.step("retrieval", "reviewed_methods_in_context", trace.data.retrieval.includedMethodIds?.length || 0);
+    trace.step("retrieval", "reviewed_methods_in_context", trace.data.retrieval.includedMethodIds?.length || 0, { input: { resumeText, jobDescription, candidateMethodIds: methods.map(item=>item.id) }, output: { retrieval: trace.data.retrieval, knowledgePrompt }, knowledge: includedKnowledge.map(item=>({id:item.id,title:item.title,included:true,kind:'knowledge'})) });
 
     // PRD §5.1 fail-loud：关键原句装不下就拒绝生成，不能截断后继续作结论。
     assertContextFits(context);
@@ -235,7 +239,7 @@ export async function POST(request: Request) {
       if(agentTask&&attempt===0){repairFeedback=['上次返回的 JSON 无法解析。请重新给出完整、合法的 JSON，字符串换行使用转义，不用 Markdown 围栏；减少修改条数，确保每一条完整。'];trace.step('draft','invalid_format_bounded_repair');continue;}
       throw error;
     }
-    trace.step("draft", "model_returned");
+    trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
     if(rawChanges.some(item=>String(item.after||'').trim()))rawChanges.push(...proposeStandaloneDisclaimerDeletions(resumeText,rawChanges,citationSources.filter(item=>citableIds.has(item.id))));
     followUp = agentTask && factualResumeAnswers(agentTask.answers).length < 5
@@ -257,7 +261,7 @@ export async function POST(request: Request) {
       const recovery = modelResumeRecovery(resumeText, parsed.recovery);
       if (agentTask ? question : recovery) {
         await finalizeQuota(reservation, false); reservation = null; outcome = "needs_detail";
-        trace.step("draft", recovery?.detailSaved ? "saved_detail_not_requested_again" : "one_anchored_question");
+        trace.step("draft", recovery?.detailSaved ? "saved_detail_not_requested_again" : "one_anchored_question", undefined, {input:parsed,output:{status:'needs_detail',question:question||recovery}});
         return NextResponse.json({ ok: false, reasonCode: "resume_detail_needed", error: recovery?.detailSaved ? "补充已保存，原简历可继续编辑或导出" : "这段还需要一个真实细节；原文保留，本次未扣额度", recovery: question || recovery }, { status: 422 });
       }
     }
@@ -323,14 +327,14 @@ export async function POST(request: Request) {
       if(agentTask&&attempt===0){repairFeedback=[...rejected.flatMap(item=>item.reasons),...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);trace.step('grounding','one_bounded_repair',rejected.length);continue;}
       const onlyCosmetic=rejected.length>0&&rejected.every(item=>item.reasons.length>0&&item.reasons.every(reason=>/仅改标签|技能列表|仅同义换词/.test(reason)));
       if(agentTask&&!changes.length&&onlyCosmetic){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}
-      outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length);
+      outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length, {input:rawChanges,output:{changes,rejected,verdicts:citationVerdicts}});
       await finalizeQuota(reservation, false);
       reservation = null;
       if(explicitQuestion)return askExplicitDetail();
       if(followUp){outcome='needs_detail';return NextResponse.json({ok:false,reasonCode:'resume_detail_needed',error:'已有内容保留，这段补充一个具体细节后接着改。',recovery:followUp},{status:422});}
       return NextResponse.json({ ok: false, reasonCode: "resume_draft_unverified", retryable: true, error: "这次没能生成可用的修改，原文和补充已保留，本次未扣额度。可以告诉导师想调整哪里，或直接编辑。", ...(agentTask ? {} : { recovery: resumeRecovery(resumeText) }) }, { status: 422 });
     }
-    trace.step("grounding", "proposals_checked", changes.length);
+    trace.step("grounding", "proposals_checked", changes.length, {input:rawChanges,output:{changes,rejected,verdicts:citationVerdicts}});
     // Review is a separate bounded model call in the same user's billing context.
     // Step completion caps include private reasoning; 1800 alone can end with
     // finish_reason=length and no final JSON even after a successful draft.
@@ -403,7 +407,7 @@ export async function POST(request: Request) {
     trace.data.quality = { subject: "draft_quality_not_candidate", score: (grounding ? 40 : 0) + (reviewerPassed ? 30 : 0) + (shortBullets ? 20 : 0) + (ats.ok ? 10 : 0),
       grounding, independentReview: reviewerPassed, shortBullets, ats: ats.ok, proposed: rawChanges.length, retained: finalChanges.length };
     trace.data.editingValue={reviewed:changes.length,useful:finalChanges.filter(change=>change.status==='pending').length,rejected:rejected.length+errorChangeIds.size,kinds:[...new Set(valueChecks.filter(check=>check.useful).map(check=>check.kind))],personalDisclaimersOmitted,disposition:'revised'};
-    trace.step("review", reviewerPassed ? "review_passed" : "partial_changes_retained", finalChanges.length);
+    trace.step("review", reviewerPassed ? "review_passed" : "partial_changes_retained", finalChanges.length, {input:{changes},output:{reviewer,finalChanges,discardedReviewFindings,valueChecks}});
     let applicationQuality: import('@/lib/opportunities/types').Opportunity['applicationQuality'];
     if (opportunityId) {
       const claimLinks = finalChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
@@ -436,7 +440,7 @@ export async function POST(request: Request) {
     await finalizeQuota(reservation, true);
     const quota = { source: reservation.source, remaining: reservation.remaining };
     reservation = null;
-    outcome = "completed"; trace.step("save", opportunityId ? "artifact_saved" : "draft_returned_without_opportunity");
+    outcome = "completed"; trace.step("save", opportunityId ? "artifact_saved" : "draft_returned_without_opportunity", undefined, {input:{changes:finalChanges,opportunityId},output:{previewText:preview.text,task,applicationQuality}});
     return NextResponse.json({
       ok: true,
       changes: finalChanges,
@@ -458,7 +462,7 @@ export async function POST(request: Request) {
       quota,
     });
   } catch (error) {
-    trace?.step("failure", error instanceof ContextBudgetExceededError ? "context_budget_exceeded" : classifyGenerationFailure(error));
+    trace?.step("failure", error instanceof ContextBudgetExceededError ? "context_budget_exceeded" : classifyGenerationFailure(error), undefined, {input:{requestHash:trace?.data.requestHash},output:{errorType:error instanceof Error?error.name:'UnknownError',message:error instanceof Error?error.message.slice(0,2000):String(error).slice(0,2000)}});
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Resume quota refund failed", refundError));
     console.error("Resume draft failed", error);
     // 预算溢出是可由用户决策恢复的：拆任务、删材料或换更短的 JD。

@@ -42,6 +42,16 @@ export const text = (x) =>
   x == null ? "" : typeof x === "string" ? x : JSON.stringify(x, null, 2);
 export const state = (x) =>
   Object.hasOwn(STATUS, x) ? x : x === "done" ? "completed" : "unknown";
+export function preferredSpan(spans, selectedId) {
+  const hasIO = (s) => s.input != null || s.output != null;
+  return (
+    spans.find((s) => s.id === selectedId) ||
+    spans.find((s) => ["failed", "blocked"].includes(s.status) && hasIO(s)) ||
+    spans.find((s) => s.agent && hasIO(s)) ||
+    spans.find(hasIO) ||
+    spans[0]
+  );
+}
 
 // Never execute imported data. Reject excessive nesting; redact credentials recursively.
 export function sanitize(value, depth = 0) {
@@ -146,7 +156,8 @@ function legacy(row, i) {
   });
   return {
     id: t.traceId,
-    label: t.mode === "target_resume" ? "岗位定制改稿" : "无 JD 简历改稿",
+    label:
+      t.mode === "target_resume" ? "历史摘要 · 岗位定制" : "历史摘要 · 无 JD",
     provenance: "imported",
     format: "resume_trace_v1",
     startedAt: str(row.occurred_at),

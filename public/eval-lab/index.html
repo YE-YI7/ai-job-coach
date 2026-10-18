@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <title>益职 · Eval Lab</title>
+    <meta
+      name="description"
+      content="把一次 Agent 运行的输入、过程、知识与结果放在一起核对。"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.mjs"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到运行详情</a>
+    <header class="topbar">
+      <a
+        class="brand"
+        href="https://www.ai-job-coach.xin/admin/evals"
+        target="_top"
+        aria-label="益职 Eval Lab 管理员入口"
+        ><svg viewBox="0 0 28 28" aria-hidden="true">
+          <path d="M7 6h14M7 14h10M7 22h14M7 6v16" /></svg
+        ><span
+          >益职 <span class="brand-sep">/</span> <strong>Eval Lab</strong></span
+        ></a
+      >
+      <div class="header-tools">
+        <span id="connection" class="connection">未连接正式数据</span
+        ><button id="help" class="quiet">使用说明</button
+        ><button id="import" class="button secondary">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 13V3m-4 4 4-4 4 4M4 12v5h12v-5" /></svg
+          >导入 Trace
+        </button>
+      </div>
+    </header>
+    <div id="notice" class="notice" hidden></div>
+    <div class="shell">
+      <aside class="rail" aria-label="运行记录">
+        <div class="rail-title">
+          <h2>运行记录</h2>
+          <button
+            id="refresh"
+            class="icon-button"
+            aria-label="刷新正式运行记录"
+            title="刷新记录"
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M16 8a6 6 0 1 0 0 5M16 3v5h-5" />
+            </svg>
+          </button>
+        </div>
+        <button id="new-run" class="new-run">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" /></svg
+          >新建实测
+        </button>
+        <label class="search"
+          ><svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="8.5" cy="8.5" r="5.5" />
+            <path d="m13 13 4 4" /></svg
+          ><input
+            id="search"
+            type="search"
+            placeholder="搜索名称或运行 ID"
+            aria-label="搜索运行"
+        /></label>
+        <div class="filter-row">
+          <label for="filter">状态</label
+          ><select id="filter">
+            <option value="all">全部运行</option>
+            <option value="failed">失败 / 被拦截</option>
+            <option value="needs_detail">待补充信息</option>
+            <option value="completed">已完成</option>
+            <option value="running">运行中</option>
+          </select>
+        </div>
+        <p id="list-caption" class="list-caption">先导入或读取一次运行</p>
+        <div id="runs" class="run-list" aria-live="polite"></div>
+        <div class="rail-bottom">
+          <button id="demo" class="text-button">查看演示运行</button>
+          <p>演示与真实记录分开显示</p>
+          <a href="https://www.ai-job-coach.xin/cockpit" target="_top"
+            >返回益职工作区</a
+          >
+        </div>
+      </aside>
+      <main id="main" tabindex="-1">
+        <div id="empty" class="empty-state">
+          <svg class="empty-mark" viewBox="0 0 80 60" aria-hidden="true">
+            <path d="M5 30h17m15 0h17m15 0h6" />
+            <circle cx="29" cy="30" r="7" />
+            <circle cx="61" cy="30" r="7" />
+            <path d="M29 23V9h32v14M29 37v14h32V37" />
+          </svg>
+          <h1>看清一次改稿，发生了什么。</h1>
+          <p>
+            输入、知识与每个 Agent 的交接，<br />和最终结果放在同一条证据链里。
+          </p>
+          <button class="button primary" id="empty-action">读取正式运行</button
+          ><button class="text-button" id="empty-demo">先体验一条演示</button>
+          <p class="empty-foot">不会自动发起模型调用或改动旧作答</p>
+        </div>
+        <div id="detail" hidden>
+          <div class="run-heading">
+            <div>
+              <h1 id="run-title"></h1>
+              <div class="run-meta">
+                <span id="run-origin"></span>
+                <span id="run-status" class="status"></span
+                ><span id="run-time"></span><span id="run-duration"></span>
+              </div>
+            </div>
+            <button id="export" class="quiet">导出本次评测</button>
+          </div>
+          <div class="run-id">
+            <span id="run-id"></span
+            ><button id="copy-id" class="text-button">复制 ID</button>
+          </div>
+          <div class="workspace">
+            <section class="evidence" aria-label="运行证据">
+              <div class="tabs" role="tablist" aria-label="评测环节">
+                <button
+                  role="tab"
+                  id="tab-input"
+                  data-tab="input"
+                  aria-controls="panel"
+                >
+                  输入</button
+                ><button
+                  role="tab"
+                  id="tab-trace"
+                  data-tab="trace"
+                  aria-controls="panel"
+                >
+                  Trace</button
+                ><button
+                  role="tab"
+                  id="tab-agents"
+                  data-tab="agents"
+                  aria-controls="panel"
+                >
+                  Agent I/O</button
+                ><button
+                  role="tab"
+                  id="tab-result"
+                  data-tab="result"
+                  aria-controls="panel"
+                >
+                  结果</button
+                ><button
+                  role="tab"
+                  id="tab-eval"
+                  data-tab="eval"
+                  aria-controls="panel"
+                >
+                  评估依据
+                </button>
+              </div>
+              <div id="panel" role="tabpanel" tabindex="0"></div>
+            </section>
+            <aside class="assessment" aria-label="评估与人工结论">
+              <div id="assessment"></div>
+              <section class="human">
+                <h2>人工判断</h2>
+                <p class="muted">模型的自评，留给你来校准。</p>
+                <label for="verdict">本次结果</label
+                ><select id="verdict">
+                  <option value="pending">尚未判断</option>
+                  <option value="pass">可以交付</option>
+                  <option value="improve">仍需改进</option>
+                  <option value="fail">不可交付</option></select
+                ><label for="review-note">具体问题与期望</label
+                ><textarea
+                  id="review-note"
+                  rows="3"
+                  placeholder="哪一段没有改好？你期望怎样的结果？"
+                ></textarea
+                ><button id="save-review" class="button secondary">
+                  保存判断到本机
+                </button>
+                <p id="review-status" class="footnote" aria-live="polite">
+                  只保存结论和备注，不保存运行正文
+                </p>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+    <input
+      id="file"
+      type="file"
+      accept=".json,.jsonl,application/json"
+      hidden
+    />
+    <dialog id="import-dialog">
+      <div class="dialog-head">
+        <h2>导入一次运行</h2>
+        <button class="icon-button close-dialog" aria-label="关闭导入">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
+      </div>
+      <p class="section-intro">仅在当前标签页解析，不发送到服务器。</p>
+      <button id="choose-file" class="button secondary">
+        选择 JSON / JSONL 文件</button
+      ><label class="import-label" for="json-input">或直接粘贴 JSON</label
+      ><textarea
+        id="json-input"
+        rows="9"
+        spellcheck="false"
+        placeholder="支持现有管理员 Trace 响应或完整评测包"
+      ></textarea>
+      <p id="import-error" class="notice-inline" role="alert"></p>
+      <button id="paste-import" class="button primary">解析并导入</button>
+    </dialog>
+    <div id="toast" role="status" class="toast" hidden></div>
+    <dialog id="help-dialog">
+      <div class="dialog-head">
+        <h2>从一条运行开始</h2>
+        <button class="icon-button close-dialog" aria-label="关闭说明">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
+      </div>
+      <div class="help-body">
+        <h3>正式记录，复用益职管理员登录</h3>
+        <p>
+          正式入口是
+          <a href="https://www.ai-job-coach.xin/admin/evals" target="_top"
+            >ai-job-coach.xin/admin/evals</a
+          >。登录不代表拥有管理员权限，服务器会再次核对管理员名单。此处不会索要
+          Cookie 或数据库 Key。
+        </p>
+        <h3>历史数据，不补造证据</h3>
+        <p>
+          旧版 Trace 仅有阶段、知识 ID
+          与规则检查分；没有记录的输入、输出及自评理由会明确留空。规则加总分不会冒充
+          LLM 自评分。
+        </p>
+        <h3>新建实测</h3>
+        <p>
+          只运行你在表单中提供的样本，不关联旧岗位或作答。经你确认后才调用真实模型并按现有站点规则计费；附加自评会多调用一次模型。可见消息及输出保存在独立管理员评测表，不收集模型隐藏推理。
+        </p>
+        <h3>导入与导出</h3>
+        <p>
+          兼容现有管理员 Trace JSON、完整评测包及
+          JSONL。导入在当前标签页本地处理；关闭页面即清除正文。人工判断只有点保存才写入本机。导出包包含本次材料，请自行保管。
+        </p>
+        <button id="template" class="text-button">下载完整数据模板</button>
+        <p class="footnote">
+          支持最多100条运行 / 文件5MB。不要导入密钥。脱敏不等于匿名化。
+        </p>
+      </div>
+    </dialog>
+    <dialog id="new-dialog">
+      <div class="dialog-head">
+        <h2>新建一次真实实测</h2>
+        <button class="icon-button close-dialog" aria-label="关闭实测表单">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
+      </div>
+      <form id="new-form">
+        <p>只使用本次提交的材料，不读取或改动你的旧作答、旧岗位。</p>
+        <label for="case-name">样本名称</label
+        ><input
+          id="case-name"
+          type="text"
+          maxlength="120"
+          placeholder="例如：普通电商实习 · 无 JD"
+        /><label for="resume-input">简历样本</label
+        ><textarea
+          id="resume-input"
+          rows="8"
+          minlength="20"
+          maxlength="30000"
+          required
+          placeholder="建议先用虚构、脱敏且有代表性的简历样本"
+        ></textarea
+        ><label for="jd-input"
+          >目标 JD <span class="muted">可选，留空即无 JD 改稿</span></label
+        ><textarea
+          id="jd-input"
+          rows="3"
+          maxlength="30000"
+          placeholder="不提供时，不假设目标岗位"
+        ></textarea
+        ><label class="check-label"
+          ><input id="self-eval" type="checkbox" checked />附加一次 LLM
+          整稿自评</label
+        ><label class="check-label"
+          ><input
+            id="cost-ack"
+            type="checkbox"
+            required
+          />同意实际调用模型并正常计费，所填样本和可见模型输入输出保存为管理员评测记录</label
+        >
+        <p id="new-status" class="footnote" aria-live="polite"></p>
+        <button class="button primary" type="submit" id="start-run">
+          开始真实实测
+        </button>
+      </form>
+    </dialog>
+  </body>
+</html>

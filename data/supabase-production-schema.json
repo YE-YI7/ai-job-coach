@@ -41,6 +41,16 @@
       "created_at",
       "updated_at"
     ],
+    "coach_eval_runs": [
+      "id",
+      "user_id",
+      "label",
+      "status",
+      "legacy_trace_id",
+      "run",
+      "created_at",
+      "updated_at"
+    ],
     "coach_resume_tasks": [
       "id",
       "user_id",

@@ -11,7 +11,7 @@ import {
   type CareerClaim,
 } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
-import { callLLM } from "@/lib/llm";
+import { observedResumeLLM as callLLM } from "@/lib/coach-harness/eval-observer";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";

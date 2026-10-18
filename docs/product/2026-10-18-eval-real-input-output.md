@@ -16,7 +16,17 @@ UI 默认打开有 I/O 的实际调用，失败优先；历史记录标为“历
 - UI Node：9 项通过，新增默认有 I/O/失败优先与手动选择空摘要；静态边界、TypeScript、目标 ESLint 通过。
 - 本次 UI 手动 Impeccable detect 一次，退出 0、无报告；自动钩子未启用。未改布局和配色。
 - 修前旧作答41条，整行聚合 MD5 `9e144836009b5eb9bfe09dec0ac90d32`。
-- 正式部署、Chrome 真实业务入口、刷新、只读数据库回查：待发布后补录，不以单测代替。
+- 全量：2318通过、9跳过、4失败；仍是基线已存在的 Manus/Greenhouse/Lever/Ashby 岗位链接导入503，不在本次范围，不宣称全绿。
+
+## 正式验收结果
+
+- 运行提交 `fc5f3184819e407cdf30ed6ee058b90ebc1f8aa5`；生产部署 `dpl_2g3VvyVEWrJE6YsrTSsGsbJaKsbo` 经 READY、健康 `database=ok`、匿名 API401 后 promote。裸域与 www 元数据核验同一提交/READY。未改环境授权名单。
+- Chrome 正常登录态用内部表单直接 POST 真实业务 `/api/coach/resume-draft`，不是 admin sampler，也不是模拟模型。独立虚构门店助理样本不携带 opportunityId/resumeTaskId，未动旧岗位。
+- 唯一新运行 `13b117d6-5d87-42bb-9f33-839bb9dc0e91`，source=workspace、21.746秒、completed、无 captureWarning。共8个真实 I/O 节点：上下文、检索、改稿模型、解析改稿、事实校验、独立质检模型、复核结果、保存结果；所有输入/输出均非空。另保留3个只有状态/时间的辅助打点，明确不冒充完整快照。
+- 2次模型调用均 `deepseek-v4-flash`；模型输入分别19077/17105字节，输出1778/657字节。未请求额外自评，evaluation_status=not_requested，页面明确显示，没有把规则100代填为自评分。
+- Chrome 逐项查看实际模型 I/O、上下文编译、三篇实际方法知识正文及保存阶段 previewText；重新进入正式 `/admin/evals` 恢复同一运行 ID、21.7秒、两次非空I/O。读/刷新没有新增调用。手机390×844实测单列I/O、文档宽390无横向溢出，恢复原视口；默认桌面实际截图核看。截图 `/tmp/yizhi-eval-io-production.png`、`/tmp/yizhi-eval-io-mobile.png`。
+- 数据库只读核验：本轮仅1条QA/2模型调用；对应通用事件有9条metadata打点，不含样本姓名或简历正文。旧作答仍41条、同算法MD5 `9e144836009b5eb9bfe09dec0ac90d32`，与修改前相同。
+- 新产物仍保留泛化自我评价，说明本次只修观察链路，不冒称整稿质量已修好。完整证据现在可供进一步定位。
 
 ## 验收入口
 

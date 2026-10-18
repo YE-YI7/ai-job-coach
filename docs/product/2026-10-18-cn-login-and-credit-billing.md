@@ -42,6 +42,18 @@
 
 下一步先确认有效登录、个人实名、服务协议/开通状态、可用签名模板及最小权限RAM；新密钥仅写服务端Secret，不发聊天。不把短信平台核验成功等同于益职会话已实现。
 
+### 登录恢复后的实际核对（本机2026-10-17晚）
+
+用户再次回复登录后，发现原先保留的控制台标签已经进入有效登录；第二个登录标签未跳转不能当作全浏览器未登录。已使用原标签核实功能页“短信认证：已开启”，未代点开通或接受服务协议。签名配置有6个系统赠送、审核通过的签名，包括恒创联众；模板配置实际列出登录/注册100001、修改绑定100002、绑定新号100004、验证绑定100005。它们是模板编码，不是验证码；未发送测试短信。当前赠送签名不是“益职”，正式登录交互需明确短信发送方，避免用户误认。
+
+RAM用户列表只有既有power-application-user，没有益职专用短信用户；未复用其权限或读取AccessKey。下一步拟建立独立yizhi-sms-prod、禁止控制台登录，仅授权`dypns:SendSmsVerifyCode`与`dypns:CheckSmsVerifyCode`，资源级约束不受该服务支持，因此Resource为`*`，但不授予全云或完整号码认证权限。新建/授权需用户明确确认；密钥生成及Secret填入由本人完成，不进入聊天或日志。当前仍未创建用户、策略或凭据。
+
+- [发送接口的授权定义](https://help.aliyun.com/zh/pnvs/developer-reference/api-dypnsapi-2017-05-25-sendsmsverifycode)
+- [核验接口的授权定义](https://help.aliyun.com/zh/pnvs/developer-reference/api-dypnsapi-2017-05-25-checksmsverifycode)：请求OK不等于核验成功，必须检查Model.VerifyResult=PASS。
+- [自定义最小权限策略](https://help.aliyun.com/zh/pnvs/security-and-compliance/custom-permission-policy-reference)：RAM权限前缀为`dypns`，不能误写成API端点名`dypnsapi`。
+
+已登录模板页证据`/tmp/yizhi-sms-template-confirmed.png`；仅本人可见的本地截图，不纳入Git。上一段“待登录”是此前真实状态，本次已解除；新阻塞为专用权限/安全服务端凭据，非套餐购买或签名审核。
+
 ## 需补条件
 
 短信认证控制台有效登录/实名认证、开通协议与实际配对签名模板；最小权限服务端配置；支付宝与观猹当前商户实际费率/结算依据；统一站点模型供应账户。密钥不要求发聊天。没有这些不把现有支付先切断，也不推出没有对应真实订单的金额选项。手机号登录、金额钱包、新充值档位及移除用户TokenPay均尚未实现/切换。

@@ -73,6 +73,17 @@ RAM用户列表只有既有power-application-user，没有益职专用短信用�
 
 错误与交接证据：`/tmp/yizhi-ram-verification-error.png`、`/tmp/yizhi-sms-ram-retry-handoff.png`。不把浏览器扩展控制台报错直接归因为阿里云失败；已确认的阻塞仅为实际页面核身错误。未生成/读取/下载AccessKey，未发短信或购买/变更套餐。权限授权不需用户重复确认，但密钥生成仍交本人操作。
 
+### 本人验证后，专用用户与最小权限已配置（客户端日期2026-10-17）
+
+- 用户完成核身后，原创建结果显示yizhi-sms-prod / 益职生产短信认证“已完成”；没有重复创建同名用户，控制台访问与AccessKey均未设置。
+- 新建自定义策略YizhiSmsVerifyOnly v1。保存后切换源代码逐项回读，内容与上面的唯一JSON一致：Version 1、一个Allow语句、两个精确dypns验证码Action、Resource `*`，不含其他Action或FullAccess。
+- 仅将该策略绑定到新建短信用户；授权表单选中RAM用户1个且ID与目标详情一致，旧power-application-user及所有角色未选中。账号级资源范围与两API服务级授权一致，不是全云Action。
+- Chrome确认“已执行1/1，其中1成功、0失败”。重新导航用户权限页回读，个人权限只有YizhiSmsVerifyOnly一项；用户组继承权限表“没有数据”。未编辑旧用户或其他策略。
+- 授权组件加载缓慢，改用同一Chrome的原生CUA界面完成；未更改网络、Cookie、扩展安全配置或绕过核身。一次只读CDP加载诊断被“正在解析暂停文档响应”拒绝，不据此宣称已定位全部加载根因。
+- 未创建、读取、下载或传送AccessKey；未发送短信、购买套餐、改正式环境Secret、启用旧SMS路由、调用付费模型或写旧作答。这里只完成了云端专用身份与授权，不等于手机号登录已实现或上线。
+
+本机私有证据：`/tmp/yizhi-sms-minimal-policy.png`（保存后的完整两API源代码），`/tmp/yizhi-sms-ram-bound.png`（1/1绑定成功），`/tmp/yizhi-sms-user-permission.png`（重新导航后唯一直接权限），`/tmp/yizhi-sms-no-inherited-permissions.png`（继承为空）。截图不纳入Git。后续复用此用户/策略，不再另建；密钥由本人生成并安全填服务端，短信认证适配、原子challenge/限流/安全绑定和会话仍需实现与真实验收后才开放。
+
 ## 需补条件
 
 短信认证控制台有效登录/实名认证、开通协议与实际配对签名模板；最小权限服务端配置；支付宝与观猹当前商户实际费率/结算依据；统一站点模型供应账户。密钥不要求发聊天。没有这些不把现有支付先切断，也不推出没有对应真实订单的金额选项。手机号登录、金额钱包、新充值档位及移除用户TokenPay均尚未实现/切换。

@@ -1,4 +1,5 @@
 import { DOMESTIC_SEARCH_VERSION, DOMESTIC_SOURCE_IDS, searchLiveJobs } from "./live-sources";
+import { jdHardRequirements } from "./retrieval-gate";
 
 // 自制样例；不保存官网完整 JD、招聘联系人或真人简历。
 const row = {
@@ -82,4 +83,14 @@ test("美的成功与其他来源失败同时保留，人员字段和未核验�
   expect(result.postings[0].postedAt).toBeNull();
   expect(JSON.stringify(result.postings)).not.toContain("not-exported");
   expect(result.failures).toEqual([{ source: "netease", keyword: "产品" }]);
+});
+
+test("美的仅结构化字段提供的学历和年限仍进入既有硬筛，长部门名称不吞证据", async () => {
+  jest.spyOn(globalThis, "fetch").mockResolvedValue(response([{ ...row,
+    unitFullInfo: "制造事业部 | 工艺部门 | ".repeat(15), qualification: "熟悉机械制造和 CAD，能跟进工艺问题。",
+  }]));
+  const result = await searchLiveJobs(["工艺"], { sourceIds: ["midea"] });
+  const requirements = jdHardRequirements(result.postings[0].rawPageText!);
+  expect(requirements.hard).toMatchObject({ yearsMin: 3, educationMin: "bachelor" });
+  expect(requirements.requirements.find(item => item.dimension === "years")?.evidence).toContain("3-5年");
 });

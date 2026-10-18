@@ -434,12 +434,12 @@ const mideaAdapter: Adapter = {
         || (end != null && (typeof end !== "number" || !Number.isFinite(end) || end <= now))) return [];
       const minYears = str(row.minWorking), maxYears = str(row.maxWorking);
       const years = /^\d{1,2}$/.test(minYears) && /^\d{1,2}$/.test(maxYears)
-        ? `官网工作年限字段：${minYears}-${maxYears}年` : "";
+        ? `官网工作年限字段：${minYears}-${maxYears}年工作经验` : "";
       return [{ sourceId: `midea:${id}`, url: `https://recruit.midea.com/recruitOut/ihr/social/jobApplication?positionId=${id}&recruitType=social`,
         company: "美的", companyDomain: "midea.com", title: title.slice(0, 200), location: places.join("、"), fetchedAt,
         // 不将 createDate、releaseUpdateDate 或计划起始时间冒充首次发布日期。
         postedAt: null, rawPageText: toPlainText(["美的官网社招入口", str(row.superiorUnitName), str(row.unitFullInfo), "原文工作地点", originalPlaces,
-          "官网学历要求", str(row.education), years, "岗位职责", duty, "任职要求", requirement].filter(Boolean).join("\n")) }];
+          "官网学历要求", str(row.education), years, "岗位职责", duty, "任职要求", requirement].filter(Boolean).join("；")) }];
     });
   },
 };

@@ -471,16 +471,16 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
         {/* Login Card */}
         <div
           ref={cardRef}
-          className="w-full max-w-[420px] p-10 rounded-3xl glass-card animate-fade-in z-10 relative"
+          className="w-full max-w-[420px] p-7 sm:p-9 rounded-3xl glass-card animate-fade-in z-10 relative"
         >
           {/* Logo & Title */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 mb-3">
               <img src="/logo.png" alt="益职 AI Logo" className="w-full h-full object-contain rounded-2xl" />
             </div>
             <h1 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">益职 AI</h1>
             <p className="text-slate-500 text-sm font-medium">
-              {method === 'phone' ? '用手机号开始，资料持续留在你的工作区' : step === 'email' ? '邮箱登录或使用邀请码' : '验证码已发送至您的邮箱'}
+              {method === 'phone' ? '登录，继续你的求职准备' : step === 'email' ? '邮箱登录或使用邀请码' : '验证码已发送至您的邮箱'}
             </p>
           </div>
 

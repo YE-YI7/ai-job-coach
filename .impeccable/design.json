@@ -4,6 +4,8 @@
   "title": "Design System: 益职 AI",
   "extensions": {
     "colorMeta": {
+      "auth-help-link": { "role": "neutral", "displayName": "手机登录辅助链接", "canonical": "#435438" },
+      "auth-help-text": { "role": "neutral", "displayName": "手机登录辅助文字", "canonical": "#55514b" },
       "studio-canvas": { "role": "neutral", "displayName": "文档工作区", "canonical": "#f1f2ec", "tonalRamp": ["#fdfdf9", "#f8f9f4", "#f0f1eb", "#e5e9dc", "#e7e9e0", "#e3e6da", "#dce1d0"] },
       "studio-ink": { "role": "neutral", "displayName": "工作区墨色", "canonical": "#292823", "tonalRamp": ["#292823", "#30362b", "#47503d", "#66675f", "#686e61"] },
       "studio-mentor": { "role": "secondary", "displayName": "导师苔色", "canonical": "#536a40", "tonalRamp": ["#edf0e7", "#e8edde", "#536a40", "#405331"] },

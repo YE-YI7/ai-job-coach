@@ -29,7 +29,7 @@ beforeEach(() => {
   process.env.SESSION_SECRET = "test-session-secret-at-least-32-characters";
   db = Object.assign(new FakeDb({ users: [{ id: userId, phone: null }], phone_auth_challenges: [{ id: challenge, state: "sending", created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300_000).toISOString() }] }), {
     type: "supabase", rpc: jest.fn(async (name: string, args: Record<string, unknown>) => {
-      if (name === "begin_phone_auth" || name === "begin_phone_recovery") {
+      if (name === "reserve_phone_auth_send") {
         db.applyInsert("phone_auth_challenges", [{ id: args.p_id, state: "sending", created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300_000).toISOString() }]);
       }
       return { data: name === "consume_public_action_rate_limit" ? [{ allowed: true }]
@@ -60,7 +60,7 @@ test("explicit recovery is bound to the current account and durable challenge", 
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:userId});
   const response=await phoneSend(request({purpose:'bind',phone:'13800138000',consent:true,recovery:true,userId:'forged'}));
   expect(response.status).toBe(200);
-  expect(db.rpc).toHaveBeenCalledWith('begin_phone_recovery',expect.objectContaining({p_user_id:userId,p_purpose:'bind'}));
+  expect(db.rpc).toHaveBeenCalledWith('reserve_phone_auth_send',expect.objectContaining({p_user_id:userId,p_purpose:'bind',p_recovery:true}));
   expect(await response.json()).toMatchObject({recovery:true});
 });
 test("the recovery finisher still needs provider PASS and does not mint another user's cookie",async()=>{
@@ -92,7 +92,29 @@ test("missing database fails closed without sending SMS", async () => {
 test("applies shared IP, number and global caps, not IP-scoped number caps", async () => {
   await phoneSend(request({ purpose: "login", phone: "13800138000", consent: true }));
   expect(db.rpc.mock.calls.filter(c => c[0] === "consume_public_action_rate_limit").map(c => c[1].p_scope))
-    .toEqual(["phone-send-ip", "phone-send-number", "phone-send-global"]);
+    .toEqual(["phone-send-ip"]);
+  expect(db.rpc).toHaveBeenCalledWith("reserve_phone_auth_send",expect.objectContaining({p_number_hash:expect.stringMatching(/^[a-f0-9]{64}$/),p_global_hash:expect.stringMatching(/^[a-f0-9]{64}$/)}));
+});
+test("daily denial preserves the exact retry deadline and never calls the SMS provider",async()=>{
+  const original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation((name,args)=>name==='reserve_phone_auth_send'?{data:{status:'limited',limit_scope:'number',retry_after_seconds:48500},error:null}:original(name,args));
+  const response=await phoneSend(request({purpose:'login',phone:'13800138000',consent:true}));
+  expect(response.status).toBe(429);expect(response.headers.get('Retry-After')).toBe('48500');
+  expect(await response.json()).toMatchObject({code:'limited',reason:'daily'});
+  expect(sendPhoneCode).not.toHaveBeenCalled();
+});
+test("cooldown rejection does not consume another daily SMS budget in the handler",async()=>{
+  const original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation((name,args)=>name==='reserve_phone_auth_send'?{data:{status:'cooldown'},error:null}:original(name,args));
+  expect((await phoneSend(request({purpose:'login',phone:'13800138000',consent:true}))).status).toBe(429);
+  expect(db.rpc.mock.calls.filter(c=>c[0]==='consume_public_action_rate_limit')).toHaveLength(1);
+  expect(sendPhoneCode).not.toHaveBeenCalled();
+});
+test("site SMS capacity is not mislabeled as a user's daily allowance",async()=>{
+  const original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation((name,args)=>name==='reserve_phone_auth_send'?{data:{status:'limited',limit_scope:'global',retry_after_seconds:60},error:null}:original(name,args));
+  const response=await phoneSend(request({purpose:'login',phone:'13800138000',consent:true}));
+  expect(await response.json()).toMatchObject({reason:'service'});expect(sendPhoneCode).not.toHaveBeenCalled();
 });
 test("does not send past a rate limit or without explicit SMS consent", async () => {
   expect((await phoneSend(request({ purpose: "login", phone: "13800138000" }))).status).toBe(400);

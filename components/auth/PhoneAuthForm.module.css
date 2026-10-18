@@ -15,13 +15,19 @@
 .primary:hover:not(:disabled){background:#45443c}.primary:active:not(:disabled){transform:translateY(1px)}.primary:disabled{background:#77736c;color:#fff;cursor:not-allowed}
 .textButton{min-height:44px;padding:8px 0;border:0;background:none;color:#536a40;text-decoration:underline;text-underline-offset:4px}
 .textButton:disabled{color:#62645d;cursor:default;text-decoration:none}.textButton:hover:not(:disabled){color:#944429}
-.consent{display:flex;align-items:flex-start;gap:9px;font-size:14px;cursor:pointer;padding-block:5px}.consent input{width:17px;height:17px;flex-shrink:0;margin-top:3px}
+.consent{display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;padding-block:2px}.consent input{width:16px;height:16px;flex-shrink:0;margin-top:3px}
+.consent a,.accountHelp a{color:#435438;text-decoration:underline;text-underline-offset:4px}
+.accountHelp{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;column-gap:16px;color:#55514b;font-size:12px;line-height:1.6}
+.accountHelp a{padding-block:8px;min-height:36px;display:inline-flex;align-items:center}
+.details{color:#5c6257;font-size:13px}.details summary{cursor:pointer;padding-block:8px;min-height:44px}.details p{margin:4px 0 0}
+.wait{margin-top:14px;font-size:14px;line-height:1.7;color:#944429}.wait p{margin:0}.wait .hint{margin-top:4px;font-size:12px;color:#55514b}
 .hint,.privacy,.status{color:#5c6257;font-size:14px;line-height:1.75;margin:0;overflow-wrap:anywhere}.status{padding-block:20px}
 .privacy{font-size:13px}.privacy a,.returnLink{color:#536a40;text-decoration:underline;text-underline-offset:4px}
 .destination{font-size:15px;font-weight:500;margin:0}.success{font-size:19px;color:#287a57;font-weight:500;margin:0 0 12px}
 .returnLink{display:inline-block;margin-top:20px;min-height:44px;padding-block:10px}.error{color:#944429;font-size:14px;line-height:1.7;margin:14px 0 0;overflow-wrap:anywhere}
 .actions{display:flex;flex-wrap:wrap;gap:10px}
 .hint .returnLink{display:inline;min-height:0;padding:0;margin:0}
+@media(pointer:coarse){.accountHelp a{min-height:44px}}
 .success{animation:verification-step 200ms cubic-bezier(.16,1,.3,1)}
 @keyframes verification-step{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.form button,.form input,.phoneInput{transition:none}.form form,.success{animation:none}.primary:active:not(:disabled){transform:none}}

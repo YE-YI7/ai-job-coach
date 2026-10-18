@@ -31,7 +31,7 @@ async function limit(db: Db, scope: string, key: string, count: number, window: 
   if (dbError) throw new Error("PHONE_AUTH_DB_UNAVAILABLE");
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row.allowed !== "boolean") throw new Error("PHONE_AUTH_DB_UNAVAILABLE");
-  return row.allowed ? null : json({ ok: false, error: "验证请求较多，请稍后再试。", code: "limited" }, 429,
+  return row.allowed ? null : json({ ok: false, error: "操作较频繁，请等倒计时结束后重试。", code: "limited", reason: "short" }, 429,
     { "Retry-After": String(Math.max(1, Number(row.retry_after_seconds) || window)) });
 }
 
@@ -120,18 +120,20 @@ export async function phoneSend(request: NextRequest) {
     const phone = normalizeMainlandPhone(body.phone);
     if (!phone) return error("请输入中国大陆 11 位手机号（+86）。");
     if (body.consent !== true) return error("请先确认接收用于本次验证的短信。");
-    const checks: [string,string,number,number][] = [
-      ["send-ip", phoneIpHash(request), 10, 900],
-      ["send-number", phoneHash("number", phone), 5, 86400],
-      ["send-global", phoneHash("global", "all"), 100, 86400],
-    ];
-    for (const check of checks) { const blocked = await limit(db, ...check); if (blocked) return blocked; }
+    // Request-abuse cap remains before admission; SMS caps are reserved atomically
+    // with admission so cooldown clicks cannot consume the daily SMS allowance.
+    const blocked = await limit(db, "send-ip", phoneIpHash(request), 10, 900);
+    if (blocked) return blocked;
     const browserToken = clientToken(request) || randomBytes(32).toString("base64url");
     const challengeId = randomUUID();
-    const begun = await rpc(db, body.recovery === true ? "begin_phone_recovery" : "begin_phone_auth", {
+    const begun = await rpc(db, "reserve_phone_auth_send", {
       p_id: challengeId, p_phone: phone, p_purpose: purpose, p_user_id: user?.id || null,
       p_client_hash: phoneHash("browser", browserToken),
+      p_number_hash: phoneHash("number", phone), p_global_hash: phoneHash("global", "all"), p_recovery: body.recovery === true,
     });
+    if (begun.status === "limited") return json({ ok: false, code: "limited", reason: begun.limit_scope === "number" ? "daily" : "service",
+      error: begun.limit_scope === "number" ? "今日验证码次数已用完，可使用其他登录方式。" : "今日短信服务额度已用完，可使用其他登录方式。" },
+      429, { "Retry-After": String(Math.max(1, Math.min(86400, Number(begun.retry_after_seconds) || 86400))) });
     if (begun.status !== "ready") return resultError(begun.status);
     try {
       await sendPhoneCode(phone, purpose, challengeId);

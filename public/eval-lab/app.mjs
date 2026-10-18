@@ -340,7 +340,7 @@ function renderAssessment() {
         : e.source === "independent_llm"
           ? "独立 LLM 评审"
           : "评估来源未声明";
-    h += `<div class="score-line"><strong>${esc(e.score ?? "—")}</strong><span>/ ${esc(e.maxScore)}</span></div><p class="source-note">${label} · 非人工结论</p>${e.groundingVeto ? '<p class="notice-inline">存在事实风险 · 分数不能抵消</p>' : ""}<h3>${esc(PROBLEMS[e.problemType] || "尚未分类")}</h3><p class="reason">${esc(e.reason || "未记录具体原因")}</p><h3>还缺什么信息</h3>${e.missingInformation.length ? `<ul>${e.missingInformation.map((x) => `<li>${esc(text(x))}</li>`).join("")}</ul>` : '<p class="muted">评估未列出需要用户补充的信息。</p>'}`;
+    h += `<div class="score-line"><strong>${esc(e.score ?? "—")}</strong><span>/ ${esc(e.maxScore)}</span></div><p class="source-note">${label} · 非人工结论</p>${e.groundingVeto ? '<p class="notice-inline">模型标记事实风险 · 请对照原文核实</p>' : ""}<h3>${esc(PROBLEMS[e.problemType] || "尚未分类")}</h3><p class="reason">${esc(e.reason || "未记录具体原因")}</p><h3>还缺什么信息</h3>${e.missingInformation.length ? `<ul>${e.missingInformation.map((x) => `<li>${esc(text(x))}</li>`).join("")}</ul>` : '<p class="muted">评估未列出需要用户补充的信息。</p>'}`;
   } else {
     const inProgress = ["running", "pending"].includes(r.evaluationStatus);
     const heading = inProgress

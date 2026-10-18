@@ -261,6 +261,12 @@ small,
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100dvh;
+  min-height: calc(100dvh - 116px);
+  overflow-y: auto;
 }
 .rail-title {
   display: flex;
@@ -1068,6 +1074,10 @@ dialog::backdrop {
   }
   .rail {
     padding: 18px 18px 15px;
+    position: static;
+    max-height: none;
+    min-height: 0;
+    overflow-y: visible;
   }
   .rail-title {
     padding: 0;

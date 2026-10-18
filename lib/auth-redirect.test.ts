@@ -1,6 +1,16 @@
-import { normalizeRedirectPath, readCookieValue } from "./auth-redirect";
+import { normalizeRedirectPath, postLoginTarget, readCookieValue } from "./auth-redirect";
 
 describe("OAuth redirect helpers", () => {
+  it("takes new and returning users to the current workspace", () => {
+    expect(postLoginTarget()).toBe('/cockpit');
+    expect(postLoginTarget('/onboarding')).toBe('/cockpit');
+    expect(postLoginTarget('/onboarding/stage-select')).toBe('/cockpit');
+    expect(postLoginTarget('/onboarding?redirect=%2Fadmin%2Fevals')).toBe('/admin/evals');
+    expect(postLoginTarget('/account/phone?recover=1')).toBe('/account/phone?recover=1');
+    expect(postLoginTarget('/resume-score')).toBe('/resume-score');
+    expect(postLoginTarget('/\\evil.test')).toBe('/cockpit');
+    expect(postLoginTarget('/onboarding?redirect=%2Fonboarding')).toBe('/cockpit');
+  });
   it("decodes an encoded redirect cookie including its query string", () => {
     const cookie = "watcha_oauth_state=state; watcha_oauth_redirect=%2Fresume-score%3Ffrom%3Dwatcha";
 

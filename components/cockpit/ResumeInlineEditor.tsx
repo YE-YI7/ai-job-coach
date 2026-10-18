@@ -28,7 +28,9 @@ export default function ResumeInlineEditor({ value, headingOnly, confirmingDelet
       section[data-inline-editing=true] > :not(.resume-live-editor){display:none!important}
       .resume-live-editor{margin:-8px -10px;padding:12px;border:0;border-radius:9px;background:#fff;box-shadow:inset 0 1px 0 #fff,0 1px 2px rgb(27 34 27 / .12),0 8px 24px -6px rgb(27 34 27 / .16);font:13px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;color:#272b27}
       .resume-live-editor textarea{display:block;box-sizing:border-box;width:100%;min-height:34px;max-height:55vh;resize:vertical;margin:0;padding:4px 2px;border:0;border-radius:3px;background:transparent;font:inherit;font-size:14px;line-height:1.8;color:inherit;caret-color:#944429;outline:none}
-      .resume-live-editor textarea:focus-visible{box-shadow:inset 0 -1px #777d78}
+      .resume-live-editor textarea:focus-visible{background:#fdfefb;box-shadow:none}
+      .resume-live-editor{animation:inline-editor-arrive 180ms cubic-bezier(.16,1,.3,1)}
+      @keyframes inline-editor-arrive{from{opacity:.6;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
       .resume-live-editor p{font:12px/1.6 "PingFang SC",sans-serif;margin:10px 2px;color:#62675f}
       .resume-live-editor p[role=alert]{color:#944429}
       .resume-live-editor footer{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px}
@@ -43,7 +45,7 @@ export default function ResumeInlineEditor({ value, headingOnly, confirmingDelet
       .resume-live-editor button:disabled{opacity:.45;cursor:default}
       .resume-live-editor svg{width:14px;height:14px;stroke-width:1.6;flex:none}
       @media(max-width:700px){.resume-live-editor{margin:0;padding:10px}.resume-live-editor textarea{font-size:16px}.resume-live-editor button{min-height:44px;padding-inline:8px}}
-      @media(prefers-reduced-motion:reduce){.resume-live-editor button{transition:none}.resume-live-editor button:active:not(:disabled){transform:none}}
+      @media(prefers-reduced-motion:reduce){.resume-live-editor{animation:none}.resume-live-editor button{transition:none}.resume-live-editor button:active:not(:disabled){transform:none}}
     `}</style>
     {confirmingDelete ? <><strong role="alert">删除这块内容？</strong><p>原文件不变，删除后可以撤销。</p></> : <textarea ref={input} autoFocus aria-label={headingOnly ? "简历区块标题" : "简历段落正文"} value={value} maxLength={6000} rows={headingOnly ? 1 : 3} disabled={disabled} onChange={event => onChange(event.target.value)} />}
     {error && <p role="alert">{error}</p>}

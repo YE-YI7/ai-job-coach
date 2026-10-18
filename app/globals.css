@@ -12,6 +12,8 @@
 
 :root {
   --field-focus: #777d78;
+  --field-rest-shadow: 0 1px 2px rgb(32 39 31 / .04), 0 4px 14px rgb(32 39 31 / .035);
+  --field-active-shadow: 0 2px 4px rgb(32 39 31 / .05), 0 7px 22px rgb(32 39 31 / .065);
   /* ========== 设计系统 - 色彩变量 ========== */
   
   /* 主色调 - 蓝色系 (专业、信任) */
@@ -386,11 +388,11 @@
    own keyboard indicators. Unlayered CSS also replaces legacy utility halos. */
 :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea):focus {
   outline: none;
-  box-shadow: inset 0 -1px var(--field-focus);
+  box-shadow: var(--field-active-shadow);
 }
 
 :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea):focus:not([aria-invalid="true"]) {
-  border-color: var(--field-focus);
+  border-color: transparent;
 }
 
 .input {
@@ -407,8 +409,8 @@
 
 .input:focus {
   outline: none;
-  border-color: var(--field-focus);
-  box-shadow: inset 0 -1px var(--field-focus);
+  border-color: transparent;
+  box-shadow: var(--field-active-shadow);
 }
 
 .input::placeholder {

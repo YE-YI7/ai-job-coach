@@ -42,6 +42,8 @@ async function rpc(db: Db, name: string, args: Record<string, unknown>) {
 }
 
 function resultError(status: string) {
+  if (status === "original_account_required") return error("请先用原来的观猹、邮箱或邀请码登录，再关联手机号。", 409, status);
+  if (status === "account_has_data") return error("这个号码的账号已有资料或额度，不能自动关联。两个账号的资料都已保留，请先联系支持核对。", 409, status);
   if (status === "busy") return error("正在验证，请稍等片刻再试。", 409, status);
   if (status === "cooldown") return json({ ok: false, error: "请在一分钟后重新获取验证码。", code: status }, 429, { "Retry-After": "60" });
   if (status === "unauthorized") return error("登录已失效，请用原方式重新登录后绑定。", 401, status);
@@ -75,7 +77,7 @@ export async function phoneStatus(request: NextRequest) {
     let pending = null;
     const token = clientToken(request) || (enabled ? randomBytes(32).toString("base64url") : null);
     if (enabled && token && !(purpose === "login" && user)) {
-      let query = db.from("phone_auth_challenges").select("id,phone,created_at,expires_at")
+      let query = db.from("phone_auth_challenges").select("id,phone,created_at,expires_at,allow_recovery")
         .eq("client_hash", phoneHash("browser", token)).eq("purpose", purpose)
         .in("state", ["sent", "checking"]).gt("expires_at", new Date().toISOString())
         .lt("attempts", 5).order("created_at", { ascending: false }).limit(1);
@@ -83,7 +85,7 @@ export async function phoneStatus(request: NextRequest) {
       const { data, error: dbError } = await query;
       if (dbError) return unavailable();
       if (data?.[0]) pending = {
-        challengeId: data[0].id, maskedPhone: maskPhone(data[0].phone), expiresAt: data[0].expires_at,
+        challengeId: data[0].id, maskedPhone: maskPhone(data[0].phone), expiresAt: data[0].expires_at, recovery: data[0].allow_recovery === true,
         resendAt: new Date(Date.parse(data[0].created_at) + 60_000).toISOString(),
       };
     }
@@ -101,6 +103,7 @@ async function context(request: NextRequest) {
   try { body = await readBody(request); } catch { return { response: error("验证信息格式不正确。") }; }
   if (!isPhonePurpose(body.purpose)) return { response: error("请选择登录或绑定。") };
   const purpose: PhonePurpose = body.purpose;
+  if (body.recovery === true && purpose !== "bind") return { response: error("关联手机号需要先登录原账号。", 400, "invalid") };
   const user = await getCurrentUserFromRequest();
   if (purpose === "bind" && !user) return { response: resultError("unauthorized") };
   if (purpose === "login" && user) return { response: error("你已登录。如需将手机号用于当前账号，请进入账号设置绑定。", 409, "use_binding") };
@@ -125,7 +128,7 @@ export async function phoneSend(request: NextRequest) {
     for (const check of checks) { const blocked = await limit(db, ...check); if (blocked) return blocked; }
     const browserToken = clientToken(request) || randomBytes(32).toString("base64url");
     const challengeId = randomUUID();
-    const begun = await rpc(db, "begin_phone_auth", {
+    const begun = await rpc(db, body.recovery === true ? "begin_phone_recovery" : "begin_phone_auth", {
       p_id: challengeId, p_phone: phone, p_purpose: purpose, p_user_id: user?.id || null,
       p_client_hash: phoneHash("browser", browserToken),
     });
@@ -141,7 +144,7 @@ export async function phoneSend(request: NextRequest) {
     const { data, error: dbError } = await db.from("phone_auth_challenges").update({ state: "sent" })
       .eq("id", challengeId).eq("state", "sending").select("created_at,expires_at").single();
     if (dbError || !data) return unavailable();
-    const response = json({ ok: true, challengeId, maskedPhone: maskPhone(phone), signName: smsSignName(),
+    const response = json({ ok: true, challengeId, maskedPhone: maskPhone(phone), signName: smsSignName(), recovery: body.recovery === true,
       expiresAt: data.expires_at, resendAt: new Date(Date.parse(data.created_at) + 60_000).toISOString() });
     response.cookies.set(phoneCookie.name, browserToken, phoneCookie.options);
     return response;
@@ -166,7 +169,7 @@ export async function phoneVerify(request: NextRequest) {
     let outcome = "error";
     try { outcome = await checkPhoneCode(claim.phone, purpose, body.challengeId, body.code) ? "pass" : "fail"; }
     catch { /* The persistent lease also recovers a function crash. No raw errors/OTP logs. */ }
-    const result = await rpc(db, "finish_phone_auth", { ...args, p_outcome: outcome });
+    const result = await rpc(db, body.recovery === true ? "finish_phone_recovery" : "finish_phone_auth", { ...args, p_outcome: outcome });
     if (result.status === "unavailable") return unavailable();
     if (result.status !== "ok") return resultError(result.status);
     const response = json({ ok: true, userId: result.user_id, isNewUser: result.is_new_user,

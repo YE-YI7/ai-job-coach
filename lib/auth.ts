@@ -20,6 +20,14 @@ export async function getCurrentUserFromRequest(): Promise<AuthResult | null> {
     const sessionToken = cookieStore.get("sb-access-token")?.value;
     const session = await verifySessionToken(sessionToken);
     if (session) {
+      // Phone-only sessions have no email. A recovered empty phone account must
+      // not stay usable through its old cookie after its login has been moved.
+      if (!session.email) {
+        const db = await getDbClient();
+        if (!db) return null;
+        const { data, error } = await db.from("users").select("id,provider,phone").eq("id",session.userId).single();
+        if (error || !data || (data.provider === "phone" && !data.phone)) return null;
+      }
       return { id: session.userId, email: session.email };
     }
     

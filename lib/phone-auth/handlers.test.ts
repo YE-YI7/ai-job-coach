@@ -28,10 +28,14 @@ beforeEach(() => {
   jest.clearAllMocks();
   process.env.SESSION_SECRET = "test-session-secret-at-least-32-characters";
   db = Object.assign(new FakeDb({ users: [{ id: userId, phone: null }], phone_auth_challenges: [{ id: challenge, state: "sending", created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300_000).toISOString() }] }), {
-    type: "supabase", rpc: jest.fn(async (name: string) => ({ data: name === "consume_public_action_rate_limit" ? [{ allowed: true }]
+    type: "supabase", rpc: jest.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "begin_phone_auth" || name === "begin_phone_recovery") {
+        db.applyInsert("phone_auth_challenges", [{ id: args.p_id, state: "sending", created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 300_000).toISOString() }]);
+      }
+      return { data: name === "consume_public_action_rate_limit" ? [{ allowed: true }]
       : name === "claim_phone_auth" ? { status: "ready", phone: "+8613800138000" }
       : name === "finish_phone_auth" ? { status: "ok", user_id: userId, is_new_user: false, email: "old@example.com" }
-      : { status: "ready" }, error: null })),
+      : { status: "ready" }, error: null }; }),
   });
   (getDbClient as jest.Mock).mockResolvedValue(db);
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
@@ -46,6 +50,35 @@ test("rejects cross-origin and missing-origin requests before provider or databa
 test("binding needs the current signed session, never a caller-supplied user id", async () => {
   expect((await phoneSend(request({ purpose: "bind", phone: "13800138000", userId, consent: true }))).status).toBe(401);
   expect(sendPhoneCode).not.toHaveBeenCalled();
+});
+test("recovery cannot run as anonymous login or without the original signed account", async()=>{
+  expect((await phoneSend(request({purpose:'login',phone:'13800138000',consent:true,recovery:true}))).status).toBe(400);
+  expect((await phoneSend(request({purpose:'bind',phone:'13800138000',consent:true,recovery:true}))).status).toBe(401);
+  expect(sendPhoneCode).not.toHaveBeenCalled();
+});
+test("explicit recovery is bound to the current account and durable challenge", async()=>{
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:userId});
+  const response=await phoneSend(request({purpose:'bind',phone:'13800138000',consent:true,recovery:true,userId:'forged'}));
+  expect(response.status).toBe(200);
+  expect(db.rpc).toHaveBeenCalledWith('begin_phone_recovery',expect.objectContaining({p_user_id:userId,p_purpose:'bind'}));
+  expect(await response.json()).toMatchObject({recovery:true});
+});
+test("the recovery finisher still needs provider PASS and does not mint another user's cookie",async()=>{
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:userId});
+  const original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation((name,args)=>name==='finish_phone_recovery'?{data:{status:'ok',user_id:userId,is_new_user:false},error:null}:original(name,args));
+  const response=await phoneVerify(request({...verifyBody,purpose:'bind',recovery:true}));
+  expect(response.status).toBe(200);
+  expect(db.rpc).toHaveBeenCalledWith('finish_phone_recovery',expect.objectContaining({p_user_id:userId,p_outcome:'pass'}));
+  expect(createSessionToken).not.toHaveBeenCalled();
+});
+test("data or paid balance in a phone account prevents automatic association",async()=>{
+  (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:userId});
+  const original=db.rpc.getMockImplementation()!;
+  db.rpc.mockImplementation((name,args)=>name==='finish_phone_recovery'?{data:{status:'account_has_data'},error:null}:original(name,args));
+  const response=await phoneVerify(request({...verifyBody,purpose:'bind',recovery:true}));
+  expect(response.status).toBe(409);expect(await response.json()).toMatchObject({code:'account_has_data'});
+  expect(createSessionToken).not.toHaveBeenCalled();
 });
 test("a logged-in account cannot silently create or switch to an empty phone account", async () => {
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: userId });

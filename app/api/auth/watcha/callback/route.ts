@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDbClient } from "@/lib/db";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 import { createSessionToken, sessionCookie, verifySessionToken } from "@/lib/session";
-import { normalizeRedirectPath, readCookieValue } from "@/lib/auth-redirect";
+import { normalizeRedirectPath, postLoginTarget, readCookieValue } from "@/lib/auth-redirect";
 
 export const runtime = "nodejs";
 
@@ -218,11 +218,7 @@ export async function GET(request: Request) {
     // Step 5: 生成 session token，返回中间页面设置 cookie
     const sessionToken = await createSessionToken(userId, watchaEmail);
 
-    const redirectPath = requestedRedirect
-      ? (isNewUser && !requestedRedirect.startsWith("/resume-score")
-          ? `/onboarding?redirect=${encodeURIComponent(requestedRedirect)}`
-          : requestedRedirect)
-      : (isNewUser ? "/onboarding" : "/cockpit");
+    const redirectPath = postLoginTarget(requestedRedirect);
 
     console.log(
       `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`

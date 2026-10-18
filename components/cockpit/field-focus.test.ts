@@ -7,7 +7,7 @@ describe("quiet text-entry focus", () => {
   it("uses a neutral local cue without overriding non-text controls", () => {
     const css = source("app/globals.css");
     expect(css).toContain("--field-focus: #777d78");
-    expect(css).toContain("box-shadow: inset 0 -1px var(--field-focus)");
+    expect(css).toContain("box-shadow: var(--field-active-shadow)");
     expect(css).toContain('type="checkbox"');
     expect(css).toContain('type="file"');
     expect(css).toContain(':focus:not([aria-invalid="true"])');
@@ -17,12 +17,13 @@ describe("quiet text-entry focus", () => {
     const css = source("components/cockpit/AgentConversation.module.css");
     expect(css).toContain(".panel[data-resume] form:focus-within{outline:none}");
     expect(css).not.toMatch(/form:focus-within\s*\{[^}]*outline:\s*[1-9]/);
-    expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:inset 0 -1px var(--field-focus)}");
+    expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:var(--field-active-shadow);background:#fff}");
   });
 
   it("focuses the composite phone field once, not both wrapper and input", () => {
     const css = source("components/auth/PhoneAuthForm.module.css");
-    expect(css).toContain(".phoneInput:focus-within{border-color:var(--field-focus)");
+    expect(css).toContain(".phoneInput:focus-within{background:#fff;box-shadow:var(--field-active-shadow)}");
+    expect(css).not.toContain("border:1px solid #69707d");
     expect(css).toContain(".phoneInput input:focus{outline:none;box-shadow:none}");
     expect(css).not.toMatch(/\.phoneInput:focus-within\s*\{[^}]*outline/);
     expect(css).toContain(":is(button,a,input[type=checkbox]):focus-visible{outline:2px");
@@ -31,7 +32,7 @@ describe("quiet text-entry focus", () => {
   it("keeps inline editing focus inside the text, not around the editor", () => {
     const editor = source("components/cockpit/ResumeInlineEditor.tsx");
     expect(editor).not.toContain(".resume-live-editor:has(textarea:focus-visible)");
-    expect(editor).toContain(".resume-live-editor textarea:focus-visible{box-shadow:inset 0 -1px #777d78}");
+    expect(editor).toContain(".resume-live-editor textarea:focus-visible{background:#fdfefb;box-shadow:none}");
     expect(editor).toContain(".resume-live-editor button:focus-visible{outline:2px");
   });
 

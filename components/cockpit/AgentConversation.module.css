@@ -12,7 +12,7 @@
 .teachingInvite p{margin:0 0 10px;line-height:1.65;font-size:14px}
 .teachingInvite div{display:flex;gap:8px}.teachingInvite div button:first-child{background:#8d3a17;color:#fff;padding:8px 12px;border-radius:8px}
 .teachingInvite small{display:block;color:#605c55;margin-top:8px}
-.panel.panel textarea:focus-visible{outline:none;box-shadow:inset 0 -1px var(--field-focus)}
+.panel.panel textarea:focus-visible{outline:none;box-shadow:var(--field-active-shadow);background:#fff}
 .panel button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;color:inherit;padding:8px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;min-height:36px}
 .panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #a64317;outline-offset:3px}
 .panel button:disabled{opacity:.45;cursor:not-allowed}

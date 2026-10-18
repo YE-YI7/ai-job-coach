@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { normalizeRedirectPath } from "@/lib/auth-redirect";
+import { normalizeRedirectPath, postLoginTarget } from "@/lib/auth-redirect";
 import PhoneAuthForm from "@/components/auth/PhoneAuthForm";
 
 type Step = 'email' | 'code';
@@ -12,7 +12,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>('email');
-  const [method, setMethod] = useState<'phone' | 'email'>(phoneEnabled ? 'phone' : 'email');
+  const [method, setMethod] = useState<'phone' | 'email'>(phoneEnabled && searchParams.get('method') !== 'email' ? 'phone' : 'email');
   const [hydrated, setHydrated] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState(["", "", "", "", "", ""]);
@@ -28,19 +28,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
     ? `/api/auth/watcha/authorize?redirect=${encodeURIComponent(redirectTarget)}`
     : "/api/auth/watcha/authorize";
 
-  const getPostLoginTarget = (isNewUser: boolean) => {
-    if (!isNewUser) {
-      return redirectTarget || "/cockpit";
-    }
-
-    if (redirectTarget?.startsWith("/resume-score")) {
-      return redirectTarget;
-    }
-
-    return redirectTarget
-      ? `/onboarding?redirect=${encodeURIComponent(redirectTarget)}`
-      : "/onboarding";
-  };
+  const getPostLoginTarget = () => postLoginTarget(redirectTarget);
 
   // 从 URL 读取 OAuth 错误信息
   useEffect(() => {
@@ -100,7 +88,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
       }
       localStorage.setItem("inviteCode", inviteCode);
 
-      router.push(getPostLoginTarget(data.isNewUser));
+      router.push(getPostLoginTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
       shakeCard();
@@ -237,7 +225,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
       }
       localStorage.setItem("userEmail", email.trim());
 
-      router.push(getPostLoginTarget(data.isNewUser));
+      router.push(getPostLoginTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : "验证失败");
       shakeCard();
@@ -373,14 +361,15 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
 
         .input-field {
           background: rgba(255, 255, 255, 0.6);
-          border: 1px solid rgba(209, 213, 219, 0.5);
-          transition: all 0.3s ease;
+          border: 1px solid transparent;
+          box-shadow: var(--field-rest-shadow);
+          transition: background-color .16s ease, box-shadow .18s ease;
         }
 
         .input-field:focus-within {
-          border-color: var(--field-focus);
+          border-color: transparent;
           background: rgba(255, 255, 255, 0.9);
-          box-shadow: inset 0 -1px var(--field-focus);
+          box-shadow: var(--field-active-shadow);
         }
 
         .input-field input:focus { outline: none; box-shadow: none; }
@@ -422,15 +411,15 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
 
         .code-input {
           background: rgba(255, 255, 255, 0.7);
-          border: 1.5px solid rgba(209, 213, 219, 0.5);
+          border: 1.5px solid transparent;
           transition: all 0.2s ease;
           caret-color: #f97316;
         }
 
         .code-input:focus {
-          border-color: var(--field-focus);
+          border-color: transparent;
           background: rgba(255, 255, 255, 0.95);
-          box-shadow: inset 0 -1px var(--field-focus);
+          box-shadow: var(--field-active-shadow);
         }
 
         .loading-spinner {
@@ -504,7 +493,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
               localStorage.setItem('sessionId', data.userId);
               localStorage.removeItem('userEmail');
               localStorage.removeItem('inviteCode');
-              router.replace(getPostLoginTarget(data.isNewUser));
+              router.replace(getPostLoginTarget());
               router.refresh();
             }} />
           </>}

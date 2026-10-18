@@ -7,6 +7,8 @@ related_targets: ["components/cockpit/ResumeInlineReview.module.css", "component
 
 Mode: Operate. Preserve the approved left navigation and existing original-file, manual editing, reorder, checking, and export capabilities. 2026-10-15 correction: the user did not endorse single-paper/three-color as an aesthetic preference. These are implementation options judged by ease of editing, understanding, saving and export, not a pinned visual world.
 
+2026-10-18 correction: the gray focus frame is also rejected. Inputs use a white writing surface, a clear caret and an offset soft elevation change, never a new colored/gray ring or underline. Feedback stays attached to the action. First editing uses a dismissible one-sentence hint, shown once and consumed by actual use; no whole-page tour. Brief transitions explain editor entry, local adoption and server-confirmed save. No invented progress, document motion, new layout or left-rail changes. Reduced motion removes spatial travel. This refines the existing surface, not a new visual identity.
+
 2026-10-17 material finish: the approved research becomes a bounded local refinement, not a shell redesign. Paper stays clean and square, with screen-only thin edge/contact/ambient depth. Compact ceramic revise and dark-ink export/save tools have distinct edge lighting and pressed states. Context menus and decision popups share a near-white satin surface, local background blur and crisp foreground. Preserve current positions, navigation, billing, original files and PDF renderer. Reduced motion removes added transitions and pressed displacement. srcDoc focus receipts must identify the currently rendered document so switching templates cannot consume focus on an obsolete frame.
 
 ## Direction contract

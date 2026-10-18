@@ -106,6 +106,13 @@ function reconcilePending() {
     ? "核对并重试原编号"
     : "开始真实实测";
 }
+function openNewRun() {
+  if (!pendingId && !uncertainId) {
+    $("cost-ack").checked = false;
+    $("new-status").textContent = "";
+  }
+  $("new-dialog").showModal();
+}
 function loadReviews(id) {
   try {
     reviews[id] = JSON.parse(
@@ -501,7 +508,7 @@ $("refresh").onclick = async () => {
 };
 $("empty-action").onclick = () =>
   live && runs.length === 0 && loadedSource === "production"
-    ? $("new-dialog").showModal()
+    ? openNewRun()
     : live
       ? refresh()
       : $("import-dialog").showModal();
@@ -536,7 +543,7 @@ $("new-run").onclick = () => {
     toast("真实实测请打开益职正式站的管理员入口。", true);
     return;
   }
-  $("new-dialog").showModal();
+  openNewRun();
 };
 $("template").onclick = () =>
   download("yizhi-eval-template.json", {

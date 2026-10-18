@@ -23,7 +23,10 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   useEffect(() => { setHydrated(true); }, []);
   const redirectTarget = normalizeRedirectPath(searchParams.get("redirect"));
-  const loginBaseUrl = redirectTarget ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : "/login";
+  const loginQuery = new URLSearchParams();
+  if (redirectTarget) loginQuery.set("redirect", redirectTarget);
+  if (searchParams.get("method") === "email") loginQuery.set("method", "email");
+  const loginBaseUrl = loginQuery.size ? `/login?${loginQuery}` : "/login";
   const watchaAuthorizeHref = redirectTarget
     ? `/api/auth/watcha/authorize?redirect=${encodeURIComponent(redirectTarget)}`
     : "/api/auth/watcha/authorize";
@@ -652,10 +655,16 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
   );
 }
 
+function LoginRoute({ phoneEnabled }: { phoneEnabled: boolean }) {
+  const params = useSearchParams();
+  // Same-route recovery navigation must not retain the previous phone tab.
+  return <LoginContent key={params.get("method") === "email" ? "email" : "default"} phoneEnabled={phoneEnabled} />;
+}
+
 export default function LoginClient({ phoneEnabled }: { phoneEnabled: boolean }) {
   return (
     <Suspense fallback={<div className="min-h-screen" />}>
-      <LoginContent phoneEnabled={phoneEnabled} />
+      <LoginRoute phoneEnabled={phoneEnabled} />
     </Suspense>
   );
 }

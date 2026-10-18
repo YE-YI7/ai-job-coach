@@ -1,11 +1,11 @@
 /**
  * 益职**运行时**自己上网搜岗位的数据源层（不是开发时把结果抄进仓库）。
  *
- * 现状与边界（国内源 2026-10-16 逐源实测，海外沿用既有验收）：
+ * 现状与边界（国内源 2026-10-18 逐源实测，海外沿用既有验收）：
  * - 海外免 key 关键词源：RemoteOK（`?tag=`，实测按词返回不同结果）、
  *   Jobicy（`?tag=`，认空格不认连字符）。Remotive 的公开接口**任何参数都不生效**
  *   （`?search=nurse` 与不带参数返回同一批 16 条），所以按「最新一批」的流源用，不假装搜过。
- * - 国内直连九源：腾讯、网易、百度、美团、京东校招、快手校招、小米、滴滴、小红书官网。
+ * - 国内直连十源：腾讯、网易、百度、美团、京东校招、快手校招、小米、滴滴、小红书、美的官网。
  *   字节等尚未完成匿名列表/详情验收，不能声称已接通；不绕登录墙/验证码。
  * - 每个源都可能坏。一个源坏了不能把整批结果变成「没有岗位」，也不能悄悄少几个源不说
  *   （`failures` 一路带到界面）。
@@ -14,7 +14,7 @@
 import type { RawJobPosting } from "@/lib/coach-harness/subagents/retrieval";
 import { fetchJobBoard, JOB_SOURCES, type DiscoveredJob } from "./discovery";
 
-export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "xiaomi" | "didi" | "xiaohongshu" | "web-search";
+export type LiveSourceId = "remoteok" | "jobicy" | "remotive" | "ashby" | "tencent" | "netease" | "baidu" | "meituan" | "jd" | "kuaishou" | "xiaomi" | "didi" | "xiaohongshu" | "midea" | "web-search";
 /** keyword = 每个关键词打一次；feed = 源不支持按词查，整轮只拉一次。 */
 export type LiveSourceMode = "keyword" | "feed";
 export interface LiveSourceDescriptor {
@@ -37,13 +37,14 @@ export const LIVE_SOURCES: LiveSourceDescriptor[] = [
   { id: "xiaomi", label: "小米招聘官网", homepage: "https://hr.xiaomi.com/website/opportunities.html", mode: "keyword", coverageNote: "国内社会招聘，含职责与要求；覆盖汽车、硬件等业务，不是全行业" },
   { id: "didi", label: "滴滴招聘官网", homepage: "https://talent.didiglobal.com/social/neit", mode: "keyword", coverageNote: "官网社招入口的国内岗位，保留职责与要求；校园/实习门槛仍按原文判断，不是全市场" },
   { id: "xiaohongshu", label: "小红书招聘官网", homepage: "https://job.xiaohongshu.com/social/position", mode: "keyword", coverageNote: "官网社招入口的国内在招岗位，保留完整职责与要求；具体资格以原文为准，不是全市场" },
+  { id: "midea", label: "美的招聘官网", homepage: "https://recruit.midea.com/recruitOut/ihr/social/socialHome", mode: "keyword", coverageNote: "官网社招入口的国内公开在招岗位，含家电、制造、楼宇科技等业务的职责与要求；不覆盖全部制造业" },
   { id: "remoteok", label: "RemoteOK 远程岗位", homepage: "https://remoteok.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "jobicy", label: "Jobicy 远程岗位", homepage: "https://jobicy.com", mode: "keyword", coverageNote: "英文远程岗为主" },
   { id: "remotive", label: "Remotive 远程岗位", homepage: "https://remotive.com/remote-jobs", mode: "feed", coverageNote: "接口只给最新一批，不支持按词查" },
   { id: "ashby", label: "公司公开招聘板", homepage: "https://jobs.ashbyhq.com", mode: "feed", coverageNote: "只覆盖已登记的公司" },
 ];
-export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi", "didi", "xiaohongshu"];
-export const DOMESTIC_SEARCH_VERSION = "cn-official-v7-nine-sources";
+export const DOMESTIC_SOURCE_IDS: LiveSourceId[] = ["tencent", "netease", "baidu", "meituan", "jd", "kuaishou", "xiaomi", "didi", "xiaohongshu", "midea"];
+export const DOMESTIC_SEARCH_VERSION = "cn-official-v8-ten-sources";
 
 /** 源要求的使用条件：署名与「跳转原页投递」，不是可选项。 */
 export const SOURCE_CREDIT = "岗位来自对应招聘官网或公开招聘接口，请到原页核实并投递；不会代你提交。";
@@ -412,7 +413,38 @@ const xiaohongshuAdapter: Adapter = {
   },
 };
 
-const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, xiaomi: xiaomiAdapter, didi: didiAdapter, xiaohongshu: xiaohongshuAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
+// 官网社招页按 publicationName 匿名查一页；列表与同编号详情的职责/要求一致。
+// 运行时只用已含完整正文的列表，不增加未计入预算的详情请求。
+const mideaAdapter: Adapter = {
+  id: "midea", hosts: ["recruit.midea.com"],
+  async search({ keyword }) {
+    const payload = record(await fetchJson(new URL("https://recruit.midea.com/backend/rec/home/out/official/position/list"), this.hosts,
+      new URLSearchParams({ pageSize: String(ROWS_PER_CALL), pageIndex: "1", publicationName: keyword })));
+    if (!Array.isArray(payload.data) || typeof payload.total !== "number" || !Number.isSafeInteger(payload.total) || payload.total < 0) throw new SourceError("招聘源返回格式异常");
+    const fetchedAt = isoNow(), now = Date.now();
+    return payload.data.slice(0, ROWS_PER_CALL).flatMap(raw => {
+      const row = record(raw), id = str(row.positionId), title = str(row.publicationName);
+      const originalPlaces = str(row.workingPlace), places = domesticPlaces(originalPlaces.split(/[、,，;；|/]+/).map(place => place.trim()));
+      const duty = toPlainText(str(row.postDuties)), requirement = toPlainText(str(row.qualification));
+      const hasContent = (text: string) => /\p{L}/u.test(text) && !/^(?:暂无(?:描述|信息)?|待补充|待定|无)$/.test(text);
+      const start = row.releaseStartDate, end = row.releaseEndDate;
+      if (!/^[\da-f]{32}$/i.test(id) || !title || !places.length || row.releaseStatus !== "1" || row.isInternalApply !== "N"
+        || !hasContent(duty) || !hasContent(requirement)
+        || (start != null && (typeof start !== "number" || !Number.isFinite(start) || start > now))
+        || (end != null && (typeof end !== "number" || !Number.isFinite(end) || end <= now))) return [];
+      const minYears = str(row.minWorking), maxYears = str(row.maxWorking);
+      const years = /^\d{1,2}$/.test(minYears) && /^\d{1,2}$/.test(maxYears)
+        ? `官网工作年限字段：${minYears}-${maxYears}年` : "";
+      return [{ sourceId: `midea:${id}`, url: `https://recruit.midea.com/recruitOut/ihr/social/jobApplication?positionId=${id}&recruitType=social`,
+        company: "美的", companyDomain: "midea.com", title: title.slice(0, 200), location: places.join("、"), fetchedAt,
+        // 不将 createDate、releaseUpdateDate 或计划起始时间冒充首次发布日期。
+        postedAt: null, rawPageText: toPlainText(["美的官网社招入口", str(row.superiorUnitName), str(row.unitFullInfo), "原文工作地点", originalPlaces,
+          "官网学历要求", str(row.education), years, "岗位职责", duty, "任职要求", requirement].filter(Boolean).join("\n")) }];
+    });
+  },
+};
+
+const ADAPTERS: Partial<Record<LiveSourceId, Adapter>> = { tencent: tencentAdapter, netease: neteaseAdapter, baidu: baiduAdapter, meituan: meituanAdapter, jd: jdAdapter, kuaishou: kuaishouAdapter, xiaomi: xiaomiAdapter, didi: didiAdapter, xiaohongshu: xiaohongshuAdapter, midea: mideaAdapter, remoteok: remoteokAdapter, jobicy: jobicyAdapter, remotive: remotiveAdapter, ashby: ashbyAdapter };
 
 export interface LiveSearchResult {
   postings: RawJobPosting[];

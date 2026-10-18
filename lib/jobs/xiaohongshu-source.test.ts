@@ -23,7 +23,7 @@ test("小红书匿名社招只发送关键词，一次请求保留原文门槛�
   expect(result.postings[0].rawPageText).toContain("本科及以上；2年产品经验，能使用 SQL。");
   expect(result.postings[0].rawPageText).toContain("北京市，上海市，新加坡");
   expect(result.postings[0].rawPageText).not.toContain("<p>");
-  expect(DOMESTIC_SEARCH_VERSION).toBe("cn-official-v7-nine-sources");
+  expect(DOMESTIC_SEARCH_VERSION).toBe("cn-official-v8-ten-sources");
 });
 
 test.each([

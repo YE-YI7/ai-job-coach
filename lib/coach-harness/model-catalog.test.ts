@@ -89,10 +89,21 @@ test("intersectSelectable keeps only curated chat-capable gateway ids", () => {
 
 test("catalogWithAvailability flags only the models the gateway currently offers", () => {
   const enriched = catalogWithAvailability(["glm-5.3", "kimi-k3"]);
-  expect(enriched.map((m) => m.id)).toEqual(MODEL_CATALOG.map((m) => m.id)); // curated order preserved
+  expect(new Set(enriched.map((m) => m.id))).toEqual(new Set(MODEL_CATALOG.map((m) => m.id)));
   expect(enriched.find((m) => m.id === "glm-5.3")?.available).toBe(true);
   expect(enriched.find((m) => m.id === "kimi-k3")?.available).toBe(true);
   expect(enriched.find((m) => m.id === "qwen3.8-max-0902")?.available).toBe(false);
+});
+
+test('display sorts by output starting price descending without changing routing or availability',()=>{
+ const before=MODEL_CATALOG.map(m=>m.id),cards=catalogWithAvailability(['mimo-v2.6-flash']);
+ expect(cards.map(m=>m.id)).toEqual(['kimi-k3','qwen3.8-max-0902','glm-5.3','deepseek-v4-pro','step-5-preview','hy4-preview','glm-5.3-flashx','step-3.7-flash','deepseek-v4.1-flash','qwen3.8-flash','glm-5.3-flash','mimo-v2.6-flash']);
+ expect(MODEL_CATALOG.map(m=>m.id)).toEqual(before);
+ expect(cards.at(-1)?.available).toBe(true);expect(cards[0].available).toBe(false);
+});
+test('live prices determine sorting, snapshot is only a fallback',()=>{
+ const cards=catalogWithAvailability([],{'mimo-v2.6-flash':{input:{min:1,max:1},output:{min:200,max:300},cachedInput:null,asOf:'2026-10-18',sourceUrl:'https://example.invalid',live:true}});
+ expect(cards[0].id).toBe('mimo-v2.6-flash');expect(cards[0].referencePrice.output.min).toBe(200);
 });
 
 test("speedFraction clamps the reference bar to 0..1", () => {

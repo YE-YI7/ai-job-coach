@@ -236,11 +236,14 @@ export function intersectHostedChat(
     .map((m) => m.id);
 }
 
-// Whole catalog annotated with runtime availability, in curated display order.
+// Display order is price-descending, independent of availability or auto routing.
+// Use the output starting price; input starting price is the tie-breaker. A
+// token's input/output/cache mix is unknown, so do not invent a blended bill.
 // Used by the models route (as the new `catalog` field) and by ModelPicker.
 export function catalogWithAvailability(available: string[], prices = MODEL_PRICE_SNAPSHOTS): CatalogEntryAvailability[] {
   const set = new Set(available);
-  return MODEL_CATALOG.map((m) => ({ ...m, available: set.has(m.id), referencePrice: prices[m.id] ?? MODEL_PRICE_SNAPSHOTS[m.id] }));
+  return MODEL_CATALOG.map((m) => ({ ...m, available: set.has(m.id), referencePrice: prices[m.id] ?? MODEL_PRICE_SNAPSHOTS[m.id] }))
+    .sort((a,b)=>b.referencePrice.output.min-a.referencePrice.output.min || b.referencePrice.input.min-a.referencePrice.input.min || a.id.localeCompare(b.id));
 }
 
 // A compact 0–1 fraction for the reference speed bar (clamped defensively).

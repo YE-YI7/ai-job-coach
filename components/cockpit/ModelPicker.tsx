@@ -131,7 +131,7 @@ export default function ModelPicker({value,onChange,catalog,connected,disabled=f
           </li>;
         })}
       </ul>
-      <details className={styles.disclaimer}><summary>价格与速度说明</summary><p>价格为 TokenDance 公开参考价，缓存价仅用于命中部分，实际以账单为准。速度是相对估算，千问 3.8 Max 锚定 0.7，数值越大越快；不是实测或扣费倍率。</p><p>参考价更新：{pricingDate}。<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenDance 价格</a> · <a href="https://huggingface.co/inference/models" target="_blank" rel="noreferrer">Hugging Face 参考</a></p></details>
+      <details className={styles.disclaimer}><summary>价格与速度说明</summary><p>模型按输出起价从高到低排列，同价时比较输入起价；自动模式单独置顶。价格为 TokenDance 公开参考价，缓存价仅用于命中部分，实际以账单为准。速度是相对估算，千问 3.8 Max 锚定 0.7，数值越大越快；不是实测或扣费倍率。</p><p>参考价更新：{pricingDate}。<a href="https://tokendance.space/models" target="_blank" rel="noreferrer">TokenDance 价格</a> · <a href="https://huggingface.co/inference/models" target="_blank" rel="noreferrer">Hugging Face 参考</a></p></details>
     </div>}
   </div>;
 }

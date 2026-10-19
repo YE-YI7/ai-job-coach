@@ -78,6 +78,15 @@
 - 仅云端这一个非凭据网址设置及验收记录有变更，没有运行代码改动、新构建或部署。此前 51 项结果仍为前轮结果，本轮未冒称重跑；没有积分购买、兑换、余额查询、模型调用、短信或邮件发送。旧域到期不续的决定不变。
 - 配置保存并刷新后的截图仅私有本机：`/private/tmp/yizhi-supabase-siteurl-saved.png`；不含认证凭据，未提交截图。已检查近期官方变更与相关 TLS 公告，本次配置使用当前 Chrome / HTTPS，不需变更协议或降低安全设置。
 
+## 10-19 后台验收凭据安全收尾
+
+- 按本人明确要求，只处理后台验收身份：GitHub 的官方 Supabase OAuth 授权仅含邮箱只读权限，执行单项撤销，实际返回 `Supabase has been revoked from your account.`。没有撤销所有应用、改 GitHub 双重验证、Vercel 授权、项目签名或数据库 / 服务密钥。以后登录 Supabase 后台需要重新授权，但不删除 Supabase 项目或益职业务身份。
+- Supabase 后台正常 Sign out 后，重新打开生产 URL 配置页实际要求登录；没有重新授权或生成新会话。根据 [Supabase 会话说明](https://supabase.com/docs/guides/auth/sessions)，注销终止受影响的服务端会话，但短期 JWT 不会因退出立即失去其原有效期。
+- 原短期访问票据的到期时间为 `2026-10-19 15:02:59 UTC`。本轮主动等待，时钟工具在 `15:04:05 UTC` 确认已超过 66 秒，再次验证后台配置页仍要求登录。失效结论来自授权撤销、正常注销和超过原到期时间；未重放回显的凭据进行 API 请求，也不伪称做过逐值 401 测试。
+- 清理前后及到期后再次只读比较，上表 41 旧作答 / 全站 33 工作区 / 本人 10 资料整行哈希始终一致，用户 59 / Auth 用户 99 不变。另对本人 `watcha_point_wallets`、`watcha_point_transfers`、`watcha_point_reservations`、`user_quotas` 的完整行计数和哈希比较，全部不变；没有外部渠道余额查询、兑换、扣减或充值。益职正常会话仍是原 UUID，工作区仍 8 个岗位，health 200 / database ok。
+- 未把凭据值写入代码、报告或交接；对本次相关四份文本的凭据格式扫描未检出值。本轮浏览器工具工作内存已重置，未清浏览器 Cookie 或用户资料。既有聊天工具回显无法撤回，不宣称历史输出已被删除；上述授权与会话的失效不依靠删除历史文本。
+- 安全截图仅私有本机：`/private/tmp/yizhi-supabase-github-authorization-revoked.png`、`/private/tmp/yizhi-supabase-session-signed-out.png`。本节只记录无凭据的操作与结果，无代码或部署变更，无真实模型、短信或邮件操作。
+
 验收截图仅私有本机：`/private/tmp/yizhi-pay-new-domain-settings.png`、`/private/tmp/yizhi-mail-new-domain-verified.png`、`/private/tmp/yizhi-new-domain-mail-accepted.png`；支付 handoff 截图带购买二维码，仅本人交接，不进入仓库或公开报告。没有公开手机号、凭据、支付 ticket 或真人简历截图。
 
 回退只涉及部署版本或配置，不回滚用户资料；回退前必须检查当前线上版本，不能覆盖协作者的新发布。旧域不续费决定不因技术回退改变。

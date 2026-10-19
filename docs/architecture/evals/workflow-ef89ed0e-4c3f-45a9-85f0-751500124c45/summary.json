@@ -1,0 +1,358 @@
+{
+  "batchId": "ef89ed0e-4c3f-45a9-85f0-751500124c45",
+  "config": {
+    "plan": [
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "career-transition",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "career-transition",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "career-transition",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "manufacturing-quality",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "manufacturing-quality",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "manufacturing-quality",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 2,
+        "strategy": "independent",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 2,
+        "strategy": "self_review",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 2,
+        "strategy": "format_only",
+        "fixtureId": "already-clear",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "repair"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "standard"
+      }
+    ],
+    "metrics": [
+      "grounding_veto",
+      "format_regression",
+      "usefulness",
+      "overediting",
+      "gap_questioning",
+      "repair_convergence",
+      "failure_type",
+      "latency",
+      "tokens",
+      "estimated_cost",
+      "repeat_consistency"
+    ],
+    "fixtures": "resume-workflow-fixtures-20261019-v2",
+    "workflow": "scoped-editor-whole-review-v3",
+    "synthetic": true,
+    "concurrency": 1,
+    "fixtureHash": "d8d9f1674f51dbc83b9d0e26fb77d2174d3d50a7d5e2564359f67bd9b50b76f1",
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "billingSource": "site_api_key_no_user_gateway",
+    "pointsBypassed": true,
+    "requestedModel": "deepseek-v4-flash",
+    "developmentOnly": false,
+    "maxFollowUpRuns": 3,
+    "automaticRepairs": 1,
+    "maxWorkflowCalls": 104,
+    "transportRetries": 0,
+    "requestedProvider": "deepseek"
+  },
+  "summary": {
+    "pdf": "not_verified",
+    "decision": "not_release_ready",
+    "executed": 18,
+    "blindReview": "pending_Grok",
+    "persistence": "not_verified",
+    "interruption": "Runner stopped on private run insert; no model was started for the failed insert. Error code not captured in this version; no inference about database memory.",
+    "byStrategy": {
+      "independent": {
+        "n": 6,
+        "completed": 5,
+        "unchanged": 1,
+        "needs_detail": 0,
+        "failed": 0,
+        "calls": 12,
+        "inputTokens": 56336,
+        "outputTokens": 2707,
+        "estimatedCostUsd": 0.0035872592000000007,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 9644,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "self_review": {
+        "n": 6,
+        "completed": 5,
+        "unchanged": 0,
+        "needs_detail": 0,
+        "failed": 1,
+        "calls": 7,
+        "inputTokens": 37228,
+        "outputTokens": 3717,
+        "estimatedCostUsd": 0.0034955088000000003,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 9372,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "format_only": {
+        "n": 6,
+        "completed": 5,
+        "unchanged": 1,
+        "needs_detail": 0,
+        "failed": 0,
+        "calls": 7,
+        "inputTokens": 32780,
+        "outputTokens": 1888,
+        "estimatedCostUsd": 0.001729,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 7028,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      }
+    },
+    "humanBlindReview": "pending",
+    "metricSource": "captured_real_runs",
+    "actualCost": null
+  }
+}

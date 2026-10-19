@@ -1,0 +1,142 @@
+{
+  "batchId": "a1216d4e-2567-4fba-b2b3-73a5ec8375be",
+  "config": {
+    "plan": [
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      }
+    ],
+    "metrics": [
+      "grounding_veto",
+      "format_regression",
+      "usefulness",
+      "overediting",
+      "gap_questioning",
+      "repair_convergence",
+      "failure_type",
+      "latency",
+      "tokens",
+      "estimated_cost",
+      "repeat_consistency"
+    ],
+    "fixtures": "resume-workflow-fixtures-20261019-v2",
+    "workflow": "scoped-editor-whole-review-v6",
+    "synthetic": true,
+    "concurrency": 1,
+    "fixtureHash": "d8d9f1674f51dbc83b9d0e26fb77d2174d3d50a7d5e2564359f67bd9b50b76f1",
+    "holdoutOnly": true,
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "billingSource": "site_api_key_no_user_gateway",
+    "pointsBypassed": true,
+    "requestedModel": "deepseek-v4-flash",
+    "developmentOnly": false,
+    "maxFollowUpRuns": 3,
+    "automaticRepairs": 1,
+    "maxWorkflowCalls": 104,
+    "transportRetries": 0,
+    "requestedProvider": "deepseek",
+    "executionSourceHash": "6afe86840e018960bb73c38767d36721e5e190ef80a245871613db9b6cdf75d5"
+  },
+  "summary": {
+    "pdf": "not_verified",
+    "counts": {
+      "failed": 1,
+      "unchanged": 1,
+      "needs_detail": 1
+    },
+    "decision": "not_release_ready",
+    "executed": 3,
+    "blindReview": "pending_Grok",
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "persistence": "not_verified",
+    "fatalProvider": false,
+    "workflowCalls": 7,
+    "plannedInitial": 3,
+    "byStrategy": {
+      "independent": {
+        "n": 1,
+        "completed": 0,
+        "unchanged": 1,
+        "needs_detail": 0,
+        "failed": 0,
+        "calls": 3,
+        "inputTokens": 12486,
+        "outputTokens": 412,
+        "estimatedCostUsd": 0.0005814032000000002,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 13200,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "self_review": {
+        "n": 1,
+        "completed": 0,
+        "unchanged": 0,
+        "needs_detail": 0,
+        "failed": 1,
+        "calls": 2,
+        "inputTokens": 10627,
+        "outputTokens": 892,
+        "estimatedCostUsd": 0.00033261200000000003,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 14003,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "format_only": {
+        "n": 1,
+        "completed": 0,
+        "unchanged": 0,
+        "needs_detail": 1,
+        "failed": 0,
+        "calls": 2,
+        "inputTokens": 9364,
+        "outputTokens": 411,
+        "estimatedCostUsd": 0.0006884528000000002,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 9284,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      }
+    },
+    "humanBlindReview": "pending",
+    "metricSource": "captured_real_runs",
+    "actualCost": null
+  }
+}

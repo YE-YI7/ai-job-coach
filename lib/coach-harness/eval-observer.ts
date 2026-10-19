@@ -53,6 +53,10 @@ export async function observedResumeLLM(
       ...args[1],
       onUsage: (details) => {
         span.model = details.model;
+        if(Number.isFinite(details.inputTokens)&&Number.isFinite(details.outputTokens))span.usage={
+          inputTokens:details.inputTokens,outputTokens:details.outputTokens,cacheHitTokens:details.cacheHitTokens??null,
+          estimatedCostUsd:details.estimatedCostUsd??null,pricingVersion:details.pricingVersion??null,
+          provider:details.provider??null,retryCount:details.retryCount??null};
         args[1]?.onUsage?.(details);
       },
     });

@@ -1,4 +1,5 @@
 import { POST } from "./route";
+import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
 import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
@@ -32,6 +33,9 @@ jest.mock("@/lib/coach-harness", () => ({
   validateArtifactDraft: jest.fn(() => ({ ok: true, issues: [] })),
 }));
 
+// Legacy per-change tests explicitly supply a passing document verdict; new
+// document-review tests below exercise missing/failed whole-document judgments.
+const passedDocument={status:"passed",summary:"整稿一致，未发现本轮引入的新问题",findings:[]};
 const usefulValueChecks=[0,1].map(index=>({index,useful:true,kind:'clarity',reason:'将实际评测动作与交付口径对应，便于读者理解'}));
 
 describe("resume draft source mapping", () => {
@@ -46,6 +50,7 @@ describe("resume draft source mapping", () => {
     (reserveQuota as jest.Mock).mockResolvedValue({ source: "free", remaining: 0 });
     (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
     (compileContextBundle as jest.Mock).mockImplementation(input=>input);
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:"原文",findings:[]});
     (persistResumeAnswerClaims as jest.Mock).mockResolvedValue([]);
     (startResumeTrace as jest.Mock).mockResolvedValue({ data: {}, step: jest.fn(), finish: jest.fn().mockResolvedValue(undefined) });
     (getContextBundleForUser as jest.Mock).mockResolvedValue({
@@ -84,7 +89,7 @@ describe("resume draft source mapping", () => {
 
   test("draft and independent reviewer receive the same admitted methods", async () => {
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact-1'});
@@ -117,7 +122,7 @@ describe("resume draft source mapping", () => {
 
   test.each([['- 没有负责后端开发。','',200],['- 协助编写接口说明。','',422],['- 没有负责后端开发。','（删除该条）',200],['- 协助编写接口说明。','（删除该条）',422]])('only standalone disclaimer deletion can pass review: %s %s',async(before,after,status)=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after,sourceIds:['claim-1'],reason:'独立免责声明不作为求职贡献'}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',valueChecks:usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'其余完整简历',findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact-1'});
@@ -133,7 +138,7 @@ describe("resume draft source mapping", () => {
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'Excel、Word',jd:'',revision:'r',changes:[]});
     (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes:[],unchanged:true}});
     const cosmetic=JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有技能清单清楚，增加标签没有信息价值。'}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(cosmetic).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',unchanged:true,summary:'现有技能清单清楚，增加标签没有信息价值。'}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'Excel、Word',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
@@ -161,7 +166,7 @@ describe("resume draft source mapping", () => {
   });
 
   test('factually approved edits still require independent value approval',async()=>{
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',findings:[]}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
     expect(response.status).toBe(422);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
@@ -171,7 +176,7 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'负责模型评测',jd:'',revision:'r',changes});
     (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes,unchanged:true}});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status,changes:[]})).mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status,changes:[]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes});
     expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),expect.objectContaining({unchanged:true,changes,prepared:true}));
@@ -192,7 +197,7 @@ describe("resume draft source mapping", () => {
     (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes:[],unchanged:true}});
     (callLLM as jest.Mock).mockRejectedValueOnce(new Error('Empty response from LLM (finish_reason=length)'))
       .mockResolvedValueOnce(JSON.stringify({status:'unchanged',changes:[]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',unchanged:true,summary:'现有动作与交付已经清楚，无需重复改写。'}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true});
     expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
@@ -219,7 +224,7 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce('{"changes": [broken]}')
       .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
@@ -236,7 +241,7 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:'负责模型评测',jd:'',revision:'r',changes:[]});
     (finishResumeTask as jest.Mock).mockResolvedValue({state,result:{changes:[]}});
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(finishResumeTask).toHaveBeenCalled();
@@ -247,7 +252,7 @@ describe("resume draft source mapping", () => {
 
   test('normalizes only a unique PDF punctuation span back to actual original bytes',async()=>{
     const before='负责模型评测,记录准确率口径。';
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:before.replace(',', '，'),after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:before.replace(',', '，'),after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'预览',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
     expect(response.status).toBe(200);expect((await response.json()).changes[0].before).toBe(before);
@@ -270,7 +275,7 @@ describe("resume draft source mapping", () => {
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume,jd:'',revision:'r',changes:[]});
     (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
     const draft=JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(draft).mockResolvedValueOnce(draft).mockResolvedValueOnce(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(draft).mockResolvedValueOnce(draft).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',valueChecks:usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:resume,findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:resume,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     const body=await response.json();expect(body).toMatchObject({ok:true});expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);
@@ -282,7 +287,7 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'主导模型评测全流程',sourceIds:['claim-1']}]}))
       .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledTimes(1);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
@@ -308,14 +313,14 @@ describe("resume draft source mapping", () => {
       {before:'负责数据评测',after:'数据评测覆盖准确率口径',sourceIds:['claim-1']},
     ]})).mockImplementationOnce(async(messages:Array<{content:string}>)=>{
       const candidates=JSON.parse(messages.find(item=>item.content.includes('待审修改（'))!.content.split('：\n').at(-1)!);
-      return JSON.stringify({status:'passed',findings:[],valueChecks:candidates.map((_item:unknown,index:number)=>({index,useful:false,kind:'clarity',reason:'这处改写没有带来明确的编辑改善'}))});
+      return JSON.stringify({document:passedDocument,status:'passed',findings:[],valueChecks:candidates.map((_item:unknown,index:number)=>({index,useful:false,kind:'clarity',reason:'这处改写没有带来明确的编辑改善'}))});
     }).mockResolvedValue(JSON.stringify({status:'failed',changes:[]}));
     await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'课程项目：负责模型评测\n负责数据评测',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('不能去掉原文的虚构、示例或练习性质标记');
   });
 
   test('same source paragraph split into two bullets is reviewed as one applicable edit',async()=>{
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'整理模型评测的准确率记录',sourceIds:['claim-1']},{before:'负责模型评测',after:'交付模型评测记录表',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'整理模型评测的准确率记录',sourceIds:['claim-1']},{before:'负责模型评测',after:'交付模型评测记录表',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'合并后预览',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
@@ -323,7 +328,7 @@ describe("resume draft source mapping", () => {
   });
 
   test('an ambiguous/conflicting preview is not delivered or billed as success',async()=>{
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'原文',findings:[{code:'replacement_missed',severity:'error'}]});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
     expect(response.status).toBe(422);expect((await response.json()).reasonCode).toBe('resume_mapping_conflict');expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
@@ -354,7 +359,7 @@ describe("resume draft source mapping", () => {
     const weak='参与校园工具项目，负责需求相关工作，具体交付还没梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}],recovery:{sourceExcerpt:weak,field:'action',question:'这段项目里你本人实际做过哪一步？'}}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'已改稿',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测\n'+weak,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
@@ -367,7 +372,7 @@ describe("resume draft source mapping", () => {
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({status:'needs_detail',changes:[],recovery:{sourceExcerpt:weak,field:'action',question:'你本人实际做了什么？'}}))
       .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:'passed', valueChecks: usefulValueChecks,findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'已改稿',findings:[]});(reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测\n'+weak,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
@@ -415,7 +420,7 @@ describe("resume draft source mapping", () => {
 
   test("general résumé can be rewritten and saved without a target JD",async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{section:"项目经历",before:"负责模型评测",after:"模型评测覆盖准确率口径",reason:"明确动作",sourceIds:["claim-1"]}]}))
-      .mockResolvedValueOnce(JSON.stringify({status:"passed", valueChecks: usefulValueChecks,summary:"事实与短句通过",findings:[]}));
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:"passed", valueChecks: usefulValueChecks,summary:"事实与短句通过",findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:"模型评测覆盖准确率口径",findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:"general-art",version:1});
@@ -447,7 +452,7 @@ describe("resume draft source mapping", () => {
     }));
 
     expect(response.status).toBe(422);
-await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, reasonCode: "resume_draft_unverified", error: expect.stringContaining("没能生成可用的修改"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人具体做了哪一步") } }));
+await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: false, reasonCode: "resume_draft_unverified", error: expect.stringContaining("没能生成可用的修改"), recovery: { sourceExcerpt: "AI Job Coach：负责模型评测", question: expect.stringContaining("你本人实际做的第一件事") } }));
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
     expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({
@@ -499,8 +504,8 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
         const prompt = messages.find(message=>message.content.includes("待审修改（"))!.content;
         const list = JSON.parse(prompt.slice(prompt.indexOf("[", prompt.indexOf("待审修改")))) as { id: string; after: string }[];
         const badId = list.find((c) => c.after.includes("幻觉率"))?.id;
-        return JSON.stringify({ status: "failed", valueChecks: usefulValueChecks, summary: "一条凭空加了口径", findings: [{ changeId: badId, severity: "error", message: "来源里没有幻觉率口径" }] });
-      });
+        return JSON.stringify({document:passedDocument, status: "failed", valueChecks: usefulValueChecks, summary: "一条凭空加了口径", findings: [{ changeId: badId, severity: "error", message: "来源里没有幻觉率口径" }] });
+      }).mockResolvedValueOnce(JSON.stringify({document:passedDocument}));
     (applyResumeChanges as jest.Mock).mockImplementation((_text: string, changes: unknown[]) => ({ text: `preview:${(changes as { after: string }[]).length}`, findings: [] }));
     (reviewAtsText as jest.Mock).mockReturnValue({ ok: true, coverage: 1, findings: [] });
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({ id: "art-1", version: 1 });
@@ -515,6 +520,7 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     const body = await response.json();
     expect(body.changes).toHaveLength(1);
     expect(body.changes[0].after).toContain("准确率口径");
+    expect(callLLM).toHaveBeenCalledTimes(3); // Final retained document, not rejected candidate, was checked.
     expect(body.rejectedCount).toBe(1);
     // 台账记下两条都被核验过、都只判 annotate：拦截的是质检员，不是守卫。
     expect(body.guards).toEqual([
@@ -531,7 +537,7 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
       .mockImplementationOnce(async (messages: { content: string }[]) => {
         const prompt = messages.find(message=>message.content.includes("待审修改（"))!.content;
         const changes = JSON.parse(prompt.slice(prompt.indexOf("[", prompt.indexOf("待审修改"))));
-        return JSON.stringify({ status: "failed", valueChecks: usefulValueChecks, summary: "扩大职责", findings: [{ changeId: changes[0].id, severity: "warning", message: "增加了未提供的指标责任" }] });
+        return JSON.stringify({document:passedDocument, status: "failed", valueChecks: usefulValueChecks, summary: "扩大职责", findings: [{ changeId: changes[0].id, severity: "warning", message: "增加了未提供的指标责任" }] });
       });
     const response = await POST(new Request("http://localhost/api/coach/resume-draft", { method: "POST", body: JSON.stringify({ opportunityId: "opp-1", resumeText: "AI Job Coach：负责模型评测", jobDescription: "负责 AI 产品评测" }) }));
     expect(response.status).toBe(422);
@@ -544,7 +550,7 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({ changes: [
       { before: "不存在的原文", after: "负责不存在的工作", sourceIds: ["claim-1"] },
       { before: "负责模型评测", after: "模型评测覆盖准确率口径", sourceIds: ["claim-1"] },
-    ] })).mockResolvedValueOnce(JSON.stringify({ status: "passed", valueChecks: usefulValueChecks, summary: "保留项通过", findings: [] }));
+    ] })).mockResolvedValueOnce(JSON.stringify({document:passedDocument, status: "passed", valueChecks: usefulValueChecks, summary: "保留项通过", findings: [] }));
     (applyResumeChanges as jest.Mock).mockReturnValue({ text: "保留项预览", findings: [] });
     (reviewAtsText as jest.Mock).mockReturnValue({ ok: true, coverage: 1, findings: [] });
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({ id: "art-1", version: 1 });
@@ -556,6 +562,74 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     expect(body.applicationQuality.status).toBe("ready");
     expect(recordArtifactReview).toHaveBeenCalledWith(expect.objectContaining({ reviewerType: "facts", status: "passed", findings: [] }));
     expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({ content: expect.objectContaining({ discardedSuggestions: [expect.objectContaining({ index: 0 })] }) }));
+  });
+  test('whole-document failure returns diagnosis to original editor once; reviewer never writes',async()=>{
+    const draft={changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]};
+    const review={status:'passed',summary:'逐条可用',valueChecks:usefulValueChecks,findings:[],document:passedDocument};
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify(draft))
+      .mockImplementationOnce(async(messages)=>{
+        const list=JSON.parse(messages.find((m:{content:string})=>m.content.includes('待审修改（findings')).content.split('待审修改（findings 里的 changeId 必须从这里逐字取）：\n')[1]);
+        return JSON.stringify({...review,document:{status:'failed',summary:'整稿可读性还需修复',findings:[{changeId:list[0].id,category:'quality',severity:'error',message:'段内动作顺序不一致，退回原编辑检查'}]}});
+      }).mockResolvedValueOnce(JSON.stringify(draft)).mockResolvedValueOnce(JSON.stringify(review));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(4);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('段内动作顺序不一致');
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('appliedCandidate');
+    expect((await response.json()).workflow.maxRepairs).toBe(1);
+  });
+  test('missing whole-document verdict twice blocks, never becomes success because some changes survive',async()=>{
+    let n=0;(callLLM as jest.Mock).mockImplementation(async()=>JSON.stringify(n++%2===0?
+      {changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}:
+      {status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    expect(response.status).toBe(422);expect((await response.json()).reasonCode).toBe('resume_document_review_failed');
+    expect(callLLM).toHaveBeenCalledTimes(4);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+  test('whole-document candidate includes earlier accepted decisions and equals the saved preview',async()=>{
+    const resumeText='负责模型评测\n维护评测记录';
+    const existing={id:'accepted-before-this-run',section:'记录',before:'维护评测记录',after:'每周维护评测记录，供同事核对',evidenceId:null,status:'accepted'};
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:resumeText,jd:'',revision:'r',changes:[existing]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    (applyResumeChanges as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/application-quality').applyResumeChanges);
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',summary:'整体检查',valueChecks:usefulValueChecks,findings:[]}));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(200);
+    const input=(callLLM as jest.Mock).mock.calls[1][0].find((m:{content:string})=>m.content.startsWith('{"appliedCandidate"'));
+    const candidate=JSON.parse(input.content).appliedCandidate;
+    expect(candidate).toContain(existing.after);
+    expect((createArtifactWithClaims as jest.Mock).mock.calls[0][0].content.previewText).toBe(candidate);
+    expect((await response.json()).changes).toContainEqual(existing);
+  });
+  test('an optional question cannot block confirming an already clear unchanged source',async()=>{
+    const resumeText='每周核对销售表，将缺失项标记在Excel清单，交给店长补齐。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    const empty={changes:[],recovery:{sourceExcerpt:resumeText,field:'outcome',question:'店长补齐后，你是否会再次核对清单？'}};
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify(empty)).mockResolvedValueOnce(JSON.stringify(empty))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',unchanged:true,summary:'现有动作、对象、交付与用途清楚，后续复核并非必要事实。'}));
+    const response=await POST(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});
+    expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+  test('isolated execution refuses old data targets before read, quota or model',async()=>{
+    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'old',resumeText:'负责模型评测',mode:'general_resume'})}),{id:'admin'} as any,{isolated:true});
+    expect(response.status).toBe(500);expect(startResumeTrace).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();
+  });
+  test('self-review and format-only are real alternative execution paths, not renamed independent calls',async()=>{
+    for(const strategy of ['self_review','format_only'] as const){
+      (callLLM as jest.Mock).mockReset();
+      (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}],selfReview:{status:'passed',summary:'原编辑自查',valueChecks:usefulValueChecks,findings:[],document:passedDocument}}));
+      (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+      (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+      const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}),{id:'admin'} as any,{strategy});
+      expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(1);
+      expect((await response.json()).reviewer.passed).toBe(false);
+    }
   });
 });
 

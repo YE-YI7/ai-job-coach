@@ -12,6 +12,7 @@ export interface EvalSpan {
   input: unknown;
   output: unknown;
   model?: string;
+  usage?: {inputTokens:number;outputTokens:number;cacheHitTokens:number|null;estimatedCostUsd:number|null;pricingVersion:string|null;provider:string|null;retryCount:number|null};
   code?: string;
   knowledge: Array<{
     id: string;

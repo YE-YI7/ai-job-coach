@@ -1,3 +1,4 @@
+import { nextResumeQuestion } from "./resume-task-types";
 /** A factual follow-up anchored to a supplied line, never inferred experience. */
 export const RESUME_SUPPLEMENT_MARKER = "补充经历（用户提供，待核实）：";
 export interface ResumeRecovery { sourceExcerpt: string; question: string; detailSaved?: boolean }
@@ -18,13 +19,13 @@ export function resumeRecovery(resume: string): ResumeRecovery {
     return { sourceExcerpt: suppliedDetail.slice(0, 260), question: "补充已保存。本次 AI 改稿仍未通过核验，不需要反复补同一段；你可以保留当前内容，直接编辑、预览或保存 PDF。", detailSaved: true };
   }
   const lines = resume.split(/\n/).map(line => line.trim()).filter(Boolean);
-  const experience = lines.find(line => /负责|参与|协助|完成|整理|制作|维护|搭建|设计|开发|运营|项目/.test(line)
-    && line.length > 12 && !/@|https?:|电话|邮箱|手机/.test(line));
+  const experience = lines.find(line => /负责|参与|协助|完成|整理|制作|维护|搭建|设计|开发|记录|核对/.test(line)
+    && line.length > 12 && !/^#|^(?:姓名|教育|技能|意向|求职方向)\s*[:：]/.test(line) && !/@|https?:|电话|邮箱|手机|\d{11}/.test(line));
   const sourceExcerpt = experience?.slice(0, 260) || "";
   return {
     sourceExcerpt,
-    question: sourceExcerpt ? "这件事里，你本人具体做了哪一步？举一个真实例子：处理了什么、交付了什么；没有数字也可以。"
-      : "选一件你实际做过的事：当时要解决什么问题，你本人做了什么，最后交付了什么？没有正式工作经历也可以写课程或个人项目。",
+    question: sourceExcerpt ? "这段经历里，你本人实际做的第一件事是什么？没有数字也可以。"
+      : "请说一件你实际做过的事，先只说你做了什么？课程或个人项目也可以。",
   };
 }
 
@@ -32,14 +33,10 @@ export function resumeRecovery(resume: string): ResumeRecovery {
 export function modelResumeRecovery(resume: string, value: unknown): ResumeRecovery | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
-  const sourceExcerpt = typeof raw.sourceExcerpt === "string" ? raw.sourceExcerpt.trim() : "";
-  const question = typeof raw.question === "string" ? raw.question.trim() : "";
-  if (sourceExcerpt.length < 12 || sourceExcerpt.length > 260 || !resume.includes(sourceExcerpt)
-    || /@|https?:|电话|邮箱|手机|\d{11}/.test(sourceExcerpt)
-    || question.length < 8 || question.length > 220 || (question.match(/[？?]/g) || []).length > 1
-    || /https?:|@|\d{11}/.test(question)) return null;
+  const question = nextResumeQuestion(resume,raw,[]);
+  if (!question) return null;
   const existing = resumeRecovery(resume);
-  return existing.detailSaved ? existing : { sourceExcerpt, question };
+  return existing.detailSaved ? existing : question;
 }
 
 export function appendResumeSupplement(resume: string, answer: string): string {

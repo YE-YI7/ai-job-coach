@@ -1,6 +1,6 @@
 {
   "schemaVersion": "yizhi.eval-case-feedback/v1",
-  "storage": "local_repository_not_cloud",
+  "storage": "private_backend_with_repository_index",
   "cases": [
     {
       "caseId": "YZ-CASE-20261019-001",
@@ -14,7 +14,7 @@
       "actorSource": "product_owner_in_current_conversation",
       "subjectAssociation": "resolve_through_coach_eval_runs.user_id_in_private_backend",
       "category": "document_style_consistency",
-      "status": "diagnosed_not_fixed",
+      "status": "implementation_in_progress_not_released",
       "userFeedback": "这个修改的，其实大部分挺好的，但是没有 points 领头了，跟其他的条目矛盾了。比如别的条都是有 points 起手，这个地方你给我改了之后就没有了。",
       "acceptedAspect": "改后内容大部分认可，不要求撤回全部内容改善。",
       "issue": "当前原稿使用列表圆点后的加粗要点领句，局部改写丢失该结构，与其他条目不一致。列表圆点本身仍在。",
@@ -53,8 +53,9 @@
       "proposedRegression": "同一事实/稿件风格输入下，能改善原来的随笔式领句，同时保留本稿要点结构；整稿检查应定位不一致并只向原编辑者返回问题。原本无加粗领句的对照稿不被强制新增领句。",
       "fixedInCommit": null,
       "verificationTraceId": null,
-      "cloudFeedbackId": null,
-      "notes": "只登记反馈和Trace指针，没有复制整份简历或用户联系方式；没有修改业务稿件、作答、积分或执行付费模型。正式网站案例入口尚未接通。"
+      "cloudFeedbackId": "6c05f797-6ad8-4cf1-80d4-79f83c1b42f1",
+      "reproductionRunIds": ["0d9716c1-dce3-4acb-8f96-0069ec807841"],
+      "notes": "原反馈已按真实运行/修改ID存入私有coach_eval_feedback并回读，保留大部分内容认可的评价。代码和虚构复现测试在途，未改原业务稿件或作答，未消费原积分。复现通过不等于原稿已验收；网站案例入口待Q点页面整合及发布。"
     }
   ]
 }

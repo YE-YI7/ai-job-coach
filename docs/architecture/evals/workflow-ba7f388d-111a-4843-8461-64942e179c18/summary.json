@@ -1,0 +1,204 @@
+{
+  "batchId": "ba7f388d-111a-4843-8461-64942e179c18",
+  "config": {
+    "plan": [
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "ordinary-operations",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "thin-student",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "repair"
+      },
+      {
+        "phase": "initial",
+        "split": "development",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "lead-in-proposal",
+        "formatPolicy": "standard"
+      }
+    ],
+    "metrics": [
+      "grounding_veto",
+      "format_regression",
+      "usefulness",
+      "overediting",
+      "gap_questioning",
+      "repair_convergence",
+      "failure_type",
+      "latency",
+      "tokens",
+      "estimated_cost",
+      "repeat_consistency"
+    ],
+    "fixtures": "resume-workflow-fixtures-20261019-v1",
+    "workflow": "scoped-editor-whole-review-v2",
+    "synthetic": true,
+    "concurrency": 1,
+    "fixtureHash": "f4221a764dc58898341de1a03e737b121d367b0927bafdaca1133cf939ad77d3",
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "billingSource": "site_api_key_no_user_gateway",
+    "pointsBypassed": true,
+    "requestedModel": "deepseek-v4-flash",
+    "developmentOnly": true,
+    "maxFollowUpRuns": 3,
+    "automaticRepairs": 1,
+    "maxWorkflowCalls": 104,
+    "transportRetries": 0,
+    "requestedProvider": "deepseek"
+  },
+  "summary": {
+    "pdf": "not_verified",
+    "counts": {
+      "failed": 3,
+      "completed": 10,
+      "needs_detail": 1
+    },
+    "decision": "not_release_ready",
+    "executed": 14,
+    "blindReview": "pending_Grok",
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "persistence": "not_verified",
+    "fatalProvider": false,
+    "workflowCalls": 25,
+    "plannedInitial": 11,
+    "byStrategy": {
+      "independent": {
+        "n": 6,
+        "completed": 5,
+        "unchanged": 0,
+        "needs_detail": 1,
+        "failed": 0,
+        "calls": 12,
+        "inputTokens": 57424,
+        "outputTokens": 2742,
+        "estimatedCostUsd": 0.005048937600000001,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 9505,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "self_review": {
+        "n": 4,
+        "completed": 1,
+        "unchanged": 0,
+        "needs_detail": 0,
+        "failed": 3,
+        "calls": 8,
+        "inputTokens": 42578,
+        "outputTokens": 3740,
+        "estimatedCostUsd": 0.005410014400000001,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 14626.5,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "format_only": {
+        "n": 4,
+        "completed": 4,
+        "unchanged": 0,
+        "needs_detail": 0,
+        "failed": 0,
+        "calls": 5,
+        "inputTokens": 23556,
+        "outputTokens": 1347,
+        "estimatedCostUsd": 0.0024808112000000004,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 6445,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      }
+    },
+    "humanBlindReview": "pending",
+    "metricSource": "captured_real_runs",
+    "actualCost": null
+  }
+}

@@ -1,5 +1,6 @@
 {
   "_meta": {
+    "eval_private_verified_at": "2026-10-19 UTC: coach_eval_feedback and coach_eval_batches columns read back from production information_schema; RLS enabled; anon/authenticated grants absent, service_role grants narrowed; migrations 20261019161122 and 20261019161227",
     "pulled_at": "2026-09-30",
     "phone_auth_verified_at": "2026-10-18 UTC: twelve phone_auth_challenges columns and four phone_account_recoveries columns verified via production information_schema; service-role recovery checks passed in rolled-back fixtures; migrations 20261018061015, 20261018061531 and 20261018074409 applied via Supabase MCP",
     "incremental_verified_at": "2026-10-08: coach_learning_sessions outcome/source_turn_id/last_request_id verified via information_schema after migration; 2026-10-10: coach_first_guidance seven columns verified with authenticated PostgREST limit(0), no user rows read; 2026-10-13: coach_agent_requests eleven columns verified via production information_schema after additive migration; 2026-10-15: coach_resume_tasks thirteen columns and denied public access verified via information_schema after additive migration",
@@ -8,6 +9,8 @@
     "refresh": "重拉一次：需要登录态 + 代理，见 spec §19；拉完替换 tables 字段并更新 pulled_at。"
   },
   "tables": {
+    "coach_eval_batches": ["id", "actor_user_id", "label", "status", "config", "summary", "created_at", "updated_at"],
+    "coach_eval_feedback": ["id", "run_id", "actor_user_id", "subject_user_id", "resume_trace_id", "change_id", "scope", "category", "verdict", "note", "expected", "status", "content_hash", "created_at"],
     "phone_auth_challenges": ["id", "phone", "purpose", "user_id", "client_hash", "state", "attempts", "attempt_id", "lease_until", "created_at", "expires_at", "allow_recovery"],
     "phone_account_recoveries": ["challenge_id", "source_user_id", "target_user_id", "created_at"],
     "ai_generation_events": [

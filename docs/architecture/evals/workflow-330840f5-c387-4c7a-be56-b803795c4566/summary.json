@@ -1,0 +1,189 @@
+{
+  "batchId": "330840f5-c387-4c7a-be56-b803795c4566",
+  "config": {
+    "plan": [
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-admin",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-good-delivery",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "format_only",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "independent",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      },
+      {
+        "phase": "initial",
+        "split": "holdout",
+        "repeat": 1,
+        "strategy": "self_review",
+        "fixtureId": "holdout-customer",
+        "formatPolicy": "preserve"
+      }
+    ],
+    "metrics": [
+      "grounding_veto",
+      "format_regression",
+      "usefulness",
+      "overediting",
+      "gap_questioning",
+      "repair_convergence",
+      "failure_type",
+      "latency",
+      "tokens",
+      "estimated_cost",
+      "repeat_consistency"
+    ],
+    "fixtures": "resume-workflow-fixtures-20261019-v2",
+    "workflow": "scoped-editor-whole-review-v4",
+    "synthetic": true,
+    "concurrency": 1,
+    "fixtureHash": "d8d9f1674f51dbc83b9d0e26fb77d2174d3d50a7d5e2564359f67bd9b50b76f1",
+    "holdoutOnly": true,
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "billingSource": "site_api_key_no_user_gateway",
+    "pointsBypassed": true,
+    "requestedModel": "deepseek-v4-flash",
+    "developmentOnly": false,
+    "maxFollowUpRuns": 3,
+    "automaticRepairs": 1,
+    "maxWorkflowCalls": 104,
+    "transportRetries": 0,
+    "requestedProvider": "deepseek",
+    "executionSourceHash": "360482b9910eb5af488215294eca1c3dc022522d04f5a52473a6c69bb68e95d5"
+  },
+  "summary": {
+    "pdf": "not_verified",
+    "counts": {
+      "completed": 6,
+      "needs_detail": 3
+    },
+    "decision": "not_release_ready",
+    "executed": 9,
+    "blindReview": "pending_Grok",
+    "limitations": [
+      "小样本描述，不推断总体排名或p95。",
+      "未做人工盲评前无冠军。",
+      "规则格式通过不等于内容质量通过。",
+      "API估价不是实际扣费。",
+      "原PDF排版几何不在纯文本格式约定中。"
+    ],
+    "persistence": "not_verified",
+    "fatalProvider": false,
+    "workflowCalls": 14,
+    "plannedInitial": 9,
+    "byStrategy": {
+      "independent": {
+        "n": 3,
+        "completed": 2,
+        "unchanged": 0,
+        "needs_detail": 1,
+        "failed": 0,
+        "calls": 6,
+        "inputTokens": 28863,
+        "outputTokens": 1448,
+        "estimatedCostUsd": 0.0022861832000000003,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 9979,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "self_review": {
+        "n": 3,
+        "completed": 2,
+        "unchanged": 0,
+        "needs_detail": 1,
+        "failed": 0,
+        "calls": 4,
+        "inputTokens": 21040,
+        "outputTokens": 1795,
+        "estimatedCostUsd": 0.0026228048,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 8904,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      },
+      "format_only": {
+        "n": 3,
+        "completed": 2,
+        "unchanged": 0,
+        "needs_detail": 1,
+        "failed": 0,
+        "calls": 4,
+        "inputTokens": 18646,
+        "outputTokens": 781,
+        "estimatedCostUsd": 0.0017578624000000004,
+        "missingTokenRecords": 0,
+        "missingCostRecords": 0,
+        "medianWallMs": 7199,
+        "actualCost": null,
+        "note": "同一版本的小样本描述；不能仅按交付率、耗时或规则分选冠军"
+      }
+    },
+    "humanBlindReview": "pending",
+    "metricSource": "captured_real_runs",
+    "actualCost": null
+  }
+}

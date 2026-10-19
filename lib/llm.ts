@@ -14,7 +14,7 @@ type Message = {
 type LlmOptions = {
   onDelta?: (text: string) => void;
   firstTokenTimeoutMs?: number;
-  onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null}) => void;
+  onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null;provider?:string;cacheHitTokens?:number|null;estimatedCostUsd?:number|null;pricingVersion?:string|null;retryCount?:number}) => void;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -320,8 +320,14 @@ export async function callLLM(
 
     const usage = normalizeGenerationUsage(completion.usage as Record<string, unknown> | undefined);
     const latencyMs=Date.now()-startedAt;
-    if(completion.usage)options?.onUsage?.({model:completion.model||model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,latencyMs,averageTokensPerSecond:latencyMs>0?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null});
     const cost = estimateGenerationCost(provider, model, usage);
+    if(completion.usage){
+      const rawUsage=completion.usage as unknown as Record<string,unknown>;
+      options?.onUsage?.({model:completion.model||model,provider,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,
+        cacheHitTokens:rawUsage.prompt_cache_hit_tokens!==undefined||rawUsage.cache_read_input_tokens!==undefined?usage.cacheHitTokens:null,
+        estimatedCostUsd:cost.estimatedCostUsd,pricingVersion:cost.pricingVersion,retryCount,latencyMs,
+        averageTokensPerSecond:latencyMs>0?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null});
+    }
     await recordGenerationEvent({
       userId: trace?.userId,
       operation: trace?.operation || "unclassified",

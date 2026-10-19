@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "yizhi.eval-case-feedback/v1",
+  "storage": "local_repository_not_cloud",
+  "cases": [
+    {
+      "caseId": "YZ-CASE-20261019-001",
+      "recordedAt": "2026-10-19T15:44:46Z",
+      "traceId": "9d94e3ea-3b07-4ced-b635-ac68a3038b96",
+      "evalRunId": "9d94e3ea-3b07-4ced-b635-ac68a3038b96",
+      "resumeTraceId": "42f131d8-92b6-448f-a3a7-5ce0f95f8798",
+      "idConvention": "traceId为页面Eval运行编号的兼容别名，evalRunId与内部resumeTraceId分别保留，不混写。",
+      "changeId": "ai-change-1792371107015-2",
+      "scope": "change_and_whole_document",
+      "actorSource": "product_owner_in_current_conversation",
+      "subjectAssociation": "resolve_through_coach_eval_runs.user_id_in_private_backend",
+      "category": "document_style_consistency",
+      "status": "diagnosed_not_fixed",
+      "userFeedback": "这个修改的，其实大部分挺好的，但是没有 points 领头了，跟其他的条目矛盾了。比如别的条都是有 points 起手，这个地方你给我改了之后就没有了。",
+      "acceptedAspect": "改后内容大部分认可，不要求撤回全部内容改善。",
+      "issue": "当前原稿使用列表圆点后的加粗要点领句，局部改写丢失该结构，与其他条目不一致。列表圆点本身仍在。",
+      "expected": "保留本稿既有要点领句结构；旧领句空泛时改成具体领句，不原样恢复坏表达，也不强制所有简历新增领句。最后对应用修改后的整稿检查。",
+      "evidence": [
+        {
+          "kind": "captured_model_io",
+          "spanId": "2d0fa1d1-ebf1-4632-b421-ca2d917787a6",
+          "path": "output.changes[2]",
+          "finding": "before有加粗领句，原始after已没有；6/6建议均如此。最终结果中目标after与原始after完全相同。"
+        },
+        {
+          "kind": "captured_review_io",
+          "spanId": "33ec7e5c-c21b-4bea-a2ea-e6ad3052fc43",
+          "path": "output.valueChecks[2]",
+          "finding": "独立质检status=passed、findings为空、目标useful=true；没有发现整稿领句结构不一致。"
+        },
+        {
+          "kind": "captured_prompt_and_code",
+          "finding": "起草与质检共用禁止加粗空话的规则及无领句示例，没有按原稿风格保留的正向契约。规则对行为的影响为有证据支持的解释，不冒充模型内部思维。"
+        }
+      ],
+      "ruleScore": 80,
+      "llmSelfEvaluation": null,
+      "llmSelfEvaluationStatus": "not_requested",
+      "baselineTimingMs": { "endToEnd": 40947, "editor": 17941, "reviewer": 10806 },
+      "tokenUsage": {
+        "source": "ai_generation_events",
+        "association": "private_user_and_time_window_then_exact_request_hash_match",
+        "requestHashMatched": true,
+        "editor": { "input": 10528, "output": 1342, "cacheHit": 0, "retries": 0 },
+        "reviewer": { "input": 11529, "output": 517, "cacheHit": 0, "retries": 0 },
+        "total": { "input": 22057, "output": 1859, "tokens": 23916 }
+      },
+      "actualCost": null,
+      "proposedRegression": "同一事实/稿件风格输入下，能改善原来的随笔式领句，同时保留本稿要点结构；整稿检查应定位不一致并只向原编辑者返回问题。原本无加粗领句的对照稿不被强制新增领句。",
+      "fixedInCommit": null,
+      "verificationTraceId": null,
+      "cloudFeedbackId": null,
+      "notes": "只登记反馈和Trace指针，没有复制整份简历或用户联系方式；没有修改业务稿件、作答、积分或执行付费模型。正式网站案例入口尚未接通。"
+    }
+  ]
+}

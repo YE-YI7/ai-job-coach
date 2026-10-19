@@ -1,12 +1,12 @@
 {
   "name": "yi-zhi",
-  "version": "0.8.7+codex.20261009220000",
+  "version": "0.8.8+codex.20261019064407",
   "description": "A proactive private job-search mentor with a local visual cockpit, source-grounded knowledge, persistent cases, and evidence-based workflows.",
   "author": {
     "name": "\u76ca\u804c AI",
-    "url": "https://ai-job-coach.xin"
+    "url": "https://yizhioffer.com"
   },
-  "homepage": "https://ai-job-coach.xin",
+  "homepage": "https://yizhioffer.com",
   "repository": "https://github.com/YE-YI7/ai-job-coach",
   "license": "MIT",
   "keywords": [
@@ -31,8 +31,8 @@
       "Interactive",
       "Write"
     ],
-    "websiteURL": "https://ai-job-coach.xin",
-    "privacyPolicyURL": "https://ai-job-coach.xin/privacy",
+    "websiteURL": "https://yizhioffer.com",
+    "privacyPolicyURL": "https://yizhioffer.com/privacy",
     "defaultPrompt": [
       "\u5e2e\u6211\u5224\u65ad\u73b0\u5728\u6700\u503c\u5f97\u505a\u7684\u6c42\u804c\u4efb\u52a1",
       "\u5206\u6790\u8fd9\u4e2a JD \u548c\u6211\u7684\u7ecf\u5386\uff0c\u627e\u51fa\u5173\u952e\u5339\u914d\u70b9\u4e0e\u7f3a\u53e3",

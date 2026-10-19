@@ -16,7 +16,7 @@ const updateManifest = {
   channel: "stable",
   version: "0.9.0",
   released_at: "2026-09-01T00:00:00Z",
-  update_url: "https://ai-job-coach.xin/agent",
+  update_url: "https://yizhioffer.com/agent",
   release_notes: "测试版本更新提醒"
 };
 const updateManifestUrl = `data:application/json,${encodeURIComponent(JSON.stringify(updateManifest))}`;
@@ -80,7 +80,7 @@ try {
   assert.equal(tokenPayUrl.hostname, "tokendance.space");
   assert.equal(tokenPayUrl.searchParams.get("code_challenge_method"), "S256");
   assert.match(tokenPayUrl.searchParams.get("code_challenge"), /^[A-Za-z0-9_-]{43}$/);
-  assert.equal(tokenPayUrl.searchParams.get("app_url"), "https://www.ai-job-coach.xin");
+  assert.equal(tokenPayUrl.searchParams.get("app_url"), "https://yizhioffer.com");
   assert.equal(tokenPayUrl.searchParams.get("key_name"), "益职AI");
   assert.equal(JSON.stringify(tokenPayConnect.result).includes("verifier"), false);
 

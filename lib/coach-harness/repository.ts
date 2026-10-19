@@ -851,6 +851,9 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const incomingResume = typeof opportunity.resumeText === "string" ? opportunity.resumeText.trim() : "";
   const nextResume = incomingResume || prevResume;
   const mergedMetadata: Record<string, unknown> = { ...metadata };
+  // Photo pointers have their own narrow write path, independent of stale auto-saves.
+  delete mergedMetadata.resumePhoto;
+  if (currentMetadata.resumePhoto) mergedMetadata.resumePhoto=currentMetadata.resumePhoto;
   if (!replacement && currentMetadata.resumeGenerationId && metadata.resumeGenerationId !== currentMetadata.resumeGenerationId) {
     for (const field of ["resumeGenerationId", "resumeChanges", "applicationQuality", "resumeCheckStale"]) mergedMetadata[field] = currentMetadata[field];
   }

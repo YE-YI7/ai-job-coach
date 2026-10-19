@@ -1,6 +1,6 @@
 .page {
-  --ink: #24272f;
-  --muted: #666d79;
+  --ink: #2f2b24;
+  --muted: #787167;
   --line: #e3dfd8;
   --paper: #fbfaf8;
   --orange: #e9672d;
@@ -55,14 +55,14 @@
 .hostList summary small { color: var(--muted); font-size: 9px; }
 .hostList details[open] summary small { color: var(--orange); }
 .hostList details > p { margin: 0 0 18px; color: var(--muted); font-size: 10px; line-height: 1.7; }
-.command, .config { overflow-x: auto; margin: 0 0 14px; padding: 17px; border-radius: 10px; background: var(--ink); color: #f4f2ef; font-size: 10px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.command, .config { overflow-x: auto; margin: 0 0 14px; padding: 17px; border-radius: 10px; background: var(--ink); color: #f6f2ed; font-size: 10px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .config { margin-bottom: 14px; white-space: pre; }
 .micro { font-size: 9px !important; }
 .checklist { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--ink); }
-.checklist li { min-height: 65px; padding: 16px 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); color: #4d535e; font-size: 11px; line-height: 1.7; }
+.checklist li { min-height: 65px; padding: 16px 0; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); color: #5d574e; font-size: 11px; line-height: 1.7; }
 .checklist svg { color: #287a57; }
-.failureBox { margin-top: 21px; padding: 17px; border: 1px solid #e8bda7; background: #f4f1ec; color: #555b65; font-size: 10px; line-height: 1.7; }
-.guide blockquote { margin: 25px 0 0; padding: 23px 25px; border: 1px solid #cad1f8; background: #f0f2ff; color: #394a98; font-size: 13px; line-height: 1.8; }
+.failureBox { margin-top: 21px; padding: 17px; border: 1px solid #e8bda7; background: #f4f1ec; color: #645e56; font-size: 10px; line-height: 1.7; }
+.guide blockquote { margin: 25px 0 0; padding: 23px 25px; border: 1px solid #ebe3d7; background: #faf8f5; color: #394a98; font-size: 13px; line-height: 1.8; }
 .footer { min-height: 100px; padding: 20px max(28px, calc((100vw - 1124px) / 2)); display: flex; align-items: center; justify-content: space-between; gap: 30px; border-top: 1px solid var(--line); background: #fff; color: var(--muted); }
 .footer > div { display: flex; align-items: center; gap: 10px; font-size: 9px; }
 .footer img { border-radius: 9px; }

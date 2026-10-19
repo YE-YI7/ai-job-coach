@@ -1,0 +1,11 @@
+import {getDbClient} from "@/lib/db";
+import {updateCockpitResumePhoto} from "./resume-photo";
+import {ResumeRevisionConflict} from "@/lib/opportunities/resume-revision";
+jest.mock("@/lib/db");
+const maybeSingle=jest.fn(),update=jest.fn();
+const photo={path:"owner/photo.jpg",name:"fixture.jpg",mime:"image/jpeg",size:100};
+const current={metadata:{resumeText:"existing resume",resumeChanges:[{id:"old-change"}],resumePhoto:{...photo,path:"owner/old.jpg"},other:"preserved"},updated_at:"2026-10-18T00:00:00Z"};
+beforeEach(()=>{jest.resetAllMocks();const query={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),update,maybeSingle};update.mockReturnValue(query);(getDbClient as jest.Mock).mockResolvedValue({from:()=>query});maybeSingle.mockResolvedValueOnce({data:current,error:null}).mockResolvedValueOnce({data:{id:"qa"},error:null});});
+test("photo save only changes its pointer; resume, decisions and unrelated metadata survive",async()=>{await updateCockpitResumePhoto("owner","qa",photo);expect(update).toHaveBeenCalledWith({metadata:{...current.metadata,resumePhoto:photo},updated_at:expect.any(String)});});
+test("removal unlinks only the photo",async()=>{await updateCockpitResumePhoto("owner","qa",null);const metadata=update.mock.calls[0][0].metadata;expect(metadata.resumePhoto).toBeUndefined();expect(metadata.resumeText).toBe(current.metadata.resumeText);expect(metadata.resumeChanges).toEqual(current.metadata.resumeChanges);});
+test("a concurrent metadata write is not silently overwritten",async()=>{maybeSingle.mockReset().mockResolvedValueOnce({data:current,error:null}).mockResolvedValueOnce({data:null,error:null});await expect(updateCockpitResumePhoto("owner","qa",photo)).rejects.toBeInstanceOf(ResumeRevisionConflict);});

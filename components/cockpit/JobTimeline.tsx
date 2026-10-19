@@ -2,7 +2,7 @@
 import type {Opportunity} from "@/lib/opportunities/types";
 import {journeyStages,currentJourneyStage,resumeGate,type JourneyStage} from "@/lib/opportunities/timeline";
 import styles from "./JobTimeline.module.css";
-import {ArrowLeft, ChevronDown} from "lucide-react";
+import {ArrowLeft} from "lucide-react";
 /**
  * 岗位时间线只负责「在哪一步、能不能跳过去看」。
  * 投递质检与冻结的唯一入口在「简历修改」页（单一进度条+按状态动作），
@@ -14,7 +14,7 @@ export default function JobTimeline({opportunity,selected,onSelect}:{opportunity
  const saved:Record<string,string>={overview:verified?`${verified} 条已核验依据`:"",resume:frozen?`版本 V${frozen.version}`:"",interview:opportunity.interviewPractices?.length?`${opportunity.interviewPractices.length} 次已存反馈`:"",review:opportunity.reviewReports?.length?`${opportunity.reviewReports.length} 份已存复盘`:""};
  if(selected==='resume')return <div className={`${styles.timeline} ${styles.resumeContext}`}>
   <div className={styles.resumeIdentity}><span>{opportunity.company}</span><span aria-hidden="true">/</span><h1>{opportunity.role}</h1></div>
-  <label className={styles.stageSelect}><span>简历修改</span><ChevronDown size={13} aria-hidden="true"/><select aria-label="切换准备阶段" value={selected} onChange={event=>onSelect(event.target.value as JourneyStage)}>{journeyStages.map(stage=><option key={stage.id} value={stage.id}>{stage.label}{saved[stage.id]?` · ${saved[stage.id]}`:''}</option>)}</select></label>
+  <nav className={styles.stageLine} aria-label="切换准备阶段"><ol>{journeyStages.map(stage=><li key={stage.id}><button type="button" onClick={()=>onSelect(stage.id)} title={saved[stage.id]?`${stage.label} · ${saved[stage.id]}`:stage.label} aria-current={selected===stage.id?"step":undefined}>{stage.label}</button></li>)}</ol></nav>
   {selected!==current&&<button className={styles.returnButton} onClick={()=>onSelect(current)}>回到当前阶段<ArrowLeft size={13}/></button>}
  </div>;
  return <div className={`${styles.timeline} ${selected === "resume" ? styles.compact : ""}`}>

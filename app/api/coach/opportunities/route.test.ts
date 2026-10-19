@@ -2,9 +2,28 @@ import { POST, PATCH } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { createCockpitOpportunity, listCockpitOpportunities, recordTierIntentFromText, updateCockpitOpportunity, updateCockpitOpportunityStage } from "@/lib/coach-harness/repository";
 import type { Opportunity } from "@/lib/opportunities/types";
+import {updateCockpitResumePhoto} from "@/lib/coach-harness/resume-photo";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/coach-harness/repository");
+jest.mock("@/lib/coach-harness/resume-photo");
+
+describe("photo-only patch",()=>{
+ const owner="11111111-2222-4333-8444-555555555555",id="8a5ea480-9f6f-465f-819f-7d09aef40468";
+ const photo={path:`${owner}/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d.jpg`,name:"fixture.jpg",mime:"image/jpeg",size:100};
+ beforeEach(()=>{jest.clearAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:owner});});
+ const request=(photoUpdate:unknown)=>new Request("https://example.test",{method:"PATCH",body:JSON.stringify({photoUpdate})});
+ test("saving and unlinking only invoke the narrow owner-scoped path",async()=>{
+  expect((await PATCH(request({id,photo}))).status).toBe(200);
+  expect(updateCockpitResumePhoto).toHaveBeenCalledWith(owner,id,photo);
+  expect((await PATCH(request({id,photo:null}))).status).toBe(200);
+  expect(updateCockpitResumePhoto).toHaveBeenCalledWith(owner,id,null);
+  expect(updateCockpitOpportunity).not.toHaveBeenCalled();
+ });
+ test.each([{id,photo:{...photo,path:photo.path.replace(owner,id)}},{id,photo:{...photo,size:2000000}},{id,photo:{...photo,mime:"image/svg+xml"}},{id},{id:"invalid",photo}])("invalid or foreign pointers cannot write metadata: %j",async value=>{
+  expect((await PATCH(request(value))).status).toBe(400);expect(updateCockpitResumePhoto).not.toHaveBeenCalled();
+ });
+});
 
 function opportunity(overrides: Partial<Omit<Opportunity, "id">> = {}): Omit<Opportunity, "id"> {
   return {

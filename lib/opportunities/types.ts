@@ -177,6 +177,8 @@ export interface Opportunity {
   resumeText?: string;
   /** Byte-preserved private source, distinct from the editable draft. */
   resumeOriginal?: { path: string; name: string; mime: string; size: number };
+  /** 纸面右上角的证件照，与投递版式一起进 PDF；原片仍是私有桶里的独立对象。 */
+  resumePhoto?: { path: string; name: string; mime: string; size: number };
   resumeRevision?: string;
   /** 服务端改稿版本；迟到的自动保存不得抹掉更新版本的建议。 */
   resumeGenerationId?: string;

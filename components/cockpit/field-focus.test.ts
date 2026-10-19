@@ -6,7 +6,7 @@ const source = (path: string) => readFileSync(join(process.cwd(), path), "utf8")
 describe("quiet text-entry focus", () => {
   it("uses a neutral local cue without overriding non-text controls", () => {
     const css = source("app/globals.css");
-    expect(css).toContain("--field-focus: #777d78");
+    expect(css).toContain("--field-focus: #807b74");
     expect(css).toContain("box-shadow: var(--field-active-shadow)");
     expect(css).toContain('type="checkbox"');
     expect(css).toContain('type="file"');

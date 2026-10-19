@@ -8,6 +8,7 @@ type ResumeShareCandidate = {
   resumeText?: string;
   profileText?: string;
   resumeOriginal?: Opportunity["resumeOriginal"];
+  resumePhoto?: Opportunity["resumePhoto"];
   resumeRevision?: string;
 };
 
@@ -52,6 +53,8 @@ export function shareBaseResumeAcrossOpportunities<T extends ResumeShareCandidat
       ...item,
       resumeText: base.resumeText,
       resumeOriginal: base.resumeOriginal,
+      // 证件照是人的照片，不是某个岗位的材料：基础简历传一次，岗位简历直接沿用。
+      resumePhoto: base.resumePhoto,
       resumeRevision: base.resumeRevision,
       profileText: item.profileText || base.profileText,
     };

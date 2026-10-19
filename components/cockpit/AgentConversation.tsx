@@ -1,6 +1,5 @@
 "use client";
 import {useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
-import Image from "next/image";
 import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
 import {ArrowUp,Copy,Plus,BookOpen,CaretDown} from "@phosphor-icons/react";
@@ -198,10 +197,10 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
  }
  function newConversation(){if(lock.current)return;setSession(null);retry.current=null;setTurns([]);setMessage("");setDraft("");setPending("");setError("");setFailedLesson(null);setModelNotice(null);setStageSuggestion(null);setResumeEntry(false);input.current?.focus({preventScroll:true});}
  return <section className={styles.panel} data-resume={resumeContext||undefined} aria-label="对话辅导">
-  <header><strong className={styles.mentorIdentity}><Image src="/logo.png" alt="" width={28} height={28}/>导师</strong><button type="button" aria-label="新辅导" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={18}/></button></header>
+  <header><strong className={styles.mentorIdentity}>导师</strong>
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
   {!!sessions.length&&<details className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
-  </div>
+  </div><button type="button" aria-label="新辅导" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={18}/></button></header>
   {resumeWorkflow&&<div className={styles.workflowSwitch}><button type="button" aria-pressed={guidedOpen} onClick={()=>setResumeGuided(true)}>简历修改</button><button type="button" aria-pressed={!guidedOpen} onClick={()=>setResumeGuided(false)}>其他辅导</button></div>}
   {guidedOpen&&<div className={styles.guidedWorkflow}>{resumeWorkflow?.content}</div>}
   <div style={{display:guidedOpen?"none":"contents"}}>

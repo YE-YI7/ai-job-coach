@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ChevronDown, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Redo2, Sparkles, Undo2, Upload } from "lucide-react";
+import { Camera, ChevronDown, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Redo2, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
+import type { ResumePhoto } from "@/lib/resume-photo";
 import styles from "./ResumeToolbar.module.css";
 
 const subscribeReady = () => () => {};
@@ -12,7 +13,7 @@ const serverReady = () => false;
 export default function ResumeToolbar({
   busy, canGenerate, needsDetail, hasChanges, pendingCount, fee, canUndo, canRedo,
   onGenerate, onUndo, onRedo, showMarks, onShowMarks, showOriginal, onShowOriginal,
-  template, onTemplate, onReplace, exportControl,
+  template, onTemplate, onReplace, exportControl, deliveryAction, photo, photoBusy, onPhoto, onPhotoRemove,
 }: {
   busy: boolean; canGenerate: boolean; needsDetail: boolean; hasChanges: boolean;
   pendingCount: number; fee: string; canUndo: boolean; canRedo: boolean;
@@ -20,9 +21,11 @@ export default function ResumeToolbar({
   showMarks: boolean; onShowMarks: (value: boolean) => void;
   showOriginal: boolean; onShowOriginal: () => void;
   template: PrintTemplate; onTemplate: (value: PrintTemplate) => void;
-  onReplace?: () => void; exportControl: ReactNode;
+  onReplace?: () => void; exportControl: ReactNode; deliveryAction?: ReactNode;
+  photo?: ResumePhoto; photoBusy?: boolean; onPhoto?: (file: File) => void; onPhotoRemove?: () => void;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   // The SSR paper can appear before React attaches actions. Native disabled
@@ -71,6 +74,7 @@ export default function ResumeToolbar({
         <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy} disabled={busy || !canGenerate} onClick={onGenerate}>
           {busy ? <Loader2 size={16} className={styles.busyIcon} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改" : "开始修改"}
         </button>
+        {deliveryAction}
         {exportControl}
       </fieldset>
     </div>
@@ -90,6 +94,11 @@ export default function ResumeToolbar({
     <div ref={menu} id="resume-options-popover" popover="auto" role="dialog" className={styles.menu} aria-label="简历选项" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); close(true); } }}>
       <button type="button" onClick={() => { onShowOriginal(); close(true); }}><FileText size={16} aria-hidden="true" />{showOriginal ? "回到修改稿" : "查看原文件"}</button>
       {onReplace && <button type="button" disabled={busy} title={busy ? "修改完成后可替换简历" : undefined} onClick={() => { onReplace(); close(); }}><Upload size={16} aria-hidden="true" />上传 / 替换简历</button>}
+      {onPhoto && <><button type="button" className={styles.photo} disabled={photoBusy||busy} onClick={()=>photoInput.current?.click()}>
+        <Camera size={16} aria-hidden="true" />
+        <span>{photoBusy ? "正在读取照片…" : photo ? "更换照片" : "上传证件照"}</span>
+      </button><input ref={photoInput} type="file" aria-label="证件照文件" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy||busy} onChange={event => { const file = event.target.files?.[0]; if (file) {onPhoto(file);close(true);} event.currentTarget.value = ""; }} /></>}
+      {onPhotoRemove && photo && <button type="button" disabled={photoBusy} onClick={() => { onPhotoRemove(); close(true); }}><Trash2 size={16} aria-hidden="true" />移除照片</button>}
       <label className={styles.template}>
         <span>导出版式</span>
         <span className={styles.selectValue}>{printTemplates[template].label}<ChevronDown size={14} aria-hidden="true" /></span>
@@ -97,7 +106,7 @@ export default function ResumeToolbar({
           {(Object.keys(printTemplates) as PrintTemplate[]).map(id => <option key={id} value={id}>{printTemplates[id].label}</option>)}
         </select>
       </label>
-      <p>版式只用于文字工作稿与 PDF，上传的原文件保持原样。</p>
+      <p>版式与照片只作用于文字工作稿和 PDF，上传的原文件保持原样。</p>
     </div>
   </header>;
 }

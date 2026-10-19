@@ -107,3 +107,35 @@ test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])("%s ha
  expect(html).not.toContain("grid-template-columns:30mm");
  expect(html).toContain("margin:12mm");
 });
+const PHOTO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+const headerOf=(html:string)=>html.slice(html.search(/<section data-kind="header"/),html.search(/<section data-kind="(?!(header)\b)/));
+test("blank-separated identity paragraphs never duplicate the portrait",()=>{
+ const html=resumePrintHtml("林清\n\n求职方向：产品经理\n\n电话：13800000000\n\n邮箱：qa@example.invalid\n\n## 项目经历\n校园需求整理。","modern","简历",{toolbar:false,photo:PHOTO});
+ expect((html.match(/<img class="resume-photo"/g)||[])).toHaveLength(1);
+ expect(html).toContain('<div class="resume-header">');
+ expect(html).toContain("padding-right:28mm");
+});
+test("证件照排在基本信息区右上角，写了占位行的简历用照片换掉空位",()=>{
+ const withSlot=resumePrintHtml("头像区\n林清\n邮箱：qa@example.invalid\n\n项目经历\n做过需求整理。","modern","简历",{toolbar:false,photo:PHOTO});
+ expect(headerOf(withSlot)).toContain('<img class="resume-photo"');
+ expect(withSlot).not.toContain('class="resume-photo-label"');
+ expect((withSlot.match(/<img class="resume-photo"/g)||[])).toHaveLength(1);
+ const withoutSlot=resumePrintHtml("林清\n邮箱：qa@example.invalid\n\n项目经历\n做过需求整理。","modern","简历",{toolbar:false,photo:PHOTO});
+ expect(headerOf(withoutSlot)).toContain('<img class="resume-photo"');
+ expect(withoutSlot).toContain(".resume-photo{position:absolute");
+ expect(headerOf(withoutSlot)).toContain("林清");
+});
+test("照片只认图片 data URI：别的 src 一个字节也进不了纸面",()=>{
+ for(const photo of ["javascript:alert(1)","https://evil.test/a.jpg","data:image/svg+xml,<svg onload=alert(1)>",`data:image/jpeg;base64,"onerror=alert(1)`])
+  expect(resumePrintHtml("林清\n\n项目经历\n做过需求整理。","modern","简历",{toolbar:false,photo})).not.toContain('<img class="resume-photo"');
+});
+test("没有照片时占位行仍然只是占位，导出窗口与纸面共用同一个渲染器",()=>{
+ const header="头像区\n林清（虚构 QA）\n邮箱：qa@example.invalid\n\n项目经历\n参与校园工具需求整理。";
+ const empty=resumePrintHtml(header,"modern","简历",{toolbar:false});
+ expect(empty).toContain('class="resume-photo-label">头像区');
+ let written="";
+ const target={document:{open:jest.fn(),write:(html:string)=>{written=html},close:jest.fn(),getElementById:()=>null},print:jest.fn()} as unknown as Window;
+ renderResumePrintWindow(target,header,"modern","简历",undefined,PHOTO);
+ expect(written).toContain('<img class="resume-photo"');
+ expect(written).not.toContain('class="resume-photo-label"');
+});

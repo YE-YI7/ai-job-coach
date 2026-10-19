@@ -10,13 +10,14 @@ import type { ResumeInk } from "@/lib/opportunities/resume-inline";
 export const RESUME_PAPER_WIDTH = 210 * 96 / 25.4;
 const PAGE_HEIGHT = 297 * 96 / 25.4;
 
-export default function ResumePaper({ text, template, title = "简历成稿", showZoom = false, controlsBelow = false, highlight, review, inlineEditor }: {
+export default function ResumePaper({ text, template, title = "简历成稿", showZoom = false, controlsBelow = false, highlight, photo, review, inlineEditor }: {
   text: string;
   template: PrintTemplate;
   title?: string;
   showZoom?: boolean;
   controlsBelow?: boolean;
   highlight?: string;
+  photo?: string;
   inlineEditor?: { blockId: string; content: ReactNode };
   review?: { ink: ResumeInk[]; blockIds: string[]; onMark: (id: string, rect: {left:number;top:number;bottom:number}, interaction:{keyboard:boolean;restoreFocus:()=>void}) => void; onReorder: (from: string, to: string) => void; onDismiss?:(restoreFocus?:boolean)=>void; onEditBlock?:(id:string,restoreFocus?:()=>void)=>void; disabled?:boolean };
 }) {
@@ -66,7 +67,7 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
   const reading=Boolean(review)&&mobile&&!actualSize;
   const paperWidth=reading?Math.max(280,width):RESUME_PAPER_WIDTH;
   const ink=review?.ink,interactive=Boolean(review);
-  const html = useMemo(() => resumePrintHtml(text, template, title, { toolbar: false, highlight, ink, interactive, reading }), [text, template, title, highlight, ink, interactive,reading]);
+  const html = useMemo(() => resumePrintHtml(text, template, title, { toolbar: false, highlight, ink, interactive, reading, photo }), [text, template, title, highlight, ink, interactive, reading, photo]);
   const frameHtml = useMemo(() => {
     let fingerprint = 2166136261;
     for (let index = 0; index < html.length; index++) fingerprint = Math.imul(fingerprint ^ html.charCodeAt(index), 16777619);

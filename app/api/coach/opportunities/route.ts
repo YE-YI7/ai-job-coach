@@ -4,6 +4,8 @@ import { createCockpitOpportunity, deleteCockpitOpportunity, listCockpitOpportun
 import { STAGE_STATUS_WORDS } from "@/lib/opportunities/timeline";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { ownsOriginalResumePath } from "@/lib/resume-original";
+import { ownsResumePhotoPath } from "@/lib/resume-photo";
+import { updateCockpitResumePhoto } from "@/lib/coach-harness/resume-photo";
 import { ResumeRevisionConflict } from "@/lib/opportunities/resume-revision";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -24,6 +26,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const input = body.opportunity as Omit<Opportunity, "id">;
     if(input?.resumeOriginal&&!ownsOriginalResumePath(user.id,input.resumeOriginal.path))return NextResponse.json({ok:false,error:"原文件不属于当前账号"},{status:400});
+    if(input?.resumePhoto&&!ownsResumePhotoPath(user.id,input.resumePhoto.path))return NextResponse.json({ok:false,error:"照片不属于当前账号"},{status:400});
     const intakeRequestId = typeof body.intakeRequestId === "string" && uuid.test(body.intakeRequestId) ? body.intakeRequestId : undefined;
     if (body.intakeRequestId !== undefined && !intakeRequestId) return NextResponse.json({ ok: false, error: "材料任务编号无效" }, { status: 400 });
     const workspaceType = input?.workspaceType === "preparation" ? "preparation" : "job";
@@ -66,6 +69,17 @@ export async function PATCH(request: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
   try {
     const body = await request.json();
+    if (body.photoUpdate !== undefined) {
+      const {id,photo}=body.photoUpdate || {};
+      if(typeof id!=="string"||!uuid.test(id)||photo===undefined||photo!==null&&(
+        typeof photo.path!=="string"||!ownsResumePhotoPath(user.id,photo.path)||
+        typeof photo.name!=="string"||photo.name.length>160||
+        !["image/jpeg","image/png","image/webp"].includes(photo.mime)||
+        !Number.isSafeInteger(photo.size)||photo.size<=0||photo.size>1024*1024
+      ))return NextResponse.json({ok:false,error:"照片信息无效"},{status:400});
+      await updateCockpitResumePhoto(user.id,id,photo);
+      return NextResponse.json({ok:true});
+    }
     if (body.stageUpdate !== undefined) {
       const { id, stage } = body.stageUpdate || {};
       if (typeof id !== "string" || !uuid.test(id) || typeof stage !== "string" || !Object.hasOwn(STAGE_STATUS_WORDS, stage)) {
@@ -76,6 +90,7 @@ export async function PATCH(request: Request) {
     }
     const opportunity = body.opportunity as Opportunity;
     if(opportunity?.resumeOriginal&&!ownsOriginalResumePath(user.id,opportunity.resumeOriginal.path))return NextResponse.json({ok:false,error:"原文件不属于当前账号"},{status:400});
+    if(opportunity?.resumePhoto&&!ownsResumePhotoPath(user.id,opportunity.resumePhoto.path))return NextResponse.json({ok:false,error:"照片不属于当前账号"},{status:400});
     if (!opportunity?.id || !opportunity.company || !opportunity.role) return NextResponse.json({ ok: false, error: "岗位字段不完整" }, { status: 400 });
     const replacement=body.replaceResume===true?{expectedResumeRevision:typeof body.expectedResumeRevision==="string"?body.expectedResumeRevision:null}:undefined;
     if(replacement)await updateCockpitOpportunity(user.id,opportunity,body.preserveStage===true,replacement);

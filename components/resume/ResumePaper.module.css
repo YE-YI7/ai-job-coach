@@ -1,17 +1,17 @@
 .viewer{min-width:0;width:100%}
-.readingNote{font-size:12px;color:#64675e;text-align:right;margin:8px 0}
-.viewport{width:100%;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#c7cbbf #f1f2ec}
-.paperSize{position:relative;margin-inline:auto;background:#fff;box-shadow:0 8px 28px rgba(41,40,35,.07)}
+.readingNote{font-size:12px;color:#67635e;text-align:right;margin:8px 0}
+.viewport{width:100%;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#cbc6bf #f4f0ea}
+.paperSize{position:relative;margin-inline:auto;background:#fff;box-shadow:0 8px 28px rgba(44,39,32,.07)}
 .paper{display:block;position:absolute;inset:0;border:0;background:#fff;transform-origin:top left;max-width:none!important}
 .reviewViewer .viewport{padding-block:2px 28px}
-.reviewViewer .paperSize{box-shadow:0 1px 1px rgb(34 40 33 / .12),0 4px 8px -3px rgb(34 40 33 / .1),0 18px 36px -12px rgb(34 40 33 / .14)}
-.reviewViewer .paperSize::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 1px rgb(34 40 33 / .04)}
+.reviewViewer .paperSize{box-shadow:0 1px 1px rgb(43 38 30 / .12),0 4px 8px -3px rgb(43 38 30 / .1),0 18px 36px -12px rgb(43 38 30 / .14)}
+.reviewViewer .paperSize::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 1px rgb(43 38 30 / .04)}
 .reviewViewer .zoomControls{margin-top:18px;gap:4px}
 .reviewViewer .zoomControls button{font-size:12px;border-radius:7px}
-.reviewViewer .zoomControls button[aria-pressed=true]{background:#e6e8e1;color:#343d31}
+.reviewViewer .zoomControls button[aria-pressed=true]{background:#ebe6de;color:#3d3831}
 .zoomControls{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:4px 10px;margin:10px 0}
-.zoomControls button{min-height:36px;border:0;background:transparent;color:#64675e;font:inherit;font-size:12px;padding:6px 8px;cursor:pointer;border-radius:6px}
-.zoomControls button[aria-pressed=true]{background:#e8ecde;color:#38452e}
-.zoomControls button:hover{background:#e6e8e1;color:#343d31}
+.zoomControls button{min-height:36px;border:0;background:transparent;color:#67635e;font:inherit;font-size:12px;padding:6px 8px;cursor:pointer;border-radius:6px}
+.zoomControls button[aria-pressed=true]{background:#ece6de;color:#453c2e}
+.zoomControls button:hover{background:#ebe6de;color:#3d3831}
 .zoomControls button:focus-visible{outline:2px solid #984320;outline-offset:3px}
 @media(max-width:700px){.zoomControls button{min-height:44px}}

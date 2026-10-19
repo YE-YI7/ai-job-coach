@@ -11,14 +11,14 @@
 }
 
 :root {
-  --field-focus: #777d78;
-  --field-rest-shadow: 0 1px 2px rgb(32 39 31 / .04), 0 4px 14px rgb(32 39 31 / .035);
-  --field-active-shadow: 0 2px 4px rgb(32 39 31 / .05), 0 7px 22px rgb(32 39 31 / .065);
+  --field-focus: #807b74;
+  --field-rest-shadow: 0 1px 2px rgb(41 36 29 / .04), 0 4px 14px rgb(41 36 29 / .035);
+  --field-active-shadow: 0 2px 4px rgb(41 36 29 / .05), 0 7px 22px rgb(41 36 29 / .065);
   /* ========== 设计系统 - 色彩变量 ========== */
   
   /* 主色调 - 蓝色系 (专业、信任) */
-  --primary-50: #EFF6FF;
-  --primary-100: #DBEAFE;
+  --primary-50: #faf8f4;
+  --primary-100: #f3eee6;
   --primary-200: #BFDBFE;
   --primary-300: #93C5FD;
   --primary-400: #60A5FA;
@@ -41,8 +41,8 @@
   --secondary-900: #7C2D12;
   
   /* 成功色 - 绿色系 */
-  --success-50: #F0FDF4;
-  --success-100: #DCFCE7;
+  --success-50: #f9f7f4;
+  --success-100: #f2ede6;
   --success-500: #22C55E;
   --success-600: #16A34A;
   --success-700: #15803D;
@@ -55,30 +55,30 @@
   --warning-700: #B45309;
   
   /* 错误色 - 红色系 */
-  --error-50: #FEF2F2;
-  --error-100: #FEE2E2;
+  --error-50: #faf8f6;
+  --error-100: #f5f1eb;
   --error-500: #EF4444;
   --error-600: #DC2626;
   --error-700: #B91C1C;
   
   /* 中性色系统 */
-  --gray-50: #F9FAFB;
-  --gray-100: #F3F4F6;
-  --gray-200: #E5E7EB;
-  --gray-300: #D1D5DB;
-  --gray-400: #9CA3AF;
-  --gray-500: #6B7280;
-  --gray-600: #4B5563;
-  --gray-700: #374151;
-  --gray-800: #1F2937;
-  --gray-900: #111827;
+  --gray-50: #fcfaf8;
+  --gray-100: #f8f5f1;
+  --gray-200: #eee9e2;
+  --gray-300: #dbd7d1;
+  --gray-400: #aea79d;
+  --gray-500: #7e776d;
+  --gray-600: #61594d;
+  --gray-700: #4f4639;
+  --gray-800: #352d21;
+  --gray-900: #251e13;
   
   /* ========== 语义化颜色 ========== */
-  --background: #F9FAFB;
-  --foreground: #111827;
+  --background: #fcfaf8;
+  --foreground: #251e13;
   --card-bg: #FFFFFF;
-  --border: #E5E7EB;
-  --border-light: #F3F4F6;
+  --border: #eee9e2;
+  --border-light: #f8f5f1;
   
   /* ========== 间距系统 (4px 网格) ========== */
   --spacing-0: 0px;
@@ -128,17 +128,17 @@
   --primary-blue-dark: #2563EB;
   --accent: #3B82F6;
   --accent-600: #2563EB;
-  --accent-50: #EFF6FF;
+  --accent-50: #faf8f4;
   --blue-500: #3B82F6;
   --blue-600: #2563EB;
   --red-300: #FCA5A5;
-  --neutral-50: #F9FAFB;
-  --neutral-100: #F3F4F6;
-  --neutral-200: #E5E7EB;
-  --neutral-300: #D1D5DB;
-  --neutral-500: #6B7280;
-  --neutral-700: #374151;
-  --neutral-900: #111827;
+  --neutral-50: #fcfaf8;
+  --neutral-100: #f8f5f1;
+  --neutral-200: #eee9e2;
+  --neutral-300: #dbd7d1;
+  --neutral-500: #7e776d;
+  --neutral-700: #4f4639;
+  --neutral-900: #251e13;
 }
 
 @theme inline {
@@ -568,12 +568,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #dfd8cd;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #b5a997;
 }
 
 /* 隐藏滚动条 */
@@ -626,7 +626,7 @@ body {
 }
 
 #chat-input:focus {
-    background: #f8fafc;
+    background: #fcfaf8;
 }
 
 #chat-messages > div {
@@ -912,7 +912,7 @@ html, body, #__next, #main-content, #content-area {
 .interview-card {
   background: #ffffff;
   border-radius: 12px;
-  border: 1px solid rgba(229, 231, 235, 0.8);
+  border: 1px solid rgba(238, 233, 226, 0.8);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   padding: 1.5rem;
   margin-bottom: 1rem;
@@ -925,7 +925,7 @@ html, body, #__next, #main-content, #content-area {
 
 /* Loading 卡片样式 */
 .interview-loading-card {
-  background: #f9fafb;
+  background: #fcfaf8;
   border-radius: 12px;
   padding: 12px 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);

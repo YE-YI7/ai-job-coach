@@ -1,14 +1,14 @@
-.account{position:relative;font-size:13px;color:#343732}
+.account{position:relative;font-size:13px;color:#3b362e}
 .account>summary{display:flex;align-items:center;gap:9px;min-height:40px;padding:4px;list-style:none;cursor:pointer;border-radius:8px}
 .account>summary::-webkit-details-marker{display:none}
-.account>summary:hover{background:#e3e2dd}
+.account>summary:hover{background:#e6e1da}
 .account>summary:focus-visible{outline:2px solid #9c4a30;outline-offset:3px}
-.avatar{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#3e4440;color:#fff;font-size:13px}
+.avatar{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#47423b;color:#fff;font-size:13px}
 .name{max-width:128px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.menu{position:absolute;top:calc(100% + 8px);right:0;width:min(320px,calc(100vw - 32px));padding:18px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(33,37,31,.16);z-index:90}
-.identity{display:grid;gap:4px;padding-bottom:16px}.identity strong{font-size:14px;font-weight:600}.identity>span{color:#666a62;font-size:12px}
+.menu{position:absolute;top:calc(100% + 8px);right:0;width:min(320px,calc(100vw - 32px));padding:18px;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(40,35,28,.16);z-index:90}
+.identity{display:grid;gap:4px;padding-bottom:16px}.identity strong{font-size:14px;font-weight:600}.identity>span{color:#6c6760;font-size:12px}
 .billing{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:12px}
-.phoneLink{display:flex;align-items:center;gap:8px;min-height:44px;color:#5d615b;text-decoration:none}.phoneLink:hover{color:#91462e}.phoneLink:focus-visible{outline:2px solid #9c4a30;outline-offset:2px}
-.menu>button{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:8px 2px;background:none;border:0;color:#5d615b;cursor:pointer;text-align:left;font:inherit}
+.phoneLink{display:flex;align-items:center;gap:8px;min-height:44px;color:#645f58;text-decoration:none}.phoneLink:hover{color:#91462e}.phoneLink:focus-visible{outline:2px solid #9c4a30;outline-offset:2px}
+.menu>button{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:8px 2px;background:none;border:0;color:#645f58;cursor:pointer;text-align:left;font:inherit}
 .menu>button:hover{color:#91462e}.menu>button:focus-visible{outline:2px solid #9c4a30;outline-offset:2px}
 @media(max-width:700px){.name{display:none}.account>summary{min-height:44px}.menu{position:fixed;top:60px;right:16px;left:auto}.menu>button{min-height:44px}}

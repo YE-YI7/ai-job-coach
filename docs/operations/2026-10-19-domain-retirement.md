@@ -53,9 +53,9 @@
 - 2FA 核验页和新域积分兑换确认区均已保留交本人。验证码只能由本人私下填写并提交；渠道兑换明确不可原路退款，勾选和兑换也交本人，不代替提交。
 - 渠道到账后再验旧作答/工作区：41 / 33 / 10 的上表整行哈希仍相同；本次没有修改产品代码或重新部署。
 
-## 当前未完成项（不能宣称全部迁移收尾）
+## 迁移收尾与暂缓事项
 
-1. Supabase 默认 Auth Site URL / redirect 白名单仍未核到。现有 MCP 能读项目元数据和执行只读 SQL，但没有 Auth 配置工具；另一个已有浏览器上下文也实际回到 Supabase 登录页。数据库 `auth.instances` 为 0 行，不能从它还原托管配置。官方配置读取接口是 [Management API GET /v1/projects/{ref}/config/auth](https://supabase.com/docs/reference/api/v1-get-auth-service-config)，本轮没有可用的已授权调用入口。保留此项为未完成，不提取连接凭据、不绕过 GitHub 核验、不关 2FA，也不再要求本人反复验证。下节的运行路径核查不等于第三方配置已经迁完。
+1. **Supabase Auth URL 配置已实际核对并收尾。** 先前 MCP 没有配置接口、浏览器未登录，因此保持未核状态；本人完成 GitHub 侧操作后，正常 GitHub OAuth 已可进入目标生产项目。原 Site URL 实为 `http://localhost:3000`，现已保存为 `https://yizhioffer.com`，整页刷新后回读保持。Redirect URLs 原为空，刷新确认仍为空，没有旧域项，也没有新增猜测的 callback、开发地址或通配符。详细验收见下方最新小节；这项新证据替代前文的待核状态。
 2. **积分兑换按本人决定暂缓，不属于本轮待操作项。** 上轮已实际查到渠道 10 积分，但还未兑换到益职；本轮不刷新渠道余额、不购买、不点击兑换、不消费或调用收费模型。后续仅在本人重新明确继续后，再验入账幂等与余额刷新。官方 [爱猹收接入说明](https://pay.watcha.cn/agent.md) 明确收款方不能购买自己的商品。
 
 ## 10-19 无需本人重复验证的独立复验
@@ -68,6 +68,15 @@
 - **当前登录运行路径单独确认。** `lib/session.ts` 自签会话，`lib/auth.ts` 验证站点 Cookie；手机号验证、邮箱验证和观猹回调均使用 `createSessionToken`。邮箱发送走 `lib/email.ts` / Resend，Supabase Auth Admin 只用于可选创建身份。这三条当前登录路径不走 Supabase 默认 OAuth / OTP 重定向，因此不能把个人 GitHub checkup 当成已验通的新域站点登录的前置阻塞。这个判断只覆盖上述代码和本轮真实登录路径，不宣称 Supabase 托管配置已改好，也不覆盖未来新增认证功能。
 - **回归与范围。** 重跑域名 / 观猹分域凭据 / 支付返回地址 3 套 51 项，全部通过；未重跑全量测试，不替换前文全量结果。没有运行时代码或 UI 变更，无需新构建、重新部署或 UI detect；本轮只更新本报告。没有购买 / 兑换、短信 / 邮件发送、真实模型调用或用户资料 SQL 写入。
 - 刷新后侧栏证据只保留在私有本机：`/private/tmp/yizhi-domain-original-sidebar-after-refresh.png`。截图刻意避开简历联系方式与正文，不进仓库，不公开用户材料。
+
+## 10-19 GitHub 验证通过后的 Supabase 配置收尾
+
+- 本人展示 GitHub Authenticator app 为 Configured 且退出编辑表单后，没有仅凭该标识宣布成功；Chrome 重新从目标 Supabase URL 配置页走正常 Continue with GitHub，实际进入项目 `wynjnexofolzusmtjltd` 的 AJC / main / Production 后台。没有读取或替填验证码、新设置密钥、恢复码，也没有替本人保存验证器配置。这里确认的是 GitHub 核验已不再拦截该登录，不推断本人具体采用了哪种绑定操作。
+- 按 [Supabase Redirect URLs 官方说明](https://supabase.com/docs/guides/auth/redirect-urls) 核对：Site URL 是未指定有效 `redirectTo` 时的默认地址，生产应从 localhost 改为正式站；生产额外跳转应使用精确路径。实际 Site URL 原 `http://localhost:3000`，仅修改为 `https://yizhioffer.com` 并保存。保存按钮回到禁用，整页刷新后文本框仍为新域，目标项目与 Production 分支未变。
+- 额外 Redirect URLs 原为 No Redirect URLs，保存和整页刷新后仍实际为空；没有旧域依赖需要删除，不为当前不使用 Supabase 默认 OAuth/OTP 回调的应用虚构路径或增加宽泛白名单。不改 Auth providers、邮箱模板、密钥、用户身份、RLS 或任何数据表。
+- 配置变更前后分别只读聚合：上表 41 旧作答 / 全站 33 工作区 / 本人 10 资料的整行 MD5 全部相同，应用用户 59 / Auth 用户 99 不变。新域正常会话仍精确为原账号，独立打开工作区仍显示原来的 8 个岗位；health 200 / database ok。
+- 仅云端这一个非凭据网址设置及验收记录有变更，没有运行代码改动、新构建或部署。此前 51 项结果仍为前轮结果，本轮未冒称重跑；没有积分购买、兑换、余额查询、模型调用、短信或邮件发送。旧域到期不续的决定不变。
+- 配置保存并刷新后的截图仅私有本机：`/private/tmp/yizhi-supabase-siteurl-saved.png`；不含认证凭据，未提交截图。已检查近期官方变更与相关 TLS 公告，本次配置使用当前 Chrome / HTTPS，不需变更协议或降低安全设置。
 
 验收截图仅私有本机：`/private/tmp/yizhi-pay-new-domain-settings.png`、`/private/tmp/yizhi-mail-new-domain-verified.png`、`/private/tmp/yizhi-new-domain-mail-accepted.png`；支付 handoff 截图带购买二维码，仅本人交接，不进入仓库或公开报告。没有公开手机号、凭据、支付 ticket 或真人简历截图。
 

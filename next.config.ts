@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
     return ["/", "/agent", "/agent/:path+", "/tools/:path*", "/privacy", "/llms.txt",
       "/login", "/cockpit/:path*", "/admin/:path*", "/invite/:path*", "/redeem/:path*",
       "/onboarding/:path*", "/resume-score/:path*",
+      "/account/:path*", "/chat/:path*", "/details/:path*", "/interview/:path*", "/profile", "/register",
       "/api/auth/watcha/authorize", "/api/tokenpay/authorize"].map(source => ({
       source,
       has: [oldHost],

@@ -7,6 +7,7 @@ test("旧书签进入新域，过渡期不吞已在途 OAuth/支付 API 回调",
   const redirects = await config.redirects!();
   expect(redirects.map(rule => rule.source)).toEqual(["/", "/agent", "/agent/:path+", "/tools/:path*", "/privacy", "/llms.txt",
     "/login", "/cockpit/:path*", "/admin/:path*", "/invite/:path*", "/redeem/:path*", "/onboarding/:path*", "/resume-score/:path*",
+    "/account/:path*", "/chat/:path*", "/details/:path*", "/interview/:path*", "/profile", "/register",
     "/api/auth/watcha/authorize", "/api/tokenpay/authorize"]);
   expect(redirects.filter(rule => rule.source.startsWith("/api")).map(rule => rule.source))
     .toEqual(["/api/auth/watcha/authorize", "/api/tokenpay/authorize"]);

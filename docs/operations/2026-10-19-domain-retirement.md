@@ -55,8 +55,19 @@
 
 ## 当前未完成项（不能宣称全部迁移收尾）
 
-1. Supabase 控制台仍待本人完成 GitHub 既有 2FA 的一次性核验；随后才能核对 Auth Site URL / redirect 配置。不能绕过核验、关掉 2FA、重置凭据或仅凭代码推断第三方配置已迁。
-2. 测试付款的同一应用用户已查到渠道 10 积分；仍待本人明确兑换后核对益职余额、数据库入账幂等与整页刷新恢复。官方 [爱猹收接入说明](https://pay.watcha.cn/agent.md) 明确收款方不能购买自己的商品。未另购、未代付，未调用收费模型或真实 AI 业务。
+1. Supabase 默认 Auth Site URL / redirect 白名单仍未核到。现有 MCP 能读项目元数据和执行只读 SQL，但没有 Auth 配置工具；另一个已有浏览器上下文也实际回到 Supabase 登录页。数据库 `auth.instances` 为 0 行，不能从它还原托管配置。官方配置读取接口是 [Management API GET /v1/projects/{ref}/config/auth](https://supabase.com/docs/reference/api/v1-get-auth-service-config)，本轮没有可用的已授权调用入口。保留此项为未完成，不提取连接凭据、不绕过 GitHub 核验、不关 2FA，也不再要求本人反复验证。下节的运行路径核查不等于第三方配置已经迁完。
+2. **积分兑换按本人决定暂缓，不属于本轮待操作项。** 上轮已实际查到渠道 10 积分，但还未兑换到益职；本轮不刷新渠道余额、不购买、不点击兑换、不消费或调用收费模型。后续仅在本人重新明确继续后，再验入账幂等与余额刷新。官方 [爱猹收接入说明](https://pay.watcha.cn/agent.md) 明确收款方不能购买自己的商品。
+
+## 10-19 无需本人重复验证的独立复验
+
+- **Chrome 真实新域登录通过。** 使用独立验收标签，经新域正常观猹授权入口携带 `check_existing=1`，只允许恢复已有身份；观猹页面只授权账户基本信息，正常回到新域 `/cockpit`。浏览器实际读取会话端点，登录后精确匹配原账号 UUID，刷新会话端点后仍为同一身份。没有复制 Cookie、伪造会话、退出旧页面或创建 QA / 空账号。
+- **工作区刷新通过。** 新域工作区整页刷新后仍正常显示原来的 8 个岗位及已存简历。只读数据库在登录前后分别聚合，旧作答 41 条、全站工作区 33 条、本人资料 10 条的整行 MD5 均与上表完全一致；应用用户 59 / Auth 用户 99 均未增加。正常 OAuth 仅有认证 token / 会话状态更新，不改业务资料、原件、旧作答或余额。
+- **新域入口与发布未漂移。** `vercel project inspect --non-interactive` 确认目标为现有 `ai-job-coach`；新域实际仍指向同一个 Ready / Production 部署 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`。新域 health 200 / database ok；新 www 到新裸域；新首页 canonical、robots / sitemap / llms 及 Agent release 0.8.8 都没有旧域绝对 URL。公开授权探针只记录 provider origin 与 callback，回调明确为 `https://yizhioffer.com/api/auth/watcha/callback`，未记录 state、Client ID 或 token。
+- **旧入口与续费边界。** 匿名旧 www 的工作区 / Eval 入口转新域，携带的查询参数在迁移跳转中保留；未登录时最终停在新域登录页属正常鉴权。旧裸域当前先到旧 www，再到新域，工作区另有标准尾斜线规范化跳转；不把它写成单次直跳。新域发起的本轮登录和刷新没有返回旧域。阿里云旧域行的自动续费 `aria-checked=false` 已重新只读确认；不执行续费、下单、扣费、DNS 或 NS 变更。旧书签只在域名到期前尽力兼容，到期后不保证可跳转。
+- **现有权限的 Supabase 核查。** 目标项目 `get_project` 返回 `ACTIVE_HEALTHY`，SQL 基线与复验均成功；但这些都不能代替 Auth Site URL / redirect 配置读取。新开已有内置浏览器上下文的目标配置页，加载后实际转登录页，未继续发起登录、开新账号、重置密码或触发额外验证。
+- **当前登录运行路径单独确认。** `lib/session.ts` 自签会话，`lib/auth.ts` 验证站点 Cookie；手机号验证、邮箱验证和观猹回调均使用 `createSessionToken`。邮箱发送走 `lib/email.ts` / Resend，Supabase Auth Admin 只用于可选创建身份。这三条当前登录路径不走 Supabase 默认 OAuth / OTP 重定向，因此不能把个人 GitHub checkup 当成已验通的新域站点登录的前置阻塞。这个判断只覆盖上述代码和本轮真实登录路径，不宣称 Supabase 托管配置已改好，也不覆盖未来新增认证功能。
+- **回归与范围。** 重跑域名 / 观猹分域凭据 / 支付返回地址 3 套 51 项，全部通过；未重跑全量测试，不替换前文全量结果。没有运行时代码或 UI 变更，无需新构建、重新部署或 UI detect；本轮只更新本报告。没有购买 / 兑换、短信 / 邮件发送、真实模型调用或用户资料 SQL 写入。
+- 刷新后侧栏证据只保留在私有本机：`/private/tmp/yizhi-domain-original-sidebar-after-refresh.png`。截图刻意避开简历联系方式与正文，不进仓库，不公开用户材料。
 
 验收截图仅私有本机：`/private/tmp/yizhi-pay-new-domain-settings.png`、`/private/tmp/yizhi-mail-new-domain-verified.png`、`/private/tmp/yizhi-new-domain-mail-accepted.png`；支付 handoff 截图带购买二维码，仅本人交接，不进入仓库或公开报告。没有公开手机号、凭据、支付 ticket 或真人简历截图。
 

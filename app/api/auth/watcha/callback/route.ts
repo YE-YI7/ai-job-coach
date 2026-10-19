@@ -136,6 +136,15 @@ export async function GET(request: Request) {
       findError: findError?.message 
     });
 
+    if (!existingUser && readCookieValue(cookieHeader, "watcha_oauth_existing_only") === "1") {
+      const response = NextResponse.redirect(buildLoginRedirectUrl(baseUrl, "未找到原工作区，已停止登录；请先用原账号登录确认", requestedRedirect));
+      for (const name of ["watcha_oauth_state", "watcha_oauth_redirect", "watcha_oauth_existing_only"]) {
+        response.cookies.set(name, "", { ...sessionCookie.options, maxAge: 0 });
+      }
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+
     if (existingUser) {
       userId = existingUser.id;
       // 更新用户信息
@@ -229,6 +238,8 @@ export async function GET(request: Request) {
     response.cookies.set("sb-session-user-id", "", { ...sessionCookie.options, maxAge: 0 });
     response.cookies.set("watcha_oauth_state", "", { ...sessionCookie.options, maxAge: 0 });
     response.cookies.set("watcha_oauth_redirect", "", { ...sessionCookie.options, maxAge: 0 });
+    response.cookies.set("watcha_oauth_existing_only", "", { ...sessionCookie.options, maxAge: 0 });
+    response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (err) {
     console.error("[WATCHA OAuth] 回调处理失败:", err);

@@ -51,6 +51,17 @@ export async function GET(request: Request) {
     path: "/",
   });
 
+  // Migration acceptance may only resume an existing identity, never create
+  // an empty account. This can only narrow a login, not grant extra access.
+  const existingOnly = requestUrl.searchParams.get("check_existing") === "1";
+  response.cookies.set("watcha_oauth_existing_only", existingOnly ? "1" : "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: existingOnly ? 60 * 5 : 0,
+    path: "/",
+  });
+
   if (redirectPath) {
     response.cookies.set("watcha_oauth_redirect", redirectPath, {
       httpOnly: true,

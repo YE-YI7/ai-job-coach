@@ -40,3 +40,9 @@ test("未知 origin 返回 400，不跳观猹或外站、不设置 cookie", asyn
   expect(response.headers.get("location")).toBeNull();
   expect(response.headers.get("set-cookie")).toBeNull();
 });
+test("迁移核验显式限已有账号，普通授权会清除该限制的旧 cookie", async () => {
+  const migration = await GET(new Request("https://yizhioffer.com/api/auth/watcha/authorize?check_existing=1"));
+  expect(migration.headers.get("set-cookie")).toContain("watcha_oauth_existing_only=1");
+  const ordinary = await GET(new Request("https://yizhioffer.com/api/auth/watcha/authorize"));
+  expect(ordinary.headers.get("set-cookie")).toContain("watcha_oauth_existing_only=;");
+});

@@ -1,6 +1,6 @@
 import { GET } from "./route";
 import { createSessionToken } from "@/lib/session";
-import { exchangeCodeForToken } from "@/lib/watcha-oauth";
+import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 import { getDbClient } from "@/lib/db";
 
 jest.mock("@/lib/watcha-oauth", () => ({exchangeCodeForToken:jest.fn(),getWatchaUserInfo:jest.fn()}));
@@ -47,4 +47,32 @@ test("new-domain callback passes its own origin to the same credential selector 
  expect(exchangeCodeForToken).toHaveBeenCalledWith("synthetic-new-code","https://yizhioffer.com");
  expect(getDbClient).not.toHaveBeenCalled();
  expect(new URL(response.headers.get("location")!).origin).toBe("https://yizhioffer.com");
+});
+
+function existingAccountDb(existing:boolean,failedLookup=false){
+ const query={select:jest.fn(),eq:jest.fn(),single:jest.fn(),update:jest.fn(),insert:jest.fn(),upsert:jest.fn().mockResolvedValue({error:null})};
+ query.select.mockReturnValue(query);query.eq.mockReturnValue(query);query.update.mockReturnValue(query);
+ query.single.mockResolvedValue({data:existing?{id:"11111111-1111-4111-8111-111111111111"}:null,error:failedLookup?{code:"unavailable"}:null});
+ const db={from:jest.fn().mockReturnValue(query)};
+ jest.mocked(getDbClient).mockResolvedValue(db as unknown as NonNullable<Awaited<ReturnType<typeof getDbClient>>>);
+ jest.mocked(exchangeCodeForToken).mockResolvedValue({access_token:"synthetic-access",refresh_token:"synthetic-refresh",expires_in:300,token_type:"Bearer",scope:"read"});
+ jest.mocked(getWatchaUserInfo).mockResolvedValue({user_id:123456789,nickname:"synthetic-user"});
+ return {db,query};
+}
+const migrationCallback=()=>GET(new Request("https://yizhioffer.com/api/auth/watcha/callback?code=synthetic-code&state=synthetic-state",{headers:{cookie:"watcha_oauth_state=synthetic-state; watcha_oauth_existing_only=1"}}));
+test.each([false,true])("迁移未找到旧身份时停止，不创建空账号、额度或保存 token，lookupFailure=%s",async failedLookup=>{
+ const {db,query}=existingAccountDb(false,failedLookup);
+ const response=await migrationCallback();
+ expect(new URL(response.headers.get("location")!).searchParams.get("error")).toContain("未找到原工作区");
+ expect(db.from).toHaveBeenCalledTimes(1);
+ expect(query.insert).not.toHaveBeenCalled();expect(query.update).not.toHaveBeenCalled();expect(query.upsert).not.toHaveBeenCalled();
+ expect(response.headers.get("set-cookie")).not.toContain("sb-access-token=");
+});
+test("迁移匹配同一已有 user_id 才建立正常会话，不触及简历和作答表",async()=>{
+ const {db,query}=existingAccountDb(true);
+ const response=await migrationCallback();
+ expect(response.headers.get("location")).toBe("https://yizhioffer.com/cockpit");
+ expect(query.insert).not.toHaveBeenCalled();
+ expect(db.from.mock.calls.map(([table])=>table)).toEqual(["users","users","watcha_tokens"]);
+ expect(response.headers.get("set-cookie")).toContain("sb-access-token=");
 });

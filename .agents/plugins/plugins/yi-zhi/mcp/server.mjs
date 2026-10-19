@@ -17,8 +17,8 @@ const UPDATE_STATE_FILE = join(DATA_DIR, "update-state.json");
 const TOKENPAY_FILE = join(DATA_DIR, "tokenpay.json");
 const TOKENPAY_PENDING_FILE = join(DATA_DIR, "tokenpay-pending.json");
 const TOKENPAY_ORIGIN = process.env.YI_ZHI_TOKENPAY_ORIGIN || "https://tokendance.space";
-const TOKENPAY_APP_URL = process.env.YI_ZHI_TOKENPAY_APP_URL || "https://www.ai-job-coach.xin";
-const UPDATE_MANIFEST_URL = process.env.YI_ZHI_UPDATE_MANIFEST_URL || "https://www.ai-job-coach.xin/api/agent/release";
+const TOKENPAY_APP_URL = process.env.YI_ZHI_TOKENPAY_APP_URL || "https://yizhioffer.com";
+const UPDATE_MANIFEST_URL = process.env.YI_ZHI_UPDATE_MANIFEST_URL || "https://yizhioffer.com/api/agent/release";
 const UPDATE_CHECK_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_CHECK_MS ?? 7 * 24 * 60 * 60 * 1000), 0);
 const UPDATE_RETRY_MS = Math.max(Number(process.env.YI_ZHI_UPDATE_RETRY_MS ?? 24 * 60 * 60 * 1000), 60_000);
 const UPDATE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.YI_ZHI_UPDATE_TIMEOUT_MS ?? 5_000), 500), 15_000);
@@ -300,7 +300,7 @@ function validRelease(value) {
   if (value.schema_version !== 1 || value.product !== "yi-zhi" || value.channel !== "stable") throw new Error("Unexpected 益职 release manifest.");
   if (!/^\d+\.\d+\.\d+$/.test(value.version || "")) throw new Error("Invalid 益职 release version.");
   const updateUrl = new URL(value.update_url);
-  if (updateUrl.protocol !== "https:" || !["ai-job-coach.xin", "www.ai-job-coach.xin"].includes(updateUrl.hostname)) throw new Error("Untrusted 益职 update URL.");
+  if (!["https://yizhioffer.com", "https://www.yizhioffer.com"].includes(updateUrl.origin) || updateUrl.username || updateUrl.password) throw new Error("Untrusted 益职 update URL.");
   return {
     schema_version: 1,
     product: "yi-zhi",

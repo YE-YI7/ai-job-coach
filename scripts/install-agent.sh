@@ -92,7 +92,7 @@ else
   if [ "$TARGET" = "codex" ]; then
     printf '推荐通过 Codex Marketplace 安装完整 Plugin；仅使用本脚本时，请把上面的 MCP 服务注册到 Codex。\n'
   else
-    printf '请让当前 Agent 按 https://ai-job-coach.xin/agent 注册上面的 MCP 服务。\n'
+    printf '请让当前 Agent 按 https://yizhioffer.com/agent 注册上面的 MCP 服务。\n'
   fi
   printf '重新启动或新建会话后，验证本地作战盘链接再开始第一个岗位。\n'
 fi

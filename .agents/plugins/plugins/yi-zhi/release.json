@@ -2,8 +2,8 @@
   "schema_version": 1,
   "product": "yi-zhi",
   "channel": "stable",
-  "version": "0.8.7",
-  "released_at": "2026-10-09T14:00:00Z",
-  "update_url": "https://ai-job-coach.xin/agent",
-  "release_notes": "新增启动诊断：真实检查存储、知识与当前 MCP；本地端口不可用时保留无界面工具，不冒充作战盘已连接。安装支持明确选择仅 Skills。浏览器与其他宿主能力需独立验收。"
+  "version": "0.8.8",
+  "released_at": "2026-10-19T06:44:07Z",
+  "update_url": "https://yizhioffer.com/agent",
+  "release_notes": "迁移至 yizhioffer.com：安装说明、版本检查和 TokenPay 应用归因使用新域。旧版用户请更新 Plugin 或重跑安装器；本地求职资料和现有密钥不迁移、不覆盖。"
 }

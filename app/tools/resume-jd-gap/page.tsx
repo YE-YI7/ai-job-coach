@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import ResumeJdGapClient from './ResumeJdGapClient';
 import { GAP_FAQS } from '@/lib/resume-gap/workflow';
+import { PUBLIC_SITE_URL } from '@/lib/public-discovery';
 
-const PAGE_URL = 'https://www.ai-job-coach.xin/tools/resume-jd-gap';
+const PAGE_URL = `${PUBLIC_SITE_URL}/tools/resume-jd-gap`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(PAGE_URL),

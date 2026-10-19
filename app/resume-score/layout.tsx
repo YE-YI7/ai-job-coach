@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import { PUBLIC_SITE_URL } from '@/lib/public-discovery';
 
-const metadataBase = new URL(process.env.NEXT_PUBLIC_BASE_URL || 'https://ai-job-coach.xin');
+const metadataBase = new URL(PUBLIC_SITE_URL);
 
 export const metadata: Metadata = {
   metadataBase,

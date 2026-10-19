@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PUBLIC_SITE_URL } from '@/lib/public-discovery';
 
 /* ============================
    类型定义
@@ -261,7 +262,7 @@ export default function ResumeScorePage() {
     description: '免费上传简历 PDF、Word 或粘贴内容，快速获得 ATS 健康度评分、五维度诊断与优化建议。',
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
-    url: 'https://ai-job-coach.xin/resume-score',
+    url: `${PUBLIC_SITE_URL}/resume-score`,
     offers: {
       '@type': 'Offer',
       price: '0',
@@ -270,7 +271,7 @@ export default function ResumeScorePage() {
     provider: {
       '@type': 'Organization',
       name: '益职AI',
-      url: 'https://ai-job-coach.xin',
+      url: PUBLIC_SITE_URL,
     },
     featureList: ['ATS 简历评分', '五维度诊断', '简历优化建议', 'PDF/Word 上传解析'],
   };

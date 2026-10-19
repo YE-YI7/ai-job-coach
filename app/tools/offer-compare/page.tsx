@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import OfferCompareClient from './OfferCompareClient';
+import { PUBLIC_SITE_URL } from '@/lib/public-discovery';
 
-const PAGE_URL = 'https://www.ai-job-coach.xin/tools/offer-compare';
+const PAGE_URL = `${PUBLIC_SITE_URL}/tools/offer-compare`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(PAGE_URL),

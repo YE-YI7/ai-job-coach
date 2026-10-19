@@ -8,10 +8,11 @@ import ResumePaper from "@/components/resume/ResumePaper";
 import { DEMO_AFTER, DEMO_BEFORE, LANDING_RESUME } from "@/lib/landing-demo";
 import { renderResumePrintWindow } from "@/lib/resume-print";
 import { trackProductEvent } from "@/lib/product-events";
+import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
 import styles from "./Home.module.css";
 
 const START = "/login?redirect=%2Fcockpit";
-const AGENT_PROMPT = "请打开并完整阅读 https://ai-job-coach.xin/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。";
+const AGENT_PROMPT = `请打开并完整阅读 ${PUBLIC_SITE_URL}/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。`;
 
 export default function HomeClient() {
   const viewed = useRef(false);

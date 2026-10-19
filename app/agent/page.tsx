@@ -10,10 +10,12 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import styles from "./AgentGuide.module.css";
+import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
 
 export const metadata: Metadata = {
   title: "给 Agent 的安装说明｜益职免费版",
   description: "让你的 Agent 安装益职方法与本地求职作战盘。益职不收取模型费，求职材料默认保留在当前 Agent 环境。",
+  alternates: { canonical: `${PUBLIC_SITE_URL}/agent` },
 };
 
 const CODEX_COMMAND = "codex plugin marketplace add YE-YI7/ai-job-coach --ref backend && codex plugin add yi-zhi@yi-zhi";

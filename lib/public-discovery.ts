@@ -1,4 +1,4 @@
-export const PUBLIC_SITE_URL = "https://www.ai-job-coach.xin";
+export const PUBLIC_SITE_URL = "https://yizhioffer.com";
 
 // Deliberate allowlist: never include user workspaces, preview, login or APIs.
 export const PUBLIC_INDEX_PATHS = ["/", "/agent", "/tools/resume-jd-gap", "/tools/offer-compare"] as const;

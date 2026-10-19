@@ -18,6 +18,18 @@ const nextConfig: NextConfig = {
   // Next 16 默认会在开发时写入 AGENTS.md / CLAUDE.md；仓库已有自己的规则，不生成噪音文件。
   agentRules: false,
 
+  // Only public entry points move. Old login/workspaces and OAuth/payment API
+  // callbacks must retain their host-scoped cookies and remain operational.
+  async redirects() {
+    const oldHost = { type: "host" as const, value: "(?:www\\.)?ai-job-coach\\.xin" };
+    return ["/", "/agent/:path*", "/tools/:path*", "/privacy", "/llms.txt"].map(source => ({
+      source,
+      has: [oldHost],
+      destination: `https://yizhioffer.com${source === "/" ? "" : source}`,
+      permanent: false,
+    }));
+  },
+
   // 全局安全头配置。CSP 只在响应头维护，避免 meta/header 策略漂移。
   async headers() {
     const scriptSources = process.env.NODE_ENV === "development"

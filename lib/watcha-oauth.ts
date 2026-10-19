@@ -8,23 +8,15 @@
  * - 用户信息：https://watcha.cn/oauth/api/userinfo
  */
 
-const WATCHA_BASE_URL = "https://watcha.cn";
+import { getWatchaOAuthConfig } from "./watcha-oauth-config";
 
-// 环境变量
-function getConfig(baseUrl?: string) {
-  const base = baseUrl || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  return {
-    clientId: process.env.WATCHA_CLIENT_ID || "",
-    clientSecret: process.env.WATCHA_CLIENT_SECRET || "",
-    redirectUri: `${base}/api/auth/watcha/callback`,
-  };
-}
+const WATCHA_BASE_URL = "https://watcha.cn";
 
 /**
  * 生成授权 URL
  */
 export function getWatchaAuthorizeUrl(state: string, baseUrl?: string): string {
-  const { clientId, redirectUri } = getConfig(baseUrl);
+  const { clientId, redirectUri } = getWatchaOAuthConfig(baseUrl);
 
   // 手动拼接 URL
   // 重要：client_id 中可能含 +/= 等特殊字符，必须 encodeURIComponent（观猹文档明确要求）
@@ -49,7 +41,7 @@ export async function exchangeCodeForToken(code: string, baseUrl?: string): Prom
   refresh_token: string;
   scope: string;
 }> {
-  const { clientId, clientSecret, redirectUri } = getConfig(baseUrl);
+  const { clientId, clientSecret, redirectUri } = getWatchaOAuthConfig(baseUrl);
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",

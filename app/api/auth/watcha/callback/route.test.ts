@@ -41,3 +41,10 @@ test("matching state still enters ordinary OAuth exchange",async()=>{
  await callback("watcha_oauth_state=old-state");
  expect(exchangeCodeForToken).toHaveBeenCalledWith("already-used","https://www.ai-job-coach.xin");
 });
+test("new-domain callback passes its own origin to the same credential selector without touching DB on exchange failure",async()=>{
+ jest.mocked(exchangeCodeForToken).mockRejectedValue(new Error("controlled test stop"));
+ const response=await GET(new Request("https://yizhioffer.com/api/auth/watcha/callback?code=synthetic-new-code&state=synthetic-state",{headers:{cookie:"watcha_oauth_state=synthetic-state"}}));
+ expect(exchangeCodeForToken).toHaveBeenCalledWith("synthetic-new-code","https://yizhioffer.com");
+ expect(getDbClient).not.toHaveBeenCalled();
+ expect(new URL(response.headers.get("location")!).origin).toBe("https://yizhioffer.com");
+});

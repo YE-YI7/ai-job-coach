@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getWatchaAuthorizeUrl, generateState } from "@/lib/watcha-oauth";
 import { normalizeRedirectPath } from "@/lib/auth-redirect";
+import { WatchaOAuthConfigurationError } from "@/lib/watcha-oauth-config";
 
 export const runtime = "nodejs";
 
@@ -13,21 +14,33 @@ export const runtime = "nodejs";
  * 3. 重定向到观猹授权页面
  */
 export async function GET(request: Request) {
-  // 从请求 URL 中提取 origin（如 https://ai-job-coach.xin）
-  // 这样不依赖环境变量，100% 准确
+  // 请求 origin 继续交给凭据选择器做正式域名白名单验证。
   const requestUrl = new URL(request.url);
   const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
 
-  const state = generateState();
   const redirectPath = normalizeRedirectPath(requestUrl.searchParams.get("redirect"));
-  const authorizeUrl = getWatchaAuthorizeUrl(state, baseUrl);
+  const state = generateState();
+  let authorizeUrl: string;
+  try {
+    authorizeUrl = getWatchaAuthorizeUrl(state, baseUrl);
+  } catch (error) {
+    if (!(error instanceof WatchaOAuthConfigurationError)) throw error;
+    if (error.reason === "unsupported_origin") {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
+    }
+    const loginUrl = new URL("/login", baseUrl);
+    loginUrl.searchParams.set("error", error.message);
+    if (redirectPath) loginUrl.searchParams.set("redirect", redirectPath);
+    return NextResponse.redirect(loginUrl, { headers: { "Cache-Control": "private, no-store" } });
+  }
 
   console.log("[WATCHA OAuth] 发起授权:", {
     baseUrl,
-    hasClientId: Boolean(process.env.WATCHA_CLIENT_ID),
+    configured: true,
   });
 
   const response = NextResponse.redirect(authorizeUrl);
+  response.headers.set("Cache-Control", "private, no-store");
 
   // 设置 state cookie，5 分钟过期
   response.cookies.set("watcha_oauth_state", state, {

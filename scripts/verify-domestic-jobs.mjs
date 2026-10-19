@@ -4,7 +4,7 @@ import {createHmac,randomUUID} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 const base=process.argv[2]||'http://localhost:3021';
-assert.ok(['http://localhost:3021','https://www.ai-job-coach.xin'].includes(base));
+assert.ok(['http://localhost:3021','https://yizhioffer.com'].includes(base));
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY),id=randomUUID();
 const payload=Buffer.from(JSON.stringify({userId:id,version:2,exp:Math.floor(Date.now()/1000)+900})).toString('base64url');
 const token=payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');

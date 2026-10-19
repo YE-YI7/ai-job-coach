@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const statePath = process.env.AUDIT_STATE;
 if (!statePath?.startsWith('/tmp/')) throw Error('AUDIT_STATE must be an explicit /tmp fixture path');
-const base = process.env.AUDIT_BASE || 'https://www.ai-job-coach.xin';
+const base = process.env.AUDIT_BASE || 'https://yizhioffer.com';
 const browserSession = 'persona-20261008';
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const browser = (...args) => {

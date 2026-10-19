@@ -3,7 +3,7 @@ import {createClient} from '@supabase/supabase-js';
 import {createHmac,randomUUID} from 'node:crypto';
 import {writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-const base=process.env.AUDIT_BASE||'https://www.ai-job-coach.xin';
+const base=process.env.AUDIT_BASE||'https://yizhioffer.com';
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const personas=[
  {id:randomUUID(),role:'机械工程师',city:'上海',resume:'虚构验收材料。本科，8年机械工程师经验。负责非标自动化设备机械设计、SolidWorks建模、AutoCAD工程图、BOM编制、材料选型与制造工艺；主导样机试制、装配调试、量产转化和降本改善。'},

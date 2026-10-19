@@ -13,7 +13,7 @@ const payload=Buffer.from(JSON.stringify({userId:id,version:2,exp:Math.floor(Dat
 const cookie='sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
 async function request(path,body){
   if(target==='formal'){
-    const r=await fetch('https://www.ai-job-coach.xin'+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(150000),redirect:'error'});
+    const r=await fetch('https://yizhioffer.com'+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(150000),redirect:'error'});
     const result=await r.json();assert.equal(r.ok,true,`HTTP ${r.status}: ${result.error||''}`);return result;
   }
   const config=[`header = ${JSON.stringify('Cookie: '+cookie)}`,'header = "Content-Type: application/json"',...(body?['request = "POST"','data = '+JSON.stringify(JSON.stringify(body))]:[])].join('\n');

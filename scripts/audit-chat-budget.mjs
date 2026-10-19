@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
-const base = process.env.AUDIT_BASE || 'https://www.ai-job-coach.xin';
+const base = process.env.AUDIT_BASE || 'https://yizhioffer.com';
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const userId = randomUUID();
 const payload = Buffer.from(JSON.stringify({ userId, version: 2, exp: Math.floor(Date.now() / 1000) + 900 })).toString('base64url');

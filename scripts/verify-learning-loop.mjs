@@ -1,10 +1,10 @@
 // Explicit smoke test: creates only synthetic users; removes its own test rows in finally.
-// node --env-file=.env.ops.local scripts/verify-learning-loop.mjs https://www.ai-job-coach.xin
+// node --env-file=.env.ops.local scripts/verify-learning-loop.mjs https://yizhioffer.com
 import {createClient} from '@supabase/supabase-js';
 import {randomUUID,createHmac} from 'node:crypto';
 import assert from 'node:assert/strict';
 const base=process.argv[2]||'http://localhost:3000';
-if(!['http://localhost:3000','https://www.ai-job-coach.xin'].includes(base))throw Error('Unexpected test destination');
+if(!['http://localhost:3000','https://yizhioffer.com'].includes(base))throw Error('Unexpected test destination');
 // Retry only read-side transport failures; never replay a potentially committed write.
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{global:{fetch:async(input,init)=>{
  const attempts=(init?.method||'GET').toUpperCase()==='GET'?3:1;

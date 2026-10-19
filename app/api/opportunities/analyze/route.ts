@@ -318,7 +318,7 @@ async function fetchManusPublicJob(url: URL) {
   const locale = url.pathname.startsWith("/cn/") ? "zh" : "en";
   const input = encodeURIComponent(JSON.stringify({ json: { locale } }));
   const response = await fetch(new URL(`/api/trpc/hr/applications.publicJobs?input=${input}`, url.origin), {
-    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://ai-job-coach.xin)", Accept: "application/json" },
+    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://yizhioffer.com)", Accept: "application/json" },
     signal: AbortSignal.timeout(9_000),
   });
   if (!response.ok) return null;
@@ -380,7 +380,7 @@ async function fetchKnownPublicAtsJob(url: URL) {
 
   if (!endpoint) return null;
   const response = await fetch(endpoint, {
-    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://ai-job-coach.xin)", Accept: "application/json" },
+    headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://yizhioffer.com)", Accept: "application/json" },
     signal: AbortSignal.timeout(9_000),
   });
   if (!response.ok) return null;
@@ -442,7 +442,7 @@ async function fetchPublicPage(rawUrl: string) {
       const response = await fetch(current, {
         redirect: "manual",
         signal: controller.signal,
-        headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://ai-job-coach.xin)" },
+        headers: { "User-Agent": "YiZhiJobCoach/1.0 (+https://yizhioffer.com)" },
       });
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");

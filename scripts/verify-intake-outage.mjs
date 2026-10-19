@@ -13,7 +13,7 @@ const payload = Buffer.from(JSON.stringify({ userId: id, version: 2, exp: Math.f
 const cookie = 'sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(payload).digest('base64url');
 async function request(path, body) {
   if (target === 'formal') {
-    const response = await fetch('https://www.ai-job-coach.xin'+path, { method: body ? 'POST':'GET', headers: { Cookie: cookie, 'Content-Type':'application/json' }, body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000) });
+    const response = await fetch('https://yizhioffer.com'+path, { method: body ? 'POST':'GET', headers: { Cookie: cookie, 'Content-Type':'application/json' }, body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(90000) });
     assert.equal(response.ok,true,`Application HTTP ${response.status}`);
     return response.json();
   }

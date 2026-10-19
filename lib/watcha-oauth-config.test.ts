@@ -69,3 +69,15 @@ test("新域少一项密钥时，换 token 前即拒绝，不产生网络请求"
   await expect(exchangeCodeForToken("synthetic-code", "https://yizhioffer.com")).rejects.toThrow(WatchaOAuthConfigurationError);
   expect(mocked).not.toHaveBeenCalled();
 });
+test("移除旧应用凭据后，新域授权与 token 交换仍独立工作", async () => {
+  delete process.env.WATCHA_CLIENT_ID;
+  delete process.env.WATCHA_CLIENT_SECRET;
+  const url = new URL(getWatchaAuthorizeUrl("synthetic-state", "https://yizhioffer.com"));
+  expect(url.searchParams.get("redirect_uri")).toBe("https://yizhioffer.com/api/auth/watcha/callback");
+  const mocked = jest.fn().mockResolvedValue({ json: async () => ({ access_token: "synthetic-token" }) });
+  globalThis.fetch = mocked;
+  await exchangeCodeForToken("synthetic-code", "https://yizhioffer.com");
+  const body = new URLSearchParams(mocked.mock.calls[0][1].body);
+  expect(body.get("client_id")).toBe("synthetic-yizhi-id+/=");
+  expect(body.get("client_secret")).toBe("synthetic-yizhi-secret");
+});

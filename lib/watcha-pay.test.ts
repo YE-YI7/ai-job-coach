@@ -36,7 +36,7 @@ it("keeps stable buyer identity server-side and strips unexpected provider field
   expect(url).toBe("https://pay.watcha.cn/v1/entitlements/access");
   expect(options.redirect).toBe("error");
   expect(options.cache).toBe("no-store");
-  expect(JSON.parse(options.body)).toEqual({ entitlement_id: "ent_test", user_id: "u1" });
+  expect(JSON.parse(options.body)).toEqual({ entitlement_id: "ent_test", user_id: "u1", return_url: "https://yizhioffer.com/cockpit" });
   expect(JSON.stringify(account)).not.toContain("wpay_test_");
 });
 it("generates a local PNG QR for a validated checkout when the provider omits it", async () => {

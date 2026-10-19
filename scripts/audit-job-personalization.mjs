@@ -3,7 +3,7 @@ import {createClient} from '@supabase/supabase-js';
 import {createHmac,randomUUID} from 'node:crypto';
 import {writeFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
-const base=process.env.AUDIT_BASE||'https://www.ai-job-coach.xin';
+const base=process.env.AUDIT_BASE||'https://yizhioffer.com';
 const output=process.env.AUDIT_OUTPUT||'/tmp/yizhi-job-personalization-20261001.json';
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false},global:{fetch:(u,i)=>fetch(u,{...i,signal:AbortSignal.timeout(20000)})}});
 const personas=[

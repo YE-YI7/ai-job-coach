@@ -5,7 +5,7 @@ const scope=process.argv[2];
 if(!/^[0-9a-f-]{36}$/i.test(scope||''))throw Error('Explicit opportunity scope required');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY);
 const origin=process.env.COACH_VERIFY_ORIGIN||'http://localhost:3000';
-if(!['http://localhost:3000','https://www.ai-job-coach.xin'].includes(origin))throw Error('Unapproved verification origin');
+if(!['http://localhost:3000','https://yizhioffer.com'].includes(origin))throw Error('Unapproved verification origin');
 const {data:owner,error}=await db.from('coach_opportunities').select('user_id').eq('id',scope).single();
 if(error)throw Error('Owner lookup failed');
 const payload=Buffer.from(JSON.stringify({userId:owner.user_id,version:2,exp:Math.floor(Date.now()/1000)+600})).toString('base64url');

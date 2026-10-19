@@ -6,9 +6,9 @@ import {join} from 'node:path';
 
 // Explicit opt-in, normal login, isolated fictional material. No model calls,
 // production-user cookies, auth impersonation or privileged browser session.
-const origin=process.env.RESUME_MATERIAL_QA_ORIGIN||'https://www.ai-job-coach.xin';
+const origin=process.env.RESUME_MATERIAL_QA_ORIGIN||'https://yizhioffer.com';
 const code=process.env.RESUME_MATERIAL_QA_CODE;
-assert.ok(['https://www.ai-job-coach.xin','https://ai-job-coach.xin'].includes(origin));
+assert.equal(origin,'https://yizhioffer.com');
 assert.ok(process.env.RESUME_MATERIAL_QA_LIVE==='1'&&/^QA-MATERIAL-20261017-[A-Z0-9]+$/.test(code||''),'An explicitly provisioned one-use QA invite is required');
 const {chromium}=createRequire(import.meta.url)('playwright');
 const output=process.env.RESUME_MATERIAL_QA_OUTPUT||mkdtempSync(join(tmpdir(),'yizhi-material-production-'));

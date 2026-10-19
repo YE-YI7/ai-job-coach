@@ -13,7 +13,7 @@ const cookie = 'sb-access-token=' + payload + '.' + createHmac('sha256', process
 async function request(path, body, stream = false) {
   const started = Date.now();
   if (target === 'formal') {
-    const response = await fetch('https://www.ai-job-coach.xin' + path, {method:body?'POST':'GET', headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson','X-Intake-Request-Id':requestId}:{})}, body:body?JSON.stringify(body):undefined, signal:AbortSignal.timeout(100000), redirect:'error'});
+    const response = await fetch('https://yizhioffer.com' + path, {method:body?'POST':'GET', headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson','X-Intake-Request-Id':requestId}:{})}, body:body?JSON.stringify(body):undefined, signal:AbortSignal.timeout(100000), redirect:'error'});
     assert.ok(response.ok, `Application HTTP ${response.status}`);
     if (!stream) return response.json();
     assert.match(response.headers.get('content-type') || '', /application\/x-ndjson/);

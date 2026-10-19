@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 // Integration evidence only; Chrome interaction and PDF rendering are separate.
 if(process.env.RUN_RESUME_ACCEPTANCE!=='1')throw Error('Synthetic-account opt-in required');
 const target=process.argv[2];
-if(target!=='https://www.ai-job-coach.xin')throw Error('Use the verified formal domain');
+if(target!=='https://yizhioffer.com')throw Error('Use the verified formal domain');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
 const uid=randomUUID(),email=`resume-acceptance-${uid}@example.invalid`,paths=[];
 const payload=Buffer.from(JSON.stringify({version:2,userId:uid,email,exp:Math.floor(Date.now()/1000)+900})).toString('base64url');

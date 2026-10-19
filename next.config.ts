@@ -18,11 +18,14 @@ const nextConfig: NextConfig = {
   // Next 16 默认会在开发时写入 AGENTS.md / CLAUDE.md；仓库已有自己的规则，不生成噪音文件。
   agentRules: false,
 
-  // Only public entry points move. Old login/workspaces and OAuth/payment API
-  // callbacks must retain their host-scoped cookies and remain operational.
+  // Move browser entrypoints, including old bookmarks, to the new identity
+  // origin. Keep in-flight old API callbacks host-local until they expire.
   async redirects() {
     const oldHost = { type: "host" as const, value: "(?:www\\.)?ai-job-coach\\.xin" };
-    return ["/", "/agent/:path*", "/tools/:path*", "/privacy", "/llms.txt"].map(source => ({
+    return ["/", "/agent", "/agent/:path+", "/tools/:path*", "/privacy", "/llms.txt",
+      "/login", "/cockpit/:path*", "/admin/:path*", "/invite/:path*", "/redeem/:path*",
+      "/onboarding/:path*", "/resume-score/:path*",
+      "/api/auth/watcha/authorize", "/api/tokenpay/authorize"].map(source => ({
       source,
       has: [oldHost],
       destination: `https://yizhioffer.com${source === "/" ? "" : source}`,

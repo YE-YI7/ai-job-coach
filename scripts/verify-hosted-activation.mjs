@@ -14,7 +14,7 @@ const cookie='sb-access-token='+payload+'.'+createHmac('sha256',process.env.SESS
 async function request(path,body,stream=false){
   const started=Date.now();
   if(target==='formal'||target==='local'){
-    const r=await fetch((target==='formal'?'https://www.ai-job-coach.xin':'http://localhost:3322')+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(100000),redirect:'error'});
+    const r=await fetch((target==='formal'?'https://yizhioffer.com':'http://localhost:3322')+path,{method:body?'POST':'GET',headers:{Cookie:cookie,'Content-Type':'application/json',...(stream?{Accept:'application/x-ndjson'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(100000),redirect:'error'});
     assert.equal(r.ok,true,`Application HTTP ${r.status}`);
     if(!stream)return r.json();
     assert.match(r.headers.get('content-type')||'',/application\/x-ndjson/);

@@ -4,7 +4,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 const base = process.argv[2] || 'http://localhost:3021';
-if (!['http://localhost:3021','https://www.ai-job-coach.xin'].includes(base)) throw Error('Unexpected destination');
+if (!['http://localhost:3021','https://yizhioffer.com'].includes(base)) throw Error('Unexpected destination');
 const db=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(20000)})}});
 const owner=randomUUID(), other=randomUUID();
 function cookie(id){const p=Buffer.from(JSON.stringify({userId:id,version:2,exp:Math.floor(Date.now()/1000)+900})).toString('base64url');return 'sb-access-token='+p+'.'+createHmac('sha256',process.env.SESSION_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY).update(p).digest('base64url');}

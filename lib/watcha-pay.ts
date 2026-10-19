@@ -1,6 +1,7 @@
 /** Server-side only. Do not expose credentials or trust browser-supplied buyer IDs. */
 import { createHash } from "node:crypto";
 import QRCode from "qrcode";
+import { PUBLIC_SITE_URL } from "./public-discovery";
 
 export type WatchaPayCapability = "chat" | "resume" | "interview";
 type Environment = "sandbox" | "live";
@@ -93,7 +94,11 @@ export async function getWatchaPayAccess(userId: string, capability: WatchaPayCa
   const config = watchaPayConfiguration(capability);
   if (!config) return { configured: false as const, channel: "alipay" as const };
   if (!userId || userId.length > 200) throw new WatchaPayError("invalid_user", 400);
-  const result = parseWatchaPayAccess(await request(config, "access", { user_id: userId }));
+  // The provider returns here after checkout; never inherit an old host or a
+  // client-supplied redirect. Return navigation is not payment confirmation.
+  const result = parseWatchaPayAccess(await request(config, "access", {
+    user_id: userId, return_url: `${PUBLIC_SITE_URL}/cockpit`,
+  }));
   // Encode only the validated official checkout URL, locally. No third-party QR
   // service receives the user-specific payment ticket; this does not mark it paid.
   if (result.access !== "unavailable" && !result.purchase.qrUrl) {

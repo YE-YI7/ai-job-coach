@@ -1,10 +1,11 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { getDbClient } from "./db";
 import { getGenerationContext } from "./generation-context";
+import { PUBLIC_SITE_URL } from "./public-discovery";
 
 const TOKENPAY_ORIGIN = "https://tokendance.space";
 const TOKENPAY_PORTAL = `${TOKENPAY_ORIGIN}/portal/api/v1`;
-export const TOKENPAY_APP_URL = process.env.TOKENPAY_APP_URL || "https://www.ai-job-coach.xin";
+export const TOKENPAY_APP_URL = process.env.TOKENPAY_APP_URL?.trim() || PUBLIC_SITE_URL;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export type TokenPayRecoveryAction = "top_up_balance" | "reauthorize_api_key" | "api_key_quota";

@@ -32,14 +32,14 @@ describe("TokenPay security primitives", () => {
 
   it("builds an OAuth URL with S256 PKCE and app attribution", () => {
     const url = new URL(buildTokenPayAuthorizeUrl({
-      callbackUrl: "https://www.ai-job-coach.xin/api/tokenpay/callback?state=state-1",
+      callbackUrl: "https://yizhioffer.com/api/tokenpay/callback?state=state-1",
       challenge: "challenge-1",
     }));
     expect(url.origin).toBe("https://tokendance.space");
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("code_challenge")).toBe("challenge-1");
     expect(url.searchParams.get("callback_url")).toContain("/api/tokenpay/callback");
-    expect(url.searchParams.get("app_url")).toBe("https://www.ai-job-coach.xin");
+    expect(url.searchParams.get("app_url")).toBe("https://yizhioffer.com");
     expect(url.searchParams.get("key_name")).toBe("益职AI");
   });
 
@@ -64,6 +64,6 @@ describe("TokenPay security primitives", () => {
   });
 
   it("uses the same stable app URL for request attribution", () => {
-    expect(tokenDanceAttributionHeaders()).toEqual({ "X-App-URL": "https://www.ai-job-coach.xin" });
+    expect(tokenDanceAttributionHeaders()).toEqual({ "X-App-URL": "https://yizhioffer.com" });
   });
 });

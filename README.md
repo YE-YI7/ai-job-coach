@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/YE-YI7/ai-job-coach/backend/scripts
 
 ## Web 求职作战台
 
-[ai-job-coach.xin](https://ai-job-coach.xin) 用于保存长期求职进度、面试复盘与训练任务。Agent Skills 第一版默认在本地处理材料，不会自动上传用户数据。
+[yizhioffer.com](https://yizhioffer.com) 用于保存长期求职进度、面试复盘与训练任务。Agent Skills 第一版默认在本地处理材料，不会自动上传用户数据。
 
 ## 原项目说明
 

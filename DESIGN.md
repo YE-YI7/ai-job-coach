@@ -510,6 +510,12 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 ## Do's and Don'ts
 
+### 2026-10-18 Qoder-directed local refinement
+
+The user delegated frontend adjustments to Qoder, then requested review and release. Retain that implementation's warm beige/cocoa workspace and smaller controls; do not reinterpret this review as permission to redesign the left navigation or change résumé template colours. The mentor header is one line without a repeated logo; send remains a compact up-arrow with an accessible label. Stage navigation is expanded and wraps within the mobile viewport. Low-frequency résumé settings stay under More, with the original file unchanged.
+
+Muted warm UI text uses `#777066` against white (approximately 4.88:1), replacing the lower-contrast `#7e776d`. This records a scoped refinement, not a claim that every historical token and component has been reconciled. Optional portraits are private, a single 22 × 28 mm image beside the whole personal-information preamble, with 28 mm reserved at the right. The same renderer and fresh portrait bytes serve screen and PDF. Photo selection is a keyboard-operable button; unreadable files show a concise Chinese recovery message and never replace the saved image. No new shipping raster assets; the acceptance portrait is explicitly synthetic and is not a product asset.
+
 ### Do:
 
 - **Do** 让一个屏幕快速回答“当前机会是什么、判断是什么、下一步是什么”。

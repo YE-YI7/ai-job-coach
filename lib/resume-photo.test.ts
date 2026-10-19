@@ -1,8 +1,19 @@
-import { ownsResumePhotoPath, resumePhotoBytesMime, resumePhotoMime } from "./resume-photo";
+import { ownsResumePhotoPath, prepareResumePhotoFile, resumePhotoBytesMime, resumePhotoMime } from "./resume-photo";
 
 const OWNER = "11111111-2222-3333-4444-555555555555";
 const UUID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d";
 const bytes = (...values: number[]) => new Uint8Array(values).buffer;
+
+test("损坏的照片给出可重试的中文提示，不泄漏浏览器解码异常", async () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "createImageBitmap");
+  Object.defineProperty(globalThis, "createImageBitmap", { configurable: true, value: jest.fn().mockRejectedValue(new Error("The source image could not be decoded.")) });
+  try {
+    await expect(prepareResumePhotoFile({} as File)).rejects.toThrow("这张照片无法读取，请换一张 JPG、PNG 或 WebP 图片后重试。原照片未更改。");
+  } finally {
+    if (original) Object.defineProperty(globalThis, "createImageBitmap", original);
+    else Reflect.deleteProperty(globalThis, "createImageBitmap");
+  }
+});
 
 test("照片路径只认当前账号下的图片对象：越界路径、别人的目录、非图片扩展名都拒绝", () => {
   expect(ownsResumePhotoPath(OWNER, `${OWNER}/${UUID}.jpg`)).toBe(true);

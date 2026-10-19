@@ -24,7 +24,12 @@ export function resumePhotoBytesMime(bytes: ArrayBuffer) {
 }
 /** 浏览器侧先缩放并重编码成 JPEG；透明 PNG 压平到白底，打印纸上不能出黑块。 */
 export async function prepareResumePhotoFile(file: File): Promise<File> {
-  const bitmap = await createImageBitmap(file);
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw Error("这张照片无法读取，请换一张 JPG、PNG 或 WebP 图片后重试。原照片未更改。");
+  }
   const scale = Math.min(1, RESUME_PHOTO_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));

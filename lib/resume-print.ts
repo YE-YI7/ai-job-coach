@@ -31,8 +31,10 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  const lineHtml=(line:string)=>options.highlight&&stripResumeMarkdown(line)===options.highlight?`<mark data-resume-highlight>${inline(line)}</mark>`:inline(line);
  const entryRow=(label:string,date:string,tag="p")=>`<${tag} class="resume-entry"><span>${inline(label)}</span><time>${inline(date)}</time></${tag}>`;
  let previousHeading:string|null=null;
- const firstSection=blocks.findIndex(block=>block.kind!=="header");
- const headerCount=firstSection<0?blocks.length:firstSection;
+ const firstSection=blocks.findIndex(block=>block.heading!==null);
+ // Blank lines may split name, role and contacts into separate editable blocks.
+ // Keep the whole preamble beside one portrait, not just the name block.
+ const headerCount=firstSection<0?(blocks[0]?.kind==="header"?1:0):firstSection;
  let photoInserted=false;
  const rendered=blocks.map((block,blockIndex)=>{
   const heading=block.heading!==previousHeading?block.heading:null;

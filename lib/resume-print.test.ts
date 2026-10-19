@@ -114,6 +114,8 @@ test("blank-separated identity paragraphs never duplicate the portrait",()=>{
  expect((html.match(/<img class="resume-photo"/g)||[])).toHaveLength(1);
  expect(html).toContain('<div class="resume-header">');
  expect(html).toContain("padding-right:28mm");
+ const preamble=html.slice(html.indexOf('<div class="resume-header">'),html.indexOf('<section data-kind="project"'));
+ expect(preamble).toContain("qa@example.invalid");
 });
 test("证件照排在基本信息区右上角，写了占位行的简历用照片换掉空位",()=>{
  const withSlot=resumePrintHtml("头像区\n林清\n邮箱：qa@example.invalid\n\n项目经历\n做过需求整理。","modern","简历",{toolbar:false,photo:PHOTO});

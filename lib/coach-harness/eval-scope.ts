@@ -194,7 +194,14 @@ export function presentEvalRun(
   const merged = new Map<string, EvalSpan["knowledge"][number]>();
   for (const entry of [...fromRetrieval, ...existing]) {
     const key = `${entry.id}:${entry.included}`;
-    merged.set(key, { ...merged.get(key), ...entry });
+    const previous = merged.get(key);
+    merged.set(key, {
+      ...previous,
+      ...entry,
+      title: entry.title && entry.title !== entry.id
+        ? entry.title
+        : previous?.title || entry.title,
+    });
   }
   const knowledge = retitleKnowledge([...merged.values()], titles);
   return {

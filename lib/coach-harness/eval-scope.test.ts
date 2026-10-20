@@ -112,6 +112,12 @@ test("partial retrieval summaries preserve captured knowledge and stage-specific
   expect(result.spans[0].knowledge).toEqual(stageKnowledge);
   expect(original.knowledge).toHaveLength(1);
 });
+test("a bare captured ID cannot erase the title recorded during retrieval", () => {
+  const result = presentEvalRun({ knowledge: [{ id: "a", title: "a", included: true, kind: "knowledge" }] }, {}, {
+    includedIds: ["a"], documentTitles: [{ id: "a", title: "当时的文档标题" }],
+  });
+  expect(result.knowledge[0].title).toBe("当时的文档标题");
+});
 test("credentials and task leases never enter private I/O", () => {
   expect(
     redactEval({

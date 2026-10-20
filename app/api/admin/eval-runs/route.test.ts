@@ -70,6 +70,23 @@ test("storage failure and same-ID replay never invoke the model", async () => {
   }
   expect(rewrite).not.toHaveBeenCalled();
 });
+test("reading a saved run enriches only recorded retrieval and never fabricates stage I/O", async () => {
+  const saved = { id, input: "original input", knowledge: [], spans: [{ id: "checkpoint", kind: "stage", name: "知识检索", code: "retrieval", durationMs: 0, input: null, output: null, knowledge: [] }] };
+  const query = (data: unknown) => ({ eq: jest.fn().mockReturnThis(), maybeSingle: async () => ({ data, error: null }) });
+  (getDbClient as jest.Mock).mockResolvedValue({
+    from: (table: string) => ({ select: () => query(table === "coach_eval_runs"
+      ? { run: saved, legacy_trace_id: id }
+      : { properties: { retrieval: { includedIds: ["method"], documentTitles: [{ id: "method", title: "当次知识标题" }] } } }) }),
+  });
+  const response = await GET(new Request(origin + "?id=" + id));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+  const result = (await response.json()).runs[0];
+  expect(result.knowledge[0].title).toBe("当次知识标题");
+  expect(result.spans[0]).toMatchObject({ durationMs: 0, input: null, output: null });
+  expect(saved.knowledge).toEqual([]);
+  expect(rewrite).not.toHaveBeenCalled();
+});
 test("new eval uses only submitted materials, not existing opportunity or answers", async () => {
   const updates: unknown[] = [];
   const update = {

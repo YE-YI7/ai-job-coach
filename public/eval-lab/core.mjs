@@ -129,6 +129,11 @@ function legacy(row, i) {
   });
   const r = t.retrieval,
     included = new Set(list(r.includedIds)),
+    titles = new Map(
+      list(r.documentTitles)
+        .filter((item) => item && item.id && item.title)
+        .map((item) => [item.id, item.title]),
+    ),
     ids = [
       ...new Set([
         ...included,
@@ -141,7 +146,7 @@ function legacy(row, i) {
     const m = list(r.matches).find((x) => x.id === id);
     return {
       id,
-      title: id,
+      title: titles.get(id) || id,
       kind: list(r.methodCandidateIds).includes(id) ? "method" : "example",
       included: included.has(id),
       similarity: m ? num(m.similarity) : null,
@@ -305,6 +310,12 @@ export function coverage(run) {
 export function formatMs(ms) {
   if (num(ms) === null) return "未记录";
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+/** 同一毫秒内连续打点的差值是 0。那不是这段工作耗时为 0，只是没有单独计时。 */
+export function formatStepMs(ms) {
+  if (num(ms) === null) return "未记录";
+  if (ms === 0) return "未单独计时";
+  return formatMs(ms);
 }
 export function exportBundle(runs, reviews = {}) {
   return {

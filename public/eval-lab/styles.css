@@ -788,23 +788,48 @@ main {
 }
 .trace-grid {
   display: grid;
-  grid-template-columns: 168px minmax(0, 1fr);
-  gap: 25px;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.knowledge-board {
+  margin: 0 0 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.knowledge-board h2 {
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+.knowledge-board > .muted {
+  margin: 0 0 12px;
 }
 .stage-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   align-self: start;
+  border-left: 1px solid var(--line);
 }
 .stage-button {
   text-align: left;
   position: relative;
   display: block;
-  padding: 11px 12px 11px 20px;
-  border-radius: 5px;
-  font-size: 13px;
-  min-height: 60px;
+  padding: 12px 14px 12px 18px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  min-height: 0;
+}
+.stage-button strong {
+  display: block;
+  font-weight: 500;
+}
+.stage-code {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font: 11px/1.4 var(--mono);
+  overflow-wrap: anywhere;
 }
 .stage-button::before {
   position: absolute;
@@ -1146,7 +1171,7 @@ dialog::backdrop {
     gap: 55px;
   }
   .trace-grid {
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   }
 }
 @media (max-width: 1180px) {
@@ -1170,7 +1195,13 @@ dialog::backdrop {
     padding-bottom: 10px;
   }
   .stage-button {
-    min-width: 145px;
+    min-width: 196px;
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  .stage-list {
+    border-left: 0;
+    border-bottom: 1px solid var(--line);
   }
   .io-columns {
     grid-template-columns: 1fr;

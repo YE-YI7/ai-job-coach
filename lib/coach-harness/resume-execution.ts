@@ -145,7 +145,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       methodCandidateIds: methods.map(item => item.id),
       includedMethodIds: methods.filter(item => includedIds.has(item.id)).map(item => item.id),
       excludedByBudgetIds: references.knowledge.filter(item => !includedIds.has(item.id)).map(item => item.id),
-      matches: examples.map(item => ({ id: item.document.id, similarity: item.score, dimensions: item.matchedDimensions, signals: item.matchedSignals, stageMatched: item.stageMatched })) };
+      matches: examples.map(item => ({ id: item.document.id, similarity: item.score, dimensions: item.matchedDimensions, signals: item.matchedSignals, stageMatched: item.stageMatched })),
+      documentTitles: [...new Map<string, string>([
+        ...references.knowledge.map(item => [item.id, item.title] as const),
+        ...examples.map(item => [item.document.id, item.document.title] as const),
+      ])].flatMap(([id, title]) => id && title ? [{ id, title }] : []) };
     trace.step("retrieval", examples.length ? "background_examples_selected" : "no_close_example", examples.length);
     trace.step("retrieval", "reviewed_methods_in_context", trace.data.retrieval.includedMethodIds?.length || 0, { input: { resumeText, jobDescription, candidateMethodIds: methods.map(item=>item.id) }, output: { retrieval: trace.data.retrieval, knowledgePrompt }, knowledge: includedKnowledge.map(item=>({id:item.id,title:item.title,included:true,kind:'knowledge'})) });
 

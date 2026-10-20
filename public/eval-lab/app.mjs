@@ -2,6 +2,7 @@ import {
   parseImport,
   coverage,
   formatMs,
+  formatStepMs,
   exportBundle,
   text,
   STATUS,
@@ -173,15 +174,47 @@ function io(s) {
     );
   return `<div class="io-columns"><div class="io-block"><h3>输入 Input</h3>${payload(s.input)}</div><div class="io-block"><h3>输出 Output</h3>${payload(s.output)}</div></div>`;
 }
-function knowledgeHTML(entries, scopeLabel = "知识库使用") {
+function uniqueKnowledge(entries) {
   const seen = new Set();
-  const k = entries.filter((k) => {
-    const key = `${k.id}:${k.included}`;
+  return (entries || []).filter((entry) => {
+    if (!entry?.id) return false;
+    const key = `${entry.id}:${entry.included}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  return `<details class="knowledge"><summary>${esc(scopeLabel)} <span class="muted">· ${k.length ? `${k.filter((k) => k.included).length} 条实际纳入` : "未记录"}${k.some((k) => !k.included) ? ` / ${k.length} 条候选` : ""}</span></summary>${k.length ? k.map((k) => `<div class="knowledge-entry"><header><strong>${esc(k.title || k.id)}</strong><span class="muted">${k.included ? "已使用" : "未纳入"}</span></header><p>${esc(k.id)}${typeof k.similarity === "number" ? ` · 匹配 ${k.similarity}` : ""}</p>${k.reason ? `<p>${esc(k.reason)}</p>` : ""}${k.excerpt ? `<div class="prose">${esc(k.excerpt)}</div>` : "<p>正文未随 Trace 保存</p>"}</div>`).join("") : missing("未记录知识条目", "这不等于本次没有使用知识；需要以实际采集记录为准。")}</details>`;
+}
+function knowledgeCards(entries) {
+  return entries
+    .map(
+      (entry) =>
+        `<div class="knowledge-entry"><header><strong>${esc(entry.title || entry.id)}</strong><span class="muted">${entry.included ? "已纳入" : "未纳入"}</span></header><p>${esc(entry.id)}${typeof entry.similarity === "number" ? ` · 匹配 ${entry.similarity}` : ""}</p>${entry.reason ? `<p>${esc(entry.reason)}</p>` : ""}${entry.excerpt ? `<div class="prose">${esc(entry.excerpt)}</div>` : ""}</div>`,
+    )
+    .join("");
+}
+function knowledgeHTML(entries, scopeLabel = "知识库使用") {
+  const items = uniqueKnowledge(entries);
+  const used = items.filter((entry) => entry.included).length;
+  return `<details class="knowledge"><summary>${esc(scopeLabel)} <span class="muted">· ${items.length ? `${used} 条实际纳入` : "未记录"}${items.some((entry) => !entry.included) ? ` / ${items.length} 条候选` : ""}</span></summary>${items.length ? knowledgeCards(items) : missing("未记录知识条目", "这不等于本次没有使用知识；需要以实际采集记录为准。")}</details>`;
+}
+function knowledgeBoard(entries) {
+  const items = uniqueKnowledge(entries);
+  if (!items.length)
+    return missing(
+      "未记录知识条目",
+      "这次运行没有留下检索到的知识文档。不能据此判断当时没有查知识库。",
+    );
+  const used = items.filter((entry) => entry.included).length;
+  const held = items.length - used;
+  return `<section class="knowledge-board" aria-label="这次调取的知识"><h2>这次调取的知识</h2><p class="muted">${used} 条纳入上下文${held ? ` · ${held} 条未纳入` : ""}</p>${knowledgeCards(items)}</section>`;
+}
+function sameKnowledge(left, right) {
+  const key = (entries) =>
+    uniqueKnowledge(entries)
+      .map((entry) => `${entry.id}:${entry.included}:${entry.reason || ""}:${entry.excerpt || ""}`)
+      .sort()
+      .join("\n");
+  return key(left) === key(right);
 }
 function current() {
   return runs.find((r) => r.id === selected);
@@ -368,7 +401,8 @@ function renderPanel() {
     else {
       const s = preferredSpan(r.spans, spanId);
       spanId = s.id;
-      h += `<div class="trace-grid"><div class="stage-list" aria-label="阶段时间线">${r.spans.map((s) => `<button class="stage-button" data-span="${esc(s.id)}" aria-pressed="${s.id === spanId}">${esc(s.name)}<span>${esc(formatMs(s.durationMs))} · ${esc(STATUS[s.status] || "未记录")}</span></button>`).join("")}</div><div class="span-detail"><div class="span-title"><h2>${esc(s.name)}</h2>${statusHTML(s.status)}</div>${s.code ? `<p class="code-label">${esc(s.code)}</p>` : ""}${s.model ? `<p class="code-label">${esc(s.model)}</p>` : ""}${io(s)}${knowledgeHTML(s.knowledge?.length ? s.knowledge : r.knowledge, s.knowledge?.length ? "本阶段知识" : "本次运行知识（未映射到阶段）")}</div></div>`;
+      h += knowledgeBoard(r.knowledge);
+      h += `<div class="trace-grid"><div class="stage-list" aria-label="阶段时间线">${r.spans.map((item) => `<button class="stage-button" data-span="${esc(item.id)}" aria-pressed="${item.id === spanId}"><strong>${esc(item.name)}</strong>${item.code ? `<span class="stage-code">${esc(item.code)}</span>` : ""}<span>${esc(formatStepMs(item.durationMs))} · ${esc(STATUS[item.status] || "未记录")}</span></button>`).join("")}</div><div class="span-detail"><div class="span-title"><h2>${esc(s.name)}</h2>${statusHTML(s.status)}</div><p class="code-label">${esc(formatStepMs(s.durationMs))}${s.code ? ` · ${esc(s.code)}` : ""}${s.model ? ` · ${esc(s.model)}` : ""}</p>${io(s)}${sameKnowledge(s.knowledge, r.knowledge) ? "" : knowledgeHTML(s.knowledge?.length ? s.knowledge : [], "本阶段另外记录的知识")}</div></div>`;
     }
   }
   if (tab === "agents") {
@@ -379,7 +413,7 @@ function renderPanel() {
       ? agents
           .map(
             (s) =>
-              `<section class="agent-entry"><div class="span-title"><h2>${esc(s.agent)}</h2>${statusHTML(s.status)}</div><p class="code-label">${esc(s.id)} · ${esc(formatMs(s.durationMs))}${s.model ? ` · ${esc(s.model)}` : ""}${s.parentId ? ` · parent ${esc(s.parentId)}` : ""}</p>${io(s)}${knowledgeHTML(s.knowledge || [], "该 Agent 实际上下文知识")}</section>`,
+              `<section class="agent-entry"><div class="span-title"><h2>${esc(s.agent)}</h2>${statusHTML(s.status)}</div><p class="code-label">${esc(s.id)} · ${esc(formatStepMs(s.durationMs))}${s.model ? ` · ${esc(s.model)}` : ""}${s.parentId ? ` · parent ${esc(s.parentId)}` : ""}</p>${io(s)}${s.knowledge?.length ? knowledgeHTML(s.knowledge, "该 Agent 实际上下文知识") : `<p class="muted">这次模型调用没有单独记下知识文档。检索结果在 Trace 页顶部。</p>`}</section>`,
           )
           .join("")
       : missing(

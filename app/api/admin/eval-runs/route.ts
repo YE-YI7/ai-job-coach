@@ -18,7 +18,16 @@ import {
   resumeRequestHash,
 } from "@/lib/coach-harness/resume-trace";
 import type { ResumeChange } from "@/lib/opportunities/types";
-import { withEvalStages as withStages } from "@/lib/coach-harness/eval-scope";
+import compiledKnowledge from "@/data/knowledge-documents.generated.json";
+import {
+  knowledgeFromRetrieval,
+  presentEvalRun,
+  withEvalStages as withStages,
+} from "@/lib/coach-harness/eval-scope";
+
+const knowledgeTitles = Object.fromEntries(
+  compiledKnowledge.documents.map((document) => [document.id, document.title]),
+);
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -55,15 +64,28 @@ export async function GET(request: Request) {
     if (id) {
       const { data, error } = await db
         .from("coach_eval_runs")
-        .select("run")
+        .select("run, legacy_trace_id")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
-      if (data)
+      if (data) {
+        let retrieval: unknown = null;
+        if (data.legacy_trace_id) {
+          const old = await db
+            .from("product_events")
+            .select("properties")
+            .eq("event_name", RESUME_TRACE_EVENT)
+            .eq("properties->>traceId", data.legacy_trace_id)
+            .maybeSingle();
+          if (!old.error) retrieval = old.data?.properties?.retrieval || null;
+        }
         return json({
           schemaVersion: "yizhi.eval/v1",
-          runs: [withStages(data.run)],
+          runs: [
+            presentEvalRun(withStages(data.run), knowledgeTitles, retrieval),
+          ],
         });
+      }
       const old = await db
         .from("product_events")
         .select("id,occurred_at,properties")
@@ -237,6 +259,7 @@ export async function POST(request: Request) {
       save: "结果保存",
       failure: "异常退出",
     };
+    const knowledge = knowledgeFromRetrieval(trace?.retrieval, knowledgeTitles);
     let previous = 0;
     const stages = (trace?.steps || []).map(
       (
@@ -256,6 +279,7 @@ export async function POST(request: Request) {
           startedAt,
           input: null,
           output: null,
+          knowledge: s.stage === "retrieval" ? knowledge : [],
         };
       },
     );
@@ -264,14 +288,7 @@ export async function POST(request: Request) {
       "阶段打点间隔来自累计时间之差；Agent 调用耗时单独记录。",
       "LLM 自评不是独立人工结论，也不构成离线评测集验收。",
     ];
-    run.knowledge = (trace?.retrieval?.includedIds || []).map(
-      (key: string) => ({
-        id: key,
-        title: key,
-        included: true,
-        kind: "knowledge",
-      }),
-    );
+    run.knowledge = knowledge;
     const preview =
       output.ok && Array.isArray(output.changes)
         ? applyResumeChanges(
@@ -341,7 +358,7 @@ export async function POST(request: Request) {
     return json({
       id,
       schemaVersion: "yizhi.eval/v1",
-      runs: [withStages(run)],
+      runs: [presentEvalRun(withStages(run), knowledgeTitles)],
     });
   } catch {
     run.status = "failed";

@@ -3,6 +3,7 @@ import { getDbClient } from "@/lib/db";
 import {
   EVAL_STAGE_NAMES,
   getEvalObserver,
+  knowledgeFromRetrieval,
   redactEval,
   withEvalObserver,
   type EvalSpan,
@@ -154,6 +155,7 @@ export async function recordWorkspaceResume(
       run.captureWarning = "阶段摘要读取失败；实际输入输出仍保留。";
     }
     legacyId = trace?.traceId || null;
+    const knowledge = knowledgeFromRetrieval(trace?.retrieval);
     let previousElapsed = 0;
     run.stages = (trace?.steps || []).map(
       (
@@ -172,20 +174,13 @@ export async function recordWorkspaceResume(
           durationMs: Math.max(0, step.elapsedMs - start),
           input: null,
           output: null,
-          knowledge: [],
+          knowledge: step.stage === "retrieval" ? knowledge : [],
         };
       },
     );
     run.status = trace?.outcome || (response.ok ? "completed" : "failed");
     run.ruleQuality = trace?.quality || null;
-    run.knowledge = (trace?.retrieval?.includedIds || []).map(
-      (key: string) => ({
-        id: key,
-        title: key,
-        included: true,
-        kind: "knowledge",
-      }),
-    );
+    run.knowledge = knowledge;
     run.result = {
       status: run.status,
       output,

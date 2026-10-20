@@ -20,10 +20,12 @@ test("bounded list and full batch use projected results, never prompts or model 
   const selects:string[]=[],limits:number[]=[];
   (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>{const q:any={
     select:(v:string)=>{selects.push(v);return q;},eq:()=>q,order:()=>q,limit:(n:number)=>{limits.push(n);return q;},
-    maybeSingle:async()=>({data:{id,label:"batch",status:"completed",config:{synthetic:true}},error:null}),
-    then:(resolve:(r:unknown)=>unknown)=>resolve({data:table==="coach_eval_runs"?[{id,label:"run",status:"failed",experiment:{batchId:id},metrics:{calls:1},result:{error:"failed"},evaluation:null}]:[],error:null}),
+    maybeSingle:async()=>({data:{id,label:"batch",status:"completed",config:{synthetic:true},summary:{externalReview:{reviewer:"external",reviews:[{runId:id,evidence:"real evidence"}]}}},error:null}),
+    then:(resolve:(r:unknown)=>unknown)=>resolve({data:table==="coach_eval_runs"?[{id,label:"run",status:"failed",legacy_trace_id:"trace-one",experiment:{batchId:id},metrics:{calls:1},result:{error:"failed"},evaluation:null}]:[],error:null}),
   };return q;}});
   expect((await GET(new Request(origin))).status).toBe(200);
-  const response=await GET(new Request(origin+"?id="+id));expect((await response.json()).runs[0]).toMatchObject({status:"failed",metrics:{calls:1},evaluation:null});
-  expect(limits).toEqual([30,100]);expect(selects).toContain("id,label,status,experiment:run->experiment,metrics:run->metrics,result:run->result,evaluation:run->evaluation");
+  const response=await GET(new Request(origin+"?id="+id));const data=await response.json();
+  expect(data.runs[0]).toMatchObject({status:"failed",metrics:{calls:1},evaluation:null,resumeTraceId:"trace-one",externalReview:{runId:id,evidence:"real evidence"}});
+  expect(data.batch.summary.externalReview.reviews).toBeUndefined();
+  expect(limits).toEqual([30,100]);expect(selects).toContain("id,label,status,legacy_trace_id,experiment:run->experiment,metrics:run->metrics,result:run->result,evaluation:run->evaluation");
 });

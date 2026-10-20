@@ -12,11 +12,10 @@ import {
 } from "./core.mjs";
 import { samples } from "./samples.mjs";
 const $ = (id) => document.getElementById(id);
-const live = new URLSearchParams(location.search).get("live") === "1";
-// Internal acceptance link: exercises the ordinary authenticated business API,
-// not a second rewrite implementation. Never runs automatically on load.
-const workspaceEntry =
-  live && new URLSearchParams(location.search).get("workspace-entry") === "1";
+// The URL, storage and every DOM binding are read inside boot() so this module
+// stays importable by the unit tests, which have no browser.
+let live = false,
+  workspaceEntry = false;
 let runs = [],
   selected = null,
   tab = "trace",
@@ -26,11 +25,16 @@ let runs = [],
   requestSequence = 0,
   pendingId = null;
 let uncertainId = null;
-if (live) {
-  try {
-    uncertainId = sessionStorage.getItem("yizhi-eval-pending");
-  } catch {}
-}
+// 案例反馈的草稿只存在本机 sessionStorage；编号在同一次提交的失败重试里保持不变。
+let feedbacks = [],
+  feedbackDraft = null,
+  feedbackBusy = false,
+  feedbackSequence = 0,
+  feedbackStatus = null;
+let feedbackContext = 0;
+// 方案对比是独立视图，切换记录时必须先退出，避免旧响应写进新页面。
+let compareMode = false,
+  compareSequence = 0;
 const reviews = {};
 const esc = (x) =>
   String(x ?? "").replace(
@@ -51,6 +55,84 @@ const date = (s) => {
     minute: "2-digit",
   }).format(new Date(s));
 };
+export const FEEDBACK_CATEGORIES = [
+  ["format", "版式与结构"],
+  ["quality", "改稿质量"],
+  ["grounding", "事实与引用"],
+  ["questioning", "逐问补充"],
+  ["system", "系统异常"],
+  ["other", "其他"],
+];
+export const FEEDBACK_VERDICTS = [
+  ["improve", "仍需改进"],
+  ["fail", "不可交付"],
+  ["pass", "可以交付"],
+];
+/**
+ * 反馈对象只能来自这条运行记录里真实存在的修改。后端按同一份 ID 名单校验，
+ * 缺 id 的条目一律不给选——不自行编号，也不把段落序号当 ID。
+ */
+export function changeOptions(run) {
+  const result = run?.original?.result ?? run?.result ?? {};
+  const changes = result?.rawResponse?.changes ?? result?.output?.changes;
+  if (!Array.isArray(changes)) return [];
+  return changes.flatMap((change, index) => {
+    if (!change || typeof change !== "object") return [];
+    const id = typeof change.id === "string" ? change.id.trim() : "";
+    if (!id) return [];
+    const section =
+      typeof change.section === "string" && change.section.trim()
+        ? change.section.trim()
+        : `第 ${index + 1} 条修改`;
+    return [{ id, section }];
+  });
+}
+/** 提交体固定这七个字段；用户、账号、简历正文都不从中经过，多余字段会被服务端拒绝。 */
+export function feedbackPayload(draft) {
+  const note = String(draft?.note ?? "").trim();
+  if (!note) throw Error("请先写下具体问题，空白反馈不会提交。");
+  if (!draft?.id || !draft?.runId) throw Error("缺少反馈编号或运行编号，未提交。");
+  const whole = draft.scope !== "change";
+  if (!whole && !String(draft.changeId ?? "").trim())
+    throw Error("这条运行没有可选的具体修改，请改选整份简历。");
+  return {
+    id: draft.id,
+    runId: draft.runId,
+    changeId: whole ? null : String(draft.changeId).trim(),
+    scope: whole ? "whole_document" : "change",
+    category: draft.category,
+    verdict: draft.verdict,
+    note,
+    expected: String(draft.expected ?? "").trim(),
+  };
+}
+const COST_STATUS = {
+  estimate_only_no_invoice: "仅估价，未开票",
+  invoiced: "已按实际账单",
+  not_billed: "未计费",
+};
+/** 缺失一律「未记录」；0 是真实值，不能被当成缺失，估价也不冒充实扣。 */
+export function metricCell(metrics, key, kind = "number") {
+  const value = metrics?.[key];
+  if (value === null || value === undefined || value === "") return "未记录";
+  if (kind === "ms") return formatMs(value);
+  if (kind === "usd") return `$${Number(value).toFixed(4)}`;
+  if (kind === "costStatus")
+    return COST_STATUS[String(value)] || String(value);
+  if (kind === "flag") return value === true ? "已验证" : value === false ? "未验证" : "未记录";
+  if (kind === "text") return String(value);
+  return Number.isFinite(Number(value)) ? String(Number(value)) : String(value);
+}
+export const METRIC_COLUMNS = [
+  ["wallMs", "耗时", "ms"],
+  ["calls", "调用", "number"],
+  ["inputTokens", "输入 token", "number"],
+  ["outputTokens", "输出 token", "number"],
+  ["cacheHitTokens", "缓存命中", "number"],
+  ["estimatedCostUsd", "估价", "usd"],
+  ["actualCost", "实扣", "usd"],
+  ["costStatus", "计费口径", "costStatus"],
+];
 let toastTimer;
 function toast(message, error = false) {
   clearTimeout(toastTimer);
@@ -161,19 +243,26 @@ function renderList() {
     .forEach((b) => b.addEventListener("click", () => select(b.dataset.run)));
 }
 async function select(id) {
+  if (compareMode) closeCompare();
+  const seq = ++requestSequence;
   selected = id;
   spanId = null;
+  resetFeedback(id);
   const r = current();
   renderList();
+  renderDetail();
   if (r?.detailAvailable) {
-    const seq = ++requestSequence;
     loading = true;
     notice("正在读取本次运行的详细证据…");
     try {
       const data = await api(`?id=${encodeURIComponent(id)}`);
-      if (seq !== requestSequence) return;
+      if (seq !== requestSequence || selected !== id) return;
       const full = parseImport(JSON.stringify(data))[0];
+      // 回来的必须是刚点的那条；编号不一致就停手，不能让上一条的面板留在页面上冒充。
+      if (!full || full.id !== id)
+        throw Error("服务器返回的运行编号与所选记录不一致，已停止载入本页。");
       runs = runs.map((x) => (x.id === id ? full : x));
+      renderList();
       notice(
         full.format === "resume_trace_v1"
           ? "历史阶段摘要 · 当时未保存输入输出，不能完整回放。已授权账号今后的工作区改稿会直接采集。"
@@ -181,15 +270,18 @@ async function select(id) {
               "正式管理员记录 · 只读查看，不会自动调用模型",
       );
     } catch (e) {
+      if (seq !== requestSequence || selected !== id) return;
       notice(e.message, true);
     } finally {
-      loading = false;
+      if (seq === requestSequence) loading = false;
     }
   }
+  if (seq !== requestSequence || selected !== id) return;
   if (current()) {
     renderDetail();
     $("empty").hidden = true;
     $("detail").hidden = false;
+    void loadFeedback(id);
     try {
       sessionStorage.setItem("yizhi-eval-selected", id);
     } catch {}
@@ -218,7 +310,9 @@ function renderDetail() {
     r.provenance === "synthetic"
       ? "演示运行 · 虚构样本，未调用模型"
       : loadedSource === "production"
-        ? r.source === "workspace"
+        ? r.source === "isolated_experiment"
+          ? "真实模型 · 虚构隔离样本"
+          : r.source === "workspace"
           ? "工作区真实请求 · 直接采集"
           : "益职正式站 · 管理员观察"
         : "本地导入 · 仅当前标签页";
@@ -226,7 +320,7 @@ function renderDetail() {
   $("run-status").textContent = STATUS[r.status] || "状态未记录";
   $("run-id").textContent = r.id;
   $("run-time").textContent = date(r.startedAt);
-  $("run-duration").textContent = `总耗时 ${formatMs(r.durationMs)}`;
+  $("run-duration").textContent = `总耗时 ${formatMs(r.durationMs ?? r.metrics?.wallMs)}`;
   document.querySelectorAll("[data-tab]").forEach((b) => {
     b.setAttribute("aria-selected", b.dataset.tab === tab);
     b.tabIndex = b.dataset.tab === tab ? 0 : -1;
@@ -234,6 +328,7 @@ function renderDetail() {
   $("panel").setAttribute("aria-labelledby", `tab-${tab}`);
   renderPanel();
   renderAssessment();
+  renderFeedback();
   const review = reviews[r.id] || loadReviews(r.id);
   $("verdict").value = review.verdict;
   $("review-note").value = review.note;
@@ -368,6 +463,427 @@ function renderAssessment() {
     h += `<p class="safety-note">另有程序规则分 ${esc(r.ruleQuality.score ?? "—")} / 100，可在“评估依据”查看。</p>`;
   $("assessment").innerHTML = h;
 }
+const labelOf = (pairs) => Object.fromEntries(pairs);
+const FB_LABELS = {
+  category: labelOf(FEEDBACK_CATEGORIES),
+  verdict: labelOf(FEEDBACK_VERDICTS),
+};
+const FEEDBACK_KEY = "yizhi-eval-feedback-draft";
+const feedbackKey = (id) => `${FEEDBACK_KEY}:${id}`;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** A bounded recent list must not discard a deep-linked experiment on reload.
+ * This is metadata only; select() must still fetch the actual run from the API. */
+export function restoreSelection(items, preferred) {
+  if (!preferred || items.some((r) => r.id === preferred)) return items;
+  if (!UUID.test(preferred)) return items;
+  return [{id:preferred,label:"上次查看的运行",status:"unknown",provenance:"production",
+    spans:[],knowledge:[],result:{},evaluation:null,detailAvailable:true},...items];
+}
+export const WHOLE_TARGET = "whole";
+/** 反馈对象编码：整稿不带修改 ID，具体修改只带这条运行记录里真实存在的 ID。 */
+export function parseTarget(value) {
+  const raw = String(value ?? "");
+  if (!raw.startsWith("change:")) return { scope: "whole_document", changeId: null };
+  const id = raw.slice("change:".length).trim();
+  return id ? { scope: "change", changeId: id } : { scope: "whole_document", changeId: null };
+}
+let feedbackLoadError = null;
+function feedbackBlock(reason) {
+  return { cloud: false, reason };
+}
+function feedbackAccess() {
+  const r = current();
+  if (!r) return feedbackBlock("请先选择一条运行。");
+  if (r.provenance === "synthetic")
+    return feedbackBlock("演示运行是虚构样本，不写入正式反馈；人工判断仍可保存到本机。");
+  if (loadedSource !== "production")
+    return feedbackBlock("本地导入的记录只在当前标签页解析，不能提交到后台；请从益职同域的管理员入口读取正式运行。");
+  if (!UUID.test(r.id))
+    return feedbackBlock("这条记录的编号不是正式运行 ID，后台不接受，请刷新后重试。");
+  return { cloud: true, reason: "" };
+}
+function resetFeedback(id) {
+  ++feedbackContext;
+  ++feedbackSequence;
+  feedbacks = [];
+  feedbackBusy = false;
+  feedbackLoadError = null;
+  feedbackStatus = null;
+  feedbackDraft = null;
+  try {
+    const raw = sessionStorage.getItem(feedbackKey(id));
+    const saved = raw ? JSON.parse(raw) : null;
+    // 草稿按运行隔离；切回原记录仍可继续，不把内容带给另一个运行。
+    if (saved && saved.runId === id) feedbackDraft = saved;
+  } catch {}
+}
+function persistFeedbackDraft() {
+  try {
+    sessionStorage.setItem(feedbackKey(feedbackDraft.runId), JSON.stringify(feedbackDraft));
+  } catch {}
+}
+function captureDraft() {
+  if (!current() || !feedbackAccess().cloud || feedbackBusy || feedbackDraft?.pending) return;
+  feedbackDraft = {
+    id: feedbackDraft?.id || crypto.randomUUID(),
+    runId: current().id,
+    target: $("fb-target").value,
+    category: $("fb-category").value,
+    verdict: $("fb-verdict").value,
+    note: $("fb-note").value,
+    expected: $("fb-expected").value,
+  };
+  persistFeedbackDraft();
+  // 一旦又改了内容，上一条确认信息就不该继续挂在状态行上冒充本次结果。
+  feedbackStatus = null;
+}
+function feedbackListHTML(items) {
+  if (!items.length)
+    return `<p class="empty-list">这条正式运行还没有后台反馈记录。列表只反映服务器返回的内容。</p>`;
+  return items
+    .map(
+      (f) =>
+        `<article class="feedback-item"><header><strong>${esc(FB_LABELS.category[f.category] || "类别未记录")}</strong><span class="verdict ${esc(f.verdict)}">${esc(FB_LABELS.verdict[f.verdict] || "结论未记录")}</span><span class="muted">${esc(date(f.createdAt))}</span></header><p class="feedback-target">${esc(f.scope === "change" ? `具体修改 ${f.changeId || "未记录"}` : "整份简历")} · 编号 ${esc(f.id)}</p><p class="prose">${esc(f.note)}</p>${f.expected ? `<p class="muted">期望：${esc(f.expected)}</p>` : ""}</article>`,
+    )
+    .join("");
+}
+function renderFeedback() {
+  const r = current();
+  if (!r) return;
+  const access = feedbackAccess();
+  const target = $("fb-target"),
+    category = $("fb-category"),
+    verdict = $("fb-verdict");
+  if (!category.options.length) {
+    category.innerHTML = FEEDBACK_CATEGORIES.map(
+      ([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`,
+    ).join("");
+    verdict.innerHTML = FEEDBACK_VERDICTS.map(
+      ([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`,
+    ).join("");
+  }
+  const changes = changeOptions(r);
+  const options = [
+    [
+      WHOLE_TARGET,
+      changes.length ? "整份简历（不针对某一条修改）" : "整份简历（本次没有可反馈的具体修改）",
+    ],
+    ...changes.map((c) => [`change:${c.id}`, `${c.section} · ${c.id.slice(0, 8)}`]),
+  ];
+  target.innerHTML = options
+    .map(
+      ([value, label]) =>
+        `<option value="${esc(value)}">${esc(label)}</option>`,
+    )
+    .join("");
+  const kept =
+    feedbackDraft?.runId === r.id &&
+    options.some(([value]) => value === feedbackDraft.target)
+      ? feedbackDraft.target
+      : WHOLE_TARGET;
+  target.value = kept;
+  if (feedbackDraft?.runId === r.id) {
+    category.value = feedbackDraft.category || category.value;
+    verdict.value = feedbackDraft.verdict || verdict.value;
+    $("fb-note").value = feedbackDraft.note || "";
+    $("fb-expected").value = feedbackDraft.expected || "";
+  } else {
+    category.value = FEEDBACK_CATEGORIES[0][0];
+    verdict.value = FEEDBACK_VERDICTS[0][0];
+    $("fb-note").value = "";
+    $("fb-expected").value = "";
+  }
+  const whole = parseTarget(target.value);
+  const locked = feedbackBusy || !!feedbackDraft?.pending;
+  target.disabled = !access.cloud || changes.length === 0 || locked;
+  for (const id of ["fb-category", "fb-verdict", "fb-note", "fb-expected"])
+    $(id).disabled = !access.cloud || locked;
+  $("fb-save").disabled = !access.cloud || feedbackBusy;
+  $("fb-save").textContent = feedbackBusy ? "正在保存…" : feedbackDraft?.pending ? "确认上次提交" : "保存到后台";
+  $("fb-target-id").textContent = whole.changeId
+    ? `运行 ${r.id} · 修改 ${whole.changeId}`
+    : `运行 ${r.id} · 整份简历`;
+  $("fb-intro").textContent = access.cloud
+    ? "指出这一条改稿的具体问题，保存到管理员后台供下一轮改进。"
+    : access.reason;
+  $("fb-status").textContent =
+    feedbackLoadError ||
+    feedbackStatus ||
+    (feedbackDraft?.pending ? "上次提交结果尚未确认，原内容与编号已保留。请先确认上次提交，再填写新反馈。" : "") ||
+    "未提交的反馈只留在当前标签页；只有服务器确认后才会显示已保存。";
+  $("fb-list").innerHTML = access.cloud
+    ? feedbackListHTML(feedbacks)
+    : `<p class="empty-list">未连接正式运行，不显示反馈列表。</p>`;
+}
+async function loadFeedback(id) {
+  const seq = ++feedbackSequence;
+  if (!feedbackAccess().cloud) {
+    renderFeedback();
+    return;
+  }
+  try {
+    const data = await adminApi(`/api/admin/eval-feedback?runId=${encodeURIComponent(id)}`);
+    if (seq !== feedbackSequence || selected !== id) return;
+    feedbacks = data.cases || [];
+    feedbackLoadError = null;
+  } catch (e) {
+    if (seq !== feedbackSequence || selected !== id) return;
+    feedbacks = [];
+    feedbackLoadError = `${e.message} 列表留空，不会用演示数据顶替。`;
+  }
+  renderFeedback();
+}
+async function saveFeedback() {
+  const r = current();
+  if (!r || feedbackBusy || !feedbackAccess().cloud) return;
+  captureDraft();
+  const context = feedbackContext;
+  const stillHere = () => feedbackContext === context && selected === r.id;
+  const whole = parseTarget(feedbackDraft.target);
+  let body;
+  try {
+    body = feedbackDraft.pending || feedbackPayload({
+      id: feedbackDraft.id,
+      runId: r.id,
+      scope: whole.scope,
+      changeId: whole.changeId,
+      category: feedbackDraft.category,
+      verdict: feedbackDraft.verdict,
+      note: feedbackDraft.note,
+      expected: feedbackDraft.expected,
+    });
+  } catch (e) {
+    feedbackBusy = false;
+    feedbackStatus = e.message;
+    renderFeedback();
+    toast(e.message, true);
+    return;
+  }
+  feedbackBusy = true;
+  ++feedbackSequence; // 不让提交前的列表响应抹掉刚保存的记录。
+  feedbackDraft.pending = body;
+  persistFeedbackDraft();
+  feedbackStatus = "正在提交，只有服务器确认后才会显示已保存。";
+  renderFeedback();
+  try {
+    const data = await adminApi("/api/admin/eval-feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (data.feedback?.id !== body.id || data.feedback?.runId !== body.runId ||
+        data.feedback?.changeId !== body.changeId || data.feedback?.scope !== body.scope)
+      throw Error("后台返回的反馈编号不一致，尚未确认保存，请重试核对。");
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(feedbackKey(r.id)) || "null");
+      if (stored?.id === body.id) sessionStorage.removeItem(feedbackKey(r.id));
+    } catch {}
+    if (!stillHere()) return;
+    feedbacks = [data.feedback, ...feedbacks.filter((x) => x.id !== data.feedback.id)];
+    feedbackStatus = data.replayed
+      ? "这条反馈此前已保存，服务器没有重复写入。"
+      : `后台已保存 · ${date(data.feedback.createdAt)}`;
+    feedbackDraft = null;
+    $("fb-note").value = "";
+    $("fb-expected").value = "";
+    toast("案例反馈已保存到后台");
+  } catch (e) {
+    if (!stillHere()) return;
+    if ([400, 401, 403, 404, 409].includes(e.status)) {
+      delete feedbackDraft.pending;
+      feedbackDraft.id = crypto.randomUUID();
+      persistFeedbackDraft();
+    }
+    // 失败保留输入，编号不变；重试命中服务端幂等，不产生第二条反馈。
+    feedbackStatus = feedbackDraft.pending
+      ? `${e.message} 原内容和编号已保留，请点“确认上次提交”，不会重复写入。`
+      : `${e.message} 内容已保留，可以调整后重新提交。`;
+    toast(e.message, true);
+  } finally {
+    if (!stillHere()) return;
+    feedbackBusy = false;
+    renderFeedback();
+  }
+}
+async function adminApi(path, options) {
+  const response = await fetch(path, {
+    ...options,
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw Error("服务器没有返回有效 JSON，请重试。");
+  }
+  const fail = (message) => { const error = Error(message); error.status = response.status; throw error; };
+  if (response.status === 401) fail("登录已失效，请返回益职登录后再试。");
+  if (response.status === 403) fail("当前账号没有管理员权限，内容未保存到云端。");
+  if (response.status === 503) throw Error(data.error || "后台暂时不可用，内容已保留，可以重试。");
+  if (!response.ok || data.ok !== true)
+    fail(data.error || `后台未确认（${response.status}）。`);
+  return data;
+}
+const STRATEGY = {
+  independent: "独立复核",
+  self_review: "作者自查",
+  format_only: "仅格式",
+};
+const FORMAT_POLICY = {
+  preserve: "保留原稿版式",
+  repair: "修复版式",
+  standard: "标准版式",
+};
+const SPLIT = { development: "开发集", holdout: "留出集" };
+function compareNote(runs) {
+  const n = runs.length;
+  const counts = runs.reduce(
+    (acc, r) => ((acc[r.status] = (acc[r.status] || 0) + 1), acc),
+    {},
+  );
+  return `N=${n} 次运行（${Object.entries(counts)
+    .map(([k, v]) => `${STATUS[k] || "状态未记录"} ${v}`)
+    .join(" · ")}）。这是小样本描述，失败与超时都算在内，只用于比较趋势，不构成统计结论，也不按耗时或规则分选冠军。`;
+}
+function runRowHTML(run) {
+  const e = run.experiment || {},
+    m = run.metrics || {};
+  const score = run.evaluation?.score ?? run.evaluation?.result ?? null;
+  return `<tr><th scope="row"><span class="compare-run"><strong>${esc(run.label || run.id)}</strong>${statusHTML(run.status)}</span><span class="compare-flags">${esc(STRATEGY[e.strategy] || e.strategy || "策略未记录")} · ${esc(FORMAT_POLICY[e.formatPolicy] || e.formatPolicy || "格式口径未记录")} · 样本 ${esc(e.fixtureId || "未记录")} · ${esc(SPLIT[e.split] || e.split || "分档未记录")} · 重复 ${esc(metricCell(e, "repeat"))}${e.phase ? ` · ${esc(e.phase)}` : ""}</span></th>${METRIC_COLUMNS.map(
+    ([key, label, kind]) =>
+      `<td data-label="${esc(label)}">${esc(metricCell(m, key, kind))}</td>`,
+  ).join("")}<td data-label="LLM 自评">${score == null ? "未记录" : `${esc(String(score))}${run.evaluation?.rubricVersion ? ` · ${esc(run.evaluation.rubricVersion)}` : ""}`}</td><td data-label="整稿一致">${esc(metricCell(m, "formatVerified", "flag"))}</td><td data-label="PDF 导出">${esc(metricCell(m, "pdfVerified", "flag"))}</td><td data-label="落库验证">${esc(metricCell(m, "persistenceVerified", "flag"))}</td><td data-label="证据"><button class="text-button" type="button" data-evidence="${esc(run.id)}">查看输入输出</button>${run.resumeTraceId ? `<span class="muted">Trace ${esc(String(run.resumeTraceId).slice(0, 8))}</span>` : "<span class=\"muted\">Trace 未记录</span>"}</td></tr>`;
+}
+export function externalReviewHTML(runs) {
+  const reviewed = runs.filter((r) => r.externalReview);
+  if (!reviewed.length) return '<p class="safety-note">外部盲评尚未记录；不由规则分或 LLM 自评分代替。</p>';
+  return `<section class="external-reviews"><h2>外部盲评</h2><p class="safety-note">用户交付的匿名候选审阅，与 LLM 自评分开记录。逐条保留证据、未知与顺序分歧；小样本不设总分冠军。原稿已清楚时，正确保留不因“改得少”判失败。</p>${reviewed.map((r) => {
+    const review = r.externalReview;
+    return `<details class="knowledge"><summary>${esc(r.label || r.id)} · ${review.groundingVeto === true ? "事实硬风险" : "未标出事实硬风险"}${review.orderSwapConsistent === false ? " · 换序评分有分歧" : ""}</summary><p class="prose">${esc(review.evidence)}</p><dl>${(review.dimensions || []).map((d) => `<dt>${esc(d.name)} · ${esc(d.score)} / ${esc(d.maxScore)}</dt><dd>${esc(d.reason)}</dd>`).join("")}</dl>${(review.unknown || []).map((note) => `<p class="muted">未知 / 限制：${esc(note)}</p>`).join("")}<p class="feedback-target">运行 ${esc(r.id)} · 匿名候选 ${esc(review.caseKey)}:${esc(review.tag)}</p></details>`;
+  }).join("")}</section>`;
+}
+function renderBatch(caption) {
+  $("batch-detail").innerHTML = caption;
+}
+function closeCompare() {
+  compareMode = false;
+  document.body.classList.remove("compare-on");
+  $("compare").hidden = true;
+  if (current()) {
+    $("detail").hidden = false;
+    $("empty").hidden = true;
+  } else {
+    $("detail").hidden = true;
+    $("empty").hidden = false;
+  }
+}
+async function loadBatch(id) {
+  const seq = ++compareSequence;
+  $("compare-caption").textContent = "正在读取批次结果…";
+  renderBatch(missing("正在读取", "只读取已完成的实验批次，不会触发模型调用。"));
+  try {
+    const data = await adminApi(`/api/admin/eval-experiments?id=${encodeURIComponent(id)}`);
+    if (seq !== compareSequence || !compareMode) return;
+    const runs = data.runs || [];
+    const head = `<p class="safety-note">${esc(runs.length ? compareNote(runs) : "这个批次没有运行记录；可能是批次启动即失败，不补造结果。")}</p>`;
+    const table = runs.length
+      ? `<div class="compare-scroll"><table class="compare-table"><caption class="sr-caption">离线评测批次的运行结果与模型调用开销</caption><thead><tr><th scope="col">运行 / 样本</th>${METRIC_COLUMNS.map(
+          ([key, label]) => `<th scope="col">${esc(label)}</th>`,
+        ).join("")}<th scope="col">LLM 自评</th><th scope="col">整稿一致</th><th scope="col">PDF 导出</th><th scope="col">落库验证</th><th scope="col">证据</th></tr></thead><tbody>${runs.map(runRowHTML).join("")}</tbody></table></div>`
+      : "";
+    renderBatch(
+      `${head}<p class="safety-note">流程版本：${esc(data.batch?.config?.workflow || "未记录")}。成本列为离线评测的模型调用开销：估价按计价表推算，实扣与计费口径单独成列，未记录就写未记录。用户在工作区触发的真实运行计费不在此表。</p>${table}${table ? `<p class="footnote">「整稿一致 / PDF 导出 / 落库验证」取自该次运行实际采集的标记；未实际导出的 PDF 记为未验证，不代表版式或导出通过。</p>` : ""}${externalReviewHTML(runs)}`,
+    );
+    $("batch-detail")
+      .querySelectorAll("[data-evidence]")
+      .forEach((b) => {
+        b.addEventListener("click", () => void openRunEvidence(b.dataset.evidence));
+      });
+    $("compare-caption").textContent = `${data.batch?.label || id} · ${STATUS[data.batch?.status] || data.batch?.status || "状态未记录"}`;
+  } catch (e) {
+    if (seq !== compareSequence || !compareMode) return;
+    renderBatch(`<p class="notice-inline">${esc(e.message)}</p>`);
+    $("compare-caption").textContent = "批次读取失败";
+  }
+}
+async function openCompare() {
+  compareMode = true;
+  document.body.classList.add("compare-on");
+  $("detail").hidden = true;
+  $("empty").hidden = true;
+  $("compare").hidden = false;
+  const picker = $("batch-select");
+  if (!live) {
+    // 预览地址没有同域后台，明确说明而不是拿演示数据冒充批次。
+    picker.innerHTML = '<option value="">未连接正式数据</option>';
+    picker.disabled = true;
+    $("compare-caption").textContent = "界面预览 · 未连接正式数据";
+    renderBatch(
+      missing(
+        "方案对比需要同域后台",
+        "这里是界面预览，没有正式实验批次可读。正式入口是益职同域的管理员页面；预览里不展示演示批次。",
+      ),
+    );
+    return;
+  }
+  const seq = ++compareSequence;
+  picker.innerHTML = '<option value="">正在读取…</option>';
+  picker.disabled = true;
+  renderBatch(
+    missing("正在读取批次", "只读取已完成的实验批次，不会触发模型调用。"),
+  );
+  try {
+    const data = await adminApi("/api/admin/eval-experiments");
+    if (seq !== compareSequence || !compareMode) return;
+    const batches = data.batches || [];
+    if (!batches.length) {
+      picker.innerHTML = '<option value="">暂无实验批次</option>';
+      renderBatch(
+        missing(
+          "还没有实验批次",
+          "后台没有已记录的方案实验。这里不补造对比数据。",
+        ),
+      );
+      $("compare-caption").textContent = "暂无批次";
+      return;
+    }
+    picker.innerHTML = batches
+      .map(
+        (b) =>
+          `<option value="${esc(b.id)}">${esc(b.label || b.id)} · ${esc(STATUS[b.status] || b.status || "状态未记录")} · ${esc(date(b.createdAt))}</option>`,
+      )
+      .join("");
+    picker.disabled = false;
+    await loadBatch(batches[0].id);
+  } catch (e) {
+    if (seq !== compareSequence || !compareMode) return;
+    picker.innerHTML = '<option value="">批次读取失败</option>';
+    renderBatch(`<p class="notice-inline">${esc(e.message)}</p>`);
+    $("compare-caption").textContent = "批次读取失败";
+  }
+}
+async function openRunEvidence(id) {
+  const seq = ++compareSequence;
+  try {
+    const data = await api(`?id=${encodeURIComponent(id)}`);
+    if (seq !== compareSequence || !compareMode) return;
+    const full = parseImport(JSON.stringify(data))[0];
+    if (!full || full.id !== id) {
+      toast("这条实验运行没有返回对应的完整证据，未载入本页。", true);
+      return;
+    }
+    runs = [full, ...runs.filter((x) => x.id !== full.id)];
+    loadedSource = "production";
+    closeCompare();
+    await select(full.id);
+    notice("实验运行的完整证据 · 只读查看，不会重新调用模型");
+  } catch (e) {
+    if (seq !== compareSequence || !compareMode) return;
+    toast(e.message, true);
+  }
+}
 function showData(data, source) {
   const normalized = parseImport(JSON.stringify(data));
   runs = normalized;
@@ -444,7 +960,9 @@ async function refresh() {
     try {
       last = sessionStorage.getItem("yizhi-eval-selected");
     } catch {}
+    runs = restoreSelection(runs, selected || last);
     const id = runs.find((r) => r.id === (selected || last))?.id || runs[0]?.id;
+    renderList();
     loading = false;
     if (id) await select(id);
     else {
@@ -504,242 +1022,284 @@ async function importFile(file) {
     toast(e.message, true);
   }
 }
-$("import").onclick = () => $("import-dialog").showModal();
-$("choose-file").onclick = () => $("file").click();
-$("paste-import").onclick = () => {
-  try {
-    importRaw($("json-input").value);
-  } catch (e) {
-    $("import-error").textContent = e.message;
-  }
-};
-$("file").onchange = (e) => {
-  importFile(e.target.files[0]);
-  e.target.value = "";
-};
-$("demo").onclick = demo;
-$("empty-demo").onclick = demo;
-$("refresh").onclick = async () => {
-  await refresh();
-  reconcilePending();
-};
-$("empty-action").onclick = () =>
-  live && runs.length === 0 && loadedSource === "production"
-    ? openNewRun()
-    : live
-      ? refresh()
-      : $("import-dialog").showModal();
-$("search").oninput = renderList;
-$("filter").onchange = renderList;
-document.querySelectorAll("[data-tab]").forEach((b, index, buttons) => {
-  b.addEventListener("click", () => {
-    tab = b.dataset.tab;
-    renderDetail();
-  });
-  b.addEventListener("keydown", (e) => {
-    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
-      e.preventDefault();
-      const next =
-        e.key === "Home"
-          ? 0
-          : e.key === "End"
-            ? buttons.length - 1
-            : (index + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) %
-              buttons.length;
-      buttons[next].click();
-      buttons[next].focus();
-    }
-  });
-});
-$("help").onclick = () => $("help-dialog").showModal();
-document
-  .querySelectorAll(".close-dialog")
-  .forEach((b) => (b.onclick = () => b.closest("dialog").close()));
-$("new-run").onclick = () => {
-  if (!live) {
-    toast("真实实测请打开益职正式站的管理员入口。", true);
-    return;
-  }
-  openNewRun();
-};
-$("template").onclick = () =>
-  download("yizhi-eval-template.json", {
-    schemaVersion: VERSION,
-    runs: [
-      {
-        id: "replace-with-your-run-id",
-        label: "本次运行名称",
-        provenance: "imported",
-        status: "unknown",
-        input: null,
-        spans: [],
-        knowledge: [],
-        result: { status: "unknown", output: null },
-        evaluation: null,
-        limitations: [
-          "这是待填写模板，没有运行或自评证据。请仅填实际采集字段，缺失项保持 null。",
-        ],
-      },
-    ],
-  });
-$("copy-id").onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(selected);
-    toast("运行 ID 已复制");
-  } catch {
-    toast("复制未成功，可直接选中运行 ID 复制。", true);
-  }
-};
-$("save-review").onclick = () => {
-  const r = current();
-  if (!r) return;
-  const value = {
-    verdict: $("verdict").value,
-    note: $("review-note").value,
-    savedAt: new Date().toISOString(),
-  };
-  try {
-    localStorage.setItem(`yizhi-eval-review:${r.id}`, JSON.stringify(value));
-    reviews[r.id] = value;
-    $("review-status").textContent = "已保存在本机 · 刷新后仍保留";
-    toast("人工判断已保存到本机");
-  } catch {
-    toast("浏览器未允许保存；备注仍在输入框，可导出备份。", true);
-  }
-};
-$("review-note").addEventListener("input", () => {
-  if (selected) {
-    reviews[selected] = {
-      verdict: $("verdict").value,
-      note: $("review-note").value,
-    };
-    $("review-status").textContent = "未保存到本机 · 切换环节仍保留";
-  }
-});
-$("verdict").addEventListener("change", () => {
-  if (selected) {
-    reviews[selected] = {
-      verdict: $("verdict").value,
-      note: $("review-note").value,
-    };
-    $("review-status").textContent = "未保存到本机";
-  }
-});
-$("export").onclick = () => {
-  const r = current();
-  if (!r) return;
-  const review = { verdict: $("verdict").value, note: $("review-note").value };
-  download(
-    `eval-${r.id.replace(/[^a-z0-9_-]/gi, "-").slice(0, 70)}.json`,
-    exportBundle([r], { [r.id]: review }),
-  );
-  toast("导出包含本次输入与输出，请妥善保管。");
-};
-$("new-form").onsubmit = async (e) => {
-  e.preventDefault();
-  if (pendingId || !$("cost-ack").checked) return;
-  // A network failure must not force a new billable run. The same UUID is
-  // atomically claimed on the server; a replay reads the existing record.
-  pendingId = uncertainId || crypto.randomUUID();
-  const id = pendingId;
-  $("start-run").disabled = true;
-  $("new-status").textContent =
-    "正在提交真实实测，确认后记录阶段与模型交接。不会改动旧岗位或作答。";
-  try {
-    sessionStorage.setItem("yizhi-eval-pending", id);
-  } catch {}
-  const poll = setInterval(async () => {
+export function boot() {
+  const query = new URLSearchParams(location.search);
+  live = query.get("live") === "1";
+  // Internal acceptance link: exercises the ordinary authenticated business API,
+  // not a second rewrite implementation. Never runs automatically on load.
+  workspaceEntry = live && query.get("workspace-entry") === "1";
+  if (live) {
     try {
-      const data = await api(`?id=${id}`);
-      const r = parseImport(JSON.stringify(data))[0];
-      if (!runs.some((x) => x.id === id)) {
-        runs.unshift(r);
-        selected = id;
-        loadedSource = "production";
-        $("detail").hidden = false;
-        $("empty").hidden = true;
-        $("new-dialog").close();
-        renderList();
-      }
-      if (selected === id) {
-        runs = runs.map((x) => (x.id === id ? r : x));
-        renderDetail();
-      }
+      uncertainId = sessionStorage.getItem("yizhi-eval-pending");
     } catch {}
-  }, 6000);
-  try {
-    const submission = {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        requestId: id,
-        resumeText: $("resume-input").value,
-        jobDescription: $("jd-input").value,
-        selfEvaluate: !workspaceEntry && $("self-eval").checked,
-        label: $("case-name").value,
-        acknowledgeCost: true,
-        ...(workspaceEntry
-          ? {
-              evalCaptureId: id,
-              evalLabel: $("case-name").value,
-              mode: $("jd-input").value.trim()
-                ? "target_resume"
-                : "general_resume",
-            }
-          : {}),
-      }),
-    };
-    let data;
-    if (workspaceEntry) {
-      const response = await fetch("/api/coach/resume-draft", {
-        ...submission,
-        credentials: "same-origin",
-      });
-      data = await response.json();
-      // An actual business failure is also inspectable evidence, not a reason
-      // to invent success or resubmit a second model request.
-      if (!response.headers.get("x-yizhi-eval-id") && response.status !== 202)
-        throw Error(data.error || `业务请求失败（${response.status}）`);
-      data = { runs: true };
-    } else data = await api("", submission);
-    if (data.runs) {
-      uncertainId = null;
-      try {
-        sessionStorage.removeItem("yizhi-eval-pending");
-      } catch {}
-      $("new-dialog").close();
-      await refresh();
-      await select(id);
-      toast("实测结果已保存；可查看 Agent 实际输入输出。");
-    } else {
-      $("new-status").textContent =
-        "已有这个编号的运行。请刷新记录读取，不要重复提交。";
-      await refresh();
-      reconcilePending();
+  }
+  $("import").onclick = () => $("import-dialog").showModal();
+  $("choose-file").onclick = () => $("file").click();
+  $("paste-import").onclick = () => {
+    try {
+      importRaw($("json-input").value);
+    } catch (e) {
+      $("import-error").textContent = e.message;
     }
-  } catch (error) {
-    uncertainId = id;
-    $("new-status").textContent =
-      `${error.message} 编号：${id}。材料仍保留。可刷新核对，或点“核对并重试原编号”；不会重复调用已存在的运行。`;
+  };
+  $("file").onchange = (e) => {
+    importFile(e.target.files[0]);
+    e.target.value = "";
+  };
+  $("demo").onclick = demo;
+  $("empty-demo").onclick = demo;
+  $("refresh").onclick = async () => {
     await refresh();
     reconcilePending();
-  } finally {
-    clearInterval(poll);
-    pendingId = null;
-    $("start-run").disabled = false;
+  };
+  $("empty-action").onclick = () =>
+    live && runs.length === 0 && loadedSource === "production"
+      ? openNewRun()
+      : live
+        ? refresh()
+        : $("import-dialog").showModal();
+  $("search").oninput = renderList;
+  $("filter").onchange = renderList;
+  document.querySelectorAll("[data-tab]").forEach((b, index, buttons) => {
+    b.addEventListener("click", () => {
+      tab = b.dataset.tab;
+      renderDetail();
+    });
+    b.addEventListener("keydown", (e) => {
+      if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        const next =
+          e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? buttons.length - 1
+              : (index + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) %
+                buttons.length;
+        buttons[next].click();
+        buttons[next].focus();
+      }
+    });
+  });
+  $("help").onclick = () => $("help-dialog").showModal();
+  document
+    .querySelectorAll(".close-dialog")
+    .forEach((b) => (b.onclick = () => b.closest("dialog").close()));
+  $("new-run").onclick = () => {
+    if (!live) {
+      toast("真实实测请打开益职正式站的管理员入口。", true);
+      return;
+    }
+    openNewRun();
+  };
+  $("template").onclick = () =>
+    download("yizhi-eval-template.json", {
+      schemaVersion: VERSION,
+      runs: [
+        {
+          id: "replace-with-your-run-id",
+          label: "本次运行名称",
+          provenance: "imported",
+          status: "unknown",
+          input: null,
+          spans: [],
+          knowledge: [],
+          result: { status: "unknown", output: null },
+          evaluation: null,
+          limitations: [
+            "这是待填写模板，没有运行或自评证据。请仅填实际采集字段，缺失项保持 null。",
+          ],
+        },
+      ],
+    });
+  $("copy-id").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(selected);
+      toast("运行 ID 已复制");
+    } catch {
+      toast("复制未成功，可直接选中运行 ID 复制。", true);
+    }
+  };
+  $("save-review").onclick = () => {
+    const r = current();
+    if (!r) return;
+    const value = {
+      verdict: $("verdict").value,
+      note: $("review-note").value,
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(`yizhi-eval-review:${r.id}`, JSON.stringify(value));
+      reviews[r.id] = value;
+      $("review-status").textContent = "已保存在本机 · 刷新后仍保留";
+      toast("人工判断已保存到本机");
+    } catch {
+      toast("浏览器未允许保存；备注仍在输入框，可导出备份。", true);
+    }
+  };
+  $("review-note").addEventListener("input", () => {
+    if (selected) {
+      reviews[selected] = {
+        verdict: $("verdict").value,
+        note: $("review-note").value,
+      };
+      $("review-status").textContent = "未保存到本机 · 切换环节仍保留";
+    }
+  });
+  $("verdict").addEventListener("change", () => {
+    if (selected) {
+      reviews[selected] = {
+        verdict: $("verdict").value,
+        note: $("review-note").value,
+      };
+      $("review-status").textContent = "未保存到本机";
+    }
+  });
+  $("experiments").onclick = () => {
+    if (compareMode) closeCompare();
+    else void openCompare();
+  };
+  $("compare-close").onclick = () => closeCompare();
+  $("batch-select").onchange = (e) => {
+    if (e.target.value) void loadBatch(e.target.value);
+  };
+  for (const id of ["fb-target", "fb-category", "fb-verdict"])
+    $(id).addEventListener("change", () => {
+      captureDraft();
+      renderFeedback();
+    });
+  for (const id of ["fb-note", "fb-expected"])
+    $(id).addEventListener("input", () => {
+      captureDraft();
+      if (feedbackDraft)
+        $("fb-status").textContent = "未提交，内容只留在当前标签页";
+    });
+  $("fb-save").onclick = () => void saveFeedback();
+  $("fb-copy").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText($("fb-target-id").textContent);
+      toast("运行与修改编号已复制");
+    } catch {
+      toast("复制未成功，可直接选中编号复制。", true);
+    }
+  };
+  $("export").onclick = () => {
+    const r = current();
+    if (!r) return;
+    const review = { verdict: $("verdict").value, note: $("review-note").value };
+    download(
+      `eval-${r.id.replace(/[^a-z0-9_-]/gi, "-").slice(0, 70)}.json`,
+      exportBundle([r], { [r.id]: review }),
+    );
+    toast("导出包含本次输入与输出，请妥善保管。");
+  };
+  $("new-form").onsubmit = async (e) => {
+    e.preventDefault();
+    if (pendingId || !$("cost-ack").checked) return;
+    // A network failure must not force a new billable run. The same UUID is
+    // atomically claimed on the server; a replay reads the existing record.
+    pendingId = uncertainId || crypto.randomUUID();
+    const id = pendingId;
+    $("start-run").disabled = true;
+    $("new-status").textContent =
+      "正在提交真实实测，确认后记录阶段与模型交接。不会改动旧岗位或作答。";
+    try {
+      sessionStorage.setItem("yizhi-eval-pending", id);
+    } catch {}
+    const poll = setInterval(async () => {
+      try {
+        const data = await api(`?id=${id}`);
+        const r = parseImport(JSON.stringify(data))[0];
+        if (!runs.some((x) => x.id === id)) {
+          runs.unshift(r);
+          selected = id;
+          loadedSource = "production";
+          $("detail").hidden = false;
+          $("empty").hidden = true;
+          $("new-dialog").close();
+          renderList();
+        }
+        if (selected === id) {
+          runs = runs.map((x) => (x.id === id ? r : x));
+          renderDetail();
+        }
+      } catch {}
+    }, 6000);
+    try {
+      const submission = {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          requestId: id,
+          resumeText: $("resume-input").value,
+          jobDescription: $("jd-input").value,
+          selfEvaluate: !workspaceEntry && $("self-eval").checked,
+          label: $("case-name").value,
+          acknowledgeCost: true,
+          ...(workspaceEntry
+            ? {
+                evalCaptureId: id,
+                evalLabel: $("case-name").value,
+                mode: $("jd-input").value.trim()
+                  ? "target_resume"
+                  : "general_resume",
+              }
+            : {}),
+        }),
+      };
+      let data;
+      if (workspaceEntry) {
+        const response = await fetch("/api/coach/resume-draft", {
+          ...submission,
+          credentials: "same-origin",
+        });
+        data = await response.json();
+        // An actual business failure is also inspectable evidence, not a reason
+        // to invent success or resubmit a second model request.
+        if (!response.headers.get("x-yizhi-eval-id") && response.status !== 202)
+          throw Error(data.error || `业务请求失败（${response.status}）`);
+        data = { runs: true };
+      } else data = await api("", submission);
+      if (data.runs) {
+        uncertainId = null;
+        try {
+          sessionStorage.removeItem("yizhi-eval-pending");
+        } catch {}
+        $("new-dialog").close();
+        await refresh();
+        await select(id);
+        toast("实测结果已保存；可查看 Agent 实际输入输出。");
+      } else {
+        $("new-status").textContent =
+          "已有这个编号的运行。请刷新记录读取，不要重复提交。";
+        await refresh();
+        reconcilePending();
+      }
+    } catch (error) {
+      uncertainId = id;
+      $("new-status").textContent =
+        `${error.message} 编号：${id}。材料仍保留。可刷新核对，或点“核对并重试原编号”；不会重复调用已存在的运行。`;
+      await refresh();
+      reconcilePending();
+    } finally {
+      clearInterval(poll);
+      pendingId = null;
+      $("start-run").disabled = false;
+    }
+  };
+  if (workspaceEntry) {
+    $("self-eval").checked = false;
+    $("self-eval").disabled = true;
+    $("self-eval").closest("label").hidden = true;
+    $("new-form").querySelector("p").textContent =
+      "业务入口验收：直接调用正式改稿接口，只使用本次样本，不关联旧岗位，不额外调用自评模型。";
   }
-};
-if (workspaceEntry) {
-  $("self-eval").checked = false;
-  $("self-eval").disabled = true;
-  $("self-eval").closest("label").hidden = true;
-  $("new-form").querySelector("p").textContent =
-    "业务入口验收：直接调用正式改稿接口，只使用本次样本，不关联旧岗位，不额外调用自评模型。";
+  if (live) refresh().then(reconcilePending);
+  else {
+    notice("界面预览 · 未连接正式数据。正式评测请进入益职同域的管理员入口");
+    $("empty-action").textContent = "导入一次运行";
+    $("new-run").hidden = true;
+    $("refresh").hidden = true;
+  }
+
 }
-if (live) refresh().then(reconcilePending);
-else {
-  notice("界面预览 · 未连接正式数据。正式评测请进入益职同域的管理员入口");
-  $("empty-action").textContent = "导入一次运行";
-  $("new-run").hidden = true;
-  $("refresh").hidden = true;
-}
+if (typeof document !== "undefined") boot();

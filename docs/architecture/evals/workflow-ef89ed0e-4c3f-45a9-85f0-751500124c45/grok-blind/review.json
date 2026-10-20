@@ -1,0 +1,291 @@
+{
+  "reviews": [
+    {
+      "caseKey": "304546037a",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "正文与原稿逐字相同，保留「编写18条预约流程测试用例」「课程原型，未上线」。没有新增事实。顺序换成 C→B→A 后分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 1, "maxScore": 4, "reason": "原稿已经具体，候选没有改坏，也没有把已有动作写得更清楚。"},
+        {"name": "具体动作/交付", "score": 4, "maxScore": 4, "reason": "18条用例、失败步骤交接、两个页面和未上线限定都在。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "原型与实习标题、在读教育没有互相抬高。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "标题、项目行和列表与原稿一致。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "没有改写。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "没有缺口必须先问，不问是对的。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "304546037a",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "与A、原稿都逐字相同。倒序再看仍无事实差异。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 1, "maxScore": 4, "reason": "没有实质改动。"},
+        {"name": "具体动作/交付", "score": 4, "maxScore": 4, "reason": "原有用例、页面和未上线限定完整保留。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "没有引入另一套说法。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "格式未动。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "没有改写。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "原稿已可交付，不需要问题。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "304546037a",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "delivered 为 false，text 与 question 都是 null。不可交付，不编内容分。倒序仍是空稿。",
+      "dimensions": [],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "46895757ad",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "项目句仍是「主要负责需求相关工作，具体个人交付还没梳理」，没有编造产出。校园经历删去重复的「完成材料核对和记录工作」，保留缺材料逐条记录并交给辅导员。只问「这一步最后留下了什么具体材料或交付物？」，摘录对应该句。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 2, "maxScore": 4, "reason": "只清掉校园经历的重复收尾，项目经历仍空。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "迎新核对和表格交接还在；项目交付留空并改由一问取得。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "已有事实先留下，未把「还没梳理」写成已完成需求文档。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "章节和一条项目列表保持原样。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "校园句只改了「把…里」一类措辞。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "一个问题，且正对原文写明尚未梳理的交付。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "46895757ad",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "正文和问题都与A相同。倒序无新差异。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 2, "maxScore": 4, "reason": "与A一样，只有校园经历去重。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "迎新动作保留，项目动作仍未写出。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有用课程项目冒充已上线产品。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "格式未改。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "改动限于重复句。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "一问，且必要。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "46895757ad",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "正文与A/B相同，硬风险不在正文。问题改成「你亲手完成并交给组员的一件具体产出是什么？」。原文只说个人交付还没梳理，没有「组员」。倒序仍扣在这一个预设上。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 2, "maxScore": 4, "reason": "正文改善与A相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "正文没有提前写进组员交接。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "正文取舍正确。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "正文格式未变。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "正文改动很小。"},
+        {"name": "提问的单一性/必要性", "score": 3, "maxScore": 4, "reason": "仍然只有一个问题，也问在缺口上，但「交给组员」是原文没有的对象。"}
+      ],
+      "unknown": ["「交给组员」只出现在问题里，没有写进正文，所以不把整稿判成事实越界。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "5bcbb01332",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "原稿标题是「提出提醒机制的重要性」，并写「目前只是提案，尚未实现」。候选改为「提出按需主动提醒的机制（提案，尚未实现）」，正文仍是「提出」，需求清单原句保留。没有变成已实现功能。B只多一个「并」，C与A相同；倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "去掉空泛的「重要性」，改成原稿后半句里的按需提醒，并保留未实现。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "Excel需求清单和交给页面同学仍在；第一条明确只是提案。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "提案和已完成的记录分成两句，没有合成上线成果。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "加粗小标题加说明的结构还在。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "只重写了空泛标题和第一句语序。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "阶段已经写明，不必再问。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "5bcbb01332",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "与A的差别只有「持续跟进并在需要时主动提醒」。限定仍在标题。倒序不改变分数。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "与A相同，空泛标题被换成机制，且标明提案。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "需求清单交付未动，提案没有写成开发完成。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "两条经历的完成度仍然不同。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "原有加粗结构保留。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "改动范围与A相同。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "没有不必要的问题。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "5bcbb01332",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "正文与A相同，包括「（提案，尚未实现）」。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "与A相同。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "6bf9e19bbb",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "三份正文相同。原稿订单句末尾是「提升了满意度，保障店铺良好运转，但没有统计满意度」。候选删掉这句，保留售前咨询、核对发货、异常订单交同事，以及260条、105件、103款。没有新增数字。A问「异常订单主要是哪一类」，并举例地址错误、缺货、物流延迟。倒序后A仍是3分、B仍是4分、C仍是1分。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "删掉本人已经否定、又没有统计的满意度评价。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "上架、销售协助、咨询、发货核对和数据整理都保留。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "岗位不要求管理经验，稿里也没有补上管理或满意度结果。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "加粗职责标题和两个经历段保持原样。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "只删除无依据结果句。"},
+        {"name": "提问的单一性/必要性", "score": 3, "maxScore": 4, "reason": "只有一个问题，但现有句子已经能交付；举例里的三类异常原文没有。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "6bf9e19bbb",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "正文与A相同，没有问题。倒序仍认为不问是合适的。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "与A一样删掉无统计的满意度。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "原有数量和动作都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有为了岗位再补一段沟通案例。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "格式未动。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "只做删除。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "剩下的句子已经具体，不再提问是对的。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "6bf9e19bbb",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "正文与A相同。问题同时要求异常类别和「一个你亲自处理过的例子」，并举例尺码、物流、退换。倒序仍然看成两个要求塞进一句。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "正文改善与A相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "正文没有提前写入例子。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "正文取舍与A相同。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "正文格式未变。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "正文只删无依据句。"},
+        {"name": "提问的单一性/必要性", "score": 1, "maxScore": 4, "reason": "一句里要了类别和亲历例子，举例也不在原文中。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "735f86825d",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "原稿是一段话，并写「没有统计效率提升，也没有负责营销策略」。A拆成三行，没有列表标记，内容是整理名称规格、核对发货异常交同事、每周Excel交运营。没有写成营销策略，也没有补效率数字。倒序格式分仍是2。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "去掉「每天日常工作主要是负责」，留下三件原文里的事。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "上架资料、异常表和周汇总都在，没有硬凑数量。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "三件事彼此不重复，也没有后文反悔。"},
+        {"name": "原格式一致", "score": 2, "maxScore": 4, "reason": "三行既不是原来的段落，也没有统一的列表标记。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "压缩的是套话，事实范围没变。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "三件工作已经具体，不问合理。"}
+      ],
+      "unknown": ["删除「没有统计效率提升，也没有负责营销策略」后，正文没有反向写成负责营销。这句是必要限定还是多余否定，无法升为硬风险。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "735f86825d",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "与A同一事实，使用「-」列表。Excel写成「Excel 表格」，多一个空格，不改变事实。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "与A一样去掉套话并保留三件事实。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "三件交付都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有添加策略或效率。"},
+        {"name": "原格式一致", "score": 3, "maxScore": 4, "reason": "从一段话改成列表，但列表本身一致。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "没有换一套职责。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "不需要问题。"}
+      ],
+      "unknown": ["与A相同：营销和效率的否定句被删，正文未改写成相反职责。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "735f86825d",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "与B相同，仅「Excel表格」没有多余空格。倒序仍与B同档，不因更短或更整齐加分。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "事实取舍与B相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "三件交付都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有额外主张。"},
+        {"name": "原格式一致", "score": 3, "maxScore": 4, "reason": "列表清楚，但仍改了原稿的段落形式。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "压缩幅度与B相同。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "不需要问题。"}
+      ],
+      "unknown": ["与A相同：营销和效率的否定句被删，正文未改写成相反职责。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "9df5502ff6",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "保留「检验记录交给师傅复核，由师傅决定是否放行」。动作仍是按已有检验表、游标卡尺、超差标记、按批次汇总。但两条列表写成「- -」。倒序格式分仍是1，不因限定保留而忽略坏格式。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 2, "maxScore": 4, "reason": "权责比原稿更直白，但坏掉的列表标记直接进了成稿。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "测量、标记、交接复核和周汇总都在。"},
+        {"name": "整稿自洽与取舍", "score": 2, "maxScore": 4, "reason": "放行权说清楚了，双横线让条目不像连续正文。"},
+        {"name": "原格式一致", "score": 1, "maxScore": 4, "reason": "出现原稿没有的「- -」。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "删的是「工作中主要」一类垫句，事实没有换。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "谁决定放行已经写明，不必再问。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "9df5502ff6",
+      "tag": "B",
+      "groundingVeto": true,
+      "evidence": "原文是「把记录交给师傅复核，并不是我决定是否放行」。B写成「记录交师傅复核」，没有「由师傅决定是否放行」或「不是我决定放行」。测量和超差标记还在。倒序先看C再看B，仍然是这条限定被删，veto不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 1, "maxScore": 4, "reason": "句子更短，但放行权边界没了。"},
+        {"name": "具体动作/交付", "score": 2, "maxScore": 4, "reason": "检验和汇总还在，决定权交付被写丢。"},
+        {"name": "整稿自洽与取舍", "score": 2, "maxScore": 4, "reason": "读者只能看到复核，不能看到谁放行。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "两条干净列表，符合原稿列表。"},
+        {"name": "不过度改写", "score": 2, "maxScore": 4, "reason": "压缩时删掉了必要限定。"},
+        {"name": "提问的单一性/必要性", "score": 2, "maxScore": 4, "reason": "没有乱问，但也没有把已有限定留下。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "9df5502ff6",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "三条分别是测量与超差标记、记录交师傅且由师傅决定放行、按批次汇总到Excel。没有双横线，没有改成自己放行。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "去掉垫句，权责和两件交付都更清楚。"},
+        {"name": "具体动作/交付", "score": 4, "maxScore": 4, "reason": "测量、标记、复核权责和周汇总完整。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "协助检验和师傅放行没有混成同一权限。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "仍是实习下的短列表，标记正常。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "有压缩，但没有换职责。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "边界已写明，不问是对的。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": true
+    }
+  ],
+  "notes": [
+    "只阅读本目录 README 与六份样本 JSON。先按 A→B→C 对照原稿，再按 C→B→A 重评；分数移动才会把 orderSwapConsistent 标成 false。本包没有因倒序改分。",
+    "A/B 经常同文。同文给同分，不把顺序差异当成质量差异。",
+    "未交付候选不编六项内容分。",
+    "这是盲评判断，不是保存、刷新、PDF 或上线验收。"
+  ]
+}

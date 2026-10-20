@@ -1,0 +1,139 @@
+{
+  "reviews": [
+    {
+      "caseKey": "0522c43dd1",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "原稿有「我没有审批报销，也没有统计节省了多少时间」。A删去整句，正文仍是日期、金额、事由录入Excel，缺项交财务确认；会议材料仍是按清单核对、打印装订、交会务同事。没有写成审批，也没有新增节省时间。会议句把「需要准备的纸质文件」写成「需用的纸质文件」。倒序后不过度改写仍是3，低于B/C。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "删掉重复的「完成会议材料准备工作」和没有统计的节省时间。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "核对、打印装订、交接和报销字段都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "两件行政事务没有合成管理成果。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "加粗小标题结构保留。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "「需用」替换了原稿的「需要准备」，事实未变，但不是必要改写。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "两件工作已经具体，不问合理。"}
+      ],
+      "unknown": ["「我没有审批报销」被删。正文没有写成自己审批，只保留缺项交财务。这是否仍是必须留在稿面的权限限定，无法升为硬风险。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "0522c43dd1",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "与A几乎相同，会议句保留「需准备的纸质文件」。报销句仍是「录入Excel；缺项单独记录并交财务确认」。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "去掉重复收尾和未统计的时间节省。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "会议材料和报销记录的动作都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有补审批权或效率数字。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "原有加粗结构还在。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "压缩垫句，用词贴近原稿。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "不需要问题。"}
+      ],
+      "unknown": ["与A相同：审批权否定句被删，正文未改写成审批。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "0522c43dd1",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "会议句与B相同。报销句更接近原稿：「记录在Excel中；有缺项的记录下来，交给财务确认」。同样删去审批与节省时间两句否定。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "去掉重复和无数字的效率声明，动作保留。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "清单核对、装订交接、报销字段和缺项确认都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有把记录写成审批。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "结构与原稿一致。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "报销句基本沿用原动词。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "不需要问题。"}
+      ],
+      "unknown": ["与A相同：审批权否定句被删，正文未改写成审批。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "08e7f09ce5",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "原稿一段话，结尾是「没有独立决定退款权限」。A拆成咨询与查库存/发货、退款问题记入工单交主管、每周按已有分类汇总。没有写成自己决定退款，也没有改成岗位要求的策略制定。标题仍是客服助理。倒序与B同文，分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "一段套话拆成三件原文已有的事。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "咨询、查询、工单和周汇总都在，没有补数字。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "岗位写运营助理，稿件没有把客服经历改名或补策略。"},
+        {"name": "原格式一致", "score": 3, "maxScore": 4, "reason": "一段话改成列表，列表本身整齐。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "删的是「每天负责」一类垫句。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "三句已经具体，不问合理。"}
+      ],
+      "unknown": ["「没有独立决定退款权限」被删。正文仍写退款问题交主管，没有写成自己批准。是否必须保留原句，无法升为硬风险。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "08e7f09ce5",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "正文与A逐字相同，没有问题。倒序分数不变。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "原格式一致", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "与A相同。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "与A相同。"}
+      ],
+      "unknown": ["与A相同：退款权限否定句被删，正文未改成自己决定退款。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "08e7f09ce5",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "正文与A/B只有「与/和」「交给/交由」之差。另问「这份每周工单汇总表主要汇总哪些字段或问题类型？」。原稿已写按已有分类整理汇总表给主管。倒序仍把问题必要性打到2，正文分不升。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 3, "maxScore": 4, "reason": "正文改善与A相同。"},
+        {"name": "具体动作/交付", "score": 3, "maxScore": 4, "reason": "三件交付都在。"},
+        {"name": "整稿自洽与取舍", "score": 3, "maxScore": 4, "reason": "没有用问题里的字段提前写入正文。"},
+        {"name": "原格式一致", "score": 3, "maxScore": 4, "reason": "与A一样从段落改成列表。"},
+        {"name": "不过度改写", "score": 3, "maxScore": 4, "reason": "用词差异不构成另一版事实。"},
+        {"name": "提问的单一性/必要性", "score": 2, "maxScore": 4, "reason": "只有一个问题，但汇总表和已有分类已经写明，这个问题不阻挡交付。"}
+      ],
+      "unknown": ["与A相同：退款权限否定句被删，正文未改成自己决定退款。"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "delivered 为 false，text 为 null。问题是「店长补齐后，你会再复核或更新这份Excel清单吗？」。原稿已写每周核对3份表、标记缺失、交店长，以及按模板整理周报并保留原始表链接。不可交付，内容六项里只保留提问一项。倒序仍是1分。",
+      "dimensions": [
+        {"name": "提问的单一性/必要性", "score": 1, "maxScore": 4, "reason": "形式上是一个是否题，但原稿没有这个缺口，却因此没有交付。"}
+      ],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "未交付。问题是「店长补齐缺失项后，你是否需要再次核对或更新这份Excel清单？」，与A同一缺口。倒序分数不变。",
+      "dimensions": [
+        {"name": "提问的单一性/必要性", "score": 1, "maxScore": 4, "reason": "一问，但不是交付所必需，正文却缺失。"}
+      ],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "未交付。问题是「店长补齐缺失项后，你是否需要复核或更新这份Excel清单？」。与A/B同义。倒序分数不变。",
+      "dimensions": [
+        {"name": "提问的单一性/必要性", "score": 1, "maxScore": 4, "reason": "一问，且用未交付换来一个原稿已经能写完的后续确认。"}
+      ],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    }
+  ],
+  "notes": [
+    "本目录单独评分，不与其他 workflow 里同名 caseKey 合并，也不做跨包排行。",
+    "先 A→B→C，再 C→B→A。本包倒序没有改分。",
+    "未交付稿不编内容维度；若唯一产出是问题，只留提问分。",
+    "这是盲评判断，不是保存、刷新、PDF 或上线验收。"
+  ]
+}

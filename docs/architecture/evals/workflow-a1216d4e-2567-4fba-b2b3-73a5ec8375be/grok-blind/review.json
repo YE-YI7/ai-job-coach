@@ -1,0 +1,46 @@
+{
+  "reviews": [
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "A",
+      "groundingVeto": false,
+      "evidence": "delivered 为 false，text 为 null。问题是「你交付的材料后来是怎么被使用的？」。原稿已经写明缺失清单交给店长补齐，周报保留原始表链接并供运营同事查验口径。问题没有指定哪一份材料。倒序后提问分仍是1。",
+      "dimensions": [
+        {"name": "提问的单一性/必要性", "score": 1, "maxScore": 4, "reason": "形式上是一问，但使用去向已在原稿，问题又含糊，并且没有交付正文。"}
+      ],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    },
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "B",
+      "groundingVeto": false,
+      "evidence": "正文与原稿逐字相同，包括3份门店销售表、缺失项交店长、既定模板周报和原始表链接。没有问题。正序对照原稿，内容改善记1。倒序先看到两份未交付、再看这份原样交付时，内容改善会记成2。采用1，并把该维度的顺序分歧留下。其余维度两次都是4。",
+      "dimensions": [
+        {"name": "实际内容改善", "score": 1, "maxScore": 4, "reason": "相对原稿没有新增或删改。倒序时曾因「至少交付了原稿」记2，不采用。"},
+        {"name": "具体动作/交付", "score": 4, "maxScore": 4, "reason": "核对、标记、交接、周报和查验链接都在。"},
+        {"name": "整稿自洽与取舍", "score": 4, "maxScore": 4, "reason": "没有把店长补齐写成自己补数，也没有把模板整理写成独立分析。"},
+        {"name": "原格式一致", "score": 4, "maxScore": 4, "reason": "标题和两条列表未动。"},
+        {"name": "不过度改写", "score": 4, "maxScore": 4, "reason": "没有改写。"},
+        {"name": "提问的单一性/必要性", "score": 4, "maxScore": 4, "reason": "原稿已完整，不问是对的。"}
+      ],
+      "unknown": [],
+      "orderSwapConsistent": false
+    },
+    {
+      "caseKey": "406cf2e45b",
+      "tag": "C",
+      "groundingVeto": false,
+      "evidence": "delivered 为 false，text 与 question 都是 null。没有正文，也没有用问题说明缺口。倒序仍不可交付。",
+      "dimensions": [],
+      "unknown": ["未交付，不编内容分"],
+      "orderSwapConsistent": true
+    }
+  ],
+  "notes": [
+    "本目录的 406cf2e45b 单独评分，不读取、不对照其他 workflow 的同名样本或分数。",
+    "先 A→B→C，再 C→B→A。只有 B 的「实际内容改善」在两次顺序里分别是1和2，已标出。",
+    "未交付候选不编内容分。",
+    "这是盲评判断，不是保存、刷新、PDF 或上线验收。"
+  ]
+}

@@ -97,8 +97,8 @@
 .runTray .runRow button{font-size:11px;color:#605c55;text-decoration:underline;text-underline-offset:3px;min-height:28px;padding:4px 6px}
 
 .workflowSwitch{display:flex;gap:16px;margin:8px 0 16px}.workflowSwitch button{background:none;border:0;padding:6px 0;color:var(--cockpit-studio-muted,#6b665e);font:inherit;font-size:13px;cursor:pointer;min-height:36px}.workflowSwitch button[aria-pressed=true]{color:var(--cockpit-studio-ink,#2f2a23);font-weight:600;text-decoration:underline;text-underline-offset:7px}.workflowSwitch button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}.guidedWorkflow{flex:1;min-height:0;overflow-y:auto;padding:0 2px 16px;display:flex;flex-direction:column}@media(max-width:700px){.workflowSwitch button{min-height:44px}}
-/* 改稿问答贴着面板底部，不在中段悬着；内容超出时 auto margin 自动归零，不影响滚动。 */
-.guidedWorkflow>:last-child{margin-top:auto}
+/* 改稿消息填满阅读区并内部滚动，输入区留在底部，不把整段说明一起推到底部。 */
+.guidedWorkflow>:last-child{flex:1;min-height:0;width:100%}
 .guidedWorkflow form{padding:0;border:0;background:transparent;box-shadow:none}
 
 /* One reading scale follows the actual rail width, not the full viewport. */
@@ -176,6 +176,7 @@
 .panel[data-resume] textarea::placeholder{color:var(--cockpit-studio-muted,#6b665e)}
 .panel[data-resume] footer [type=submit]{min-width:34px;min-height:34px}
 .panel[data-resume] .guidedWorkflow form{padding:0;border:0;background:transparent;box-shadow:none}
+.panel[data-resume] .guidedWorkflow{overflow:hidden;padding-bottom:4px}
 .panel[data-resume] .workflowSwitch{gap:22px;margin:4px 0 20px}
 .panel[data-resume] .workflowSwitch button{font-size:13px;text-decoration-thickness:1px}
 .panel[data-resume] .disclaimer{font-size:11px;line-height:1.6}

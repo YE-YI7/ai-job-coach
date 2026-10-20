@@ -20,3 +20,17 @@ test('sending a discussion has thinking state instead of falsely starting editor
  expect(view).toContain('导师正在思考…');
  expect(view).toContain("conversation.at(-1)?.decision!=='discuss'");
 });
+test('resume discussion uses two bubble roles and one unobtrusive composer, not competing headings',()=>{
+ expect(view).toContain('styles.userMessage');expect(view).toContain('styles.mentorMessage');
+ expect(view).toContain('className={styles.srOnly}');expect(view).toContain('给简历导师发消息');
+ expect(view).not.toContain('想聊聊这份简历？');expect(view).not.toContain('failureText(');
+ expect(view).toContain('className={styles.failureDetails}');expect(view).toContain('查看详情');
+ expect(view).toContain('task.state===\'failed\'&&showOutcome');
+ expect(view).not.toContain('scrollIntoView');
+});
+test('running and saved discussion retain their transcript and recovery controls',()=>{
+ expect(view.indexOf('conversation.map')).toBeLessThan(view.indexOf('{running?'));
+ expect(view).toContain('task.question?.id,task.state,busy');
+ expect(view).toContain('disabled={busy||running}');
+ expect(view).toContain('等待较久，重试这次修改');expect(view).toContain('先用已有内容修改');
+});

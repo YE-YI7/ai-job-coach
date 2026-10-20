@@ -47,10 +47,13 @@ test("模型保留在输入区左下角，模式与用量设置仍可达",()=>{
   expect(read('ModelPicker.module.css')).toContain('.wrap .trigger.trigger{min-height:44px}');
 });
 
-test("改稿问答贴面板底部，发送按钮在输入框里面", () => {
-  expect(conversationCss()).toContain(".guidedWorkflow>:last-child{margin-top:auto}");
+test("改稿消息独立滚动，输入留在底部，发送按钮仍在输入框里面", () => {
+  expect(conversationCss()).toContain(".guidedWorkflow>:last-child{flex:1;min-height:0;width:100%}");
+  expect(resumeCss()).toContain('.messages{flex:1;min-height:0;overflow-y:auto');
+  expect(resumeCss()).toContain('.conversation .form{flex:none;display:flex');
   expect(resume()).toMatch(/<div className=\{styles\.composer\}>\s*<textarea/);
   expect(resume()).toMatch(/<textarea[\s\S]*<div className=\{styles\.actions\}/);
-  expect(resumeCss()).toContain(".conversation .composer:focus-within{box-shadow:var(--field-active-shadow)}");
-  expect(resumeCss()).toContain('.actions button[type=submit],.send{width:44px;height:44px}');
+  expect(resumeCss()).toContain('.composer:focus-within{box-shadow:var(--field-active-shadow,');
+  expect(resumeCss()).toContain('width:44px;height:44px;min-width:44px;min-height:44px');
+  expect(resumeCss()).toContain('.conversation .form .composer textarea');
 });

@@ -17,7 +17,9 @@ describe("quiet text-entry focus", () => {
     const css = source("components/cockpit/AgentConversation.module.css");
     expect(css).toContain(".panel[data-resume] form:focus-within{outline:none}");
     expect(css).not.toMatch(/form:focus-within\s*\{[^}]*outline:\s*[1-9]/);
-    expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:var(--field-active-shadow);background:#fff}");
+    // 单一框纪律：聚焦环归 form.composer，textarea 自己不再浮一层阴影。
+    expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:none;background:transparent}");
+    expect(css).toContain(".panel form.composer:focus-within{border-color:transparent;box-shadow:var(--field-active-shadow)}");
   });
 
   it("focuses the composite phone field once, not both wrapper and input", () => {

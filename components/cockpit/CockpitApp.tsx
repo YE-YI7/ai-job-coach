@@ -2315,17 +2315,11 @@ function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startReques
 }) {
   // 右栏现在只做一件事：导师对话。面试工作台已搬去中栏，练面试时也能随时问导师，不再整栏被工具占住。
   // 「待办与提醒」折叠块按需求下线（actions 数据链路仍在：整轮总结写回 opportunity.actions 与云端 metadata）。
-  const storageLabel = storageMode === "cloud" ? "个人工作区 · 自动保存" : storageMode === "local" ? "暂存在当前浏览器" : "示例工作区";
-  const storageDetail = storageMode === "cloud"
-    ? "岗位、证据、简历修改和复盘会在登录后继续保留。"
-    : storageMode === "local"
-      ? "网络恢复后会自动重试云同步；暂时不要清除浏览器数据。"
-      : "示例操作不会写入你的账号数据。";
+  // 工作区保存状态在顶部状态条已有，右栏不再重复挂一行。
   return (
     <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`} aria-label="导师对话" style={hidden?{display:"none"}:undefined}>
       <button className={styles.mobileClose} onClick={onClose} aria-label="关闭导师对话"><X size={19}/></button>
       <AgentConversation resumeContext={resumeContext} resumeWorkflow={resumeWorkflow} jobLabels={jobLabels} invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={resumeContext?{text:"点击“开始修改”，我会先整理已有经历。需要补充时，我们一次只聊一个具体问题。",prompts:[]}:mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
-      <details className={styles.privacyLine}><summary><ShieldCheck size={13} />{storageLabel}</summary><p>{storageDetail}</p></details>
     </aside>
   );
 }

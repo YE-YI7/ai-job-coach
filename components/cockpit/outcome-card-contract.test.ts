@@ -44,7 +44,7 @@ test("卡片由本轮台账里的成果驱动：实时一轮与刷新回读走�
  expect(flat(conversation)).toContain("!t.learning_trace?.outcome&&t.learning_trace?.outcomeNote");
  // 卡片跟在回答之后，不浮在输入框上
  expect(conversation.indexOf("<OutcomeCard")).toBeGreaterThan(conversation.indexOf('aria-label="复制导师回答"'));
- expect(conversation.indexOf("<OutcomeCard")).toBeLessThan(conversation.indexOf("<form onSubmit"));
+ expect(conversation.indexOf("<OutcomeCard")).toBeLessThan(conversation.indexOf("<form"));
 });
 
 test("用户手写修改只升内容版本，界面不把它说成新的能力证据",()=>{

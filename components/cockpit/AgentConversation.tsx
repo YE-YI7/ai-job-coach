@@ -1,15 +1,15 @@
 "use client";
-import {useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
+import {useCallback,useEffect,useId,useLayoutEffect,useRef,useState} from "react";
 import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
-import {ArrowUp,Copy,Plus,BookOpen,CaretDown} from "@phosphor-icons/react";
+import {ArrowUp,Copy,Plus,BookOpen,DotsThree} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
 import VoiceControls from "./VoiceControls";
-import ModelPicker from "./ModelPicker";
 import SelectMenu from "@/components/ui/SelectMenu";
-import {type ChatMode} from "@/lib/coach-harness/chat-options";
+import {isChatMode,type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
+import {formatPriceRange} from "@/lib/coach-harness/model-pricing";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 import {persistPendingAnswer,restorePendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
 import {chatRequestSignal,withChatRequestDeadline} from "./chat-request-deadline";
@@ -67,26 +67,54 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
   try{const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:true,title:turn.question.slice(0,120)||"导师回答",summary:turn.answer.slice(0,6000),opportunityId:turn.opportunity_id??null,sourceTurnId:turn.id})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"笔记保存失败");setSavedNotes(s=>new Set(s).add(turn.id));}
   catch(e){setError(e instanceof Error?e.message:"笔记保存失败");}finally{setSavingNote(null);}
  }
- const [modelMode,setModelModeState]=useState<ChatMode>(()=>{try{return (localStorage.getItem("yi-zhi.chat-model") as ChatMode)||"auto";}catch{return "auto";}});
+ const [modelMode,setModelModeState]=useState<ChatMode>(()=>{try{const saved=localStorage.getItem("yi-zhi.chat-model");return isChatMode(saved)?saved:"auto";}catch{return "auto";}});
  const setModelMode=useCallback((mode:ChatMode)=>{setModelModeState(mode);try{localStorage.setItem("yi-zhi.chat-model",mode);}catch{}},[]);
- const [modelAccess,setModelAccess]=useState<{connected:boolean;available:string[];catalog:CatalogEntryAvailability[]}|null>(null);
- useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(!b.ok)return;const available:string[]=Array.isArray(b.available)?b.available:[];const catalog=Array.isArray(b.catalog)&&b.catalog.length?b.catalog as CatalogEntryAvailability[]:catalogWithAvailability(available);setModelAccess({connected:!!b.connected,available,catalog});}).catch(()=>{});return()=>controller.abort();},[enabled]);
+ const [modelAccess,setModelAccess]=useState<{connected:boolean;catalog:CatalogEntryAvailability[]}|null>(null);
+ useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(!b.ok||controller.signal.aborted)return;const available:string[]=Array.isArray(b.available)?b.available:[];setModelAccess({connected:!!b.connected,catalog:Array.isArray(b.catalog)&&b.catalog.length?b.catalog:catalogWithAvailability(available)});}).catch(()=>{});return()=>controller.abort();},[enabled]);
  const generation=useRef(0),lock=useRef(false),seen=useRef(new Set<string>());
  const jumpToLatest=useRef(false),lastTurn=useRef<HTMLDivElement|null>(null);
  const retry=useRef<import("./pending-answer").PendingAnswer|null>(null);
  useEffect(()=>{if(pending&&retry.current?.interactionMode)setInteractionMode(retry.current.interactionMode);},[pending,session?.id]);
  const answerReceivedAt=useRef<number|null>(null);
- const [researchNote,setResearchNote]=useState("");
+ // 公司调研只有在这里触发（/api/coach/agent 自己不会跑），删掉这段导师就只剩 JD 原文可用。
+ // 界面上不再显示调研状态，所以结果不落地成 state。
  useEffect(()=>{
-  answerReceivedAt.current=null;setResearchNote("");
+  answerReceivedAt.current=null;
   if(!enabled||!opportunityId)return;
   const abort=new AbortController();
-  void fetch("/api/coach/research",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId}),signal:abort.signal})
-   .then(async r=>{const b=await r.json();if(!abort.signal.aborted)setResearchNote(b.result?"公司公开资料已读取，导师将带出处使用；未交叉验证。":b.note||b.error||"");})
-   .catch(()=>{if(!abort.signal.aborted)setResearchNote("公司调研暂未完成，不影响基于简历与 JD 辅导。");});
+  void fetch("/api/coach/research",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId}),signal:abort.signal}).catch(()=>{});
   return()=>abort.abort();
  },[enabled,opportunityId]);
  const list=useRef<HTMLDivElement>(null),input=useRef<HTMLTextAreaElement>(null);
+ const historyBox=useRef<HTMLDetailsElement>(null);
+ const settingsTrigger=useRef<HTMLButtonElement>(null),settingsMenu=useRef<HTMLDivElement>(null);
+ const settingsId=useId(),[settingsOpen,setSettingsOpen]=useState(false);
+ // Native top-layer popover avoids clipping in the scrollable mentor panel.
+ useEffect(()=>{
+  const element=settingsMenu.current;if(!element)return;
+  const sync=(event:Event)=>setSettingsOpen((event as ToggleEvent).newState==="open");
+  const dismiss=(event:Event)=>{if(!(event.target instanceof Node)||!element.contains(event.target))element.hidePopover();};
+  element.addEventListener("toggle",sync);window.addEventListener("resize",dismiss);window.addEventListener("scroll",dismiss,true);
+  return()=>{element.removeEventListener("toggle",sync);window.removeEventListener("resize",dismiss);window.removeEventListener("scroll",dismiss,true);};
+ },[]);
+ function toggleSettings(){
+  const element=settingsMenu.current,trigger=settingsTrigger.current;if(!element||!trigger)return;
+  if(element.matches(":popover-open")){element.hidePopover();trigger.focus();return;}
+  (element.showPopover as (options:{source:HTMLElement})=>void).call(element,{source:trigger});
+  const rect=trigger.getBoundingClientRect(),{width,height}=element.getBoundingClientRect(),below=rect.bottom+8;
+  element.style.left=`${Math.max(12,Math.min(rect.right-width,window.innerWidth-width-12))}px`;
+  element.style.top=`${Math.max(12,Math.min(below+height<=window.innerHeight-12?below:rect.top-height-8,window.innerHeight-height-12))}px`;
+  element.querySelector<HTMLSelectElement>("select")?.focus({preventScroll:true});
+ }
+ // 历史对话展开后必须能退出：点框外任意处或按 Esc 收起。
+ // 弹层是异步加载到会话列表后才渲染的，所以节点在事件里现取，不在挂载时抓死。
+ useEffect(()=>{
+  const dismiss=(event:Event)=>{const box=historyBox.current;if(box?.open&&!box.contains(event.target as Node))box.open=false;};
+  const onKey=(event:KeyboardEvent)=>{const box=historyBox.current;if(event.key==="Escape"&&!event.defaultPrevented&&box?.open){event.preventDefault();box.open=false;box.querySelector("summary")?.focus();}};
+  document.addEventListener("pointerdown",dismiss,true);
+  window.addEventListener("keydown",onKey);
+  return()=>{document.removeEventListener("pointerdown",dismiss,true);window.removeEventListener("keydown",onKey);};
+ },[]);
  const incoming=useRef<HTMLDivElement>(null);
  const [readingHeight,setReadingHeight]=useState(300);
  const [sendSequence,setSendSequence]=useState(0);
@@ -199,7 +227,11 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
  return <section className={styles.panel} data-resume={resumeContext||undefined} aria-label="对话辅导">
   <header><strong className={styles.mentorIdentity}>导师</strong>
   <div className={styles.metadata}><p className={styles.context} title={label}>{label}</p>
-  {!!sessions.length&&<details className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
+  {!!sessions.length&&<details ref={historyBox} className={styles.historyDisclosure}><summary>历史对话</summary><label className={styles.history}>选择对话<SelectMenu className={styles.historyMenu} value={session?.id||""} disabled={busy||loading} onChange={v=>void selectSession(v)} ariaLabel="选择学习记录" placeholder="新的辅导" options={[{value:"",label:"新的辅导"},...sessions.map(s=>({value:s.id,label:`${s.status==="archived"?"已归档":"继续"} · ${s.title.slice(0,36)}`}))]} /></label></details>}
+  </div><button ref={settingsTrigger} type="button" className={styles.settingsTrigger} aria-label="辅导设置" title="辅导设置" disabled={loading} aria-expanded={settingsOpen} aria-haspopup="dialog" aria-controls={settingsId} popoverTarget={settingsId} popoverTargetAction="toggle" onClick={event=>{event.preventDefault();toggleSettings();}}><DotsThree size={18} aria-hidden="true"/></button><div ref={settingsMenu} id={settingsId} popover="auto" className={styles.settingsPanel} role="dialog" aria-label="辅导设置选项" onKeyDown={event=>{if(event.key==="Escape"){event.preventDefault();settingsMenu.current?.hidePopover();settingsTrigger.current?.focus();}}}>
+   <label>导师模式<select aria-label="导师模式" value={interactionMode} disabled={busy||loading||!!pending} onChange={e=>setInteractionMode(e.target.value as "coaching"|"mock_interview")}><option value="coaching">教练辅导</option><option value="mock_interview">面试官 · 一次一题</option></select></label>
+   <label>导师模型<select aria-label="导师模型" value={modelMode} disabled={busy||loading||!enabled} onChange={e=>{if(isChatMode(e.target.value))setModelMode(e.target.value);}}><option value="auto">自动 · 优选模型</option><option value="fast">实惠档 · 站点模型</option>{(modelAccess?.catalog??catalogWithAvailability([])).map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.name}{m.referencePrice?` · 输出 ${formatPriceRange(m.referencePrice.output)} / 输入 ${formatPriceRange(m.referencePrice.input)}`:''}{!m.available?' · 暂不可用':''}</option>)}</select></label>
+   <p>{quotaLabel}。发送会调用 AI，失败释放额度；保存回答和笔记免费。</p><p>具体模型按输出参考价从高到低排列；单位为 ¥ / 百万 tokens，实际以账单为准。价格参考 TokenDance，读取于 {(modelAccess?.catalog??catalogWithAvailability([])).map(m=>m.referencePrice?.asOf.slice(0,10)).filter(Boolean).sort()[0]||'未记录'}。选择不会自动发送。</p>{!modelAccess&&<p>具体模型列表暂未读到，自动与实惠档仍可选。</p>}
   </div><button type="button" aria-label="新辅导" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={18}/></button></header>
   {resumeWorkflow&&<div className={styles.workflowSwitch}><button type="button" aria-pressed={guidedOpen} onClick={()=>setResumeGuided(true)}>简历修改</button><button type="button" aria-pressed={!guidedOpen} onClick={()=>setResumeGuided(false)}>其他辅导</button></div>}
   {guidedOpen&&<div className={styles.guidedWorkflow}>{resumeWorkflow?.content}</div>}
@@ -207,7 +239,6 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{turns.at(-1)?.question.slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
   <TaskRunTray enabled={enabled}/>
   <div ref={list} className={styles.messages} role="log" aria-label="辅导对话" aria-live="polite">
-  {researchNote&&<details className={styles.materialInfo}><summary>当前材料</summary><p>{researchNote}</p></details>}
   {activeInvitation&&!message.trim()&&!busy&&!dismissedInvitations.includes(activeInvitation.id)&&<section className={styles.teachingInvite} aria-label="导师的练习邀请"><p>{activeInvitation.text}</p><div><button disabled={!enabled||busy||loading} onClick={()=>{setDismissedInvitations(ids=>[...ids,activeInvitation.id]);void send(activeInvitation.prompt,false,activeInvitation.title,true);}}>好，带我练这题</button><button onClick={()=>setDismissedInvitations(ids=>[...ids,activeInvitation.id])}>稍后</button></div>{!enabled&&<small>预览邀请；登录后可开始真实带练。</small>}</section>}
    {loading?<p>正在找回学习记录…</p>:!turns.length&&!pending&&(!invitation||dismissedInvitations.includes(invitation.id))?<div className={styles.welcome}><BookOpen size={26}/><h3>{resumeContext?"把经历写清楚，也写出分量。":"我们从这里开始"}</h3><p>{opening?.text||"告诉我你正在准备什么，我会带你完成下一步。"}</p><div className={styles.quickStarts}>{opening?.prompts.map(prompt=><button key={prompt} type="button" disabled={!enabled||busy} onClick={()=>void send(prompt)}>{prompt}</button>)}</div>{!enabled&&<p>当前为预览；登录后可以开始真实辅导。</p>}</div>:turns.map((t,index)=><div key={t.id} ref={index===turns.length-1?lastTurn:null}>{t.learning_trace?.proactive?<p className={styles.proactiveNote}>导师主动来问你了</p>:<><p className={styles.turnScope}>{t.opportunity_id===opportunityId?label:t.opportunity_id?jobLabels[t.opportunity_id]||"原岗位已移除":"通用辅导"}</p><p className={styles.question}>{t.question}</p></>}<div className={styles.answer}><TutorMarkdown>{t.answer}</TutorMarkdown>{(()=>{const note=turnIntervention(insufficiencyFromTrace(t.learning_trace));return note?<p className={styles.interventionNote}>{note.text}</p>:null;})()}<button type="button" aria-label="复制导师回答" onClick={()=>void navigator.clipboard.writeText(t.answer).catch(()=>setError("复制失败，请选中文字复制"))}><Copy size={14}/>复制</button>
    {t.learning_trace?.outcome&&<details className={styles.summary}><summary>查看本次练习成果</summary><OutcomeCard outcome={t.learning_trace.outcome} note={t.learning_trace.outcomeNote??null} turnId={t.id} opportunityId={t.opportunity_id??undefined} disabled={!enabled}/></details>}
@@ -227,14 +258,11 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {failedLesson&&<button type="button" disabled={busy||loading} onClick={()=>void send(failedLesson.text,false,failedLesson.title,true)}>重新开始这题辅导</button>}
   {modelNotice&&<div className={styles.modelConfirm} role="group" aria-label="模型档位说明"><span>{modelNotice.text}</span><button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelNotice(null);}}>{modelNotice.requiresConfirm?"知道了，继续":"知道了"}</button>{modelNotice.requiresConfirm&&modelMode!=="fast"&&<button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelMode("fast");setModelNotice(null);}}>换回实惠档</button>}</div>}
-  <form onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
+  <form className={styles.composer} onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的回答，或直接说没听懂…" rows={2} maxLength={4000} disabled={!enabled} value={message} onChange={e=>{setMessage(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,112)+"px";}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
-   <footer><div className={styles.composerOptions}><details className={styles.modeDisclosure} onKeyDown={event=>{if(event.key==="Escape"){event.currentTarget.open=false;event.currentTarget.querySelector("summary")?.focus();}}}><summary aria-label="选择导师模式">{interactionMode==="coaching"?"辅导":"面试官"}<CaretDown size={12} aria-hidden="true" /></summary><div className={styles.modeSwitch} role="group" aria-label="导师模式">
-    <button type="button" title="讲解、练习与反馈" aria-pressed={interactionMode==="coaching"} disabled={busy||loading||!!pending} onClick={event=>{setInteractionMode("coaching");const menu=event.currentTarget.closest("details");if(menu)menu.open=false;}}>教练辅导</button>
-    <button type="button" title="一次一题，答完再追问，不提前给答案" aria-pressed={interactionMode==="mock_interview"} disabled={busy||loading||!!pending} onClick={event=>{setInteractionMode("mock_interview");const menu=event.currentTarget.closest("details");if(menu)menu.open=false;}}>面试官 · 一次一题</button>
-   </div></details><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelAccess?.catalog??catalogWithAvailability([])} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/></div><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} readText={turns.at(-1)?.answer} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
+   <footer><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
-  <details className={styles.disclaimer}><summary>{quotaLabel}</summary><p>发送消息会调用 AI。保存回答和笔记免费；失败释放额度。重要信息请核实。</p></details>
+  <p className={styles.disclaimer}>AI 也会出错，重要信息请核实。</p>
  </div>
  </section>;
 }

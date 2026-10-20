@@ -1,5 +1,7 @@
 # Qoder / Grok 交付联合验收
 
+最新检查点：最终运行代码 `6d743b5` 的干净云候选 `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy` 已 READY，正式项目 ID / sourceCommit 回读一致；health 200/database ok、新反馈/实验 API 无应用登录均 401。`yizhioffer.com` fresh 仍为原 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`，没有 promote 或切正式主域。Mac 仍锁屏，已请求本人仅解锁，最后实际 PDF 文件与正式域业务验收未完成。等待期间已停止本机 QA 服务，删除两份临时环境与三份原始部署 API JSON；保留 700 私有现场目录、600 的本次 QA 邀请状态及 Chrome 打印预览，供解锁续接，禁止输出其中凭据。恢复时先按现有 Vercel 权限拉临时环境再启动 QA，实际打印页已加载的正文不依赖服务重启；完成后再精确清该 QA 身份/业务数据，不动旧账号。
+
 2026-10-19（本地）。当前是发布候选验收记录，不能将未完成项当作已上线。
 
 ## 接收与修复

@@ -2,6 +2,7 @@ import { GET, POST } from './route';
 import { getCurrentUserFromRequest } from '@/lib/auth';
 import { POST as draft } from '../resume-draft/route';
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from '@/lib/coach-harness/resume-task';
+import { runResumeConversation } from '@/lib/coach-harness/resume-conversation';
 jest.mock('@/lib/auth');
 jest.mock('@/lib/coach-harness/resume-conversation',()=>({runResumeConversation:jest.fn()}));
 jest.mock('../resume-draft/route',()=>({POST:jest.fn()}));
@@ -14,6 +15,23 @@ test('unauthenticated and invalid actions never claim a task',async()=>{
   expect((await POST(request({opportunityId:id,action:'start'}))).status).toBe(401);
   expect((await POST(request({opportunityId:id,action:'anything'}))).status).toBe(400);
   expect(claimResumeTask).not.toHaveBeenCalled();
+});
+test('message dispatch goes to mentor without automatically claiming an edit',async()=>{
+  (runResumeConversation as jest.Mock).mockResolvedValue(Response.json({ok:true,conversationDecision:'discuss',task:{state:'ready'}}));
+  const body={opportunityId:id,action:'message',requestId:id,answer:'为什么这样写，先别改'};
+  expect(await (await POST(request(body))).json()).toMatchObject({conversationDecision:'discuss'});
+  expect(runResumeConversation).toHaveBeenCalledWith(expect.any(Request),{id:'owner'},body,expect.any(Function));
+  expect(claimResumeTask).not.toHaveBeenCalled();expect(draft).not.toHaveBeenCalled();
+});
+test('only the mentor callback can claim and finish the normal editor',async()=>{
+  (runResumeConversation as jest.Mock).mockImplementation(async(_request,_user,body,revise)=>Response.json({ok:true,task:await revise(body.requestId)}));
+  const source={resume:'已保存的原文',jd:'',general:true,revision:'rev'};
+  (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:3,lease:'lease',source});
+  (draft as jest.Mock).mockResolvedValue(Response.json({ok:true,changes:[]}));
+  (finishResumeTask as jest.Mock).mockResolvedValue({id:'task',state:'ready'});
+  expect((await POST(request({opportunityId:id,action:'message',requestId:id,answer:'请精简'}))).status).toBe(200);
+  expect(claimResumeTask).toHaveBeenCalledWith('owner',id,{action:'conversation',messageId:id});
+  expect(draft).toHaveBeenCalledTimes(1);expect(finishResumeTask).toHaveBeenCalledTimes(1);
 });
 test('owned authoritative source is used, not client-supplied résumé or JD',async()=>{
   const source={resume:'已保存的真实原文',jd:'',general:true,revision:'rev'};

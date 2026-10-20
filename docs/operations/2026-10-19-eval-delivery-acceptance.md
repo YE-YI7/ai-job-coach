@@ -1,8 +1,8 @@
 # Qoder / Grok 交付联合验收
 
-最新检查点：最终运行代码 `6d743b5` 的干净云候选 `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy` 已 READY，正式项目 ID / sourceCommit 回读一致；health 200/database ok、新反馈/实验 API 无应用登录均 401。`yizhioffer.com` fresh 仍为原 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`，没有 promote 或切正式主域。Mac 仍锁屏，已请求本人仅解锁，最后实际 PDF 文件与正式域业务验收未完成。等待期间已停止本机 QA 服务，删除两份临时环境与三份原始部署 API JSON；保留 700 私有现场目录、600 的本次 QA 邀请状态及 Chrome 打印预览，供解锁续接，禁止输出其中凭据。恢复时先按现有 Vercel 权限拉临时环境再启动 QA，实际打印页已加载的正文不依赖服务重启；完成后再精确清该 QA 身份/业务数据，不动旧账号。
+最终状态（2026-10-19 本地 / 10-20 UTC）：本人解锁后完成 Chrome 实际 PDF 保存、文字与渲染检查；按既有发布权限将同一干净 Production 构建 `6d743b5` / `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy` promote 到 `https://yizhioffer.com`。正式域 fresh inspect 回读相同部署，READY；health 200/database ok，反馈与实验 API 未登录仍 401。原管理员会话、工作区刷新、后台三方案批次与外部盲评、反馈保存后整页刷新均已实测。没有从共享脏工作树重新构建或带入其他前端改动。
 
-2026-10-19（本地）。当前是发布候选验收记录，不能将未完成项当作已上线。
+2026-10-19（本地）。以下区分真实模型原始记录、人工浏览器交付验收与历史检查点，不回填未采集的模型数据。
 
 ## 接收与修复
 
@@ -42,7 +42,7 @@ v4 暴露过度提问，v6 已清楚样本仅默认独立方案正确保留。�
 - Chrome 候选 Eval 读取真实批次、显示输入输出、未知成本、自评未记录、外部盲评与硬风险；指定真实 change ID 保存反馈成功，完整刷新后回到原运行并从后台恢复反馈。QA 反馈 ID `9aec4e6a-0e3c-4176-941c-72bb5b313ea6`，关联运行 `b8a1dcbe-fd6d-4d26-8aa1-08370d27008f` / 修改 `ai-change-1792426785070-0`，明确是虚构验收而非用户原反馈。
 - 1440×900、390×844 检查无新增页面横溢出（390/390）。手动 Impeccable detect 初检后修新项，只复核一次：26 advisory、0 primary；未开启自动钩子。
 
-本机 QA 临时服务关闭支付配置，并只给新测试账号添加本机管理员身份用于私有接口验收，未改 Vercel 管理员名单。初次本机环境缺完整支付凭据而请求失败，未调模型；之后只给此 QA 账号补测试免费次数，未充值/兑换。真实模型未 stub，不消费原用户余额。正式云环境保持原配置，仍须候选云核验。
+本机 QA 临时服务关闭支付配置，并只给新测试账号添加本机管理员身份用于私有接口验收，未改 Vercel 管理员名单。初次本机环境缺完整支付凭据而请求失败，未调模型；之后只给此 QA 账号补测试免费次数，未充值/兑换。真实模型未 stub，不消费原用户余额。正式云环境保持原配置，候选和正式域 health / 私有接口权限均已核验。
 
 本轮两次真实业务调用分别为：
 
@@ -51,14 +51,20 @@ v4 暴露过度提问，v6 已清楚样本仅默认独立方案正确保留。�
 
 四次实际模型调用输入合计 20,733 / 输出 1,148 tokens，站点价表估计 USD 0.0027147736，非实际结算金额。两次结果均已云存，旧 77 条实验没有重跑。私有外部反馈与案例读取均不调用模型。
 
-## 尚未完成
+## 实际 PDF 与正式站验收
 
-应用实际导出预览已核全文与新尾标；点击 Chrome 保存时 Mac 锁屏，尚未拿到本轮 PDF 文件，不能记为 PDF 通过。当前未 promote，待解锁完成实际保存、内容层/排版检查，再核正式候选、原数据 hash 后切同一构建。
+本人解锁后，从原应用生成的打印页继续 Chrome「Save as PDF」，实际文件 `/tmp/yizhi-release-acceptance.637dGz/chrome-export.pdf`，51,415 bytes，一页 A4，Chrome Skia/PDF 生成。SHA256 `ea950a11562a74c3c7204ebf44f239ef09fcf3f593cb993f73ada0ef3bfc8c1a`。NFKC 归一文字层核对 Excel 需求清单、课程未上线限定、辅导员跟进、手工技能尾标全部存在；两条 bullet，无旧占位文字。Poppler 渲染 `/tmp/yizhi-release-acceptance.637dGz/chrome-export-render.png` 人工检查无裁切、重叠、编辑控件或修改标记；PDF 无 JavaScript。没有另造文件代替浏览器真实导出。
 
-临时凭据文件仅本机私有目录，不入 Git；收尾需退出 QA、精确清理本次虚构测试业务记录，保留已标明的 Eval 证据。发布前后核旧作答、原账号资料、积分；不得以旧报告代替本轮回读。
+正式后台 `https://yizhioffer.com/admin/evals`：既有管理员登录直接恢复，方案对比可读实际 v3/v6 数据、30 条外部审阅和仅格式方案事实否决；未记录的实扣、自评和历史 PDF 标记仍保持未知。通过真实浏览器新增人工整稿验收反馈 `a3f3dfd9-48e9-4fdc-9807-7726a1a8e3cf`，关联运行 `dcd97dd5-b1ca-4c6c-bc54-2df335f16c98` / Trace `148e7784-b521-419b-b1ea-46c951d0912c`。后端回读一致，整页刷新仍有相同记录；只记录人工实际观察，不修改模型原始输出。用户既有反馈 `6c05f797-6ad8-4cf1-80d4-79f83c1b42f1` 仍在。截图 `/tmp/yizhi-release-acceptance.637dGz/eval-live-feedback-saved.png`。
 
-## 发布检查点
+正式原账号工作区刷新后仍为 8 岗位、原已存材料/6 处待确认建议可读；没有重跑模型、改原材料或点击采纳。新部署发布后短窗（10 分钟查询、最多 30 条）error 日志为空，不等于长期稳定性保证；未新增监控或计费服务。
 
-修复代码 `a44e7ce`、`6d743b5` 已推既有任务分支；未推 main。`a44e7ce` 首个云候选 `dpl_2sLxKr8QfJUgi1mWaCdP3wLVS4da` 已 READY，sourceCommit / 项目 ID 回读一致，health 200/database ok，两项新管理员 API 无应用登录返回 401。该候选不包含最后一个旧错误提示修复，不应再被 promote；最终候选必须从 `6d743b5` 干净归档部署。Vercel 的部署自有 alias 不等于正式域已切；fresh `yizhioffer.com` 仍为 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`。
+QA 正常点击退出登录，确认回到 localhost 登录页后，事务内校验精确邀请身份和创建时间，只清本轮 QA：Public/Auth 身份各 1、邀请 1、工作区 1 及其级联业务数据、测试免费额度与 2 条试用账本、13 条测试事件、4 条生成事件。两条完整 Eval 记录删除前后 hash 一致保留；未删任何历史 QA、用户反馈或实验批次。原钱包/转账/预留不参与清理。QA 自签浏览器 cookie 由正常退出清除；没有将删用户冒称全局 JWT 即时吊销，也没有轮换全站会话密钥。临时本机服务再次停止、QA/打印页关闭；临时环境文件、QA 邀请状态和原始部署元数据文件清除，不入 Git，保留脱敏验收证据。
 
-本轮开始与浏览器验后同一 SQL 口径回读：41 条作答 hash `9e144836009b5eb9bfe09dec0ac90d32`、原 33 资料 hash `54bb493ecb114eae3a4fb6d728509526`、本人 10 资料 hash `d8e23a828457c2922192147e9aaa8104`，完全相同。本人钱包/转账/积分预留 0 行，额度 1 行 hash `75aeec48a151f6ae95ca9d613ae37999`，与本轮基线相同。仅新增的隔离 QA 资料另计，不把不同聚合口径的旧报告哈希拿来比较。
+## 发布来源与旧数据保护
+
+修复代码 `a44e7ce`、`6d743b5` 已推既有任务分支，未推 main。正式发布的是 `6d743b5` 干净归档构建，部署前核项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`、Production、sourceCommit、READY，切换前确认主域仍 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`；切后 inspect 主域精确回读 `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy`。未重新构建、未 promote 较早 `a44e7ce` 候选。回滚目标保留原 `dpl_BvZ21Xg7qdqCK1E18fVUY7AC1JMi`。运行 URL `https://ai-job-coach-q9kgfrqn3-velmavalienteqejimu22-jpgs-projects.vercel.app`，Next.js，构建 135 页通过。
+
+发布前与发布后（含 QA 清理）同一 SQL 口径回读：41 条作答 hash `9e144836009b5eb9bfe09dec0ac90d32`、原 33 资料 hash `54bb493ecb114eae3a4fb6d728509526`、本人 10 资料 hash `d8e23a828457c2922192147e9aaa8104`，完全相同。本人钱包/转账/积分预留仍各 0 行，空 hash 不变；本轮没有充值、兑换、支付、真实用户模型消费或短信。
+
+额度表需单独说明：发布前 hash `75aeec48a151f6ae95ca9d613ae37999`，原账号工作区刷新时既有 `/api/quota/check` → `getOrCreateQuota` 完成 UTC 每日免费次数惰性重置，`last_free_reset=2026-10-20`、`updated_at=2026-10-20T02:32:27.786Z`，因此整行 hash 变为 `2617d657e8111747f4f203c8c17977cd`，不能宣称该表全行不变。当前免费 chat/resume 为 3/1、三项 paid 均 0；本轮原账号新增消费账本 0 行。源码该分支只更新免费次数/重置日期/更新时间，不写 paid 字段。没有为追求 hash 相同倒改正常免费刷新。

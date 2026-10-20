@@ -27,4 +27,20 @@ Qoder 去除了常驻模式与模型入口，但状态及调用仍存在。为�
 
 统一口径 `md5(coalesce(string_agg(row_to_json(t)::text,'' order by t.id),''))`：旧作答 41 条 `0881efbb0a4a159ba1e7b5460c6007d8`；全站工作区 33 条 `10387ab8df982aabc46f6e5acd85d09f`；本人工作区 10 条 `ae949dcd2e71a2bd443842ed6af7e853`。本人 wallet/transfer/reservation 各 0 行。无业务写入或 schema 操作。
 
-发布前正式部署 `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy` / source `6d743b5`。待干净提交归档构建、候选验收后 promote 同一 Production 构建，再记录正式刷新与数据回读。
+发布前正式部署 `dpl_2Tnu4P7EXiE67hp24R5bGdVhbnGy` / source `6d743b5`。
+
+## 已上线及正式验收
+
+- **URL / Target / Status：** https://yizhioffer.com / Production / READY。
+- **Commit / Framework / Build：** `6615ada` / Next.js 16.3.0 / 云构建约 2 分钟；TypeScript、135 页生成通过。
+- **Deployment：** `dpl_A2n9QF6YFFcDZEQ8VY3Er2xZo9av`；唯一候选 `ai-job-coach-9vk3yadmz-velmavalienteqejimu22-jpgs-projects.vercel.app`。候选由干净 git archive 创建，未包含本机接口夹具或未跟踪的真实数据。代码已推既有分支。
+- 临时候选受 Vercel 访问保护，普通 HTTP 探针到达 Vercel 登录页，不作为业务失败或成功；改用现有 CLI 认证验 `/api/health` database ok、管理员反馈 API 401。未关闭保护或增配权限。
+- promote 前 fresh inspect 确认正式仍是前版 `dpl_2Tnu…`，随后 promote 同一 Production 构建；正式 fresh inspect 精确为 `dpl_A2n…` / READY / Production，没有用 Preview 重建冒充验过的构建。
+- 正式 health 200 / database ok；匿名 session 401 / authenticated false，两个 Eval 管理员 API 均 401。
+- Chrome 原账号整页刷新仍为个人工作区、8 个准备岗位、原简历和 6 处待确认建议。一般输入实测内外 border 0、仅语音与发送；顶部设置展开能读到正式模型目录与价格顺序，Escape 关闭/回焦通过，未更改原模型/模式选择、未发送消息。简历补问白色输入面及内置发送正常显示。
+- 原 Eval 后台刷新仍为“正式站 · 管理员”，22 条当前正式记录、既有 Trace/Agent I/O 与人工反馈 `a3f3dfd9…` 可读；外层 body 为空是后台 iframe 的 DOM 边界，不是白屏，以实际 AX 与截图确认。未编辑或新建后台记录。
+- 正式回读：41 旧作答、33 全站资料、本人 10 资料条数及上述整行 hash 全部一致；wallet/transfer/reservation 仍各 0。未触发真实模型改稿、充值、兑换、短信或扣积分。
+- **Post-deploy observability：** 本部署最近 10 分钟、最多 30 条 error 日志查询为空；现有项目 Drains 0，属于长期监控缺口，不宣称短窗无错等于长期健康。浏览器可见一条第三方扩展 share-modal.js 的历史 TypeError 和未展开 Object 日志，未冒称控制台全部无错，也未修改扩展或扩大修复。
+- 实际截图：`/tmp/yizhi-cend-acceptance.zlA2nd/production-desktop.png`；桌面/手机示例截图与本地失败夹具证据同目录。隔离服务及本次两张本机页面已关闭；临时视口已恢复。原账号与后台标签保留。
+
+旧域到期不续、积分兑换暂缓及其余历史产品待办不变。本次没有重新验短信、正式支付或 PDF；这些流程未被本补丁修改。ME 共享 index 含协作者暂存，仅更新本线记录，不提交/推送 ME。

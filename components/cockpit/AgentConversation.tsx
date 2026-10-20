@@ -2,14 +2,14 @@
 import {useCallback,useEffect,useId,useLayoutEffect,useRef,useState} from "react";
 import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
-import {ArrowUp,CaretDown,Copy,Plus,BookOpen,DotsThree} from "@phosphor-icons/react";
+import {ArrowUp,Copy,Plus,BookOpen,DotsThree} from "@phosphor-icons/react";
 import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
 import VoiceControls from "./VoiceControls";
+import ModelPicker from "./ModelPicker";
 import SelectMenu from "@/components/ui/SelectMenu";
 import {isChatMode,type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
-import {formatPriceRange} from "@/lib/coach-harness/model-pricing";
 import {readChatResponse} from "@/lib/coach-harness/chat-stream";
 import {persistPendingAnswer,restorePendingAnswer,clearPendingAnswer,pendingAnswerStore} from "./pending-answer";
 import {chatRequestSignal,withChatRequestDeadline} from "./chat-request-deadline";
@@ -75,7 +75,6 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const setModelMode=useCallback((mode:ChatMode)=>{setModelModeState(mode);try{localStorage.setItem("yi-zhi.chat-model",mode);}catch{}},[]);
  const [modelAccess,setModelAccess]=useState<{connected:boolean;catalog:CatalogEntryAvailability[]}|null>(null);
  const modelCatalog=modelAccess?.catalog??catalogWithAvailability([]);
- const modelLabel=modelMode==="auto"?"自动 · 优选模型":modelMode==="fast"?"实惠档 · 站点模型":modelCatalog.find(m=>m.id===modelMode)?.name??modelMode;
  useEffect(()=>{if(!enabled)return;const controller=new AbortController();fetch("/api/coach/agent/models",{signal:controller.signal,cache:"no-store"}).then(r=>r.json()).then(b=>{if(!b.ok||controller.signal.aborted)return;const available:string[]=Array.isArray(b.available)?b.available:[];setModelAccess({connected:!!b.connected,catalog:Array.isArray(b.catalog)&&b.catalog.length?b.catalog:catalogWithAvailability(available)});}).catch(()=>{});return()=>controller.abort();},[enabled]);
  const generation=useRef(0),lock=useRef(false),seen=useRef(new Set<string>());
  const jumpToLatest=useRef(false),lastTurn=useRef<HTMLDivElement|null>(null);
@@ -265,7 +264,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   {modelNotice&&<div className={styles.modelConfirm} role="group" aria-label="模型档位说明"><span>{modelNotice.text}</span><button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelNotice(null);}}>{modelNotice.requiresConfirm?"知道了，继续":"知道了"}</button>{modelNotice.requiresConfirm&&modelMode!=="fast"&&<button type="button" onClick={()=>{rememberAcknowledged(ackStore(),modelNotice);setModelMode("fast");setModelNotice(null);}}>换回实惠档</button>}</div>}
   <form className={styles.composer} onSubmit={e=>{e.preventDefault();void send(message.trim());}}>
    <textarea ref={input} aria-label="给导师的消息" placeholder="写下你的回答，或直接说没听懂…" rows={2} maxLength={4000} disabled={!enabled} value={message} onChange={e=>{setMessage(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,112)+"px";}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send(message.trim());}}}/>
-   <footer><label className={styles.modelChoice} title={`选择导师模型：${modelLabel}`}><span aria-hidden="true">{modelLabel}</span><CaretDown size={13} aria-hidden="true"/><select aria-label="导师模型" value={modelMode} disabled={busy||loading||!enabled} onChange={e=>{if(isChatMode(e.target.value))setModelMode(e.target.value);}}><option value="auto">自动 · 优选模型</option><option value="fast">实惠档 · 站点模型</option>{modelCatalog.map(m=><option key={m.id} value={m.id} disabled={!m.available}>{m.name}{m.referencePrice?` · 输出 ${formatPriceRange(m.referencePrice.output)} / 输入 ${formatPriceRange(m.referencePrice.input)}`:''}{!m.available?' · 暂不可用':''}</option>)}</select></label><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
+   <footer><ModelPicker value={modelMode} onChange={setModelMode} catalog={modelCatalog} connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}/><VoiceControls key={session?.id||"new"} value={message} onChange={setMessage} disabled={!enabled||busy||loading}/><button aria-label="发送消息" disabled={busy||loading||!enabled||!message.trim()||!!(modelNotice&&modelNotice.requiresConfirm)} type="submit"><ArrowUp size={18}/></button></footer>
   </form>
   <p className={styles.disclaimer}>AI 也会出错，重要信息请核实。</p>
  </div>

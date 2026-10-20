@@ -13,7 +13,7 @@ test("输入框只有一个框，框下只剩一行免责声明", () => {
   // textarea 自己不再浮阴影，聚焦环归外层 form.composer
   expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:none;background:transparent}");
   expect(conversation()).toContain('className={styles.composer}');
-  expect(conversation()).toMatch(/<footer><label className=\{styles\.modelChoice\}[\s\S]*<VoiceControls[^>]*\/><button aria-label="发送消息"/);
+  expect(conversation()).toMatch(/<footer><ModelPicker[^>]*\/><VoiceControls[^>]*\/><button aria-label="发送消息"/);
   expect(conversation()).toContain('className={styles.disclaimer}>AI 也会出错');
 });
 
@@ -32,7 +32,7 @@ test("模型保留在输入区左下角，模式与用量设置仍可达",()=>{
   const source=conversation();
   expect(source).toContain('aria-label="辅导设置"');
   expect(source).toContain('aria-label="导师模式"');
-  expect(source).toContain('aria-label="导师模型"');
+  expect(source).toContain('<ModelPicker value={modelMode} onChange={setModelMode}');
   expect(source).toContain('popover="auto"');
   expect(source).toContain('settingsTrigger.current?.focus()');
   expect(source).toContain('window.innerWidth-width-12');
@@ -40,13 +40,11 @@ test("模型保留在输入区左下角，模式与用量设置仍可达",()=>{
   expect(source).toContain('发送会调用 AI，失败释放额度');
   expect(source).toContain('useState<ChatMode>("auto")');
   expect(source).toContain('setModelModeState(isChatMode(saved)?saved:"auto")');
-  expect(source).not.toContain('<ModelPicker');
-  const footer=source.slice(source.indexOf('<footer><label className={styles.modelChoice}'),source.indexOf('</footer>'));
-  expect(footer).toContain('aria-label="导师模型"');
-  expect(footer.indexOf('aria-label="导师模型"')).toBeLessThan(footer.indexOf('<VoiceControls'));
-  expect(source.match(/aria-label="导师模型"/g)).toHaveLength(1);
-  expect(conversationCss()).toContain('max-width:240px;min-height:36px;margin-right:auto');
-  expect(conversationCss()).toContain('.modelChoice{min-height:44px}');
+  const footer=source.slice(source.indexOf('<footer><ModelPicker'),source.indexOf('</footer>'));
+  expect(footer.indexOf('<ModelPicker')).toBeLessThan(footer.indexOf('<VoiceControls'));
+  expect(source.match(/<ModelPicker /g)).toHaveLength(1);
+  expect(read('ModelPicker.module.css')).toContain('max-width:240px;margin-right:auto');
+  expect(read('ModelPicker.module.css')).toContain('.wrap .trigger.trigger{min-height:44px}');
 });
 
 test("改稿问答贴面板底部，发送按钮在输入框里面", () => {

@@ -21,13 +21,20 @@
 
 ## 验收与边界
 
-- 7套66项定向回归通过：超时/网络/额度安全文案、CAS/刷新/过期/并发、同ID重试、讨论不编辑、编辑只调用一次、已存决策恢复、TokenDance模型保持/流式JSON/无自动重试、截断/绝对截止及原输入区合同。
+- 8套74项干净归档定向回归通过：超时/网络/额度安全文案、CAS/刷新/过期/并发、同ID重试、讨论不编辑、编辑只调用一次、已存决策恢复、TokenDance模型保持/流式JSON/无自动重试、截断/绝对截止、外层路由及原输入区合同。另将接线测试的实际等待压到100ms（保留生产45秒配置断言），避免历史 Promise.race 定时器延迟 Jest 退出；生产共享 LLM 重试器未扩大修改。
 - TypeScript通过；相关 lint 无错误，CockpitApp 两条未使用函数警告为历史项。
 - UI detect手动一次：本次0新增；CockpitApp四处历史颜色 advisory 与 HEAD 对应，未扩大改动。自动钩子未开。
 - Chrome隔离页（虚构简历/模拟模型失败）实际发送→失败保留→直接重发→同ID/条数不增→成功清对应输入；已有不同草稿重发后与刷新后仍保留，编辑调用0。它验证交互，不冒称正式模型或云任务写入验收。
-- 未重放原账号收费请求、未操作简历正文、旧作答、积分/兑换/支付。站点模型密钥在环境拉取中为不可读占位符，因此本轮没有 CLI 真实模型复跑；网关协议用接线测试验证，真实失败证据来自原 Trace。
+- 未重放原账号收费请求、未操作本人简历正文、旧作答、积分/兑换/支付。站点模型密钥在环境拉取中为不可读占位符；随后通过候选上的正常登录与业务 API，用独立新QA账号/虚构资料完成真实模型调用，不读取本人模型密钥。
+- 真实QA消息 `09191510-4ac6-4a02-907e-1a0ff76b7f73`：服务端往返15356ms，StepFun `step-3.7-flash` 遥测5809ms、输入2714/输出534token、retry_count=0。导师返回discuss和真实解释；同ID再次提交replayed=true，只有1条实际生成遥测；GET回读回复相同、conversation=1、原稿/answers不变。这不是原账号TokenDance网络恢复验收，不冒称供应商永不超时。
+- 新增后台接线验收反馈 `42957e5f-a540-4c88-b6c1-1a6acff12bce`，同样关联原真实run，明确不是原请求重跑、不是改稿质量评分，回读hash相符。原始失败反馈保留。
+- QA正常退出后，仅清除本次新邀请码、独立用户、虚构机会/任务、生成遥测和1条测试免费次数账本。私有临时Cookie、邀请码请求文件、环境副本与身份文件已删除；保留脱敏结果 `/tmp/yizhi-message-recovery-secrets.4XvgxX/live-qa-result.json` 与清理回执，QA服务已停。
 - 发布只包含本次文件及 CockpitApp三个接线片段；另有在途首页/壳/普通导师样式及空工作台/面试展开变更留在工作树，不混发。QA路由只在 `/tmp`，不部署。
 
 ## 发布回执
 
-候选与正式验收完成后补记；此处不把提交、构建或测试等同上线。
+- 运行代码 `876be09` 已推远端；干净 `git archive` 候选 `dpl_uritZYS1cq1WrbKpNW5RXeKsgyy6`，Production / READY / 项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS` / sourceCommit匹配，135页构建与TypeScript通过。
+- 候选health200/databaseok、resume-agent匿名401；真实QA后，fresh核正式仍81VW，才将同一已测构建promote至 `https://yizhioffer.com`。正式再回读为该部署/READY，health200/databaseok、Eval反馈匿名401。
+- 正式原账号的Chrome复核遇Mac锁屏，未反复要求本人解锁或验证；不把隔离Chrome测试冒充正式账号实发。本人原收费消息未代发，仍可保留原ID自行重发。
+- 正式构建最近5分钟error日志0；长期Drains缺口为历史项，此次未改监控配置。
+- 原任务version13、answers/result/conversation/原机会metadata四项hash均保持：`fa04936c4104f583544f02e11d6dc7f9` / `d41d8cd98f00b204e9800998ecf8427e` / `cc516ed8086a1e0d62562ca379cf83ed` / `7625183c22bd7fd6893c10bc5d4d79cb`。41旧作答 `0881efbb0a4a159ba1e7b5460c6007d8`、钱包1条 `9f0a14c3f65873c86b7ffb2e9ba86a70`、转入1条 `58f4919a216eb69d8e9125690f760a76`、预留6条 `28a8a594873473606e21a6692d971fc0`，前后完全相同。

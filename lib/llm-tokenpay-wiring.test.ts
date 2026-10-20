@@ -136,16 +136,17 @@ describe("callLLM 的 TokenPay 网关接线", () => {
     (resolveTokenDanceModel as jest.Mock).mockResolvedValue('deepseek-v4-flash');
     const result='{"action":"discuss","reply":"先讨论亮点。"}';
     create.mockResolvedValue((async function*(){yield {model:'deepseek-v4-flash',choices:[{delta:{content:result.slice(0,20)}}]};yield {choices:[{delta:{content:result.slice(20)},finish_reason:'stop'}]};})());
-    expect(await callLLM(messages,resumeConversationLlmOptions())).toBe(result);
+    const options=resumeConversationLlmOptions();expect(options.timeoutMs).toBe(45000);
+    expect(await callLLM(messages,{...options,timeoutMs:100})).toBe(result);
     expect(create).toHaveBeenCalledTimes(1);
     expect(create.mock.calls[0][0]).toMatchObject({stream:true,model:'deepseek-v4-flash',response_format:{type:'json_object'},max_tokens:1400});
-    expect((globalThis as Record<string,unknown>).__openaiOptions).toMatchObject({maxRetries:0,timeout:45000});
+    expect((globalThis as Record<string,unknown>).__openaiOptions).toMatchObject({maxRetries:0,timeout:100});
   });
   test('gateway timeout does not auto-retry or silently bill another provider',async()=>{
     (getGenerationContext as jest.Mock).mockReturnValue({userId:'fixture',operation:'resume_conversation'});
     (getTokenPayCredential as jest.Mock).mockResolvedValue('fixture-key');
     create.mockRejectedValue(new Error('Request timed out.'));
-    await expect(callLLM(messages,resumeConversationLlmOptions())).rejects.toThrow('timed out');
+    await expect(callLLM(messages,{...resumeConversationLlmOptions(),timeoutMs:100})).rejects.toThrow('timed out');
     expect(create).toHaveBeenCalledTimes(1);
   });
   test("已连接账号 + 生成上下文：翻到网关，并打到解析后的模型", async () => {

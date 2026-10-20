@@ -60,3 +60,8 @@ test('a list read issued before save cannot overwrite the newly confirmed record
   const payload=JSON.parse(h.requests[1].options.body);h.respond(1,{ok:true,feedback:{...payload,createdAt:new Date().toISOString()}});await saved;
   h.respond(0,{ok:true,cases:[]});await reading;assert.equal(h.api.state().items[0].id,payload.id);
 });
+test('confirmed save clears an earlier list error instead of keeping a stale failure message',async()=>{
+  const h=harness();h.api.visit(idA);const reading=h.api.loadFeedback(idA);h.respond(0,{ok:false,error:'temporary'},503);await reading;
+  h.note('issue');const saved=h.api.saveFeedback();const body=JSON.parse(h.requests[1].options.body);h.respond(1,{ok:true,feedback:{...body,createdAt:new Date().toISOString()}});await saved;
+  assert.match(h.element('fb-status').textContent,/后台已保存/);assert.doesNotMatch(h.element('fb-status').textContent,/temporary/);
+});

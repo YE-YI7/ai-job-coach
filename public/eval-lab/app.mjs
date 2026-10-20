@@ -681,6 +681,7 @@ async function saveFeedback() {
     } catch {}
     if (!stillHere()) return;
     feedbacks = [data.feedback, ...feedbacks.filter((x) => x.id !== data.feedback.id)];
+    feedbackLoadError = null;
     feedbackStatus = data.replayed
       ? "这条反馈此前已保存，服务器没有重复写入。"
       : `后台已保存 · ${date(data.feedback.createdAt)}`;

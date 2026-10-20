@@ -13,7 +13,7 @@ test("输入框只有一个框，框下只剩一行免责声明", () => {
   // textarea 自己不再浮阴影，聚焦环归外层 form.composer
   expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:none;background:transparent}");
   expect(conversation()).toContain('className={styles.composer}');
-  expect(conversation()).toMatch(/<footer><VoiceControls[^>]*\/><button aria-label="发送消息"/);
+  expect(conversation()).toMatch(/<footer><label className=\{styles\.modelChoice\}[\s\S]*<VoiceControls[^>]*\/><button aria-label="发送消息"/);
   expect(conversation()).toContain('className={styles.disclaimer}>AI 也会出错');
 });
 
@@ -28,7 +28,7 @@ test("历史对话弹层展开后点外面或按 Esc 一定能收起来", () => 
   expect(source).toContain('window.addEventListener("keydown",onKey)');
 });
 
-test("输入区去掉常驻工具，不删除已有模式、模型或用量知情能力",()=>{
+test("模型保留在输入区左下角，模式与用量设置仍可达",()=>{
   const source=conversation();
   expect(source).toContain('aria-label="辅导设置"');
   expect(source).toContain('aria-label="导师模式"');
@@ -40,6 +40,12 @@ test("输入区去掉常驻工具，不删除已有模式、模型或用量知�
   expect(source).toContain('发送会调用 AI，失败释放额度');
   expect(source).toContain('return isChatMode(saved)?saved:"auto"');
   expect(source).not.toContain('<ModelPicker');
+  const footer=source.slice(source.indexOf('<footer><label className={styles.modelChoice}'),source.indexOf('</footer>'));
+  expect(footer).toContain('aria-label="导师模型"');
+  expect(footer.indexOf('aria-label="导师模型"')).toBeLessThan(footer.indexOf('<VoiceControls'));
+  expect(source.match(/aria-label="导师模型"/g)).toHaveLength(1);
+  expect(conversationCss()).toContain('max-width:240px;min-height:36px;margin-right:auto');
+  expect(conversationCss()).toContain('.modelChoice{min-height:44px}');
 });
 
 test("改稿问答贴面板底部，发送按钮在输入框里面", () => {

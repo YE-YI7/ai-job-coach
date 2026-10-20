@@ -67,7 +67,11 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
   try{const r=await fetch("/api/coach/agent/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({note:true,title:turn.question.slice(0,120)||"导师回答",summary:turn.answer.slice(0,6000),opportunityId:turn.opportunity_id??null,sourceTurnId:turn.id})});const b=await r.json();if(!r.ok||!b.ok)throw Error(b.error||"笔记保存失败");setSavedNotes(s=>new Set(s).add(turn.id));}
   catch(e){setError(e instanceof Error?e.message:"笔记保存失败");}finally{setSavingNote(null);}
  }
- const [modelMode,setModelModeState]=useState<ChatMode>(()=>{try{const saved=localStorage.getItem("yi-zhi.chat-model");return isChatMode(saved)?saved:"auto";}catch{return "auto";}});
+ // Match the server's first render, then restore the browser preference before
+ // session loading enables sends. Reading it in the initializer mismatches the
+ // visible model name during hydration when a non-default model was saved.
+ const [modelMode,setModelModeState]=useState<ChatMode>("auto");
+ useEffect(()=>{try{const saved=localStorage.getItem("yi-zhi.chat-model");setModelModeState(isChatMode(saved)?saved:"auto");}catch{/* Keep auto without overwriting an inaccessible preference. */}},[]);
  const setModelMode=useCallback((mode:ChatMode)=>{setModelModeState(mode);try{localStorage.setItem("yi-zhi.chat-model",mode);}catch{}},[]);
  const [modelAccess,setModelAccess]=useState<{connected:boolean;catalog:CatalogEntryAvailability[]}|null>(null);
  const modelCatalog=modelAccess?.catalog??catalogWithAvailability([]);

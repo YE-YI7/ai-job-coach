@@ -38,7 +38,8 @@ test("模型保留在输入区左下角，模式与用量设置仍可达",()=>{
   expect(source).toContain('window.innerWidth-width-12');
   expect(conversationCss()).toContain('.settingsPanel{position:fixed;inset:auto');
   expect(source).toContain('发送会调用 AI，失败释放额度');
-  expect(source).toContain('return isChatMode(saved)?saved:"auto"');
+  expect(source).toContain('useState<ChatMode>("auto")');
+  expect(source).toContain('setModelModeState(isChatMode(saved)?saved:"auto")');
   expect(source).not.toContain('<ModelPicker');
   const footer=source.slice(source.indexOf('<footer><label className={styles.modelChoice}'),source.indexOf('</footer>'));
   expect(footer).toContain('aria-label="导师模型"');

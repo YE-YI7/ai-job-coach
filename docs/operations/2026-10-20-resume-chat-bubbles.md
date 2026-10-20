@@ -23,3 +23,15 @@
 不复测未修改的PDF、短信、支付，不重跑收费模型。UI源代码与调用边界有回归；正式只读刷新核对，不代用户发消息、领取改稿或消耗积分。临时QA页面不发布。
 
 最终发布前：21套定向回归152/152通过（全部cockpit + 原导师路由/决策），类型检查、指定组件lint、diff空白检查均通过。未重新运行2500+全库用例；不把前轮全量结果当成本轮重跑。发布候选将从本次提交干净归档，不包含本机夹具、未跟踪旧Eval资料、浏览器状态或环境密钥。
+
+## 正式发布与只读核对
+
+- 代码 `93cdc20`，干净归档 `/tmp/yizhi-bubbles-release.bJeXpP`；确认现有项目/团队后建立 Production 候选 `dpl_81VWd7CULxkDnKM1WBSNgaKTKDrv`。135页构建与类型通过，回读项目ID、Production、READY、sourceCommit相符。排队是同提交Git预览先构建，不取消别的任务。
+- READY后候选 health=200/database=ok，匿名resume-agent=401；第一次HTTP2帧错误000不是通过，改HTTP1.1重测成功。fresh正式仍ABsj…后，仅promote同一已测Production构建，正式inspect精确指向81VW…。
+- 正式域 health=200/database=ok、匿名resume-agent=401。终端直连曾TLS中断，不当作应用故障或通过；使用Vercel curl正式域别名入口核验成功，并配合Chrome实际域页面核对。
+- Chrome原账号整页刷新仍有8岗位，失败记录保留；显示短导师气泡、折叠补充/详情和底部可用输入框，旧大标题消失。未发送真实账号消息、未点击重试或跳过；无DB迁移、正文/旧作答/积分写入。不以UI刷新冒称云消息重新验收。
+- 浏览器Console有既有扩展来源错误（share-modal.js/content.js的chrome-extension地址可回指）及未展开的promise Object，不宣称浏览器零错误。本机热更新中出现过removeChild错误，未取得确定归因；正式刷新后的聊天区域完整加载可用，未观测到同一React错误。本轮不清插件/改浏览器安全设置，不将未知错误归因成已修复。
+- 近5分钟本部署error日志0；不等于长期监控齐备，既有Drains缺口未扩大或补齐。
+- 只保留无简历联系方式的右栏截图 `/tmp/yizhi-bubbles-acceptance.ssxxkP/production-chat.png`；两张含原文整窗中间图已精确删除。QA服务已停止、页面关闭、DevTools和设备仿真关闭，正式工作区保留。
+
+设计验收结论：本次局部聊天呈现可以交付。该结论由当前执行者按桌面/手机与交互证据给出，不冒称独立子Agent背书、用户审美认可、收费流程或全站验收。

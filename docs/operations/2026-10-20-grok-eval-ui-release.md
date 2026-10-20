@@ -27,3 +27,15 @@
 上线前正式仍为 `dpl_GbeDVUtyo9yx65NSSEFQeCihMhLi`，目标项目 `ai-job-coach` / `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`，正式域 `yizhioffer.com`。构建、权限检查、正式浏览器回读及最终部署 ID 待下节补记。
 
 本任务不执行数据库迁移、不修改云端认证配置、不发起模型、支付或积分兑换，也不修改历史记录。
+
+## 最终正式验收
+
+- 代码 `32eea06`，补充标题合并回归 `13f8e83`；最终定向 22/22 和类型检查通过，前端 16/16。全量结果仍按前一节原始运行报告，不把后加单测推算成完整重跑。
+- 最终干净归档 `/tmp/yizhi-eval-grok-final.z5lwWH` 构建 135 页，Production `dpl_H881ferdRqNDSaj6SpExgMckt9Th`，源码标记 `13f8e83`、项目 ID、READY、Production 均经元数据回读。
+- 候选健康接口 database=ok，应用管理员接口匿名 401。fresh 正式仍 Gbe…后，将同一 Production 构建 promote；正式域 inspect 精确指向 H881…。
+- 正式 health 200/database=ok；eval-runs 与 eval-feedback 匿名均 401。管理员 Chrome 原会话整页刷新后显示 37 条正式记录，已有真实改稿 `a9c08322-8b16-48b3-8762-b88c92f908fa` 的知识标题、预算排除、检查点代码、“未单独计时”和原始 Input/Output 均可读。读取与切换未触发模型或写反馈。
+- 示例记录实际是 0 纳入、4 排除，按已有证据展示，没有为了观感改成“已使用”。没有内容快照的摘要仍明确标注缺失。
+- 正式安全截图 `/tmp/yizhi-eval-grok.XTOCus/eval-production-safe.png`；无简历联系方式。包含联系方式的中间截图已精确删除。浏览器设备模式已还原、DevTools 已关闭，正式后台保留。
+- 近 5 分钟部署 error 日志 0；Drains 仍为既有 0，不以短窗无错冒称长期监控齐备。
+- 本机服务停用，临时生产环境文件已删除；未部署本机 QA 页面。第一个 `32eea06` 暂存候选未切正式域，实际发布为最终 `13f8e83`。
+- 共享工作树内简历讨论决策及相关任务文件完整保留、尚未发布；本次无数据库迁移、用户账号/旧作答/积分/支付/模型操作。ME 共享记录只更新、不提交。

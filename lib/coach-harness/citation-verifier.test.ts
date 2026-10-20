@@ -81,6 +81,16 @@ function firstVerdict(report: GroundingReport) {
 // 语料回归：拒绝集零漏放，grounded 集零误杀
 // ---------------------------------------------------------------------------
 
+test('source punctuation must not reject its unchanged original by leaking a qualifier across a comma',()=>{
+ const text='参与需求调研，收集同学反馈并整理记录。';
+ expect(verifyResumeGrounding({candidateText:text,sources:[{id:'original',text}]}).ok).toBe(true);
+});
+test('fixing source clause boundaries does not release removed participation or planned-action limits',()=>{
+ for(const [source,candidate] of [['参与收集用户反馈。','收集用户反馈。'],['参与 用户访谈。','用户访谈。'],['计划上线原型。','上线原型。'],['协助开发后台，计划发布。','开发后台，发布。']]){
+  expect(verifyResumeGrounding({candidateText:candidate,sources:[{id:'source',text:source}]}).ok).toBe(false);
+ }
+});
+
 describe("引用回指语料（20 条，含 10 条必判负）", () => {
   it.each(REJECTED.map((s) => [s.id, s] as const))("必判负 %s：幻觉经历不许漏放", (_id, s) => {
     const verdict = firstVerdict(verifyResumeGrounding({ candidateText: s.candidate, sources: SOURCES }));

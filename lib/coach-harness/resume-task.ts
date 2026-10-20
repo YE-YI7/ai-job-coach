@@ -1,18 +1,21 @@
 import { createHash, randomUUID } from "node:crypto";
 import { getDbClient } from "@/lib/db";
 import { requireDb } from "./repository";
-import { nextResumeQuestion, type ResumeAgentTask, type ResumeAgentAnswer } from "./resume-task-types";
+import { nextResumeQuestion, type ResumeAgentTask, type ResumeAgentAnswer, type ResumeConversationTurn } from "./resume-task-types";
+import type { ResumeConversationDecision } from "./resume-conversation-decision";
 import type { CareerClaim } from "./types";
 import type { Opportunity, ResumeChange } from "@/lib/opportunities/types";
 import type { ResumeRecovery } from "./resume-recovery";
 import { mergeResumeAgentChanges } from "@/lib/opportunities/resume-agent-merge";
 import { currentResumeAnswer } from './resume-supplement';
 
-type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string };
+type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
+type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string };
 export class ResumeTaskError extends Error { constructor(message: string, public status = 409) { super(message); } }
 export const resumeTaskFingerprint = (resume: string, jd: string, revision?: string) => createHash("sha256").update(JSON.stringify([resume.trim(), jd.trim(), revision || ""])).digest("hex");
 export function publicResumeTask(row: Row): ResumeAgentTask {
   return { id: row.id, state: row.state, question: row.question, answers: row.answers, updatedAt: row.updated_at,
+    ...(row.conversation?.length?{conversation:row.conversation.map(({id,message,reply,status,decision,savedAt})=>({id,message,reply,status,decision,savedAt}))}:{}),
     ...(row.result ? { result: row.result } : {}), ...(row.error ? { error: row.error } : {}) };
 }
 
@@ -39,8 +42,45 @@ export async function readResumeTask(userId: string, opportunityId: string) {
   return row && row.fingerprint === source.fingerprint ? publicResumeTask(row) : null;
 }
 
+/** Discussion has its own receipt, not a generation lease or an experience answer. */
+export async function beginResumeMessage(userId:string,opportunityId:string,id:string,message:string){
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||!message.trim()||message.length>2000)throw new ResumeTaskError('请输入1–2000字消息',400);
+  const source=await ownedResumeTaskSource(userId,opportunityId),row=await readRow(userId,opportunityId);
+  if(!row||row.fingerprint!==source.fingerprint)throw new ResumeTaskError('简历任务已变化，请刷新后继续讨论');
+  const turns=row.conversation||[],prior=turns.find(t=>t.id===id);
+  if(prior&&prior.message!==message.trim())throw new ResumeTaskError('消息编号已用于其他内容，请刷新核对');
+  if(prior?.status==='completed')return {task:publicResumeTask(row),source,version:row.version,replayed:true,
+    needsRevision:prior.decision==='revise'&&prior.plan?.action==='revise'&&row.state!=='running'&&!row.answers.some(a=>a.id===`conversation:${id}`)};
+  if(row.state==='running')throw new ResumeTaskError('导师正在完成当前修改，消息尚未提交，输入已保留');
+  if(turns.some(t=>t.status==='pending'&&Date.now()-Date.parse(t.savedAt)<90_000))throw new ResumeTaskError('导师正在回复上一条消息，输入已保留，请稍后继续');
+  const next:SavedConversationTurn={id,message:message.trim(),reply:'',status:'pending',savedAt:new Date().toISOString()};
+  const conversation=[...turns.filter(t=>t.id!==id).map(t=>t.status==='pending'?{...t,status:'failed' as const}:t),next];
+  const db=requireDb(await getDbClient());
+  const {data,error}=await db.from('coach_resume_tasks').update({conversation,version:row.version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',row.version).select('*').maybeSingle();
+  if(error)throw new ResumeTaskError('消息尚未保存，输入已保留，请重试',503);
+  if(!data)throw new ResumeTaskError('另一处已更新对话，请刷新后继续');
+  return {task:publicResumeTask(data),source,version:data.version as number,replayed:false};
+}
+export async function completeResumeMessage(userId:string,opportunityId:string,id:string,version:number,plan:ResumeConversationDecision){
+  const source=await ownedResumeTaskSource(userId,opportunityId),row=await readRow(userId,opportunityId);
+  if(!row||row.version!==version||row.fingerprint!==source.fingerprint||row.state==='running')throw new ResumeTaskError('简历或对话已更新，本轮未执行修改，请刷新核对');
+  if(!row.conversation?.some(t=>t.id===id&&t.status==='pending'))throw new ResumeTaskError('消息进度已变化，请刷新核对');
+  const conversation=row.conversation.map(t=>t.id===id?{...t,status:'completed' as const,reply:plan.reply,decision:plan.action,plan}:t);
+  const db=requireDb(await getDbClient());
+  const {data,error}=await db.from('coach_resume_tasks').update({conversation,version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version).select('*').maybeSingle();
+  if(error||!data)throw new ResumeTaskError('导师回复尚未保存，输入已保留，未执行修改',error?503:409);
+  return publicResumeTask(data);
+}
+export async function failResumeMessage(userId:string,opportunityId:string,id:string,version:number){
+  const row=await readRow(userId,opportunityId);
+  if(!row||row.version!==version)return;
+  const db=requireDb(await getDbClient());
+  const {error}=await db.from('coach_resume_tasks').update({conversation:(row.conversation||[]).map(t=>t.id===id&&t.status==='pending'?{...t,status:'failed'}:t),version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version);
+  if(error)throw new ResumeTaskError('消息状态尚未确认，请稍后按原消息重试',503);
+}
+
 /** 回答先用版本 CAS 保存，然后独占生成。两个并发请求不能启动两次模型。 */
-export async function claimResumeTask(userId: string, opportunityId: string, input: { action?: string; questionId?: string; answer?: string }) {
+export async function claimResumeTask(userId: string, opportunityId: string, input: { action?: string; questionId?: string; answer?: string; messageId?:string }) {
   const db = requireDb(await getDbClient()), source = await ownedResumeTaskSource(userId, opportunityId);
   let row = await readRow(userId, opportunityId);
   if (!row) {
@@ -57,9 +97,9 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     row = updated.data;
   };
   if (row.fingerprint !== source.fingerprint) {
-    if (input.action === "answer" || input.action === "revise") throw new ResumeTaskError("简历已更换，这条补充不再适用；输入仍保留");
+    if (input.action === "answer" || input.action === "revise" || input.action==='conversation') throw new ResumeTaskError("简历已更换，这条补充不再适用；输入仍保留");
     const retained=source.revision&&row.source_revision===source.revision?row.answers.filter(answer=>source.resume.includes(answer.sourceExcerpt)):[];
-    await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, result: null, error: null, lease_id: null });
+    await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, conversation:[],result: null, error: null, lease_id: null });
   }
   if(row!.state==='needs_detail'&&!nextResumeQuestion(source.resume,row!.question,row!.answers))await write({state:'idle',question:null,error:null});
   if (row!.state === "running") {
@@ -67,7 +107,22 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 330_000) return { task: publicResumeTask(row!), source, claimed: false };
     await write({ state: "failed", lease_id: null, error: "上一轮未完成，已保留补充" });
   }
-  if (input.action === "revise") {
+  let conversationAnswers: ResumeAgentAnswer[] | undefined;
+  if(input.action==='conversation'){
+    const turn=row!.conversation?.find(t=>t.id===input.messageId&&t.status==='completed'&&t.decision==='revise');
+    if(!turn?.plan||turn.plan.action!=='revise')throw new ResumeTaskError('导师尚未决定执行这次修改');
+    const instructionId=`conversation:${turn.id}`;
+    if(row!.answers.some(a=>a.id===instructionId))return {task:publicResumeTask(row!),source,claimed:false};
+    const additions:ResumeAgentAnswer[]=[{id:instructionId,kind:'instruction',field:'context',sourceExcerpt:'',question:'导师确认的本次修改目标',answer:turn.plan.editorBrief,savedAt:new Date().toISOString()}];
+    const supplement=turn.plan.supplement;
+    const factId=supplement?`conversation-fact:${supplement.turnId}:${createHash('sha256').update(JSON.stringify([supplement.sourceExcerpt,supplement.quote])).digest('hex').slice(0,16)}`:'';
+    if(supplement&&!row!.answers.some(a=>a.id===factId)){
+      additions.push({id:factId,field:supplement.field,sourceExcerpt:supplement.sourceExcerpt,question:'讨论中补充的本人经历',answer:supplement.quote,claimId:randomUUID(),savedAt:new Date().toISOString()});
+    }
+    // Save the instruction and acquire its generation lease in the same CAS.
+    // A process crash must not leave a consumed instruction with no editor run.
+    conversationAnswers=[...row!.answers,...additions];
+  } else if (input.action === "revise") {
     const answer=String(input.answer||"").trim();
     if(!answer||answer.length>2000)throw new ResumeTaskError("请填写1–2000字修改要求",400);
     const id=`instruction:${createHash('sha256').update(answer).digest('hex')}`;
@@ -95,7 +150,7 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     return { task: publicResumeTask(row!), source, claimed: false };
   }
   const lease = randomUUID();
-  await write({ state: "running", lease_id: lease, question: null, error: null });
+  await write({ state: "running", lease_id: lease, question: null, error: null, ...(conversationAnswers?{answers:conversationAnswers}:{}) });
   return { task: publicResumeTask(row!), source, claimed: true, lease, version: row!.version };
 }
 

@@ -24,7 +24,7 @@
  */
 
 /** 核验器版本：改动下面任何判定表都必须升版；护栏阈值指纹的 guard 段应把本对象取进去。 */
-export const CITATION_VERIFIER_VERSION = "citation-verifier-v2";
+export const CITATION_VERIFIER_VERSION = "citation-verifier-v3";
 
 export type GroundingSource = { id: string; text: string };
 
@@ -424,14 +424,19 @@ function checkQualifiers(statement: string, pool: IndexedSource[]): QualifierFin
       let at = clause.text.indexOf(verb);
       while (at >= 0) {
         const candidateClasses = qualifierClassesBefore(clause.text, at);
-        // 来源侧：按分句切开（规范化文本没标点，用动作词邻域窗口近似分句范围已足够严格）。
+        // Preserve source clause boundaries before normalization. Otherwise
+        // “参与需求调研，收集反馈” wrongly carries 参与 across the comma on
+        // only the source side, so even the unchanged original is rejected.
+        // Do not split whitespace: “参与 用户访谈” still carries its qualifier.
         const occurrences: Array<Set<"NEG" | "HEDGE" | "ROLE"> | null> = [];
         for (const source of pool) {
-          let sAt = source.normalized.indexOf(verb);
-          while (sAt >= 0) {
-            const classes = qualifierClassesBefore(source.normalized, sAt);
-            occurrences.push(classes.size ? classes : null);
-            sAt = source.normalized.indexOf(verb, sAt + verb.length);
+          for(const sourceClause of source.text.split(/[，,、；;：:。！？!?\n]/).map(stripPunctuation)){
+            let sAt = sourceClause.indexOf(verb);
+            while (sAt >= 0) {
+              const classes = qualifierClassesBefore(sourceClause, sAt);
+              occurrences.push(classes.size ? classes : null);
+              sAt = sourceClause.indexOf(verb, sAt + verb.length);
+            }
           }
         }
         const qualified = occurrences.filter((c): c is Set<"NEG" | "HEDGE" | "ROLE"> => c !== null && c.size > 0);

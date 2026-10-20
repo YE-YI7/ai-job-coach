@@ -3,6 +3,7 @@ import { getCurrentUserFromRequest } from '@/lib/auth';
 import { POST as draft } from '../resume-draft/route';
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from '@/lib/coach-harness/resume-task';
 jest.mock('@/lib/auth');
+jest.mock('@/lib/coach-harness/resume-conversation',()=>({runResumeConversation:jest.fn()}));
 jest.mock('../resume-draft/route',()=>({POST:jest.fn()}));
 jest.mock('@/lib/coach-harness/resume-task',()=>({claimResumeTask:jest.fn(),finishResumeTask:jest.fn(),readResumeTask:jest.fn(),ResumeTaskError:class extends Error{constructor(message:string,public status=409){super(message);}}}));
 const id='12345678-1234-4234-9234-123456789abc';

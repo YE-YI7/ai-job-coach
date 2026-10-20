@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-10-16",
+  "updated_at": "2026-10-20",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
@@ -24,7 +24,7 @@
     {
       "id": "resume.progressive-discovery.v1", "title": "简历补问：一问一答，补完继续改",
       "path": "domains/shared/resume-progressive-discovery.md",
-      "description": "缺证据时先改能改的，再根据回答一问一问补充个人动作和交付，允许不知道或跳过。",
+      "description": "缺证据时先改能改的，导师先讨论并判断何时编辑，再一问一问补充个人动作和交付，允许不知道或跳过；发送消息不自动改稿。",
       "goal": "避免整份简历被信息缺口卡住，补充事实之后继续改写而不是无限追问。",
       "scope": "只处理当前用户授权范围内的事实；公开 Skill 方法有关联来源，不视为独立招聘效果验证。",
       "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],

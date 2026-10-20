@@ -14,7 +14,9 @@ export async function observedResumeLLM(
   const context = getGenerationContext(),
     start = Date.now();
   const agent =
-    context?.operation === "resume_draft"
+    context?.operation === "resume_conversation"
+      ? "简历导师 · 对话决策"
+      : context?.operation === "resume_draft"
       ? "改稿 Agent"
       : context?.requestId?.includes("self-eval")
         ? "LLM 自评"

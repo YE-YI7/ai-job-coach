@@ -1,5 +1,6 @@
 {
   "_meta": {
+    "resume_conversation_verified_at": "2026-10-20 UTC: coach_resume_tasks conversation jsonb/default [] verified from production information_schema; existing answers/results hash unchanged; RLS retained and public grants absent",
     "eval_private_verified_at": "2026-10-19 UTC: coach_eval_feedback and coach_eval_batches columns read back from production information_schema; RLS enabled; anon/authenticated grants absent, service_role grants narrowed; migrations 20261019161122 and 20261019161227",
     "pulled_at": "2026-09-30",
     "phone_auth_verified_at": "2026-10-18 UTC: twelve phone_auth_challenges columns and four phone_account_recoveries columns verified via production information_schema; service-role recovery checks passed in rolled-back fixtures; migrations 20261018061015, 20261018061531 and 20261018074409 applied via Supabase MCP",
@@ -70,7 +71,8 @@
       "error",
       "version",
       "lease_id",
-      "updated_at"
+      "updated_at",
+      "conversation"
     ],
     "coach_agent_turns": [
       "id",

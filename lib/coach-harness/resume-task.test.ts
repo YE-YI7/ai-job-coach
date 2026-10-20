@@ -1,6 +1,6 @@
 import { getDbClient } from '@/lib/db';
 import { FakeDb } from './run-ledger/testing/fake-db';
-import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims } from './resume-task';
+import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims,beginResumeMessage,completeResumeMessage,failResumeMessage } from './resume-task';
 import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from './resume-task-types';
 import {currentResumeAnswer} from './resume-supplement';
 jest.mock('@/lib/db');
@@ -10,6 +10,55 @@ test('一个问号也不能同时索要三个事实',()=>{expect(nextResumeQuest
 test('动作与交付加案例清单也收敛成一个事实槽位',()=>{expect(nextResumeQuestion(source,{sourceExcerpt:source,field:'action',question:'请补充具体动作与交付成果，例如是否参与过调研、原型绘制、文档撰写等事项？'},[])?.question).toBe('这段经历里，你本人实际做的第一件事是什么？');});
 let db:FakeDb;
 beforeEach(()=>{db=new FakeDb({coach_opportunities:[{id:'opp',user_id:'owner',status:'active',jd_text:'',metadata:{resumeText:source,workspaceType:'preparation',resumeRevision:'rev'}}],coach_resume_tasks:[{id:'task',user_id:'owner',opportunity_id:'opp',fingerprint:resumeTaskFingerprint(source,'','rev'),state:'needs_detail',question:q,answers:[],result:null,error:null,lease_id:null,version:1,updated_at:new Date().toISOString()}]});(getDbClient as jest.Mock).mockResolvedValue(db);});
+const messageId='44444444-4444-4444-8444-444444444444';
+test('a discussion preserves question, old draft and answers and never claims generation',async()=>{
+ const opened=await beginResumeMessage('owner','opp',messageId,'为什么要这样写？先别改。');
+ expect(opened.task).toMatchObject({state:'needs_detail',question:q,answers:[]});
+ const plan={action:'discuss' as const,reply:'先解释写法，不执行修改。',editorBrief:'',supplement:null};
+ const done=await completeResumeMessage('owner','opp',messageId,opened.version,plan);
+ expect(done).toMatchObject({state:'needs_detail',question:q,answers:[],conversation:[{decision:'discuss',status:'completed',reply:plan.reply}]});
+ expect(JSON.stringify(done)).not.toContain('"plan"');expect(db.rows('coach_claims')).toEqual([]);expect(db.rows('coach_opportunities')[0].metadata).toEqual({resumeText:source,workspaceType:'preparation',resumeRevision:'rev'});
+ expect((await beginResumeMessage('owner','opp',messageId,'为什么要这样写？先别改。')).replayed).toBe(true);
+ await expect(claimResumeTask('owner','opp',{action:'conversation',messageId})).rejects.toThrow('尚未决定');
+});
+test('message receipt deduplicates concurrent sends and failed message can retry',async()=>{
+ const results=await Promise.allSettled([1,2].map(()=>beginResumeMessage('owner','opp',messageId,'讨论一下')));
+ expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+ const version=db.rows('coach_resume_tasks')[0].version as number;
+ await failResumeMessage('owner','opp',messageId,version);
+ const retry=await beginResumeMessage('owner','opp',messageId,'讨论一下');
+ expect(retry.task.conversation).toHaveLength(1);expect(retry.task.state).toBe('needs_detail');
+ await expect(beginResumeMessage('owner','opp',messageId,'另一条内容')).rejects.toThrow('其他内容');
+});
+test('only saved mentor revise plan supplies exact factual supplement and one lease',async()=>{
+ const message='我整理了分类表交给同学，按这个事实改实习。';
+ const opened=await beginResumeMessage('owner','opp',messageId,message);
+ await completeResumeMessage('owner','opp',messageId,opened.version,{action:'revise',reply:'只补入真实交付。',editorBrief:'只修改该段并保留参与职责。',supplement:{turnId:messageId,quote:'我整理了分类表交给同学',sourceExcerpt:source,field:'deliverable'}});
+ expect((await beginResumeMessage('owner','opp',messageId,message)).needsRevision).toBe(true);
+ const beforeClaimVersion=db.rows('coach_resume_tasks')[0].version as number;
+ const claim=await claimResumeTask('owner','opp',{action:'conversation',messageId});
+ expect(claim.claimed).toBe(true);expect(claim.task.answers).toHaveLength(2);
+ expect(db.rows('coach_resume_tasks')[0].version).toBe(beforeClaimVersion+1);
+ expect((await beginResumeMessage('owner','opp',messageId,message)).needsRevision).toBe(false);
+ expect(factualResumeAnswers(claim.task.answers)).toEqual([expect.objectContaining({answer:'我整理了分类表交给同学',field:'deliverable',sourceExcerpt:source})]);
+ expect((await claimResumeTask('owner','opp',{action:'conversation',messageId})).claimed).toBe(false);
+ expect(db.rows('interview_answers')).toEqual([]);
+});
+test('a failed edit claim does not consume a saved decision or its factual supplement',async()=>{
+ const message='请精简这一段';
+ const opened=await beginResumeMessage('owner','opp',messageId,message);
+ await completeResumeMessage('owner','opp',messageId,opened.version,{action:'revise',reply:'我会精简。',editorBrief:'只精简原有事实。',supplement:null});
+ db.fail('coach_resume_tasks','update',{code:'write_failed'});
+ await expect(claimResumeTask('owner','opp',{action:'conversation',messageId})).rejects.toThrow('输入仍保留');
+ expect(db.rows('coach_resume_tasks')[0].answers).toEqual([]);
+ expect((await beginResumeMessage('owner','opp',messageId,message)).needsRevision).toBe(true);
+});
+test('source change during thinking blocks late reply and never edits a new document',async()=>{
+ const opened=await beginResumeMessage('owner','opp',messageId,'先讨论');
+ (db.rows('coach_opportunities')[0].metadata as Record<string,unknown>).resumeRevision='replaced';
+ await expect(completeResumeMessage('owner','opp',messageId,opened.version,{action:'revise',reply:'准备改',editorBrief:'修改旧段',supplement:null})).rejects.toThrow('未执行修改');
+ expect(db.rows('coach_resume_tasks')[0].state).toBe('needs_detail');
+});
 test('failed task accepts editing directions without turning them into career facts',async()=>{
   Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed',question:null,error:'旧校验失败'});
   const result=await claimResumeTask('owner','opp',{action:'revise',answer:'请精简实习那段，不要加新事实。'});

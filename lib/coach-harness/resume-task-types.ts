@@ -21,8 +21,18 @@ export interface ResumeAgentTask {
   question: ResumeAgentQuestion | null;
   answers: ResumeAgentAnswer[];
   updatedAt: string;
+  conversation?: ResumeConversationTurn[];
   error?: string;
   result?: { changes: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean };
+}
+
+export interface ResumeConversationTurn {
+  id: string;
+  message: string;
+  reply: string;
+  status: "pending" | "completed" | "failed";
+  decision?: "discuss" | "revise";
+  savedAt: string;
 }
 
 /** 不把待回答、模型推断或“暂不补充”变成经历事实。 */

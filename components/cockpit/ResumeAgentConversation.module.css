@@ -23,4 +23,5 @@
 .failed button{padding-left:0;text-decoration:underline;text-underline-offset:4px}.waiting{font-size:14px;line-height:1.7;color:var(--cockpit-studio-muted,#6b665e);margin-block:12px 24px}
 @media(prefers-reduced-motion:reduce){.working{animation:none}}
 .failed .editHint{font-size:13px;color:var(--cockpit-studio-muted,#6b665e);margin:12px 0 20px}.conversation textarea{box-sizing:border-box}.conversation{overflow-wrap:anywhere}
+.dialogue{display:grid;gap:22px;margin-block:20px 12px}.turn{min-width:0}.turn p{margin:0;white-space:pre-wrap;font-size:14px;line-height:1.8}.turn p+p{margin-top:12px}.turn p>span{display:block;margin-bottom:3px;font-size:11px;color:var(--cockpit-studio-muted,#636861)}.userMessage{color:var(--cockpit-studio-muted,#636861)}.mentorMessage{color:var(--cockpit-studio-ink,#272b27)}
 @media(max-width:700px){.conversation label{font-size:17px}.conversation textarea{font-size:16px}.conversation button{min-height:44px}.actions button[type=submit],.send{width:44px;height:44px}}

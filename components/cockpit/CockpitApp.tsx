@@ -189,6 +189,7 @@ function CockpitWorkspace({
   const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("direction");
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [resumeMessageBusy,setResumeMessageBusy]=useState(false);
   const resumeRequestBusy = useRef(false);
   const saveOpportunity = useRef(createOpportunitySaveQueue());
   const savedPayloads = useRef(new Map(initialOpportunities.map(item => [item.id, JSON.stringify(item)])));
@@ -301,7 +302,7 @@ function CockpitWorkspace({
         if (savedPayloads.current.get(opportunity.id) === payload) continue;
         void saveOpportunity.current(opportunity.id, async () => {
           // Ignore a stale render queued behind an explicit material save.
-          if (resumeRequestBusy.current || supplementingMaterial || !latestOpportunities.current.includes(opportunity)) return;
+          if ((resumeRequestBusy.current&&(!resumeMessageBusy||generatingResume)) || supplementingMaterial || !latestOpportunities.current.includes(opportunity)) return;
           setSaveReceipts(current => ({...current, [opportunity.id]: {payload, status: "saving"}}));
           const response = await fetch("/api/coach/opportunities", {
           method: "PATCH",
@@ -321,7 +322,7 @@ function CockpitWorkspace({
       }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [dataMode, localIds, localLoaded, opportunities, generatingResume, supplementingMaterial, syncRetry]);
+  }, [dataMode, localIds, localLoaded, opportunities, generatingResume, resumeMessageBusy, supplementingMaterial, syncRetry]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
   const nextAction = active ? getTodayMentorPlan([active]).focus : undefined;
@@ -719,26 +720,26 @@ function CockpitWorkspace({
     if(dataMode!=='live'||!activeId||localIds.includes(activeId))return;
     let stopped=false,failures=0,timer:ReturnType<typeof setTimeout>|undefined;
     const retryRead=()=>{if(!stopped&&failures++<3)timer=setTimeout(read,4000*failures);};
-    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(body.task?.state==='running'||generatingResume)timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
+    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(resumeMessageBusy)setGeneratingResume(body.task?.state==='running');if(body.task?.state==='running'||generatingResume||resumeMessageBusy)timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
     void read();return()=>{stopped=true;if(timer)clearTimeout(timer);};
   // 读取任务不调用模型；任务切换、替换或运行状态变化后恢复轮询。
-  },[activeId,active?.resumeRevision,dataMode,generatingResume,localIds]);
+  },[activeId,active?.resumeRevision,dataMode,generatingResume,resumeMessageBusy,localIds]);
 
-  const runResumeAgent = async (action:string,answer?:string,target=active) => {
-    if(!target||resumeRequestBusy.current)throw Error('请等待当前修改完成');
+  const runResumeAgent = async (action:string,answer?:string,target=active,requestId?:string) => {
+    if(!target||resumeRequestBusy.current)throw Error('请等待导师处理上一条消息');
     const id=target.id;
-    resumeRequestBusy.current=true;setGeneratingResume(true);
+    resumeRequestBusy.current=true;if(action==='message')setResumeMessageBusy(true);else setGeneratingResume(true);
     try{
-      await saveOpportunity.current(id,async()=>{
+      if(action!=='message')await saveOpportunity.current(id,async()=>{
         const saved=await fetch('/api/coach/opportunities',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunity:target,preserveStage:true})});
         const result=await saved.json();if(!saved.ok||!result.ok)throw Error(result.error||'简历尚未保存，未开始修改');
       });
-      const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunityId:id,action,answer,questionId:resumeAgentTasks[id]?.question?.id})});
+      const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunityId:id,action,answer,requestId,questionId:resumeAgentTasks[id]?.question?.id})});
       const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
       receiveResumeTask(id,result.task);
       if(action==='revise'&&!result.task.answers.some((item:{kind?:string;answer:string})=>item.kind==='instruction'&&item.answer===answer?.trim()))throw Error('另一处正在修改简历，这条要求尚未保存，输入已保留；完成后可以再发送。');
-      announce(result.task.state==='needs_detail'?'导师还有一个问题，补充后接着改':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
-    }finally{resumeRequestBusy.current=false;setGeneratingResume(false);}
+      announce(result.conversationDecision==='discuss'?'导师已回复，简历未改动':result.task.state==='needs_detail'?'导师还有一个问题，可以继续讨论':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
+    }finally{resumeRequestBusy.current=false;setGeneratingResume(false);setResumeMessageBusy(false);}
   };
 
   const generateResumeDraft = async (target = active) => {
@@ -1165,7 +1166,7 @@ function CockpitWorkspace({
         {creating && <CreationRail />}
         {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
           resumeContext={active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume"}
-          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume} onAnswer={supplementResumeDraft} onRequest={request=>runResumeAgent("revise",request)} onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
+          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume||resumeMessageBusy} onMessage={(message,requestId)=>runResumeAgent("message",message,active,requestId)} onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}

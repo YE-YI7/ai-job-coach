@@ -6,7 +6,11 @@
 
 Chrome 本机虚构接口夹具验收：桌面1465×794、手机390×844行高均44px，logo完整载入；手机菜单left12/right378、top12/bottom552，无裁切或横向溢出。原生top-layer弹框优先向上且限制视口，外点/再次点触发器/Escape均关闭，Escape回焦。方向键跳过不可用GLM条目，Home/End有效；本机选Kimi后整页刷新仍恢复名称与logo，既有输入草稿保留，未发送模型请求。两实例使用唯一ID，不改简历补问的固定编排。虚构模型可用性仅在临时夹具，不进入发布归档。
 
-TypeScript、任务组件ESLint、4套29项定向测试通过。按Impeccable规则只对本次4个UI文件手动detect一次：89条advisory均为既有AgentConversation样式，0 primary，未扩修历史或启用hooks。桌面与手机证据位于`/tmp/yizhi-cend-acceptance.zlA2nd/model-logo-{desktop,mobile}.png`。以下正式发布记录待同一干净Production构建核验后补充；不冒称已验新一轮模型、PDF、短信或支付。
+TypeScript、任务组件ESLint、4套29项定向测试通过。按Impeccable规则只对本次4个UI文件手动detect一次：89条advisory均为既有AgentConversation样式，0 primary，未扩修历史或启用hooks。桌面与手机证据位于`/tmp/yizhi-cend-acceptance.zlA2nd/model-logo-{desktop,mobile}.png`。
+
+**已上线：** https://yizhioffer.com / Production / READY / `14a36dc`，干净归档构建约1分钟、Next.js16.3.0、135页通过。唯一候选`ai-job-coach-hdz69h8bu-velmavalienteqejimu22-jpgs-projects.vercel.app` / `dpl_GbeDVUtyo9yx65NSSEFQeCihMhLi`，既有CLI权限核候选health/database ok，sourceCommit、项目及Production精确一致；fresh确认主域仍6GH…后promote同一构建。正式fresh inspect精确Gbe…/READY，health200/database ok、匿名session401。
+
+Chrome正式原账号刷新8岗位、6处原简历待确认仍在；普通辅导模型auto未改，正式菜单稳定展开、12个模型logo均载入，前5行均44px，边界x1047.8–1439.8/y153.6–693.5落在1465×794视口内。Escape关闭回原触发器；未选择原账号模型、未发送或改变原内容。正式安全截图只截右栏`/tmp/yizhi-cend-acceptance.zlA2nd/model-logo-production.png`。本轮刷新后未捕获模型相关hydration错误；本机双组件夹具的另一简历组件有既有localStorage hydration提示，不归因或扩修模型菜单。短窗10分钟/最多30条部署error为空，长期Drains缺口仍未改。QA服务及临时页已关闭、视口还原。未改API/数据库/作答/积分，未重跑模型、PDF、短信或支付；不以UI菜单验收冒充这些链路已复测。
 
 ## 后续明确选择：模型入口保留左下角
 

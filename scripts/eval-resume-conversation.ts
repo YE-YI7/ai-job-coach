@@ -10,8 +10,12 @@ import {observedResumeLLM,withEvalObserver,redactEval,type EvalSpan} from '../li
 import {runResumeDraft} from '../lib/coach-harness/resume-execution';
 import {getDbClient} from '../lib/db';
 import type {ResumeAgentAnswer} from '../lib/coach-harness/resume-task-types';
+import {resumeConversationLlmOptions} from '../lib/coach-harness/resume-conversation-model';
 async function main(){
- const plan=resumeConversationFixtures.map(f=>({id:f.id,expected:f.expected,editor:'executeEditor' in f&&f.executeEditor}));
+ const selected=process.argv.find(arg=>arg.startsWith('--fixture='))?.slice('--fixture='.length);
+ const fixtures=selected?resumeConversationFixtures.filter(f=>f.id===selected):resumeConversationFixtures;
+ if(!fixtures.length)throw Error('Unknown synthetic fixture');
+ const plan=fixtures.map(f=>({id:f.id,expected:f.expected,editor:'executeEditor' in f&&f.executeEditor}));
  if(!process.argv.includes('--execute')){console.log(JSON.stringify({samples:plan,maxLogicalCalls:16,noUserBilling:true}));return;}
  if(process.env.EVAL_SITE_MODEL_COST_ACK!=='1')throw Error('Site model cost acknowledgement required');
  const actor=(process.env.EVAL_ACTOR_ID||process.env.EVAL_ADMIN_USER_IDS||'').split(',').map(x=>x.trim()).find(Boolean);
@@ -20,7 +24,7 @@ async function main(){
  const batch=randomUUID(),directory=`/tmp/yizhi-resume-conversation-eval-${batch}`;await mkdir(directory,{mode:0o700});
  const codeHash=createHash('sha256').update(await readFile('lib/coach-harness/resume-conversation-decision.ts','utf8')).digest('hex');
  let calls=0,failed=0;
- for(const fixture of resumeConversationFixtures){
+ for(const fixture of fixtures){
   if(calls>=16)throw Error('Logical model budget exhausted');
   const id=randomUUID(),messageId=randomUUID(),start=Date.now(),spans:EvalSpan[]=[];
   const task={...fixture.task,conversation:[...('conversation' in fixture.task?fixture.task.conversation||[]:[]),{id:messageId,message:fixture.message,reply:'',status:'pending' as const,savedAt:new Date().toISOString()}]};
@@ -30,7 +34,7 @@ async function main(){
   try{
    await withEvalObserver({spans,save},async()=>{
     const {messages,knowledge}=resumeConversationMessages({resume:fixture.resume,jd:'',changes:[]},task);run.knowledge=knowledge.map(k=>({id:k.id,title:k.title,included:true}));
-    const raw=await runWithGenerationContext({operation:'resume_conversation',requestId:id,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,{provider:'deepseek',temperature:0,maxTokens:1400,reasoningBudgetTokens:2048,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
+    const raw=await runWithGenerationContext({operation:'resume_conversation',requestId:id,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,resumeConversationLlmOptions()));
     const decision=parseResumeConversationDecision(raw,fixture.resume,task.conversation);
     run.result={status:'completed',output:decision,rawResponse:decision};
     run.ruleQuality={expectedDecision:fixture.expected,actualDecision:decision.action,matched:decision.action===fixture.expected};

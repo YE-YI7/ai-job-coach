@@ -33,6 +33,7 @@ export interface ResumeConversationTurn {
   status: "pending" | "completed" | "failed";
   decision?: "discuss" | "revise";
   savedAt: string;
+  failure?: { code: 'timeout' | 'network' | 'quota' | 'authentication' | 'rate_limit' | 'unavailable'; message: string; traceId?: string };
 }
 
 /** 不把待回答、模型推断或“暂不补充”变成经历事实。 */

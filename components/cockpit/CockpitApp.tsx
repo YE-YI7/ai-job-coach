@@ -3,6 +3,7 @@
 import Image from "next/image";
 import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
+import {resumeMessageExpired} from "@/lib/coach-harness/resume-conversation-recovery";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
 import OriginalResume from "./OriginalResume";
@@ -720,7 +721,7 @@ function CockpitWorkspace({
     if(dataMode!=='live'||!activeId||localIds.includes(activeId))return;
     let stopped=false,failures=0,timer:ReturnType<typeof setTimeout>|undefined;
     const retryRead=()=>{if(!stopped&&failures++<3)timer=setTimeout(read,4000*failures);};
-    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(resumeMessageBusy)setGeneratingResume(body.task?.state==='running');if(body.task?.state==='running'||generatingResume||resumeMessageBusy)timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
+    const read=async()=>{try{const response=await fetch(`/api/coach/resume-agent?opportunityId=${encodeURIComponent(activeId)}`,{cache:'no-store'});const body=await response.json();if(stopped)return;if(!response.ok||!body.ok){if(response.status>=500)retryRead();return;}failures=0;receiveResumeTask(activeId,body.task);if(resumeMessageBusy)setGeneratingResume(body.task?.state==='running');if(body.task?.state==='running'||body.task?.conversation?.some((turn:import('@/lib/coach-harness/resume-task-types').ResumeConversationTurn)=>turn.status==='pending'&&!resumeMessageExpired(turn))||generatingResume||resumeMessageBusy)timer=setTimeout(read,4000);}catch{retryRead();/* 暂时离线时不抹掉本地任务和输入。 */}};
     void read();return()=>{stopped=true;if(timer)clearTimeout(timer);};
   // 读取任务不调用模型；任务切换、替换或运行状态变化后恢复轮询。
   },[activeId,active?.resumeRevision,dataMode,generatingResume,resumeMessageBusy,localIds]);
@@ -735,8 +736,11 @@ function CockpitWorkspace({
         const result=await saved.json();if(!saved.ok||!result.ok)throw Error(result.error||'简历尚未保存，未开始修改');
       });
       const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunityId:id,action,answer,requestId,questionId:resumeAgentTasks[id]?.question?.id})});
-      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
-      receiveResumeTask(id,result.task);
+      const result=await response.json();
+      // A failed mentor call still returns its saved message receipt. Apply it
+      // before throwing; a fast failure must not depend on the 4s poll arriving.
+      if(result.task)receiveResumeTask(id,result.task);
+      if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
       if(action==='revise'&&!result.task.answers.some((item:{kind?:string;answer:string})=>item.kind==='instruction'&&item.answer===answer?.trim()))throw Error('另一处正在修改简历，这条要求尚未保存，输入已保留；完成后可以再发送。');
       announce(result.conversationDecision==='discuss'?'导师已回复，简历未改动':result.task.state==='needs_detail'?'导师还有一个问题，可以继续讨论':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
     }finally{resumeRequestBusy.current=false;setGeneratingResume(false);setResumeMessageBusy(false);}

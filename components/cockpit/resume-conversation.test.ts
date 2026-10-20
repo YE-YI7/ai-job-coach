@@ -2,7 +2,8 @@ import {readFileSync} from 'node:fs';
 const view=readFileSync('components/cockpit/ResumeAgentConversation.tsx','utf8');
 const app=readFileSync('components/cockpit/CockpitApp.tsx','utf8');
 test('the résumé composer sends a message, never assumes that it is an answer or revision',()=>{
- expect(view).toContain('await onMessage(answer,requestId)');
+ expect(view).toContain('await sendMessage(answer,requestId)');
+ expect(view).toContain('await onMessage(text,requestId)');
  expect(view).not.toContain('question?onAnswer');expect(view).not.toContain('onRequest(answer)');
  expect(app).toContain('runResumeAgent("message",message,active,requestId)');
  expect(app).toContain("if(action!=='message')await saveOpportunity.current");
@@ -18,7 +19,15 @@ test('draft and stable receipt survive a network failure and server discussion s
 test('sending a discussion has thinking state instead of falsely starting editor state',()=>{
  expect(app).toContain("if(action==='message')setResumeMessageBusy(true);else setGeneratingResume(true)");
  expect(view).toContain('导师正在思考…');
- expect(view).toContain("conversation.at(-1)?.decision!=='discuss'");
+ expect(view).toContain("latest.status==='completed'&&latest.decision==='revise'");
+});
+test('failed receipts retry directly with the original ID and cannot clear another draft',()=>{
+ expect(view).toContain('sendMessage(turn.message,turn.id)');
+ expect(view).toContain('answer.trim()===text.trim()');
+ expect(view).toContain('const requestId=failed?.id||');
+ expect(view).toContain('turn.failure?.message');
+ expect(view).toContain('resumeMessageExpired(turn,now)');
+ expect(app.indexOf('if(result.task)receiveResumeTask(id,result.task)')).toBeLessThan(app.indexOf("if(!response.ok||!result.ok)throw Error(result.error||'暂未完成"));
 });
 test('resume discussion uses two bubble roles and one unobtrusive composer, not competing headings',()=>{
  expect(view).toContain('styles.userMessage');expect(view).toContain('styles.mentorMessage');

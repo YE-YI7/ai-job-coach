@@ -8,6 +8,7 @@ import type { Opportunity, ResumeChange } from "@/lib/opportunities/types";
 import type { ResumeRecovery } from "./resume-recovery";
 import { mergeResumeAgentChanges } from "@/lib/opportunities/resume-agent-merge";
 import { currentResumeAnswer } from './resume-supplement';
+import { resumeMessageExpired } from './resume-conversation-recovery';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string };
@@ -15,7 +16,7 @@ export class ResumeTaskError extends Error { constructor(message: string, public
 export const resumeTaskFingerprint = (resume: string, jd: string, revision?: string) => createHash("sha256").update(JSON.stringify([resume.trim(), jd.trim(), revision || ""])).digest("hex");
 export function publicResumeTask(row: Row): ResumeAgentTask {
   return { id: row.id, state: row.state, question: row.question, answers: row.answers, updatedAt: row.updated_at,
-    ...(row.conversation?.length?{conversation:row.conversation.map(({id,message,reply,status,decision,savedAt})=>({id,message,reply,status,decision,savedAt}))}:{}),
+    ...(row.conversation?.length?{conversation:row.conversation.map(({id,message,reply,status,decision,savedAt,failure})=>({id,message,reply,status,decision,savedAt,...(failure?{failure}:{})}))}:{}),
     ...(row.result ? { result: row.result } : {}), ...(row.error ? { error: row.error } : {}) };
 }
 
@@ -52,8 +53,9 @@ export async function beginResumeMessage(userId:string,opportunityId:string,id:s
   if(prior?.status==='completed')return {task:publicResumeTask(row),source,version:row.version,replayed:true,
     needsRevision:prior.decision==='revise'&&prior.plan?.action==='revise'&&row.state!=='running'&&!row.answers.some(a=>a.id===`conversation:${id}`)};
   if(row.state==='running')throw new ResumeTaskError('导师正在完成当前修改，消息尚未提交，输入已保留');
-  if(turns.some(t=>t.status==='pending'&&Date.now()-Date.parse(t.savedAt)<90_000))throw new ResumeTaskError('导师正在回复上一条消息，输入已保留，请稍后继续');
+  if(turns.some(t=>t.status==='pending'&&!resumeMessageExpired(t)))throw new ResumeTaskError('导师正在回复上一条消息，输入已保留，请稍后继续');
   const next:SavedConversationTurn={id,message:message.trim(),reply:'',status:'pending',savedAt:new Date().toISOString()};
+  // The retry is the active turn, with the same ID, never a duplicate entry.
   const conversation=[...turns.filter(t=>t.id!==id).map(t=>t.status==='pending'?{...t,status:'failed' as const}:t),next];
   const db=requireDb(await getDbClient());
   const {data,error}=await db.from('coach_resume_tasks').update({conversation,version:row.version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',row.version).select('*').maybeSingle();
@@ -71,11 +73,11 @@ export async function completeResumeMessage(userId:string,opportunityId:string,i
   if(error||!data)throw new ResumeTaskError('导师回复尚未保存，输入已保留，未执行修改',error?503:409);
   return publicResumeTask(data);
 }
-export async function failResumeMessage(userId:string,opportunityId:string,id:string,version:number){
+export async function failResumeMessage(userId:string,opportunityId:string,id:string,version:number,failure?:ResumeConversationTurn['failure']){
   const row=await readRow(userId,opportunityId);
   if(!row||row.version!==version)return;
   const db=requireDb(await getDbClient());
-  const {error}=await db.from('coach_resume_tasks').update({conversation:(row.conversation||[]).map(t=>t.id===id&&t.status==='pending'?{...t,status:'failed'}:t),version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version);
+  const {error}=await db.from('coach_resume_tasks').update({conversation:(row.conversation||[]).map(t=>t.id===id&&t.status==='pending'?{...t,status:'failed',...(failure?{failure}:{})}:t),version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version);
   if(error)throw new ResumeTaskError('消息状态尚未确认，请稍后按原消息重试',503);
 }
 

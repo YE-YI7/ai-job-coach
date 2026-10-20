@@ -3,8 +3,10 @@ import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { observedResumeLLM } from "./eval-observer";
 import { captureEvalStage } from "./eval-scope";
-import { recordWorkspaceResume } from "./workspace-eval";
-import { beginResumeMessage, completeResumeMessage, failResumeMessage } from "./resume-task";
+import { recordWorkspaceResume, workspaceEvalEnabled } from "./workspace-eval";
+import { beginResumeMessage, completeResumeMessage, failResumeMessage, readResumeTask, ResumeTaskError } from "./resume-task";
+import { resumeMessageFailure } from './resume-conversation-recovery';
+import { resumeConversationLlmOptions } from './resume-conversation-model';
 import { parseResumeConversationDecision, resumeConversationMessages } from "./resume-conversation-decision";
 import type { ResumeAgentTask } from "./resume-task-types";
 
@@ -13,25 +15,36 @@ const reply=(body:unknown)=>Response.json(body,{headers:{'Cache-Control':'privat
 export async function runResumeConversation(request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string},revise:(messageId:string)=>Promise<ResumeAgentTask>){
   const opened=await beginResumeMessage(user.id,body.opportunityId,body.requestId,String(body.answer||''));
   if(opened.replayed)return reply({ok:true,task:opened.needsRevision?await revise(body.requestId):opened.task,replayed:true});
+  const traceId=randomUUID();
   const auditRequest=new Request(request.url,{method:'POST',headers:{...Object.fromEntries(request.headers),'Content-Type':'application/json','x-idempotency-key':`${body.requestId}-${opened.version}`},body:JSON.stringify({
     resumeText:opened.source.resume,jobDescription:opened.source.jd,mode:opened.source.general?'general_resume':'target_resume',
-    requestId:`resume-conversation:${body.requestId}:${opened.version}`,evalCaptureId:randomUUID(),evalLabel:'简历导师 · 讨论与执行决策',
+    requestId:`resume-conversation:${body.requestId}:${opened.version}`,evalCaptureId:traceId,evalLabel:'简历导师 · 讨论与执行决策',
   })});
   try{
     const execute=withMeteredAiRoute(async()=>{
       const start=Date.now(),{messages,knowledge}=resumeConversationMessages(opened.source,opened.task);
       captureEvalStage('context','resume_conversation_context',{input:{messageId:body.requestId,message:body.answer},output:{currentTask:opened.task,source:opened.source},knowledge:knowledge.map(k=>({id:k.id,title:k.title,included:true,kind:'knowledge'}))},start,Date.now()-start);
-      const raw=await runWithGenerationContext({userId:user.id,operation:'resume_conversation',requestId:`${body.requestId}:decision`,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,{provider:'deepseek',temperature:0,maxTokens:1400,reasoningBudgetTokens:2048,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
+      const raw=await runWithGenerationContext({userId:user.id,operation:'resume_conversation',requestId:`${body.requestId}:decision`,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,resumeConversationLlmOptions()));
       const plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[]);
       const task=await completeResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,plan);
       captureEvalStage('review','resume_conversation_decision',{input:{messageId:body.requestId},output:plan},start,Date.now()-start);
       return reply({ok:true,task:plan.action==='revise'?await revise(body.requestId):task,conversationDecision:plan.action});
     },{operation:'resume_conversation',quotaType:'chat'});
     const response=await recordWorkspaceResume(user,auditRequest,execute);
-    if(!response.ok)await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version);
+    if(!response.ok){
+      const problem=await response.clone().json().catch(()=>({}));
+      await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,{...resumeMessageFailure(problem.error),...(workspaceEvalEnabled(user)?{traceId}:{})});
+      const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
+      return Response.json({...problem,task},{status:response.status,headers:response.headers});
+    }
     return response;
   }catch(error){
-    await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version).catch(()=>undefined);
-    throw error;
+    const failure={...resumeMessageFailure(error),...(workspaceEvalEnabled(user)?{traceId}:{})};
+    await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,failure).catch(()=>undefined);
+    const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
+    // The mentor receipt can already be committed when a later editor/settlement
+    // fails. Let the route finish its editor lease; never relabel/re-run the mentor.
+    if(task?.conversation?.some(turn=>turn.id===body.requestId&&turn.status==='completed'))throw error;
+    return Response.json({ok:false,error:error instanceof ResumeTaskError?error.message:failure.message,task},{status:error instanceof ResumeTaskError?error.status:503,headers:{'Cache-Control':'private, no-store'}});
   }
 }

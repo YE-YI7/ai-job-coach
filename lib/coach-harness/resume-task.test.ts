@@ -30,6 +30,29 @@ test('message receipt deduplicates concurrent sends and failed message can retry
  expect(retry.task.conversation).toHaveLength(1);expect(retry.task.state).toBe('needs_detail');
  await expect(beginResumeMessage('owner','opp',messageId,'另一条内容')).rejects.toThrow('其他内容');
 });
+test('timeout metadata survives read/refresh, and same-ID retry removes only that failure',async()=>{
+ const opened=await beginResumeMessage('owner','opp',messageId,'先讨论亮点，不修改');
+ const failure={code:'timeout' as const,message:'模型回复超时了，这条消息已保留。可以重新发送。',traceId:'trace-fixture'};
+ await failResumeMessage('owner','opp',messageId,opened.version,failure);
+ const restored=await readResumeTask('owner','opp');
+ expect(restored?.conversation?.[0]).toMatchObject({id:messageId,status:'failed',failure});
+ expect(restored?.question).toEqual(q);expect(restored?.answers).toEqual([]);
+ const retry=await beginResumeMessage('owner','opp',messageId,'先讨论亮点，不修改');
+ expect(retry.task.conversation).toHaveLength(1);
+ expect(retry.task.conversation?.[0]).toMatchObject({id:messageId,status:'pending'});
+ expect(retry.task.conversation?.[0].failure).toBeUndefined();
+ const done=await completeResumeMessage('owner','opp',messageId,retry.version,{action:'discuss',reply:'我们先找已有事实中的具体交付。',editorBrief:'',supplement:null});
+ expect(done.conversation?.[0].status).toBe('completed');expect(db.rows('interview_answers')).toEqual([]);expect(db.rows('watcha_wallets')).toEqual([]);
+});
+test('an expired in-flight receipt can retry, and late old results cannot overwrite it',async()=>{
+ const old=await beginResumeMessage('owner','opp',messageId,'先讨论');
+ (db.rows('coach_resume_tasks')[0].conversation as any[])[0].savedAt=new Date(Date.now()-91000).toISOString();
+ const retry=await beginResumeMessage('owner','opp',messageId,'先讨论');
+ await failResumeMessage('owner','opp',messageId,old.version,{code:'timeout',message:'older'});
+ expect((await readResumeTask('owner','opp'))?.conversation?.[0].status).toBe('pending');
+ await expect(completeResumeMessage('owner','opp',messageId,old.version,{action:'discuss',reply:'late',editorBrief:'',supplement:null})).rejects.toThrow('已更新');
+ expect(retry.task.conversation).toHaveLength(1);
+});
 test('only saved mentor revise plan supplies exact factual supplement and one lease',async()=>{
  const message='我整理了分类表交给同学，按这个事实改实习。';
  const opened=await beginResumeMessage('owner','opp',messageId,message);

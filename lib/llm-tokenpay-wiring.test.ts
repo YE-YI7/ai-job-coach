@@ -56,6 +56,7 @@ import { callLLM, buildChatCompletionRequest } from "./llm";
 import { getGenerationContext } from "./generation-context";
 import { getTokenPayCredential } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
+import {resumeConversationLlmOptions} from './coach-harness/resume-conversation-model';
 
 const create = (globalThis as Record<string, unknown>).__openaiCreate as jest.Mock;
 const messages = [{ role: "user" as const, content: "评估这个回答" }];
@@ -129,6 +130,24 @@ describe("站点 StepFun 接线", () => {
 });
 
 describe("callLLM 的 TokenPay 网关接线", () => {
+  test('resume mentor uses bounded gateway streaming, preserves model and parses only complete JSON',async()=>{
+    (getGenerationContext as jest.Mock).mockReturnValue({userId:'fixture',operation:'resume_conversation'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('fixture-key');
+    (resolveTokenDanceModel as jest.Mock).mockResolvedValue('deepseek-v4-flash');
+    const result='{"action":"discuss","reply":"先讨论亮点。"}';
+    create.mockResolvedValue((async function*(){yield {model:'deepseek-v4-flash',choices:[{delta:{content:result.slice(0,20)}}]};yield {choices:[{delta:{content:result.slice(20)},finish_reason:'stop'}]};})());
+    expect(await callLLM(messages,resumeConversationLlmOptions())).toBe(result);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0]).toMatchObject({stream:true,model:'deepseek-v4-flash',response_format:{type:'json_object'},max_tokens:1400});
+    expect((globalThis as Record<string,unknown>).__openaiOptions).toMatchObject({maxRetries:0,timeout:45000});
+  });
+  test('gateway timeout does not auto-retry or silently bill another provider',async()=>{
+    (getGenerationContext as jest.Mock).mockReturnValue({userId:'fixture',operation:'resume_conversation'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('fixture-key');
+    create.mockRejectedValue(new Error('Request timed out.'));
+    await expect(callLLM(messages,resumeConversationLlmOptions())).rejects.toThrow('timed out');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
   test("已连接账号 + 生成上下文：翻到网关，并打到解析后的模型", async () => {
     (getGenerationContext as jest.Mock).mockReturnValue({ userId: "u-1", operation: "mock_interview_answer_assessment" });
     (getTokenPayCredential as jest.Mock).mockResolvedValue("tp-key");

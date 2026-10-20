@@ -6,6 +6,10 @@
 
 本轮 TypeScript、任务组件 ESLint、31 项定向通过；本次两个 UI 文件手动 detect 无 primary。Chrome 本机虚构夹具切换 auto/fast 后刷新仍保留，手机390宽实测模型触达44px、发送44px且两者不重叠、无横向溢出；当前模型名位于语音与发送左侧。显示名称改为 server/client 一致的 auto 首帧，再于挂载时只读恢复有效偏好，避免非默认模型名引起 hydration 文本不一致；会话加载完成前不能发送，不把恢复过程写回偏好。此为本地模型偏好验证，不发真实模型请求、不修改原账号偏好。d61911e 首候选仅为中间构建，不 promote；待包含恢复修正的最终干净构建与正式刷新记录。
 
+**本轮已上线：** https://yizhioffer.com / Production / READY / `2504c87` / Next.js 16.3.0 / 构建约1分钟。最终部署 `dpl_6GHvbEMx3NDvimzN6wmedDhWqTwF`，唯一正式候选 `ai-job-coach-8tpfjf135-velmavalienteqejimu22-jpgs-projects.vercel.app`；干净归档、不含本机夹具。候选原 CLI 权限 health database ok；sourceCommit/项目/环境核对后，fresh 确认主域仍为 A2n…，promote 同一构建，未 promote 中间 d61911e。正式 fresh inspect 为 6GH… / READY，health200/database ok、匿名 session401。
+
+Chrome 正式原账号刷新仍8岗位与原简历6处建议，切换“其他辅导”仅查看：模型 auto 入口 enabled、位于输入面左下 x1047.8–1287.8，发送在 x1396；未选择/发送或改原账号模型，原输入空。本机非默认 fast 完整刷新后正确恢复；实际手机工作台390宽模型入口44px、右边265 < 发送左边311，无溢出；最终页面未再出现该模型名的 hydration 问题标记。一次初检及一次必要复核，两个任务 UI 文件89条 advisory / 0 primary，不扩修历史。正式右栏截图 `/tmp/yizhi-cend-acceptance.zlA2nd/model-position-production.png`。本部署10分钟/最多30条 error日志为空；Drains沿用上轮已发现的0配置缺口，未声称补齐长期监控。未重新跑本轮全量测试、PDF、短信、支付或模型；未做数据库业务写入、未兑换或扣积分。本机服务与两临时验收页已关闭、视口还原；共享ME只更新本线不提交。
+
 ## 发布边界
 
 用户要求验收并上线 Qoder 的 C 端改动。仅修改导师栏及简历补问的输入区、设置入口与历史菜单；不改左栏、简历渲染/PDF、Agent、认证、数据库、支付或积分规则。不夹带本地未跟踪的真实 Eval JSON、截图和 Supabase 临时资料。

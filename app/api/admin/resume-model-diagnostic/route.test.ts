@@ -72,3 +72,16 @@ test('upstream failure is saved, not retried or written into original trace', as
   expect(observedResumeLLM).toHaveBeenCalledTimes(1);
   expect(updates.mock.calls.at(-1)?.[0].run.input.sourceTraceId).toBe('35d45ca9-1737-4d9d-8f5d-8cfb7a41a631');
 });
+test('another admin cannot use the original owner trace', async () => {
+  const chain = { eq: jest.fn().mockReturnThis(), maybeSingle: async () => ({ data: null, error: null }) };
+  (getDbClient as jest.Mock).mockResolvedValue({ from: () => ({ select: () => chain }) });
+  expect((await POST(make())).status).toBe(403);
+  expect(getTokenPayCredential).not.toHaveBeenCalled(); expect(observedResumeLLM).not.toHaveBeenCalled();
+});
+test('even a valid revise decision is only inspected, never executed', async () => {
+  (observedResumeLLM as jest.Mock).mockResolvedValue('{"action":"revise","reply":"准备精简实习描述。","editorBrief":"只精简实习描述","supplement":null}');
+  const result = await (await POST(make({ kind:'mentor', acknowledgeCost:true }))).json();
+  expect(result.decision).toBe('revise');
+  expect(updates.mock.calls.at(-1)?.[0].run.result.editorExecuted).toBe(false);
+  expect(new Set(tables)).toEqual(new Set(['coach_eval_runs']));
+});

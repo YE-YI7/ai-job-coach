@@ -16,7 +16,6 @@ import {
 import type { Opportunity } from "@/lib/opportunities/types";
 import { getTodayMentorPlan } from "@/lib/coach-harness/next-action";
 import {learningGuide} from "@/lib/coach-harness/learning-guide";
-import { TokenPayWidget } from "@/components/tokenpay/TokenPayWidget";
 import styles from "./TodayCoach.module.css";
 
 type TodayTab = "overview" | "evidence" | "resume" | "interview" | "review" | "activity";
@@ -103,7 +102,6 @@ export function TodayCoach({
         </div>
 
         <div className={styles.account}>
-          <TokenPayWidget />
           {onOpenPlans && (
             <button className={styles.helpButton} type="button" onClick={onOpenPlans}>我的计划</button>
           )}
@@ -120,7 +118,6 @@ export function TodayCoach({
             <button type="button" onClick={() => onOpenTab("resume")}><FolderSimple size={23} />资料</button>
             <button type="button" onClick={() => onOpenTab("activity")}><ClockCounterClockwise size={23} />历史</button>
           </nav>
-          <div className={styles.mobileTokenPay}><TokenPayWidget compact /></div>
 
           <div className={styles.opportunityRail}>
             <div className={styles.railTitle}>正在推进 <span>({visibleOpportunities.length})</span></div>

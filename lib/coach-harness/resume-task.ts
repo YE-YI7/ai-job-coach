@@ -189,6 +189,24 @@ export async function persistResumeAnswerClaims(row: Row): Promise<CareerClaim[]
     status: "unverified", visibility: "recruiter_safe", sourceKind: "user_statement", verificationLevel: "self_reported" }));
 }
 
+/** Persist only the owned selected upload as real UUID facts before model use.
+ * Prompt-local resume-line-* labels are not database foreign keys. */
+export async function persistResumeTrialClaims(userId:string,opportunityId:string,scope:ResumeTrialScope):Promise<CareerClaim[]> {
+  const source=await ownedResumeTaskSource(userId,opportunityId);
+  if(resolveResumeTrialScope(source.resume,scope.blockId)?.excerpt!==scope.excerpt)throw new ResumeTaskError('体验经历已变化，尚未调用模型',400);
+  const db=requireDb(await getDbClient()),hash=createHash('sha256').update(scope.excerpt).digest('hex');
+  let sourceRow=await db.from('coach_sources').select('id').eq('user_id',userId).eq('content_hash',hash).maybeSingle();
+  if(sourceRow.error)throw sourceRow.error;
+  if(!sourceRow.data){sourceRow=await db.from('coach_sources').insert({id:randomUUID(),user_id:userId,opportunity_id:opportunityId,source_type:'resume',title:'单段体验原文',content:scope.excerpt,content_hash:hash}).select('id').single();if(sourceRow.error)throw sourceRow.error;}
+  const sourceId=String(sourceRow.data!.id),lines=[...new Set(scope.excerpt.split(/\n+/).map(line=>line.trim()).filter(Boolean))];
+  const existing=await db.from('coach_claims').select('*').eq('user_id',userId).eq('source_id',sourceId).eq('claim_type','resume_trial_source');
+  if(existing.error)throw existing.error;
+  const rows=lines.map(line=>existing.data?.find((row:{display_text:string})=>row.display_text===line)||{id:randomUUID(),user_id:userId,opportunity_id:opportunityId,source_id:sourceId,entity_type:'experience',entity_key:`resume-trial-${createHash('sha256').update(line).digest('hex')}`,claim_type:'resume_trial_source',value:line,display_text:line,source_excerpt:line,status:'unverified',visibility:'recruiter_safe',source_kind:'user_upload',verification_level:'self_reported',confirmed_at:null});
+  const missing=rows.filter(row=>!existing.data?.some((old:{id:string})=>old.id===row.id));
+  if(missing.length){const saved=await db.from('coach_claims').insert(missing);if(saved.error)throw saved.error;}
+  return rows.map(row=>({id:String(row.id),entityType:'experience',entityKey:String(row.entity_key),claimType:'resume_trial_source',value:row.value,displayText:String(row.display_text),sourceExcerpt:String(row.source_excerpt),sourceId,status:row.status as CareerClaim['status'],visibility:'recruiter_safe',sourceKind:'user_upload',verificationLevel:'self_reported'}));
+}
+
 export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean}) {
   const db = requireDb(await getDbClient()), row = await resumeTaskInput(userId, taskId, lease);
   const question = body.ok ? nextResumeQuestion(source.resume, body.followUp, row.answers)

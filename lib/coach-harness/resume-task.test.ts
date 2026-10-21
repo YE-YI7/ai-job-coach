@@ -1,6 +1,6 @@
 import { getDbClient } from '@/lib/db';
 import { FakeDb } from './run-ledger/testing/fake-db';
-import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims,beginResumeMessage,completeResumeMessage,failResumeMessage } from './resume-task';
+import { claimResumeTask, readResumeTask, resumeTaskFingerprint, persistResumeAnswerClaims,persistResumeTrialClaims,beginResumeMessage,completeResumeMessage,failResumeMessage } from './resume-task';
 import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion } from './resume-task-types';
 import {currentResumeAnswer} from './resume-supplement';
 jest.mock('@/lib/db');
@@ -11,6 +11,17 @@ test('动作与交付加案例清单也收敛成一个事实槽位',()=>{expect(
 let db:FakeDb;
 beforeEach(()=>{db=new FakeDb({coach_opportunities:[{id:'opp',user_id:'owner',status:'active',jd_text:'',metadata:{resumeText:source,workspaceType:'preparation',resumeRevision:'rev'}}],coach_resume_tasks:[{id:'task',user_id:'owner',opportunity_id:'opp',fingerprint:resumeTaskFingerprint(source,'','rev'),state:'needs_detail',question:q,answers:[],result:null,error:null,lease_id:null,version:1,updated_at:new Date().toISOString()}]});(getDbClient as jest.Mock).mockResolvedValue(db);});
 const messageId='44444444-4444-4444-8444-444444444444';
+test('trial citations have persisted UUIDs and only selected source text; retry reuses facts',async()=>{
+ const text='实习经历\n2025.01-2025.03 某门店 运营实习\n核对退货原因，把记录整理成分类表，交给店长每周查看。';
+ const {resumeTrialTargets}=await import('@/lib/resume-experience-trial');const target=resumeTrialTargets(text)[0];
+ db.rows('coach_opportunities')[0].metadata={resumeText:text,resumeRevision:'rev',workspaceType:'preparation'};
+ const first=await persistResumeTrialClaims('owner','opp',target),second=await persistResumeTrialClaims('owner','opp',target);
+ expect(second.map(c=>c.id)).toEqual(first.map(c=>c.id));expect(first).toHaveLength(2);
+ for(const fact of first){expect(fact.id).toMatch(/^[0-9a-f-]{36}$/);expect(target.excerpt).toContain(fact.displayText);expect(fact.status).toBe('unverified');expect(db.rows('coach_claims').some(row=>row.id===fact.id)).toBe(true);}
+ expect(db.rows('coach_sources')).toHaveLength(1);expect(db.rows('coach_sources')[0].content).toBe(target.excerpt);
+ await expect(persistResumeTrialClaims('other','opp',target)).rejects.toThrow('不可访问');
+ await expect(persistResumeTrialClaims('owner','opp',{...target,excerpt:'伪造'})).rejects.toThrow('经历已变化');
+});
 test('trial range is server-owned, survives refresh/retry, paid restart clears only scope',async()=>{
  const text='实习经历\n2025.01-2025.03 某门店 运营实习\n核对退货原因，把记录整理成分类表，交给店长每周查看。';
  const {resumeTrialTargets}=await import('@/lib/resume-experience-trial');const target=resumeTrialTargets(text)[0];

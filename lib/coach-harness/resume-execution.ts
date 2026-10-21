@@ -26,7 +26,7 @@ import { selectResumeDraftKnowledge } from "@/lib/knowledge/resume-methods";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
-import { resumeTaskInput, persistResumeAnswerClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
+import { resumeTaskInput, persistResumeAnswerClaims, persistResumeTrialClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
 import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, explicitMissingResumeQuestion, anchoredResumeExcerpt, isVagueResumeResponsibility, type ResumeAgentQuestion, type ResumeAgentAnswer } from "@/lib/coach-harness/resume-task-types";
@@ -125,7 +125,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const lines = editSource.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
       // PRD §5.2：粘贴进来的简历行是用户材料，不是用户逐条确认过的事实。
       // 以前这里直接标 confirmed，等于把「我上传过」包装成「我确认过」。
-      const claims: CareerClaim[] = lines.map((line, index) => ({
+      const claims: CareerClaim[] = trialScope ? await persistResumeTrialClaims(user.id,opportunityId,trialScope) : lines.map((line, index) => ({
         id: `resume-line-${index + 1}`, entityType: "experience", entityKey: `resume-line-${index + 1}`,
         claimType: "resume_source", value: line, displayText: line, sourceExcerpt: line,
         status: "unverified", visibility: "recruiter_safe",

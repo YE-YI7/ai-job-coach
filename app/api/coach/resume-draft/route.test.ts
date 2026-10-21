@@ -5,7 +5,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
 import { finalizeQuota, reserveQuota, reserveResumeTrial } from "@/lib/quota";
 import { applyResumeChanges, reviewAtsText, compileContextBundle } from "@/lib/coach-harness";
-import { resumeTaskInput, persistResumeAnswerClaims,ownedResumeTaskSource,finishResumeTask } from "@/lib/coach-harness/resume-task";
+import { resumeTaskInput, persistResumeAnswerClaims,persistResumeTrialClaims,ownedResumeTaskSource,finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import {runWithGenerationContext} from "@/lib/generation-context";
 import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
@@ -52,6 +52,7 @@ describe("resume draft source mapping", () => {
     (compileContextBundle as jest.Mock).mockImplementation(input=>input);
     (applyResumeChanges as jest.Mock).mockReturnValue({text:"原文",findings:[]});
     (persistResumeAnswerClaims as jest.Mock).mockResolvedValue([]);
+    (persistResumeTrialClaims as jest.Mock).mockResolvedValue([]);
     (startResumeTrace as jest.Mock).mockResolvedValue({ data: {}, step: jest.fn(), finish: jest.fn().mockResolvedValue(undefined) });
     (getContextBundleForUser as jest.Mock).mockResolvedValue({
       allowedClaimIds: ["claim-1"], unverifiedClaimIds: [], selection: { included: [], excluded: [] },

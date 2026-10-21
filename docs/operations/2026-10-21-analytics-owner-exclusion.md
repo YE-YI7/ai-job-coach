@@ -14,6 +14,24 @@
 
 ## 验证与发布
 
-待补正式核验。当前45项定向测试、类型与范围lint通过，本地构建136/136成功；本轮UI批量桌面/390检查后修了手机勾选项分组，默认代码隐藏、单日无大图、多日趋势、筛选与展开正常。manual detect一次，仅原有SFMono字体登记警告；未开自动钩子或扩大历史修复。
+最终代码 `994e3ecd78e38c72a48737d61cd1c2f801978553`（主体 `e986f64`）。Preview `dpl_FGFSKvJ43U7zKn9m6rqWCKQDUwvj` READY / 1m47s；从该提交在现有Chrome Vercel网页普通Production重建，`dpl_9GcPj6oaiAcEW5cNsYWB818SLe8x` READY / 3m8s，正式域名 `yizhioffer.com` 已分配。不是同一预览构建promote，不声称预览带Production排除配置。未碰凭据、认证权限、支付或其他项目设置；只新增两个专用统计排除配置。
 
-发布前源数据基线：41条旧作答、36条岗位档案、钱包1/转账1/预留6；整行hash已记录，发布后重新核对。敏感正文和账户ID不进入本报告。
+45项定向测试、类型与范围lint通过，本地UI最终构建136/136成功，追加的UUID大小写防绕过再跑45项和类型/lint、云端最终构建通过。本轮UI批量桌面/390检查后修了手机勾选项分组，默认代码隐藏、单日无大图、多日趋势、筛选与展开正常。manual detect一次，仅原有SFMono字体登记警告；未开自动钩子或扩大历史修复。手机真实功能表仅容器内横向滚动，页面无横向溢出；没有添加装饰图、颜色体系或卡片墙。
+
+Chrome正式页面与刷新通过。真实API200/private-no-store，用户表中原账号及关联账号均不出现；页面搜索原ID为空。两个ID及原ID大写变体，各查turns/resumeChat/legacyChat/opportunities/material，共15次均404。普通账号明细仍200。原会话仍精确同账号、原工作区GET200/11份档案，不因统计排除封禁原账户。匿名数据API401；health200/database ok，短时验收不代表长期健康或完整错误日志审计。
+
+在精确固定窗口 `2026-09-21T16:00:00.000Z` 至 `2026-10-21T12:50:18.506Z`，API与独立只读SQL复算一致：58账户（排除2）、22新增/22活跃，587有效事件、594排除、611未关联、9诊断；统一PV12/UV12，9823.052秒/356会话，注册D1为3/21、1待成熟。统一访问仍仅从2026-10-21开始积累，不是30天完整全站UV；数字是固定快照而非未来实时值。模板 `2026-10-21-analytics-owner-exclusion-recompute.sql` 不存账号/浏览器值，执行时从已确认配置在内存替换。原稿、对话、JD和任何凭据都没进入报告。
+
+上线后只打开一次原账号首页以验证未来行为：新增page_viewed与landing_viewed各1，服务端均标internal，不进入看板。未退出、重登或提交导师消息。真实匿名浏览器支路由单测验证；没有退出原会话冒称实测匿名登录。
+
+发布前后5张保护表全行hash相同：
+
+| 表 | 行数 | MD5（按整行排序聚合） |
+| --- | ---: | --- |
+| interview_answers | 41 | 4e13749d834d65ba1213c5da9faedd54 |
+| coach_opportunities | 36 | c485f8bd28f7fc4956f9a3b6916a0475 |
+| watcha_point_wallets | 1 | 911203ce80ef77ab10df3a333e393dab |
+| watcha_point_transfers | 1 | 772e13a5cd6cb3bc100c6caf337f56da |
+| watcha_point_reservations | 6 | d9074173be468ca74a52a9f975befdfd |
+
+正式桌面/手机证据：`/tmp/yizhi-analytics-acceptance.r97sw2/production-owner-excluded.png` 与 `production-owner-excluded-mobile.png`。只包含聚合，不包含用户正文。没有本轮PDF、真实模型、短信或支付测试，也未改相关实现；不把历史PDF验收算作本轮新验收。ME共享交接仅本地保留，不提交协作者暂存改动。

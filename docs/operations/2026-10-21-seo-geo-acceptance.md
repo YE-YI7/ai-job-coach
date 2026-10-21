@@ -1,5 +1,18 @@
 # SEO/GEO 第一批页面与来源归因 · 本地验收
 
+## 2026-10-21 正式发布完成
+
+39个明确任务文件已提交并推送bb70d9c；生产候选 `dpl_FZGGjoTQZhMwvQ9DvJ2yWmicmKbj`（eojn7hg0k…）在固定提交干净归档中构建，138路由通过，READY/sourceCommit与项目ID核准；先不切正式域验收，再promote同一个Production构建。正式yizhioffer.com回读即该部署，无第二次重构建。Cursor在途DESIGN打印条、ResumeExport、resume-print及template-preference均未进入提交。
+
+- 干净快照13套101项通过、TypeScript与定向lint过。候选受Vercel保护，匿名直取302是平台登录门禁；改用既有CLI授权读取，未关保护。检查器初次把代理「200 Connection established」当业务状态，导致cockpit假失败；修正外层HTTP解析后，候选六公开页/一H1/canonical/服务器正文/六项sitemap/四私有页跳登录/管理员API401全过。原脚本对正式域直接执行也全过。
+- 正式health200/databaseok，发布后本构建15分钟、最多50条error日志未返回记录（短窗，不是永久稳定承诺）。Chrome现成登录能打开正式管理员「数据」，含已排除本人/测试提示；访问来源正确显示新版0、历史37条不回填。这个数字仅为验收窗口快照。
+- 正式Chrome填两格合成材料、系统原生复制再粘回第三格，内容及内部换行一致；真实下载 `/Users/yi/Downloads/益职-面试复盘.txt` 378字节已UTF-8回读，包含本次合成文字且不含示例来源标记；刷新回0/4，符合本地临时工具说明。IAB虚拟剪贴板/Chrome虚拟readText未同步本次系统剪贴板，不以其旧值误报产品失败，改用Chrome原生操作取得真实粘贴证据。本轮未动PDF链路，不冒称重新执行了PDF验收。
+- 生产事件回读只见受控page/source/first/session/version及动作/sample；正式Chrome验收事件为internal＋growth-qa，被后台统计排除，不含「合成验收」输入正文。候选另以growth-qa排除。没有给后台历史数据补造来源。
+- 发布前后六组同算法只读指纹完全一致：interview_answers41 / e07577b07eec07d4f8092ccf2594d2a1；coach_opportunities36 / 4577abb619b78482f56c2a3182091b1c；coach_resume_tasks的id/answers/conversation/result8 / 62a6ae2b90e6f5679b33b3f7b7a8ca9e；wallets1 / 135aa21c2cb7193c33018bac4b65700f；transfers1 / dcae3decb2d75f7fe9fada6a13f08ce6；reservations6 / 158a2e79dfd99e34519f5895c1798c2a。只返回数量和摘要，无原文/手机号/凭据。无短信、真实模型、收费推荐、积分兑换或用户数据写入，正常产品埋点独立记录。
+- 生产桌面证据 `.impeccable/review/seo-geo-20261021/live-review-desktop.png`。原稳定部署9d3XJNT…保留回滚；未删除版本或改保留期。用户明确暂不升级，先看存储优化方案，详同目录 `2026-10-21-vercel-storage-optimization-plan.md`。
+
+DS原有20题/100行表已找到并核对，沿用其1/3/5/9/16先做25次试点，未实际执行GEO回答采样或付费调用。当前代码发布不等于搜索收录、引用提升或站长验证完成。收尾记录与DS续接纠正只留本地，不另push纯文档触自动Preview，待下次运行时变更统一携带。
+
 ## 2026-10-21 发布准备
 
 用户已明确批准「没问题就上线」。以明确路径提交当前公开内容/归因/两张新增页，不纳入共享树在途打印、模板偏好与 DESIGN 打印说明。先以生产环境构建但不分配正式域名的候选版本验收，通过后提升同一构建；生产验收结果另补，不提前写「已上线」。本轮无数据库迁移，无真实模型/短信/积分操作。发布前六类保护数据只读指纹：41条旧作答、36条岗位、8条简历任务内容、1钱包/1转账/6预留；只返回数量和摘要，不读取原文。

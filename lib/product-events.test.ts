@@ -10,6 +10,7 @@ describe("product events", () => {
   it("tracks public route buckets without queries, IDs or admin traffic", () => {
     expect(isProductEventName("page_viewed")).toBe(true);
     expect(analyticsPage("/cockpit")).toBe("/cockpit");
+    for (const path of ["/tools/offer-compare", "/tools/resume-jd-gap", "/tools/interview-review", "/guides/resume-without-metrics"]) expect(analyticsPage(path + "/")).toBe(path);
     expect(analyticsPage("/unknown/private-id")).toBe("/other");
     for (const path of ["/admin/evals", "/admin/evals/analytics", "/eval-lab/index.html", "/api/private", "/_qa/test"]) expect(analyticsPage(path)).toBeNull();
   });
@@ -21,6 +22,7 @@ describe("product events", () => {
   it("only accepts the controlled event vocabulary", () => {
     expect(isProductEventName("cockpit_viewed")).toBe(true);
     expect(isProductEventName("arbitrary_event")).toBe(false);
+    for (const name of ["interview_template_started", "interview_template_sample_used", "interview_template_copied", "interview_template_downloaded"]) expect(isProductEventName(name)).toBe(true);
   });
 
   it("accepts the new offer funnel events", () => {

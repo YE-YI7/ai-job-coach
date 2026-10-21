@@ -255,8 +255,9 @@ export default function HomeClient() {
     <section className={styles.questions} id="questions" aria-labelledby="questions-heading"><h2 id="questions-heading">你可能还想知道</h2><div>
       <details><summary>还没有目标岗位，也能改简历吗？</summary><p>可以。先上传简历，把已有经历写清楚；有了目标岗位后，再做针对性调整。</p></details>
       <details><summary>会不会改坏我原来的简历？</summary><p>上传文件的原件保持原样。修改建议单独展示，由你确认采用，再预览新成稿和导出 PDF。更新基础简历前会提示覆盖确认。</p></details>
-      <details><summary>哪些操作会消耗额度？</summary><p>这页的示例和免费工具不消耗模型额度。工作区内的 AI 修改、分析和辅导会按界面提示计费；连接 TokenPay 后按模型用量计费。保存回答与笔记免费。</p></details>
+      <details><summary>哪些操作会消耗额度？</summary><p>这页的互动演示和本地工具免费，不调用模型。网页工作区内的 AI 修改、分析与辅导使用益职积分，费用以操作前的界面提示为准，无需另行绑定 TokenDance。保存回答与笔记不收取模型费用。若在自己的 Agent 中使用益职方法，则使用该 Agent 的套餐或模型额度，与网页积分分开。</p></details>
       <details id="try-tools"><summary>想先不用登录试一试？</summary><p>可以先用<Link href="/tools/resume-jd-gap" onClick={() => trackProductEvent("landing_task_clicked", { task: "resume_gap", placement: "tools" })}>简历与岗位对照</Link>，或<Link href="/tools/offer-compare" onClick={() => trackProductEvent("landing_task_clicked", { task: "offer_compare", placement: "tools" })}>比较两份 Offer</Link>。前者是本地文字初筛，不等于完整的 AI 简历修改。</p></details>
+      <details><summary>没有业绩数字，或刚面完试，可以先做什么？</summary><p>读一条<Link href="/guides/resume-without-metrics">没有数字的简历改写示例</Link>，看如何写清真实动作与交付物；也可以填写<Link href="/tools/interview-review">免登录面试复盘模板</Link>，复制或下载后带走。模板不生成答案，不保存到账号。</p></details>
       <details id="compare"><summary>网页版和 Agent 版有什么区别？</summary><p>网页版直接使用益职提供的模型和云端工作区，AI 操作消耗额度。Agent 版使用你已有的 Agent 模型和本地沙箱，益职不另收模型费，但宿主模型仍按自身套餐计费；两个版本的资料默认不互相同步。</p><Link href="/agent">查看完整 Agent 使用说明 <ArrowRight size={15} /></Link>
         <div id="local-board" className={styles.agentInstall}><label htmlFor="agent-prompt">把这句话交给你的 Agent</label><textarea id="agent-prompt" readOnly value={AGENT_PROMPT} rows={4} /><button type="button" onClick={() => void copyAgentPrompt()}><Copy size={16} />{copyState === "copied" ? "已复制" : "复制安装指令"}</button>{copyState === "error" && <p role="alert">复制受限，请在上方指令中全选并复制。</p>}</div>
       </details>

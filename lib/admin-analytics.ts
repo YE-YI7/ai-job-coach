@@ -1,3 +1,5 @@
+import { isAcquisitionSource } from "./acquisition";
+
 /** Read-only product metrics. Server receipt time avoids client clock/backfill skew. */
 export interface AnalyticsUser {
   id: string;
@@ -13,6 +15,9 @@ export interface AnalyticsEvent {
   event_name: string;
   created_at: string;
   source?: string | null;
+  first_source?: string | null;
+  session_source?: string | null;
+  attribution_version?: string | number | null;
   page?: string | null;
   host?: string | null;
   environment?: string | null;
@@ -63,7 +68,7 @@ export function isExcludedEvent(
     e.account_cohort === "internal" ||
     marked(e.qa) ||
     marked(e.is_test) ||
-    /^growth-qa(?:-|$)/.test(e.source || "") ||
+    [e.source, e.first_source, e.session_source].some((s) => /^growth-qa(?:-|$)/.test(s || "")) ||
     ["development", "preview"].includes(e.environment || "")
   );
 }
@@ -146,6 +151,10 @@ export const EVENT_LABELS: Record<string, string> = {
   resume_gap_sample_used: "简历工具示例使用",
   resume_gap_checklist_downloaded: "检查清单下载",
   resume_gap_checklist_copied: "检查清单复制",
+  interview_template_started: "复盘模板开始填写",
+  interview_template_sample_used: "复盘模板示例使用",
+  interview_template_copied: "复盘模板复制",
+  interview_template_downloaded: "复盘模板下载",
   today_action_completed: "完成今日行动",
   mentor_action_snoozed: "导师行动稍后处理",
   mentor_feedback_submitted: "导师反馈提交",
@@ -286,6 +295,17 @@ export function buildAnalytics(
     a.push(e);
     sources.set(k, a);
   }
+  // V2 is a new observation baseline, not a rewrite of historical first-touch tags.
+  const attributed = views.filter((e) => String(e.attribution_version) === "2" && isAcquisitionSource(e.first_source) && isAcquisitionSource(e.session_source));
+  const sourceRows = (key: "first_source" | "session_source") => {
+    const buckets = new Map<string, AnalyticsEvent[]>();
+    for (const e of attributed) {
+      const rows = buckets.get(e[key]!) || [];
+      rows.push(e);
+      buckets.set(e[key]!, rows);
+    }
+    return [...buckets].map(([source, rows]) => ({ source, pv: rows.length, uv: unique(rows) })).sort((a, b) => b.pv - a.pv || a.source.localeCompare(b.source));
+  };
   const daily = Array.from({ length: window.days }, (_, i) => {
     const day = analyticsDay(Date.parse(window.start) + i * DAY),
       rows = views.filter((e) => analyticsDay(e.created_at) === day);
@@ -358,6 +378,13 @@ export function buildAnalytics(
     sources: [...sources]
       .map(([source, rows]) => ({ source, pv: rows.length, uv: unique(rows) }))
       .sort((a, b) => b.pv - a.pv),
+    acquisition: {
+      trackedPv: attributed.length,
+      untrackedPv: views.length - attributed.length,
+      firstObserved: attributed.map((e) => e.created_at).sort()[0] || null,
+      sessionSources: sourceRows("session_source"),
+      firstSources: sourceRows("first_source"),
+    },
     users: eligibleUsers.map((u) => {
       const rows = userEvents.get(u.id) || [],
         usage = estimateUsage(rows);

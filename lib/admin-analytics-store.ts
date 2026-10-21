@@ -66,7 +66,7 @@ export async function readAnalyticsSummary(db: Db, days: number) {
     readAnalyticsRows(
       db,
       "product_events",
-      "id,user_id,anon_id,event_identity,event_name,created_at,source:properties->>source,page:properties->>page,host:properties->>host,environment:properties->>environment,qa:properties->>qa,is_test:properties->>is_test,account_cohort:properties->>account_cohort",
+      "id,user_id,anon_id,event_identity,event_name,created_at,source:properties->>source,first_source:properties->>first_source,session_source:properties->>session_source,attribution_version:properties->>attribution_version,page:properties->>page,host:properties->>host,environment:properties->>environment,qa:properties->>qa,is_test:properties->>is_test,account_cohort:properties->>account_cohort",
       window.start,
       window.end,
       20000,

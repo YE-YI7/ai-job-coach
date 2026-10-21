@@ -1,3 +1,5 @@
+import { captureAcquisition } from "./acquisition";
+
 export const PRODUCT_EVENT_NAMES = [
   "page_viewed",
   "landing_viewed",
@@ -6,6 +8,10 @@ export const PRODUCT_EVENT_NAMES = [
   "resume_gap_sample_used",
   "resume_gap_checklist_downloaded",
   "resume_gap_checklist_copied",
+  "interview_template_started",
+  "interview_template_sample_used",
+  "interview_template_copied",
+  "interview_template_downloaded",
   "cockpit_viewed",
   "material_intake_started",
   "material_intake_completed",
@@ -52,14 +58,13 @@ export const PRODUCT_EVENT_NAMES = [
 export function analyticsPage(pathname: string): string | null {
   if (/^\/(?:admin|eval-lab|api|_qa)(?:\/|$)/.test(pathname)) return null;
   if (["/", "/cockpit", "/login", "/onboarding", "/pricing", "/register", "/agent"].includes(pathname)) return pathname;
-  if (/^\/tools\/(?:resume-jd-gap|offer-calculator)\/?$/.test(pathname)) return pathname.replace(/\/$/, "");
+  if (/^\/tools\/(?:resume-jd-gap|offer-compare|interview-review)\/?$/.test(pathname) || /^\/guides\/resume-without-metrics\/?$/.test(pathname)) return pathname.replace(/\/$/, "");
   return "/other";
 }
 
 export type ProductEventName = (typeof PRODUCT_EVENT_NAMES)[number];
 export type ProductEventProperties = Record<string, string | number | boolean | null | undefined>;
 
-const SOURCE_KEY = "yi-zhi-first-touch-source-v1";
 export const ANON_ID_STORAGE_KEY = "yi-zhi-anon-id-v1";
 const ANON_ID_PATTERN = /^[a-zA-Z0-9_-]{8,96}$/;
 
@@ -95,16 +100,7 @@ export function sanitizeEventProperties(value: unknown): Record<string, string |
 
 export function captureAcquisitionSource() {
   if (typeof window === "undefined") return "direct";
-  const params = new URLSearchParams(window.location.search);
-  const source = (params.get("utm_source") || params.get("ref") || "direct")
-    .replace(/[^a-zA-Z0-9_-]/g, "-")
-    .slice(0, 64);
-  try {
-    const current = window.localStorage.getItem(SOURCE_KEY);
-    if (current) return current;
-    window.localStorage.setItem(SOURCE_KEY, source);
-  } catch { /* Private browsing must not break the task or analytics. */ }
-  return source || "direct";
+  return captureAcquisition().source;
 }
 
 export function getOrCreateAnonId(): string {
@@ -151,12 +147,14 @@ export function trackProductEvent(name: ProductEventName, properties: ProductEve
   if (typeof window === "undefined") return;
   // Analytics must never break saving, printing or a completed tutor response.
   try {
+  const attribution = captureAcquisition();
   const payload = {
     name,
     clientEventId: crypto.randomUUID(),
     occurredAt: new Date().toISOString(),
     anonId: getOrCreateAnonId(),
-    properties: sanitizeEventProperties({ source: captureAcquisitionSource(), ...properties }),
+    // Reserve the first four slots and prevent callers from overriding attribution.
+    properties: sanitizeEventProperties({ ...attribution, ...properties, ...attribution }),
   };
   void fetch("/api/product-events", {
     method: "POST",

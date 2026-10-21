@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { analyticsCohort } from "@/lib/analytics-cohort";
+import { sanitizeAcquisitionProperties } from "@/lib/acquisition";
 import {
   buildProductEventWrite,
   isProductEventName,
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     clientEventId,
     occurredAt,
     properties: {
-      ...sanitizeEventProperties(body.properties),
+      ...sanitizeAcquisitionProperties(sanitizeEventProperties(body.properties)),
       account_cohort: analyticsCohort(
         userId,
         process.env.ANALYTICS_INTERNAL_USER_IDS,

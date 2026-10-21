@@ -57,7 +57,7 @@ export default function AgentGuide() {
           <a href="#mcp">03 · 接通本地作战盘</a>
           <a href="#verify">04 · 验证后再宣布完成</a>
           <a href="#update">05 · 接通每周版本检查</a>
-          <a href="#tokenpay">06 · 可选连接 TokenPay</a>
+          <a href="#tokenpay">06 · 区分本地与网页费用</a>
           <a href="#start">07 · 开始第一个岗位</a>
         </aside>
 
@@ -140,8 +140,9 @@ export default function AgentGuide() {
 
           <section id="tokenpay">
             <span className={styles.step}>06</span>
-            <h2>需要独立模型账户时，再连接 TokenPay</h2>
-            <p>TokenPay 不是开始求职的前置条件。只有用户主动要求连接、查余额或充值时，才调用 <code>yi_zhi_tokenpay_connect</code>；让用户在 TokenDance 页面确认 Key 的额度、周期和过期时间，再用一次性 code 完成连接。</p>
+            <h2>本地使用宿主额度，网页使用益职积分</h2>
+            <p>本页介绍本地 Agent 版，默认使用用户现有 Agent 的套餐或模型额度。网页工作区则使用益职积分，无需绑定 TokenDance；两者的材料位置与费用分开，不会自动同步或互相抵扣。</p>
+            <p>本地 MCP 仍保留可选的 TokenPay 连接工具，它不是开始求职或使用网页的前置条件。只有用户主动要求使用这条本地连接时，才调用 <code>yi_zhi_tokenpay_connect</code>；让用户在 TokenDance 页面确认额度、周期和过期时间，再用一次性 code 完成连接。</p>
             <div className={styles.ruleBox}>
               <LockKeyhole size={20} />
               <p><strong>不要让用户粘贴已有 API Key。</strong>新 Key 只写入本机 <code>~/.yi-zhi/tokenpay.json</code>，不会出现在工具结果或作战盘里。充值必须先得到用户对具体金额的明确确认，绝不自动创建付款或扣款。</p>

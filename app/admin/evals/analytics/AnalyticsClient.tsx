@@ -1,4 +1,6 @@
 "use client";
+
+import { acquisitionLabel } from "@/lib/acquisition";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { AnalyticsSummary } from "@/lib/admin-analytics";
@@ -385,7 +387,7 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           <section>
             <div className={styles.sectionHead}>
               <h2>访问来源</h2>
-              <span>首触来源</span>
+              <span>本次访问来源 · 新版采集</span>
             </div>
             <table>
               <thead>
@@ -396,18 +398,27 @@ function Overview({ data }: { data: AnalyticsSummary }) {
                 </tr>
               </thead>
               <tbody>
-                {data.sources.map((r) => (
+                {data.acquisition.sessionSources.map((r) => (
                   <tr key={r.source}>
-                    <td className={styles.wrap}>{r.source}</td>
+                    <td className={styles.wrap}>{acquisitionLabel(r.source)}</td>
                     <td>{number(r.pv)}</td>
                     <td>{number(r.uv)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {!data.acquisition.trackedPv && <p className={styles.empty}>当前区间尚无新版来源数据。</p>}
             <p className={styles.note}>
-              来源 UV 可能重叠，不可相加。未记录不推测成 direct。
+              已记录 {number(data.acquisition.trackedPv)} 次页面访问；另有 {number(data.acquisition.untrackedPv)} 次历史访问未按新版归因，不反推或补成 direct。来源 UV 可能重叠，不可相加。
             </p>
+            <details>
+              <summary>查看首次来源与统计边界</summary>
+              <p className={styles.note}>首次来源是此浏览器启用新版采集后首次观察到的来源，不是用户终身首次获知益职的渠道。本次来源按30分钟无活动切分；浏览器未传递来源时显示“直接访问 / 来源未传递”，不能据此判断没有搜索或 AI 流量。链接标签优先于来源站点，仅保存分类，不保存原始链接、搜索词或材料。</p>
+              <table>
+                <thead><tr><th>新版首次来源</th><th>PV</th><th>UV</th></tr></thead>
+                <tbody>{data.acquisition.firstSources.map((r) => <tr key={r.source}><td>{acquisitionLabel(r.source)}</td><td>{number(r.pv)}</td><td>{number(r.uv)}</td></tr>)}</tbody>
+              </table>
+            </details>
           </section>
         </div>
       </div>

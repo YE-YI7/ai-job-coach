@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Copy, Download, FileText, ShieldCheck } from 'lucide-react';
 import { analyzeResumeGap, MAX_TEXT_LENGTH } from '@/lib/resume-gap/matcher';
@@ -9,7 +9,7 @@ import { buildGapChecklist, GAP_EXAMPLES, GAP_FAQS, gapEventProperties, gapEvide
 import { trackProductEvent } from '@/lib/product-events';
 import styles from './ResumeJdGap.module.css';
 
-export default function ResumeJdGapClient() {
+export default function ResumeJdGapClient({ children }: { children?: ReactNode }) {
   const router = useRouter();
   const [resumeText, setResumeText] = useState<string>(GAP_EXAMPLES.engineering.resumeText);
   const [jdText, setJdText] = useState<string>(GAP_EXAMPLES.engineering.jdText);
@@ -78,9 +78,9 @@ export default function ResumeJdGapClient() {
   return (
     <main className={styles.page}><div className={styles.container}>
       <nav className={styles.navigation} aria-label="工具导航"><Link href="/"><ArrowLeft size={17} />益职 AI</Link><Link href="/tools/offer-compare">比较 Offer<ArrowRight size={16} /></Link></nav>
-      <header className={styles.header}><div><h1>把简历和岗位<br />对一遍。</h1><p>先看哪里缺证据，再决定怎么改。</p></div><p className={styles.privacy}><ShieldCheck size={19} />免登录 · 本地对照 · 不消耗模型额度<br /><span>文字不上传，关闭页面不留存。</span></p></header>
+      <header className={styles.header}><div><h1>把简历和岗位<br />对一遍。</h1><p>先看哪里缺证据，再决定怎么改。<a href="#gap-method-title">怎么看这份清单？</a></p></div><p className={styles.privacy}><ShieldCheck size={19} />免登录 · 本地对照 · 不消耗模型额度<br /><span>文字不上传，刷新或关闭页面会清空。</span></p></header>
       <section aria-label="对照材料" className={styles.materials}>
-        <div className={styles.materialToolbar}><h2>{sample ? '先试试示例' : '你的对照材料'}</h2><div className={styles.exampleActions}>
+        <div className={styles.materialToolbar}><h2>{sample ? '先试试虚构示例' : '你的对照材料'}</h2><div className={styles.exampleActions}>
           {Object.entries(GAP_EXAMPLES).map(([key, example]) => <button key={key} type="button" aria-pressed={resumeText === example.resumeText && jdText === example.jdText} onClick={() => replaceMaterials(example)}>{example.label}示例</button>)}
           <button type="button" onClick={() => replaceMaterials({ resumeText: '', jdText: '' })}>换成我的材料</button>
           {backup && <button type="button" onClick={() => { setDecisions({}); setResumeText(backup.resumeText); setJdText(backup.jdText); setBackup(null); setNotice('已恢复上一次材料。'); }}>撤销</button>}
@@ -97,11 +97,11 @@ export default function ResumeJdGapClient() {
         {!report ? <div className={styles.empty}><FileText size={28} /><h2>{resumeText.trim() && jdText.trim() ? '材料需要调整' : '贴好两份材料，就能开始'}</h2><p>你的输入仍在上方，没有丢失或截断。</p></div> : <>
           <div className={styles.resultHeader}><div><h2>{sample ? '示例对照' : '这份简历，先改哪里？'}</h2><p>词面初筛，不是能力评分或真实 ATS 判定。</p></div><div className={styles.exportActions}><button type="button" onClick={() => void exportChecklist('copy')}><Copy size={17} />复制清单</button><button type="button" onClick={() => void exportChecklist('download')}><Download size={17} />下载清单</button></div></div>
           <div className={styles.resultLayout}>
-            <aside className={styles.nextSteps} aria-label="修改顺序"><h3>按这个顺序补</h3><ol>
+            <aside className={styles.nextSteps} aria-label="修改顺序"><h3>按这个顺序补</h3>            <ol>
               <li><a href="#gap-gates">先核实硬门槛<ArrowRight size={16} /></a><p>{report.summary.hardUnmet ? `${report.summary.hardUnmet} 条还没找到充分证据，先核对原文。` : '没有发现待补证据的门槛，仍请核对完整 JD。'}</p></li>
               <li><a href="#gap-terms">再补真实经历<ArrowRight size={16} /></a><p>做过的补对应经历；没做过的，不写成已有能力。</p></li>
               <li><a href="#gap-results">最后补结果<ArrowRight size={16} /></a><p>补个人动作、结果或对比基准；数字必须可核实。</p></li>
-            </ol><button type="button" onClick={goCockpit} className={styles.mentorButton}>让导师带我逐条改<ArrowRight size={17} /></button><p className={styles.handoff}>需登录及模型额度。此页材料不会自动上传；请先下载清单，进入辅导后再提供材料。</p></aside>
+            </ol><button type="button" onClick={goCockpit} className={styles.mentorButton}>登录后回到此页<ArrowRight size={17} /></button><p className={styles.handoff}>登录会回到这一页。这里的文字不会自动上传，也不会开始导师改稿。要练习，需再打开工作台，并自己提供材料。</p></aside>
             <div className={styles.evidence}>
               <section id="gap-gates"><h3>硬门槛<span>{report.summary.hardUnmet} 条待核实</span></h3><p className={styles.help}>没找到证据 ≠ 不满足。对照 JD 原文确认。</p>{report.hardRequirements.length ? <ul className={styles.gates}>{report.hardRequirements.map((h) => <li key={h.label}><div><strong>{h.label}</strong><span className={h.satisfied ? styles.confirmed : styles.unconfirmed}>{h.satisfied && <Check size={14} />}{h.satisfied ? '词面有证据' : '待核实'}</span></div>{h.jdEvidence && <p>JD：{h.jdEvidence}</p>}</li>)}</ul> : <p>未抽到明确硬门槛，请自行核对完整 JD。</p>}</section>
               <section id="gap-terms">
@@ -129,6 +129,7 @@ export default function ResumeJdGapClient() {
           </div>
         </>}
       </section>
+      {children}
       <section className={styles.faq} aria-label="常见问题"><h2>你可能想问</h2>{GAP_FAQS.map(({ question, answer }) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</section>
       <footer className={styles.footer}>AI 也会犯错，请检查重要信息。<Link href="/">回到益职 AI<ArrowRight size={16} /></Link></footer>
     </div></main>

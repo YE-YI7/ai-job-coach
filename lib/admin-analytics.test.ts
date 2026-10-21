@@ -45,6 +45,17 @@ const user = (id: string, when = "2026-10-17T08:00:00Z"): AnalyticsUser => ({
   provider: null,
   last_active: "2026-10-21T08:00:00Z",
 });
+test("new session attribution does not reinterpret history and excludes QA across source fields", () => {
+  const data = buildAnalytics([user("u1"), user("owner")], [
+    event("old", "2026-10-18T00:00:00Z", "page_viewed", "u1", { source: "google" }),
+    event("v2", "2026-10-18T00:01:00Z", "page_viewed", "u1", { source: "direct", first_source: "direct", session_source: "chatgpt", attribution_version: "2" }),
+    event("qa", "2026-10-18T00:02:00Z", "page_viewed", "u1", { source: "direct", first_source: "direct", session_source: "growth-qa", attribution_version: "2" }),
+    event("internal", "2026-10-18T00:03:00Z", "page_viewed", "owner", { first_source: "google", session_source: "google", attribution_version: "2" }),
+  ], window, new Set(["owner"]));
+  expect(data.traffic.pv).toBe(2);
+  expect(data.acquisition).toMatchObject({ trackedPv: 1, untrackedPv: 1, firstSources: [{ source: "direct", pv: 1, uv: 1 }], sessionSources: [{ source: "chatgpt", pv: 1, uv: 1 }] });
+  expect(data.totals.excludedEvents).toBe(2);
+});
 test("historical unmatched IDs never inflate registered active users or usage", () => {
   const data = buildAnalytics(
     [user("u1")],

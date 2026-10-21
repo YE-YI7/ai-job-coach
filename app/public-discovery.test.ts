@@ -6,6 +6,7 @@ describe("public search discovery", () => {
     expect(sitemap().map((row) => row.url)).toEqual([
       "https://yizhioffer.com", "https://yizhioffer.com/agent",
       "https://yizhioffer.com/tools/resume-jd-gap", "https://yizhioffer.com/tools/offer-compare",
+      "https://yizhioffer.com/guides/resume-without-metrics", "https://yizhioffer.com/tools/interview-review",
     ]);
     expect(sitemap().every((row) => !row.lastModified)).toBe(true);
   });

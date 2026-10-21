@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifySessionToken } from "@/lib/session";
+import { PUBLIC_INDEX_PATHS } from "@/lib/public-discovery";
 
 /**
  * Next.js Middleware - 认证拦截
@@ -15,6 +16,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ========== 允许匿名访问的路径 ==========
+
+  // Only deliberately published routes bypass sign-in, not every /guides/* path.
+  if (PUBLIC_INDEX_PATHS.some((path) => pathname === path)) return NextResponse.next();
 
   // Privacy notice contains no account data and must be readable before sign-in.
   if (pathname === "/privacy") return NextResponse.next();

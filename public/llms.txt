@@ -7,6 +7,15 @@ Source: https://github.com/YE-YI7/ai-job-coach
 Agent guide: https://yizhioffer.com/agent
 Privacy: https://yizhioffer.com/privacy
 
+## Public guides and local tools
+
+- Resume/JD comparison: https://yizhioffer.com/tools/resume-jd-gap — deterministic text clues and evidence checklist, not an ATS score or verification of ability.
+- Resume without metrics: https://yizhioffer.com/guides/resume-without-metrics — a fictional worked example distinguishing known facts, rewriting and one missing-fact question.
+- Interview review template: https://yizhioffer.com/tools/interview-review — four blank fields, local copy/download, no AI answer generation or account save.
+- Offer comparison: https://yizhioffer.com/tools/offer-compare — compare offer compensation inputs; not a two-JD application-priority tool.
+
+Public tool inputs stay in the current page and clear on refresh. They are not automatically transferred to a signed-in workspace. These explanations describe product boundaries, not guarantees of search indexing or AI citations.
+
 ## Two ways to use 益职
 
 - Hosted web version: 益职 provides the model, account, and cloud cockpit; usage consumes 益职 credits.

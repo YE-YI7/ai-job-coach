@@ -16,4 +16,10 @@
 
 ## 验收状态
 
-待本地表驱动/真实Git回归、远端首次配置Preview与后续纯文档真实跳过证据、云端保留值回读及正式/旧数据核对。不能将脚本写完称为云端生效。
+本地5组测试通过，包含真实临时Git仓库的多提交push、改名/删除与中文/空格/换行文件名；首次测试发现白名单`.`不匹配换行文件名，已补`s`标记并复测，不把该本地失败冒充线上错误。lint通过。全部测试只写自身临时夹具。
+
+实施提交63ad726已推原工作分支，仅7明确文件，未混Cursor的打印/全局设计/模板偏好和日检未提交文件。Vercel自动Preview `dpl_Dc7LYhtq5FJxtNuFFjZpvLszN8Co` / ijvoxgnkj… READY，日志17:15:37 UTC明确执行`node scripts/vercel-ignore-build.mjs`，返回`build/runtime-or-unknown-change/changedFiles:7`；随后完整构建成功，正向控制证明配置/脚本变更没有被当文档跳过。无手工Production构建或正式提升。
+
+保留设置通过益职项目UI仅修改Pre-Production为1 week，保存后API回读 `expirationDays:7, expirationDaysProduction:30, expirationDaysCanceled:30, expirationDaysErrored:30, deploymentsToKeep:10`。没有改团队所有项目，没有手工删除部署；历史Preview可能按平台规则进入删除/恢复期，不能承诺窗口用量立即减少。正式与上稳Production不在缩短范围，最新READY回读都在。
+
+本报告下一次提交只改此markdown，用作真实纯文档负向控制；待其实际日志回显后再本地补结果，不提前称已跳过。

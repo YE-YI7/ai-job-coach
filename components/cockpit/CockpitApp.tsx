@@ -1220,8 +1220,12 @@ function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; o
           <span className={styles.emptyIcon}><BriefcaseBusiness size={24} /></span>
           <h1>先给我简历，一起找到下一步</h1>
           <p>先了解你的经历，再确定方向和目标岗位。不需要先准备 JD。</p>
-          <button className={styles.primaryButton} onClick={()=>onCreate("direction")}><UploadCloud size={18}/>导入我的简历</button>
-          <div className={styles.intakeChoices}><button onClick={() => onCreate("direction")}>还没有简历，带我梳理</button><button onClick={() => onCreate("resume")}>我已经有目标岗位</button><button onClick={() => onCreate("interview")}>直接准备面试</button></div>
+          <button type="button" className={styles.primaryButton} onClick={()=>onCreate("direction")}><UploadCloud size={18}/>导入我的简历</button>
+          <div className={styles.intakeChoices}>
+            <button type="button" onClick={() => onCreate("direction")}>还没有简历，带我梳理</button>
+            <button type="button" onClick={() => onCreate("resume")}>我已经有目标岗位</button>
+            <button type="button" onClick={() => onCreate("interview")}>直接准备面试</button>
+          </div>
           <a className={styles.recoverWorkspace} href="/account/phone?recover=1">以前用过益职？找回原来的工作区 <span aria-hidden="true">→</span></a>
         </div>
         <ol className={styles.onboardingSteps}>
@@ -1647,7 +1651,7 @@ function ResumeTab({ onReplaceResume,onEditBlock,onUndo,onRedo,onFocusMentor, op
       {failedReviews.length > 0 && <details className={styles.resumeCheckDetails}><summary>有修改需要核对 · 在对应区块选择版本</summary>{failedReviews.map(review => <p key={review.reviewerType}>{review.summary}</p>)}</details>}
       {opportunity.resumeText ? (
         <>
-          <div id={`resume-current-${opportunity.id}`} className={styles.resumeCanvas}>{showOriginal?<OriginalResume opportunity={opportunity}/>:<ResumeBlockBoard disabled={generating||agentTask?.state==="running"} onEditBlock={onEditBlock} opportunity={opportunity} showMarks={showMarks} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder}/>}</div>
+          <div id={`resume-current-${opportunity.id}`} className={styles.resumeCanvas} data-reading={generating||agentTask?.state==="running"?"true":undefined}>{showOriginal?<OriginalResume opportunity={opportunity}/>:<ResumeBlockBoard disabled={generating||agentTask?.state==="running"} onEditBlock={onEditBlock} opportunity={opportunity} showMarks={showMarks} onOpenEvidence={onOpenEvidence} onUpdate={onUpdate} onEdit={onEdit} onReorder={onReorder}/>}</div>
           {currentExport.findings.length>0&&<p role="alert">部分修改无法定位，相关段落保留原文，请在预览里核对。</p>}
         </>
       ) : <EmptySection label="先在岗位档案补充简历，AI 才能开始。" />}
@@ -2194,7 +2198,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       </section>}
       {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
-      {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper}><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>
+      {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper} open><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>
         {(() => {
           const safeIndex = Math.min(focusIndex, opportunity.interviewFocus.length - 1);
           const focus = opportunity.interviewFocus[safeIndex];
@@ -2202,7 +2206,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             <div className={styles.focusDots} aria-label={`第 ${safeIndex + 1} 题，共 ${opportunity.interviewFocus.length} 题`}>
               {opportunity.interviewFocus.map((item, index) => <i key={item.id} data-state={index < safeIndex ? "done" : index === safeIndex ? "current" : "waiting"} />)}
             </div>
-            <article><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><em>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</em></article>
+            <article key={focus.id}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><em>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</em></article>
             <div className={styles.focusStepperActions}>
               <button type="button" className={styles.secondaryButton} disabled={safeIndex === 0} onClick={() => setFocusIndex(safeIndex - 1)}>上一题</button>
               <button type="button" className={styles.secondaryButton} onClick={() => { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); setPracticing(true); }}><MessageSquareText size={15} />练这一题</button>

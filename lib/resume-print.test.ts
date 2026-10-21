@@ -83,6 +83,12 @@ test("preview creation does not imply print or PDF saved",()=>{
  expect(onPrint).not.toHaveBeenCalled();
  click();expect(print).toHaveBeenCalledTimes(1);expect(onPrint).toHaveBeenCalledTimes(1);
 });
+test("print freezes revision ink at full opacity even during its screen entrance",()=>{
+ const html=resumePrintHtml(LANDING_RESUME,"modern","打印动效回归",{toolbar:false,highlight:DEMO_BEFORE});
+ expect(html).toContain("animation:ink-land 720ms");
+ expect(html).toContain("animation:none!important;transition:none!important");
+ expect(html).toContain("mark{opacity:1;filter:none}");
+});
 test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])("%s keeps real text and print pagination",template=>{
  const html=resumePrintHtml("姓名\n\n教育经历\n真实内容",template,"简历");
  expect(html).toContain("真实内容");expect(html).toContain("@page");expect(html).not.toContain("canvas");expect(html).not.toContain("<img");

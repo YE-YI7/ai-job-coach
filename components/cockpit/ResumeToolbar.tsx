@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Camera, ChevronDown, Eye, EyeOff, FileText, Loader2, MoreHorizontal, Redo2, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
+import { Camera, ChevronDown, Eye, EyeOff, FileText, MoreHorizontal, Redo2, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import type { ResumePhoto } from "@/lib/resume-photo";
 import styles from "./ResumeToolbar.module.css";
@@ -72,7 +72,7 @@ export default function ResumeToolbar({
       </div>
       <fieldset className={styles.actions} disabled={!ready} aria-label="简历主要操作" aria-busy={!ready}>
         <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy} disabled={busy || !canGenerate} onClick={onGenerate}>
-          {busy ? <Loader2 size={16} className={styles.busyIcon} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改" : "开始修改"}
+          {busy ? <span className={styles.readingLine} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改" : "开始修改"}
         </button>
         {deliveryAction}
         {exportControl}

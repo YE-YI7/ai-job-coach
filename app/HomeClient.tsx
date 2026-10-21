@@ -12,13 +12,93 @@ import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
 import styles from "./Home.module.css";
 
 const START = "/login?redirect=%2Fcockpit";
+const MENTOR_LINE = "先写清你负责了什么，再补能核实的结果。";
 const AGENT_PROMPT = `请打开并完整阅读 ${PUBLIC_SITE_URL}/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。`;
+
+type ShareState = "idle" | "copied" | "downloaded" | "text" | "error";
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const lines: string[] = [];
+  let line = "";
+  for (const char of text) {
+    const next = line + char;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = char;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function paintShareCard() {
+  await document.fonts?.ready;
+  const width = 1080;
+  const height = 1440;
+  const canvas = document.createElement("canvas");
+  const dpr = 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.scale(dpr, dpr);
+  ctx.fillStyle = "#f4efe8";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#fbf8f4";
+  roundRect(ctx, 72, 88, width - 144, height - 176, 28);
+  ctx.fill();
+  ctx.strokeStyle = "#e4dbd1";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.font = '400 34px "Songti SC", "Noto Serif SC", "STSong", serif';
+  ctx.fillStyle = "#8a8176";
+  const before = wrapText(ctx, DEMO_BEFORE, 760);
+  before.forEach((line, index) => {
+    const y = 280 + index * 52;
+    ctx.fillText(line, 140, y);
+    const measured = ctx.measureText(line).width;
+    ctx.strokeStyle = "#8a8176";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(140, y - 10);
+    ctx.lineTo(140 + measured, y - 10);
+    ctx.stroke();
+  });
+
+  ctx.font = '600 54px "Songti SC", "Noto Serif SC", "STSong", serif';
+  ctx.fillStyle = "#2c2720";
+  const after = wrapText(ctx, DEMO_AFTER, 780);
+  after.forEach((line, index) => ctx.fillText(line, 140, 460 + index * 78));
+
+  ctx.font = '400 30px "Songti SC", "Noto Serif SC", "STSong", serif';
+  ctx.fillStyle = "#6a6153";
+  wrapText(ctx, MENTOR_LINE, 760).forEach((line, index) => ctx.fillText(line, 140, 980 + index * 48));
+
+  ctx.font = '600 26px "PingFang SC", "Noto Sans SC", sans-serif';
+  ctx.fillStyle = "#ad4b29";
+  ctx.fillText("益职 · 虚构示例", 140, 1240);
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+}
 
 export default function HomeClient() {
   const viewed = useRef(false);
   const [view, setView] = useState<"original" | "suggestion">("suggestion");
   const [adopted, setAdopted] = useState(false);
+  const [ink, setInk] = useState<"before" | "after">("before");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [shareState, setShareState] = useState<ShareState>("idle");
+  const [sharing, setSharing] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [answer, setAnswer] = useState("");
   const [showPractice, setShowPractice] = useState(false);
@@ -31,6 +111,13 @@ export default function HomeClient() {
       viewed.current = true;
       trackProductEvent("landing_viewed", { surface: "home" });
     }
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (media.matches) {
+      setInk("after");
+      return;
+    }
+    const timer = window.setTimeout(() => setInk("after"), 880);
+    return () => window.clearTimeout(timer);
   }, []);
 
   function previewPdf() {
@@ -41,9 +128,45 @@ export default function HomeClient() {
     renderResumePrintWindow(preview, displayedResume, "modern", "益职 · 虚构示例简历");
   }
 
+  function toggleAdopted() {
+    setAdopted(value => !value);
+    setShareState("idle");
+  }
+
   async function copyAgentPrompt() {
     try { await navigator.clipboard.writeText(AGENT_PROMPT); setCopyState("copied"); }
     catch { setCopyState("error"); }
+  }
+
+  async function copyShareCard() {
+    if (sharing) return;
+    setSharing(true);
+    const text = `${DEMO_BEFORE}\n${DEMO_AFTER}\n${MENTOR_LINE}\n益职`;
+    try {
+    let blob: Blob | null = null;
+    try { blob = await paintShareCard(); }
+    catch { /* 图片生成受限时仍可复制文字 */ }
+    if (blob && navigator.clipboard?.write) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setShareState("copied");
+        return;
+      } catch { /* 剪贴板不可用时改为下载 */ }
+    }
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "yizhi-sentence.png";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setShareState("downloaded");
+      return;
+    }
+    try { await navigator.clipboard.writeText(text); setShareState("text"); }
+    catch { setShareState("error"); }
+    } catch { setShareState("error"); }
+    finally { setSharing(false); }
   }
 
   return <main className={styles.page}>
@@ -55,7 +178,23 @@ export default function HomeClient() {
 
     <section className={styles.hero} aria-labelledby="home-heading">
       <h1 id="home-heading">你的 AI 求职导师</h1>
-      <p>从改好一份简历，到答好下一场面试。<br />记得你的经历，也保留每一步进展。</p>
+      <p className={styles.heroLead}>从改好一份简历，到答好下一场面试。<br />记得你的经历，也保留每一步进展。</p>
+      <div className={styles.doors}>
+        <a className={styles.door} href="#resume-demo">
+          <span>简历修改 · 虚构示例</span>
+          <div className={styles.slip} data-ink={ink}>
+            <p className={styles.before}>{DEMO_BEFORE}</p>
+            <p className={styles.after} aria-hidden={ink !== "after"}>{DEMO_AFTER}</p>
+            <p className={styles.slipNote}>{MENTOR_LINE}</p>
+          </div>
+        </a>
+        <a className={styles.door} href="#interview-demo">
+          <span>模拟面试 · 互动演示</span>
+          <p className={styles.doorQuestion}>你如何判断一个需求值不值得做？</p>
+          <p className={styles.slipNote}>先看谁遇到问题、发生多频繁、解决后有什么变化。先从一个你做过的需求说起。</p>
+        </a>
+      </div>
+      <p className={styles.srOnly} role="status">{ink === "after" ? `简历这句改成：${DEMO_AFTER}` : ""}</p>
       <div className={styles.heroActions}><Link className={styles.primary} href={START}>开始使用益职 <ArrowRight size={18} /></Link><a className={styles.quietLink} href="#resume-demo">看看它怎么帮你</a></div>
       <span className={styles.heroNote}>没有目标岗位，也能先改简历</span>
     </section>
@@ -75,12 +214,19 @@ export default function HomeClient() {
           <aside className={styles.demoMentor} aria-label="示例修改建议">
             <div>
               <h2>{view === "original" ? "原来的样子，好好保留。" : "这段经历，该怎么写得更具体？"}</h2>
-              <div className={styles.mentorLine}><Image src="/logo.png" alt="导师" width={36} height={36} /><p>{view === "original" ? "上传的原件不重排；修改另存为成稿，由你确认。" : "先写清你负责了什么，再补能核实的结果。"}</p></div>
+              <p className={styles.marginNote}>{view === "original" ? "上传的原件不重排；修改另存为成稿，由你确认。" : MENTOR_LINE}</p>
               {view === "suggestion" && <div className={styles.suggestion}>
                 <h3>修改建议</h3><p className={styles.revisedSentence}>{DEMO_AFTER}</p>
                 <p>这句话具体说明了你的工作内容、方法和推进动作，比「负责客服相关产品工作」更清晰。</p>
                 <div className={styles.suggestionDetails}><h4>可以补充（如有）</h4><ul><li>覆盖的客服场景或问题类型</li><li>上线后的实际效果</li></ul><span>没有确认的数字，不替你添加。</span></div>
-                <button type="button" className={styles.adoptAction} onClick={() => setAdopted(value => !value)}>{adopted ? "撤回示例修改" : "试试采用这条修改"}<ArrowRight size={16} /></button>
+                <button type="button" className={styles.adoptAction} onClick={toggleAdopted}>{adopted ? "撤回示例修改" : "试试采用这条修改"}<ArrowRight size={16} /></button>
+                {adopted && <figure className={styles.shareCard}>
+                  <p className={styles.shareBefore}>{DEMO_BEFORE}</p>
+                  <p className={styles.shareAfter}>{DEMO_AFTER}</p>
+                  <figcaption>{MENTOR_LINE}<span>益职 · 示例</span></figcaption>
+                  <button type="button" disabled={sharing} onClick={() => void copyShareCard()}>{sharing ? "正在生成…" : shareState === "copied" ? "已复制图片" : shareState === "downloaded" ? "已下载图片" : shareState === "text" ? "已复制文字" : "复制这张卡"}</button>
+                  {shareState === "error" && <p role="alert">复制受限，可以直接截取上面这张卡。</p>}
+                </figure>}
               </div>}
             </div>
             <p className={styles.demoStatus} role="status"><CheckCircle size={18} weight="fill" />{view === "original" ? "示例原件未改动" : adopted ? "演示：纸面高亮处已更新，可定位查看" : "纸面高亮的是原句，由你决定是否修改"}</p>
@@ -92,12 +238,11 @@ export default function HomeClient() {
     </section>
 
     <section className={styles.interviewSection} id="interview-demo" aria-labelledby="interview-heading">
-      <div className={styles.interviewCopy}><h2 id="interview-heading">不会答，<br />就从讲明白开始。</h2><p>一次一题，先理解，再用自己的话重新作答。</p><button className={styles.textAction} type="button" onClick={() => { setShowPractice(true); setPracticeSaved(false); }}>看看面试怎么练 <ArrowRight size={18} /></button></div>
+      <div className={styles.interviewCopy}><h2 id="interview-heading">不会答，<br />就从讲明白开始。</h2><p>互动演示：一次一题，先理解，再用自己的话重新作答。</p><button className={styles.textAction} type="button" onClick={() => { setShowPractice(true); setPracticeSaved(false); }}>看看面试怎么练 <ArrowRight size={18} /></button></div>
       <div className={styles.interviewConversation} aria-label="面试带练演示">
-        <span className={styles.demoLabel}>带练演示</span>
         <p className={styles.interviewQuestion}>你如何判断一个需求值不值得做？</p>
         <div className={styles.userLine}><User size={28} /><p>我不会。</p></div>
-        <div className={styles.coachLine}><Image src="/logo.png" alt="导师" width={36} height={36} /><p>先看谁遇到问题、发生多频繁、解决后有什么变化。<br />先从一个你做过的需求说起。</p></div>
+        <p className={styles.marginNote}>先看谁遇到问题、发生多频繁、解决后有什么变化。先从一个你做过的需求说起。</p>
         {showPractice ? <form onSubmit={event => { event.preventDefault(); if (answer.trim()) setPracticeSaved(true); }} className={styles.practiceForm}>
           <label htmlFor="demo-answer">试着说一个你做过的需求</label><div><textarea id="demo-answer" value={answer} onChange={event => { setAnswer(event.target.value); setPracticeSaved(false); }} placeholder="谁遇到了什么问题？你做了什么？" rows={2} maxLength={1000} /><button type="submit" aria-label="完成这次演示回答" disabled={!answer.trim()}><ArrowUp size={20} /></button></div>
           <p role="status">{practiceSaved ? "演示完成。进入工作区后，导师会针对你的回答继续辅导。" : "仅在当前页面体验，不发送给 AI，不扣额度。"}</p>

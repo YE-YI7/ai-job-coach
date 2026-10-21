@@ -1419,3 +1419,20 @@
 .resumeReplacement>div:first-child>button{min-height:36px;padding:6px 0 6px 12px;border:0;background:transparent;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
 @media(max-width:700px){.resumeDocument .documentBody,.resumeDocument .profileWorkspace{padding-inline:16px;padding-top:16px}.resumeStudio .exportControls .exportAction{min-height:44px}.resumeStudio .exportControls.exportCompact{max-width:220px}.resumeStudio .exportControls small{max-width:25ch}.resumeReplacement>div:first-child>button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.resumeStudio .exportControls .exportAction{transition:none}.resumeStudio .exportControls .exportAction:active:not(:disabled){transform:none}}
+.emptyCopy h1{letter-spacing:0;line-height:1.25}
+.emptyCopy .intakeChoices{display:grid;grid-template-columns:1fr;gap:10px;margin:18px 0 0}
+.emptyCopy .intakeChoices button{display:flex;align-items:center;min-height:52px;padding:14px 16px;border:1px solid #e4ddd4;border-radius:14px;background:#fff;text-align:left;font-size:15px}
+.emptyCopy .intakeChoices button:hover{border-color:#c4a48f;background:#fbf8f4}
+.emptyCopy .primaryButton{margin-top:4px}
+.emptyCopy .recoverWorkspace{display:flex;width:100%;margin-top:16px}
+.rightTool .focusStepper{margin-top:28px;border:0;padding:0}
+.rightTool .focusStepper>summary{font-size:13px}
+.rightTool .focusOne article{animation:question-land 680ms cubic-bezier(.23,1,.32,1)}
+@keyframes question-land{from{opacity:0;transform:translateY(10px);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+.resumeCanvas{position:relative}
+.resumeCanvas[data-reading=true]::after{content:"";position:absolute;z-index:2;top:72px;left:12%;width:28%;height:2px;border-radius:2px;background:#c45e3a;pointer-events:none;animation:paper-scan 1.35s cubic-bezier(.23,1,.32,1) infinite}
+@keyframes paper-scan{from{transform:translateX(0);opacity:.2}40%{opacity:1}to{transform:translateX(220%);opacity:.15}}
+@media(prefers-reduced-motion:reduce){.rightTool .focusOne article,.resumeCanvas[data-reading=true]::after{animation:none}}
+.primaryButton,.secondaryButton,.emptyCopy .intakeChoices button{transition:transform 160ms cubic-bezier(.23,1,.32,1),background-color 150ms ease,border-color 150ms ease}
+.primaryButton:active:not(:disabled),.secondaryButton:active:not(:disabled),.emptyCopy .intakeChoices button:active{transform:scale(.97)}
+@media(prefers-reduced-motion:reduce){.primaryButton:active:not(:disabled),.secondaryButton:active:not(:disabled),.emptyCopy .intakeChoices button:active{transform:none}}

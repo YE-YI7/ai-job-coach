@@ -170,6 +170,13 @@
 .panel[data-resume] .welcome p{font-size:14px;line-height:1.8;color:var(--cockpit-studio-muted,#6b665e)}
 .panel[data-resume] .welcome>p:last-child:not(:first-of-type){font-size:12px;margin-top:22px}
 .panel[data-resume] .welcome .quickStarts:empty{display:none}
+.welcome h3{font-family:inherit;font-weight:600}
+.welcome>p:first-of-type{margin-top:4px;padding-left:12px;border-left:1px solid #c4a48f}
+.welcome .quickStarts{display:grid;gap:8px;width:100%}
+.welcome .quickStarts button{border:1px solid #e4ddd4;border-radius:12px;background:#fff;padding:12px 14px;min-height:44px;text-decoration:none;color:#3f3b35}
+.welcome .quickStarts button:hover:not(:disabled){background:#fbf8f4;border-color:#c4a48f;color:#3f3b35;text-decoration:none}
+.welcome .quickStarts button:active:not(:disabled){transform:scale(.97)}
+@media(prefers-reduced-motion:reduce){.welcome .quickStarts button:active:not(:disabled){transform:none}}
 .panel[data-resume] form{padding:14px 14px 10px;background:#fff;border:0;border-radius:14px;box-shadow:0 1px 3px rgb(41 36 29 / .07),0 5px 18px rgb(41 36 29 / .05)}
 .panel[data-resume] form:focus-within{outline:none}
 .panel[data-resume] textarea{font-size:14px;min-height:72px;line-height:1.75;color:var(--cockpit-studio-ink,#2f2a23)}

@@ -1,6 +1,14 @@
 # 短信日限 30 次/号码 + 移除前台 TokenPay 入口
 
-日期：2026-10-21 本地 / UTC。状态：**代码与迁移文件已就绪，未应用生产数据库、未部署、未推送远端。**
+DS 原记录日期：2026-10-21 UTC（本地为 10-20）。最新状态：**三提交已推远端；Codex 于 10-20 本地完成生产迁移、重建与正式验收。** 下方为 DS 原实施记录，旧“未运行/未应用”状态由本段收尾结果覆盖，保留其历史执行边界。
+
+## Codex 收尾结果（2026-10-20 本地 / 10-21 UTC）
+
+- 生产迁移 `phone_daily_limit_30` / `20261021042719` 已应用，函数回读 30/号码/UTC 日；原计数不重置。事务回滚夹具两轮通过，确认第 30 放行/第 31 拒绝及拒绝不影响旧 OTP，残留为 0；未发短信。
+- 85 项相关 mock 回归、TypeScript、TSX lint 通过；本次前端手动 detect 无新增改动归因项，历史 TodayCoach 样式告警未扩修。
+- Chrome 现有 Vercel 登录完成同源提交 `4524cc1` 的 Production 重建：`dpl_53XTR3HY3JhJty6EZK8KGbo5sSpU` / READY / 4m13s / 136 页，`yizhioffer.com` 已分配。CLI 凭据失效、MCP team 403 不绕过，未另建凭据；本次为网页正常 Production 重建，不冒称 staged + promote。
+- 正式桌面/390 手机、账户展开/Escape/刷新通过；旧 TokenPay 前台入口已撤，积分/手机号/退出保留，8 岗位恢复。health 200/database ok；手机配置匿名 enabled=true，Eval/TokenPay 匿名401；新部署短窗 Console Error/Fatal/Warning 0。没有重新发码实登、支付、兑换或模型实测。
+- 41 旧作答、7 简历任务、用户、钱包/转入/预留、真实 OTP 与计数桶 8 组 hash 均同；旧 Widget 的正常账户读取刷新了 TokenPay 余额缓存时间，不能声称该表整行 hash 不变。连接仍 active、未重授权/改密钥或断连，详[完整收尾证据](2026-10-20-ds-release-closeout.md)。Cursor 在途 9 文件未混发，旧域不续/兑换暂缓等未决项保留。
 
 ## 本轮决定（本人 2026-10-21）
 

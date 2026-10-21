@@ -2,6 +2,7 @@ import "server-only";
 import { getDbClient } from "@/lib/db";
 import {
   analyticsInternalIds,
+  analyticsVisitorIds,
   analyticsWindow,
   buildAnalytics,
   type AnalyticsUser,
@@ -20,7 +21,7 @@ function analyticsPolicy() {
   }
   return {
     users,
-    visitors: analyticsInternalIds(process.env.ANALYTICS_INTERNAL_ANON_IDS),
+    visitors: analyticsVisitorIds(process.env.ANALYTICS_INTERNAL_ANON_IDS),
   };
 }
 /** Stop rather than silently publish biased totals if a range outgrows this bounded reader. */
@@ -113,7 +114,7 @@ export async function readAnalyticsDetail(
 ) {
   // This is a backend policy, not a hidden UI row. Apply it before reading any
   // owner record or private material, including direct requests with a known ID.
-  if (analyticsPolicy().users.has(userId)) return null;
+  if (analyticsPolicy().users.has(userId.toLowerCase())) return null;
   const owner = await db
     .from("users")
     .select("id")

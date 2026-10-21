@@ -35,6 +35,10 @@ export function analyticsWindow(days: number, now = new Date()) {
   };
 }
 export function analyticsInternalIds(raw = "") {
+  return new Set([...analyticsVisitorIds(raw)].map((id) => id.toLowerCase()));
+}
+/** Browser IDs are opaque and case-sensitive; account UUIDs are not. */
+export function analyticsVisitorIds(raw = "") {
   return new Set(
     raw
       .split(",")
@@ -49,7 +53,7 @@ export function isExcludedEvent(
   visitors = new Set<string>(),
 ) {
   return (
-    Boolean(e.user_id && ids.has(e.user_id)) ||
+    Boolean(e.user_id && ids.has(e.user_id.toLowerCase())) ||
     Boolean(!e.user_id && e.anon_id && visitors.has(e.anon_id)) ||
     Boolean(
       !e.user_id &&

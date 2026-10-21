@@ -19,6 +19,9 @@ test.each([
     try {
       const a = fixture();
       expect(await readAnalyticsDetail(a.db, id, kind, 0, id)).toBeNull();
+      expect(
+        await readAnalyticsDetail(a.db, id.toUpperCase(), kind, 0, id),
+      ).toBeNull();
       expect(a.reads).toEqual([]);
     } finally {
       if (previous === undefined)

@@ -14,7 +14,7 @@
 ## 验收进度
 
 - TypeScript通过；任务TSX/打印ESLint零错误，CockpitApp保留2条未改动的历史未使用变量warning。
-- 8套56项定向测试通过，覆盖模型菜单、逐步回复、Markdown、简历 motion 与打印。
+- 最终9套61项定向测试通过，覆盖模型菜单、逐步回复、Markdown、输入焦点、简历 motion 与打印。
 - Impeccable一次初检、必要修正后一次复核：386项中3项primary均为CockpitApp历史侧线/Georgia；本次新增高度动画问题已修，未扩修历史或启用自动hook。
 - Chrome：首页采纳改变唯一示例句；分享图片成功，恢复原剪贴板。390宽无横溢出，按钮44px，减少动态效果transition=0s。
 - 真实导师组件用无模型延迟夹具：12个实际前缀帧、strong与列表渲染、无裸星号/内部字段；完整刷新恢复同一回复，不重演打字。此为界面夹具，不冒充真实模型调用。
@@ -27,4 +27,15 @@
 
 ## 发布状态
 
-待最终部署、正式新版长文PDF与数据回读；不能以本机验收代替上线。临时夹具仅在 `/tmp/yizhi-cursor-acceptance.S1rQOw`，不进入提交或部署。
+已上线 https://yizhioffer.com ：`cada9db8c0a914c8b3313d95496e87735380cc43` / `dpl_AspXhB1gbwKdmbGDaEkU1Rn5jYwt` / Production / READY / 2m34s / 136页。CLI旧登录失效及MCP旧team403边界未扩大；使用现有Chrome Vercel网页登录，对精确提交进行普通Production重建并分配域名，不冒称staged+promote或同一Preview构建。运行URL `ai-job-coach-cftvwx8cg-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+
+正式验收：
+
+- 同一QA档案点击“保存这段文字”，真实“正在保存”→“已保存到工作区”；整页刷新恢复`QA-CURSOR-SAVE-2`。服务端回查编辑在metadata内保存，源resumeText尾标仍在；不把原文未覆写误判为保存失败。
+- 正式导出并在Chrome原生打印窗口另存`cursor-long-production.pdf`，2页A4、66508bytes；两页均渲染核看，24条长文、真实圆点、日期、保存尾标与最终技能完整，无裁切、编辑控件或浅墨。经典黑白长文与首页简洁蓝灰单页均通过。`pdftotext`未安装，没将失败的文本命令当成通过；采用实际AX文字和逐页图像检查。
+- 正式模型入口仍输入面左下，DeepSeek选择未改；12个logo完整、前5行44px、Escape关闭回焦。导师欢迎字体是Outfit/PingFang无衬线。390宽模型和发送均44px且不重叠，菜单left18/right372/top247/bottom691.5，无横溢出；视口已恢复。
+- 正式health200/database ok，匿名session401；首页正式HTML可读新版示例标签。部署可见请求日志包含正常200/304及预期匿名401；这不是全量或长期无错证明，Drains历史缺口未扩修。
+- 最终41旧作答、钱包/转账/预留、原35份机会的整行hash与上述基线逐一相同。没有短信、真实模型、付费推荐、充值或兑换操作。
+- 本次唯一QA档案已归档，原文和测试结果可恢复，未永久删除；不是旧用户资料。回到原美团档案并刷新，输入可用。隔离服务与本轮本机/打印标签已关闭，夹具未进入发布。
+
+证据目录：`/tmp/yizhi-cursor-acceptance.S1rQOw`，包含首页、移动工具栏、聊天恢复、正式模型/工具栏截图及两份Chrome写出的PDF与逐页图。临时界面没有服务端密钥；本机埋点因无DB返回503，明确不计作云端验收；正式埋点200。

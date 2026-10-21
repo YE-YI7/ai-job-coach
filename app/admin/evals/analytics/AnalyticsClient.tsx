@@ -363,6 +363,10 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           条诊断 Trace 不计产品活跃。没有标记的测试流量仍可能混入。
         </p>
         <p>
+          另有 {data.totals.unmatchedEvents} 条历史事件的用户 ID
+          无法关联当前账号表，已单列排除，未计入账户、访问、功能和时长。没有擅自归并或删除这些记录。
+        </p>
+        <p>
           时长按同一标识的事件间隔估算：超过 30 分钟另开会话，每段最多记 5
           分钟；{data.usage.sessions} 次会话中 {data.usage.singleEventSessions}{" "}
           次仅一条事件（记 0 秒），总可观测时长 {duration(data.usage.seconds)}

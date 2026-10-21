@@ -172,8 +172,16 @@ export function buildAnalytics(
   ]);
   const eligibleUsers = users.filter((u) => !internal.has(u.id)),
     excluded = raw.filter((e) => isExcludedEvent(e, internal));
+  const knownUsers = new Set(users.map((u) => u.id));
+  const unmatched = raw.filter(
+    (e) =>
+      !isExcludedEvent(e, internal) && e.user_id && !knownUsers.has(e.user_id),
+  );
   const events = raw.filter(
-    (e) => !isExcludedEvent(e, internal) && isActivityEvent(e),
+    (e) =>
+      !isExcludedEvent(e, internal) &&
+      isActivityEvent(e) &&
+      (!e.user_id || knownUsers.has(e.user_id)),
   );
   const unified = events.filter((e) => e.event_name === "page_viewed"),
     legacy = events.filter((e) => LEGACY_VIEWS.has(e.event_name));
@@ -282,8 +290,12 @@ export function buildAnalytics(
       activeUsers: userEvents.size,
       events: events.length,
       excludedEvents: excluded.length,
+      unmatchedEvents: unmatched.length,
       diagnosticEvents: raw.filter(
-        (e) => !isExcludedEvent(e, internal) && !isActivityEvent(e),
+        (e) =>
+          !isExcludedEvent(e, internal) &&
+          !isActivityEvent(e) &&
+          (!e.user_id || knownUsers.has(e.user_id)),
       ).length,
     },
     usage: {

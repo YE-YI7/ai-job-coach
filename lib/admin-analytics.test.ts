@@ -45,6 +45,25 @@ const user = (id: string, when = "2026-10-17T08:00:00Z"): AnalyticsUser => ({
   provider: null,
   last_active: "2026-10-21T08:00:00Z",
 });
+test("historical unmatched IDs never inflate registered active users or usage", () => {
+  const data = buildAnalytics(
+    [user("u1")],
+    [
+      event("1", "2026-10-18T00:00:00Z"),
+      event("2", "2026-10-18T00:01:00Z", "workspace_saved", "missing-user"),
+      event("3", "2026-10-18T00:02:00Z", "workspace_saved", "missing-user"),
+    ],
+    window,
+  );
+  expect(data.totals).toMatchObject({
+    users: 1,
+    activeUsers: 1,
+    events: 1,
+    unmatchedEvents: 2,
+  });
+  expect(data.usage.sessions).toBe(1);
+  expect(data.features[0]).toMatchObject({ count: 1, users: 1 });
+});
 test("China natural days, current partial day and month boundaries", () => {
   expect(analyticsDay("2026-10-20T16:00:00Z")).toBe("2026-10-21");
   expect(window.start).toBe("2026-10-14T16:00:00.000Z");

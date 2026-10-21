@@ -37,4 +37,4 @@ FINISH：unreviewed and undocumented is unfinished; this build ends with the fin
 
 ## 验收
 
-待补：合成数据单测、认证反例、浏览器桌面/手机、刷新与权限、真实聚合交叉核对、旧作答/积分哈希。既有DESIGN保持，不复制真实用户材料到验收报告。
+本地验收已完成：70项针对性Jest、16项Eval脚本、136页构建、类型/lint；Chrome合成隔离环境验证桌面1465、手机390、筛选/空态/分页/对话Markdown、逐层资料、刷新及503不显示假0。独立review两项修复（手机图表字、输入焦点）均resolved；输入按本人既定无彩框约束使用“输入中”/标签加粗/下偏柔影。文档验收确认继承既有DESIGN，无新全局token或图像；历史Trace宽度文档漂移不扩修。正式聚合/权限/埋点落库与旧数据哈希仍待发布后单独验，不复制真实材料到报告。

@@ -1,4 +1,4 @@
-import {readableTutorText,ensureMarkdownTables} from "./tutor-format";
+import {readableTutorText,ensureMarkdownTables,stableTutorMarkdownPrefix} from "./tutor-format";
 test("long old prose gains paragraphs without changing words",()=>{
  const text="这是一个真实的教学示例，需要分清概念与个人经历。".repeat(15);
  const result=readableTutorText(text);
@@ -15,4 +15,14 @@ test("inserts the blank line a GFM table needs so it renders instead of showing 
 test("does not touch tables already separated by a blank line, nor plain text",()=>{
  expect(ensureMarkdownTables("段落\n\n| a |\n|---|\n| b |")).toBe("段落\n\n| a |\n|---|\n| b |");
  expect(ensureMarkdownTables("普通句子，没有表格。")).toBe("普通句子，没有表格。");
+});
+test('streaming holds unfinished emphasis so raw stars never flash',()=>{
+ expect(stableTutorMarkdownPrefix('**关于')).toBe('');
+ expect(stableTutorMarkdownPrefix('**关于亮点**：先看结果。')).toBe('**关于亮点**：先看结果。');
+ expect(stableTutorMarkdownPrefix('先看结果。\n\n**再看')).toBe('先看结果。');
+ expect(stableTutorMarkdownPrefix('- 第一项。\n- 第二项。')).toBe('- 第一项。\n- 第二项。');
+ expect(stableTutorMarkdownPrefix('* 第一项。')).toBe('* 第一项。');
+});
+test('complete code/emphasis is unchanged; raw escaped syntax is not mistaken for a marker',()=>{
+ for(const text of ['**完整**','_强调_','`a*b`','```js\nconst a=2;\n```','有意转义\\*文本。'])expect(stableTutorMarkdownPrefix(text)).toBe(text);
 });

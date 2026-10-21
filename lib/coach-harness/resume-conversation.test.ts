@@ -55,3 +55,18 @@ test('quota failure marks only the pending conversation failed, not the résumé
  (withMeteredAiRoute as jest.Mock).mockImplementation(()=>async()=>Response.json({error:'额度不足'},{status:403}));
  const revise=jest.fn();expect((await runResumeConversation(req(),{id:'owner'},body,revise)).status).toBe(403);expect(observedResumeLLM).not.toHaveBeenCalled();expect(revise).not.toHaveBeenCalled();expect(failResumeMessage).toHaveBeenCalledTimes(1);
 });
+test('streamed reply reaches display before full JSON, without persisting a plan or invoking editor early',async()=>{
+ const onReply=jest.fn(),revise=jest.fn();
+ const raw=JSON.stringify({action:'discuss',reply:'**已有事实**\n\n- 先讨论具体交付。',editorBrief:'',supplement:null});
+ (observedResumeLLM as jest.Mock).mockImplementation(async(_messages,options)=>{
+  options.onDelta(raw.slice(0,-1));expect(onReply).toHaveBeenCalledWith('**已有事实**\n\n- 先讨论具体交付。');
+  expect(completeResumeMessage).not.toHaveBeenCalled();expect(revise).not.toHaveBeenCalled();return raw;
+ });
+ expect((await runResumeConversation(req(),{id:'owner'},body,revise,onReply)).status).toBe(200);
+ expect(completeResumeMessage).toHaveBeenCalledTimes(1);expect(observedResumeLLM).toHaveBeenCalledTimes(1);expect(revise).not.toHaveBeenCalled();
+});
+test('streaming an incomplete JSON reply does not weaken the final parse gate',async()=>{
+ (observedResumeLLM as jest.Mock).mockImplementation(async(_messages,options)=>{const raw='{"action":"revise","reply":"准备修改。';options.onDelta(raw);return raw;});
+ const revise=jest.fn();expect((await runResumeConversation(req(),{id:'owner'},body,revise,jest.fn())).status).toBe(503);
+ expect(completeResumeMessage).not.toHaveBeenCalled();expect(revise).not.toHaveBeenCalled();expect(failResumeMessage).toHaveBeenCalledTimes(1);
+});

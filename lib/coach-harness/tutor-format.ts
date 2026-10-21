@@ -33,3 +33,22 @@ export function readableTutorText(text:string){
   }).join("").replace(/([①②③④⑤⑥⑦⑧⑨⑩])/g,"\n\n$1").trim();
  }).join("\n\n");
 }
+
+/** Hold only the unfinished Markdown fragment, not the whole answer. A heading
+ * split at "**关于" must never flash literal stars before its closing marker. */
+export function stableTutorMarkdownPrefix(text:string){
+ const open:Array<{token:string;index:number}>=[];
+ const tokens=/\\.|`+|\*\*|__|\*|_/g;
+ for(const match of text.matchAll(tokens)){
+  const token=match[0],index=match.index!;
+  if(token.startsWith('\\'))continue;
+  const top=open.at(-1);
+  if(top?.token===token){open.pop();continue;}
+  if(top?.token.startsWith('`'))continue;
+  if(token==='*'&&/(?:^|\n)\s*$/.test(text.slice(0,index))&&/\s/.test(text[index+1]||''))continue;
+  if(!token.startsWith('`')&&(/\s/.test(text[index+token.length]||'')||(/[\p{L}\p{N}]/u.test(text[index-1]||'')&&token==='_')))continue;
+  open.push({token,index});
+ }
+ const prefix=open.length?text.slice(0,Math.min(...open.map(item=>item.index))):text;
+ return prefix.replace(/(?:^|\n)\s*(?:#{1,6}|[-*>])\s*$/,'').replace(/\[[^\]]*$/,'').trimEnd();
+}

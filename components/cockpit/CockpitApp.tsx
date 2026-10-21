@@ -62,6 +62,7 @@ import ResumeBlockBoard from "./ResumeInlineReview";
 import { ResumeDraftSession } from "./ResumeDraftSession";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
+import { readChatResponse } from '@/lib/coach-harness/chat-stream';
 import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
 import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHistory} from "@/lib/opportunities/resume-edit-history";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
@@ -726,7 +727,7 @@ function CockpitWorkspace({
   // 读取任务不调用模型；任务切换、替换或运行状态变化后恢复轮询。
   },[activeId,active?.resumeRevision,dataMode,generatingResume,resumeMessageBusy,localIds]);
 
-  const runResumeAgent = async (action:string,answer?:string,target=active,requestId?:string) => {
+  const runResumeAgent = async (action:string,answer?:string,target=active,requestId?:string,onReply?:(text:string)=>void) => {
     if(!target||resumeRequestBusy.current)throw Error('请等待导师处理上一条消息');
     const id=target.id;
     resumeRequestBusy.current=true;if(action==='message')setResumeMessageBusy(true);else setGeneratingResume(true);
@@ -735,14 +736,14 @@ function CockpitWorkspace({
         const saved=await fetch('/api/coach/opportunities',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunity:target,preserveStage:true})});
         const result=await saved.json();if(!saved.ok||!result.ok)throw Error(result.error||'简历尚未保存，未开始修改');
       });
-      const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opportunityId:id,action,answer,requestId,questionId:resumeAgentTasks[id]?.question?.id})});
-      const result=await response.json();
+      const response=await fetch('/api/coach/resume-agent',{method:'POST',headers:{'Content-Type':'application/json',...(action==='message'?{'Accept':'application/x-ndjson'}:{})},body:JSON.stringify({opportunityId:id,action,answer,requestId,questionId:resumeAgentTasks[id]?.question?.id})});
+      const result=await readChatResponse<{ok:boolean;error?:string;task:ResumeAgentTask;conversationDecision?:string}>(response,onReply||(()=>{}));
       // A failed mentor call still returns its saved message receipt. Apply it
       // before throwing; a fast failure must not depend on the 4s poll arriving.
       if(result.task)receiveResumeTask(id,result.task);
       if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
       if(action==='revise'&&!result.task.answers.some((item:{kind?:string;answer:string})=>item.kind==='instruction'&&item.answer===answer?.trim()))throw Error('另一处正在修改简历，这条要求尚未保存，输入已保留；完成后可以再发送。');
-      announce(result.conversationDecision==='discuss'?'导师已回复，简历未改动':result.task.state==='needs_detail'?'导师还有一个问题，可以继续讨论':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存');
+      announce((result.conversationDecision==='discuss'?'导师已回复，简历未改动':result.task.state==='needs_detail'?'导师还有一个问题，可以继续讨论':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存')||'进度已保存');
     }finally{resumeRequestBusy.current=false;setGeneratingResume(false);setResumeMessageBusy(false);}
   };
 
@@ -1170,7 +1171,7 @@ function CockpitWorkspace({
         {creating && <CreationRail />}
         {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
           resumeContext={active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume"}
-          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume||resumeMessageBusy} onMessage={(message,requestId)=>runResumeAgent("message",message,active,requestId)} onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
+          resumeWorkflow={(active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&!["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,content:<ResumeAgentConversation key={resumeAgentTasks[active.id]!.id+":"+resumeAgentTasks[active.id]!.question?.id} task={resumeAgentTasks[active.id]!} busy={generatingResume||resumeMessageBusy} onMessage={(message,requestId,onReply)=>runResumeAgent("message",message,active,requestId,onReply)} onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}/>} : undefined}
           opportunity={active}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}

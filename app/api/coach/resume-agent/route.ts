@@ -2,6 +2,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { POST as draftResume } from "../resume-draft/route";
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from "@/lib/coach-harness/resume-task";
 import { runResumeConversation } from "@/lib/coach-harness/resume-conversation";
+import { resumeConversationStream } from '@/lib/coach-harness/resume-reply-stream';
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -22,11 +23,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     if (!uuid.test(body.opportunityId || "")) return reply({ ok: false, error: "简历编号无效" }, 400);
-    if(body.action==='message')return await runResumeConversation(request,user,body,async messageId=>{
-      claimed=await claimResumeTask(user.id,body.opportunityId,{action:'conversation',messageId});
-      if(!claimed.claimed)return claimed.task;
-      return executeClaimed(request,body.opportunityId,user.id,claimed);
-    });
+    if(body.action==='message'){
+      const execute=async(onReply?:(text:string)=>void)=>{
+        try {
+          const revise=async(messageId:string)=>{
+            claimed=await claimResumeTask(user.id,body.opportunityId,{action:'conversation',messageId});
+            if(!claimed.claimed)return claimed.task;
+            return executeClaimed(request,body.opportunityId,user.id,claimed);
+          };
+          return onReply?await runResumeConversation(request,user,body,revise,onReply):await runResumeConversation(request,user,body,revise);
+        } catch(error) {
+          const message=error instanceof Error?error.message:'改稿暂未完成，补充仍保留';
+          if(claimed?.claimed)await finishResumeTask(user.id,claimed.task.id,claimed.lease!,claimed.source,{ok:false,error:message}).catch(()=>undefined);
+          return reply({ok:false,error:message},error instanceof ResumeTaskError?error.status:503);
+        }
+      };
+      return request.headers.get('accept')?.includes('application/x-ndjson')?resumeConversationStream(execute):await execute();
+    }
     if(!['start','restart','answer','skip','retry','revise'].includes(body.action))return reply({ok:false,error:'改稿动作无效'},400);
     claimed = await claimResumeTask(user.id, body.opportunityId, body);
     if (!claimed.claimed) return reply({ ok: true, task: claimed.task, replayed: true });

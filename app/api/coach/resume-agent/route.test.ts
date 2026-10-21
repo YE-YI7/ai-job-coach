@@ -8,7 +8,7 @@ jest.mock('@/lib/coach-harness/resume-conversation',()=>({runResumeConversation:
 jest.mock('../resume-draft/route',()=>({POST:jest.fn()}));
 jest.mock('@/lib/coach-harness/resume-task',()=>({claimResumeTask:jest.fn(),finishResumeTask:jest.fn(),readResumeTask:jest.fn(),ResumeTaskError:class extends Error{constructor(message:string,public status=409){super(message);}}}));
 const id='12345678-1234-4234-9234-123456789abc';
-const request=(body:unknown)=>new Request('https://example.com/api/coach/resume-agent',{method:'POST',body:JSON.stringify(body)});
+const request=(body:unknown,stream=false)=>new Request('https://example.com/api/coach/resume-agent',{method:'POST',headers:stream?{accept:'application/x-ndjson'}:{},body:JSON.stringify(body)});
 beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});});
 test('unauthenticated and invalid actions never claim a task',async()=>{
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValueOnce(null);
@@ -22,6 +22,18 @@ test('message dispatch goes to mentor without automatically claiming an edit',as
   expect(await (await POST(request(body))).json()).toMatchObject({conversationDecision:'discuss'});
   expect(runResumeConversation).toHaveBeenCalledWith(expect.any(Request),{id:'owner'},body,expect.any(Function));
   expect(claimResumeTask).not.toHaveBeenCalled();expect(draft).not.toHaveBeenCalled();
+});
+test('real route emits only mentor text before completion, retaining authenticated same request path',async()=>{
+ let finish!:(response:Response)=>void;
+ (runResumeConversation as jest.Mock).mockImplementation(async(_request,_user,_body,_revise,onReply)=>{onReply('**先讨论**\n\n已有材料。');return new Promise<Response>(resolve=>finish=resolve);});
+ const response=await POST(request({opportunityId:id,action:'message',requestId:id,answer:'先讨论'},true));
+ expect(response.headers.get('content-type')).toContain('application/x-ndjson');
+ const reader=response.body!.getReader(),decoder=new TextDecoder();
+ await reader.read();expect(decoder.decode((await reader.read()).value)).toContain('replace');
+ expect(claimResumeTask).not.toHaveBeenCalled();expect(draft).not.toHaveBeenCalled();
+ finish(Response.json({ok:true,task:{state:'ready'},conversationDecision:'discuss'}));
+ expect(decoder.decode((await reader.read()).value)).toContain('"type":"done"');await reader.cancel();
+ expect(runResumeConversation).toHaveBeenCalledTimes(1);
 });
 test('only the mentor callback can claim and finish the normal editor',async()=>{
   (runResumeConversation as jest.Mock).mockImplementation(async(_request,_user,body,revise)=>Response.json({ok:true,task:await revise(body.requestId)}));

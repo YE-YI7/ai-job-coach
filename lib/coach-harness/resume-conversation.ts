@@ -9,10 +9,11 @@ import { resumeMessageFailure } from './resume-conversation-recovery';
 import { resumeConversationLlmOptions } from './resume-conversation-model';
 import { parseResumeConversationDecision, resumeConversationMessages } from "./resume-conversation-decision";
 import type { ResumeAgentTask } from "./resume-task-types";
+import { resumeReplyPreview } from './resume-reply-stream';
 
 const reply=(body:unknown)=>Response.json(body,{headers:{'Cache-Control':'private, no-store'}});
 /** Sending invokes the mentor. Only its validated decision may invoke the editor. */
-export async function runResumeConversation(request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string},revise:(messageId:string)=>Promise<ResumeAgentTask>){
+export async function runResumeConversation(request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string},revise:(messageId:string)=>Promise<ResumeAgentTask>,onReply?:(text:string)=>void){
   const opened=await beginResumeMessage(user.id,body.opportunityId,body.requestId,String(body.answer||''));
   if(opened.replayed)return reply({ok:true,task:opened.needsRevision?await revise(body.requestId):opened.task,replayed:true});
   const traceId=randomUUID();
@@ -24,7 +25,9 @@ export async function runResumeConversation(request:Request,user:{id:string},bod
     const execute=withMeteredAiRoute(async()=>{
       const start=Date.now(),{messages,knowledge}=resumeConversationMessages(opened.source,opened.task);
       captureEvalStage('context','resume_conversation_context',{input:{messageId:body.requestId,message:body.answer},output:{currentTask:opened.task,source:opened.source},knowledge:knowledge.map(k=>({id:k.id,title:k.title,included:true,kind:'knowledge'}))},start,Date.now()-start);
-      const raw=await runWithGenerationContext({userId:user.id,operation:'resume_conversation',requestId:`${body.requestId}:decision`,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,resumeConversationLlmOptions()));
+      const options=resumeConversationLlmOptions();
+      if(onReply)options.onDelta=resumeReplyPreview(onReply);
+      const raw=await runWithGenerationContext({userId:user.id,operation:'resume_conversation',requestId:`${body.requestId}:decision`,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,options));
       const plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[]);
       const task=await completeResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,plan);
       captureEvalStage('review','resume_conversation_decision',{input:{messageId:body.requestId},output:plan},start,Date.now()-start);

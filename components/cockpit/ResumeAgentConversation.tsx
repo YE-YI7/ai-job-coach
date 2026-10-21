@@ -1,37 +1,58 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowUp } from "lucide-react";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import { resumeMessageExpired } from '@/lib/coach-harness/resume-conversation-recovery';
 import styles from "./ResumeAgentConversation.module.css";
+import TutorMarkdown from './TutorMarkdown';
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
-export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
+export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string,onReply?:(text:string)=>void)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
   const key=`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`;
   const [answer,setAnswer]=useState(''),[error,setError]=useState('');
   const [errorId,setErrorId]=useState('');
   const sending=useRef(false);
   const messages=useRef<HTMLDivElement>(null);
-  useEffect(()=>{try{setAnswer(localStorage.getItem(key)||'');}catch{}},[key]);
-  const lastReply=task.conversation?.at(-1)?.reply;
-  useEffect(()=>{const list=messages.current;if(list)list.scrollTop=list.scrollHeight;},[lastReply,task.question?.id,task.state,busy]);
+  const answerRef=useRef(''),scopeRef=useRef(key);
+  const [incoming,setIncoming]=useState<{id:string;message:string;reply:string}|null>(null);
+  const [readingTurn,setReadingTurn]=useState<{id:string;height:number}|null>(null);
+  useEffect(()=>{scopeRef.current=key;let draft='';try{draft=localStorage.getItem(key)||'';}catch{}answerRef.current=draft;setAnswer(draft);},[key]);
+  // Restore history once. Streaming updates and server receipts never pull a
+  // reader to the bottom; the newly sent turn owns one stable reading space.
+  useEffect(()=>{const list=messages.current;if(list)list.scrollTop=list.scrollHeight;},[task.id]);
+  const incomingId=incoming?.id;
+  useLayoutEffect(()=>{
+    const list=messages.current;if(!list||!incomingId)return;
+    setReadingTurn({id:incomingId,height:Math.max(160,list.clientHeight-16)});
+  },[incomingId]);
+  const readingTurnId=readingTurn?.id;
+  useLayoutEffect(()=>{
+    const list=messages.current;if(!list||!readingTurnId)return;
+    const turn=list.querySelector<HTMLElement>(`[data-turn-id="${readingTurnId}"]`);
+    if(turn)list.scrollTop+=turn.getBoundingClientRect().top-list.getBoundingClientRect().top-8;
+  },[readingTurnId]);
   const [now,setNow]=useState(()=>Date.now());
   const pending=task.conversation?.some(turn=>turn.status==='pending');
   useEffect(()=>{if(task.state!=='running'&&!pending)return;setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),5000);return()=>clearInterval(timer);},[task.state,pending]);
   const sendMessage=async(text:string,requestId:string)=>{
     if(busy||task.state==='running'||sending.current)return;
     setError('');setErrorId(requestId);sending.current=true;
+    setIncoming({id:requestId,message:text,reply:''});
+    const wasDraft=answerRef.current.trim()===text.trim();
+    if(wasDraft){answerRef.current='';setAnswer('');try{localStorage.removeItem(key);}catch{}}
     try{
-      await onMessage(text,requestId);
-      // Retrying a transcript message must not erase a different unsent draft.
-      if(answer.trim()===text.trim()){setAnswer('');try{localStorage.removeItem(key);localStorage.removeItem(`${key}:request`);}catch{}}
-    }catch(cause){setError(readableError(cause));}finally{sending.current=false;}
+      await onMessage(text,requestId,reply=>{if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);});
+      try{const receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');if(receipt?.id===requestId)localStorage.removeItem(`${key}:request`);}catch{}
+    }catch(cause){
+      if(scopeRef.current===key){setError(readableError(cause));if(wasDraft&&!answerRef.current){answerRef.current=text;setAnswer(text);try{localStorage.setItem(key,text);}catch{}}}
+    }finally{sending.current=false;if(scopeRef.current===key)setIncoming(null);}
   };
   const retry=async()=>{setError('');try{await onContinue();}catch(cause){setError(readableError(cause));}};
   if(task.state==='idle'||task.state==='stale')return null;
 
   const conversation=task.conversation||[];
+  const visibleTurns=incoming&&!conversation.some(turn=>turn.id===incoming.id)?[...conversation,{...incoming,status:'pending' as const,savedAt:''}]:conversation;
   const question=task.question;
   const running=task.state==='running';
   // A discussion reply must not be followed by a repeated old save/failure notice.
@@ -45,16 +66,17 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
         <summary>{factualAnswers.length?`补充记录 · ${factualAnswers.length} 条`:'本次修改要求'}</summary>
         {task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}
       </details>}
-      {conversation.map(turn=><div key={turn.id} className={styles.turn}>
+      {visibleTurns.map(turn=><div key={turn.id} data-turn-id={turn.id} className={styles.turn} style={readingTurn?.id===turn.id?{minHeight:readingTurn.height}:undefined}>
         <div className={`${styles.message} ${styles.userMessage}`} aria-label="你"><p>{turn.message}</p></div>
-        {turn.reply&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p>{turn.reply}</p></div>}
-        {(turn.status==='failed'||resumeMessageExpired(turn,now))&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
+        {(incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply)&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师" aria-busy={incoming?.id===turn.id||undefined}><TutorMarkdown className={styles.reply} streaming={incoming?.id===turn.id}>{incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply}</TutorMarkdown></div>}
+        {incoming?.id===turn.id&&!incoming.reply&&!turn.reply&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><span className={styles.reading} aria-hidden="true"/><span>导师正在思考…</span></p></div>}
+        {incoming?.id!==turn.id&&(turn.status==='failed'||resumeMessageExpired(turn,now))&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
           <p>{turn.failure?.message||'这条消息暂时没处理完成，内容已保留。可以重新发送。'}</p>
           <div className={styles.messageTools}><button className={styles.inlineAction} type="button" disabled={busy||running||awaitingReply} onClick={()=>void sendMessage(turn.message,turn.id)}>重新发送</button></div>
         </div>}
       </div>)}
       {running?<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
-        <p className={styles.progress} role="status"><Loader2 size={16} className={styles.working} aria-hidden="true"/>正在修改你的简历…</p>
+        <p className={styles.progress} role="status"><span className={styles.reading} aria-hidden="true" /><span>正在修改你的简历…</span></p>
         {now-Date.parse(task.updatedAt)>=330_000&&<button className={styles.inlineAction} type="button" disabled={busy} onClick={()=>void retry()}>等待较久，重试这次修改</button>}
       </div>:<>
         {task.state==='failed'&&showOutcome&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
@@ -66,16 +88,16 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
         </div>}
         {task.state==='ready'&&showOutcome&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
           <p role="status">{task.result?.unchanged?'已检查，这一轮可以保留原文。':'修改稿已保存，可以在简历上核对。'}</p>
-          {task.result?.summary&&<p>{task.result.summary}</p>}
+          {task.result?.summary&&<TutorMarkdown className={styles.reply}>{task.result.summary}</TutorMarkdown>}
         </div>}
-        {question&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
-          <p>{question.question}</p>
+        {question&&!incoming&&(!latest||latest.status!=='completed'||latest.decision==='revise')&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
+          <TutorMarkdown className={styles.reply}>{question.question}</TutorMarkdown>
           <details className={styles.anchor}><summary>查看对应原文</summary><p>{question.sourceExcerpt}</p></details>
           <button className={styles.inlineAction} type="button" disabled={busy} onClick={async()=>{setError('');try{await onSkip();}catch(cause){setError(readableError(cause));}}}>{task.state==='ready'?'暂不补充':'先用已有内容修改'}</button>
         </div>}
         {!conversation.length&&!question&&task.state==='needs_detail'&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p>想先聊聊哪一段？写法、修改原因，或者要补充的经历，都可以告诉我。</p></div>}
       </>}
-      {(busy||awaitingReply)&&!running&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><Loader2 size={16} className={styles.working} aria-hidden="true"/>导师正在思考…</p></div>}
+      {(busy||awaitingReply)&&!running&&!incoming&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><span className={styles.reading} aria-hidden="true" /><span>导师正在思考…</span></p></div>}
     </div>
     <form className={styles.form} onSubmit={async event=>{event.preventDefault();if(!answer.trim()||busy||running||awaitingReply||sending.current)return;
       let receipt:{id:string;text:string}|null=null;try{receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');}catch{}
@@ -86,8 +108,8 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
     }}>
       <label className={styles.srOnly} htmlFor={`resume-answer-${task.id}`}>给简历导师发消息</label>
       <div className={styles.composer}>
-        <textarea id={`resume-answer-${task.id}`} rows={2} maxLength={2000} value={answer} disabled={busy||running} placeholder={running?'修改完成后可以继续聊…':'和导师聊聊这份简历…'} onChange={event=>{setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* The in-memory input remains editable. */}}} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
-        <div className={styles.actions}><button type="submit" className={styles.send} aria-label={busy||awaitingReply?'正在处理':'发送'} disabled={busy||running||awaitingReply||!answer.trim()}>{busy||awaitingReply?<Loader2 size={18} className={styles.working} aria-hidden="true"/>:<ArrowUp size={18} aria-hidden="true"/>}</button></div>
+        <textarea id={`resume-answer-${task.id}`} rows={2} maxLength={2000} value={answer} placeholder={busy||running?'可以先写下一条，等导师完成后发送…':'和导师聊聊这份简历…'} onChange={event=>{answerRef.current=event.target.value;setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* The in-memory input remains editable. */}}} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
+        <div className={styles.actions}><button type="submit" className={styles.send} aria-label={busy||awaitingReply?'正在处理':'发送'} disabled={busy||running||awaitingReply||!answer.trim()}>{busy||awaitingReply?<span className={styles.reading} aria-hidden="true" />:<ArrowUp size={18} aria-hidden="true"/>}</button></div>
       </div>
       {error&&!conversation.some(turn=>turn.id===errorId&&turn.status==='failed')&&<p className={styles.error} role="alert">{error}</p>}
     </form>

@@ -82,7 +82,8 @@ describe("resume draft source mapping", () => {
     expect(getContextBundleForUser).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
     const prompts=JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);expect(prompts).toContain('甲门店');expect(prompts).not.toContain('乙门店');
     expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:75000,firstTokenTimeoutMs:30000,maxRetries:0,onDelta:expect.any(Function)});
-    expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].userId).toBeUndefined();
+    expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].userId).toBe('user-1');
+    expect((callLLM as jest.Mock).mock.calls[0][1].siteFunded).toBe(true);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({id:'trial-r'}),false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
   test('model proposing an edit in another experience cannot create a free artifact',async()=>{

@@ -58,12 +58,13 @@ function parseJson(text: string) {
 export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]};
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+230_000;
+  let siteFunded = false;
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1]) => {
     const remaining = deadline-Date.now();
     if(remaining<8000)throw Error('LLM_REQUEST_TIMEOUT');
     // Receive upstream activity while buffering private JSON. Never show raw
     // partial JSON, silently switch providers, or retry a billable timeout.
-    return observedResumeLLM(messages,{...settings,timeoutMs:Math.min(settings?.timeoutMs||55_000,remaining),firstTokenTimeoutMs:30_000,onDelta:()=>undefined,maxRetries:0});
+    return observedResumeLLM(messages,{...settings,siteFunded,timeoutMs:Math.min(settings?.timeoutMs||55_000,remaining),firstTokenTimeoutMs:30_000,onDelta:()=>undefined,maxRetries:0});
   };
   let reservation: QuotaReservation | null = null;
   let trace: Awaited<ReturnType<typeof startResumeTrace>> | undefined;
@@ -77,7 +78,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const strategy = options.strategy || "independent";
     const formatPolicy = options.formatPolicy || "preserve";
     const styleContract = resumeStyleContract(resumeText, formatPolicy);
-    let modelUserId = options.isolated ? undefined : user.id;
+    const modelUserId = options.isolated ? undefined : user.id;
     const generalResume = body.mode === "general_resume";
     if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
@@ -89,7 +90,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
     const trialScope = agentTask?.edit_scope || null;
-    if(trialScope)modelUserId=undefined; // Trial is site-funded, never the user's linked model account.
+    siteFunded = Boolean(trialScope); // Keep account audit attribution, never use its linked model account.
     if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
     if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
     const editSource = trialScope?.excerpt || resumeText;

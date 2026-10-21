@@ -57,6 +57,7 @@ import { getGenerationContext } from "./generation-context";
 import { getTokenPayCredential } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 import {resumeConversationLlmOptions} from './coach-harness/resume-conversation-model';
+import {recordGenerationEvent} from './llm-telemetry';
 
 const create = (globalThis as Record<string, unknown>).__openaiCreate as jest.Mock;
 const messages = [{ role: "user" as const, content: "评估这个回答" }];
@@ -105,6 +106,13 @@ describe("站点 StepFun 接线", () => {
     await callLLM(messages, {model:"glm-5.3",timeoutMs:100});
     expect(create.mock.calls[0][0].model).toBe("glm-5.3");
     expect((globalThis as Record<string, unknown>).__openaiOptions).toMatchObject({apiKey:"tp-key",baseURL:"https://tokendance.space/gateway/v1"});
+  });
+  test('站点赠送的单段体验不读用户网关密钥，仍保留用户审计归属',async()=>{
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('tp-key');
+    await callLLM(messages,{siteFunded:true,timeoutMs:100});
+    expect(getTokenPayCredential).not.toHaveBeenCalled();
+    expect((globalThis as Record<string,unknown>).__openaiOptions).toMatchObject({apiKey:'test-step-key',baseURL:'https://api.stepfun.com/v1'});
+    expect(recordGenerationEvent).toHaveBeenCalledWith(expect.objectContaining({userId:'new-user',provider:'stepfun'}));
   });
   test("缺密钥明确失败，不退到 DeepSeek", async () => {
     delete process.env.STEPFUN_API_KEY;

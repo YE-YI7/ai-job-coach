@@ -82,7 +82,8 @@ for(let index=0;index<samples.length;index++){
   const after=await request('/api/quota/check',null,cookie);assert.equal(after.data.resumeTrial.available,false);
   const modelEvents=await checked(await db.from('ai_generation_events').select('provider,model,status,latency_ms,failure_type').eq('user_id',id));
   assert.ok(modelEvents.some(e=>e.provider==='stepfun'&&e.status==='success'),'Must use the real hosted StepFun model');
-  const second=await request('/api/coach/resume-agent',{opportunityId:f.opportunityId,action:'restart',trialBlockId:'experience-2',trialExcerpt:sample.selected},cookie);assert.equal(second.data.task.state,'failed');assert.match(second.data.task.error,/一次经历体验/);
+  const another=await request('/api/coach/opportunities',{opportunity:{...opportunity.data.opportunity,id:undefined,role:'第二份隔离材料',resumeText:resume,resumeChanges:[]}},cookie);assert.equal(another.data.ok,true);
+  const second=await request('/api/coach/resume-agent',{opportunityId:another.data.opportunity.id,action:'start',trialBlockId:'experience-2',trialExcerpt:sample.selected},cookie);assert.equal(second.data.task.state,'failed');assert.match(second.data.task.error,/一次经历体验/);
   const noSecondCalls=await checked(await db.from('ai_generation_events').select('id').eq('user_id',id));assert.equal(noSecondCalls.length,modelEvents.length);
   const ledger=await checked(await db.from('quota_usage_ledger').select('source_field,status').eq('user_id',id));assert.deepEqual(ledger,[{source_field:'resume_experience_trial',status:'committed'}]);
   const traces=await checked(await db.from('product_events').select('properties').eq('user_id',id).eq('event_name','resume_agent_trace'));f.traces=traces.map(t=>({traceId:t.properties.traceId,outcome:t.properties.outcome,elapsedMs:t.properties.elapsedMs}));

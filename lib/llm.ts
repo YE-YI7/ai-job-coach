@@ -13,6 +13,8 @@ type Message = {
 };
 
 type LlmOptions = {
+  /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
+  siteFunded?: boolean;
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
   onDelta?: (text: string) => void;
   firstTokenTimeoutMs?: number;
@@ -172,7 +174,7 @@ export async function callLLM(
   // A connected TokenPay account becomes the user's model provider for every
   // metered AI action carrying a generation context. Unconnected users keep
   // the hosted provider and existing product quota behavior.
-  if (provider === "deepseek" && trace?.userId) {
+  if (provider === "deepseek" && trace?.userId && !options?.siteFunded) {
     const tokenPayKey = await getTokenPayCredential(trace.userId);
     if (tokenPayKey) {
       provider = "tokendance";

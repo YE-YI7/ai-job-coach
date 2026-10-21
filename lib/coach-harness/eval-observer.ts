@@ -36,6 +36,7 @@ export async function observedResumeLLM(
       options: {
         model: args[1]?.model,
         provider: args[1]?.provider,
+        siteFunded: args[1]?.siteFunded === true,
         maxTokens: args[1]?.maxTokens,
         temperature: args[1]?.temperature,
         stream: Boolean(args[1]?.onDelta),

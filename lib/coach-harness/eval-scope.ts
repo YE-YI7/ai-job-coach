@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import type { LlmTransportDiagnostic } from '@/lib/llm-transport';
 
 export interface EvalSpan {
   id: string;
@@ -12,6 +13,7 @@ export interface EvalSpan {
   input: unknown;
   output: unknown;
   model?: string;
+  transport?: LlmTransportDiagnostic;
   usage?: {inputTokens:number;outputTokens:number;cacheHitTokens:number|null;estimatedCostUsd:number|null;pricingVersion:string|null;provider:string|null;retryCount:number|null};
   code?: string;
   knowledge: Array<{

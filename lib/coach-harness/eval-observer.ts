@@ -57,6 +57,11 @@ export async function observedResumeLLM(
   try {
     const output = await callLLM(args[0], {
       ...args[1],
+      onDiagnostic: (diagnostic) => {
+        span.transport = diagnostic;
+        span.model = diagnostic.model;
+        args[1]?.onDiagnostic?.(diagnostic);
+      },
       onUsage: (details) => {
         span.model = details.model;
         if(Number.isFinite(details.inputTokens)&&Number.isFinite(details.outputTokens))span.usage={

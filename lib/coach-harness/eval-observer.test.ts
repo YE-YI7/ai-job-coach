@@ -68,3 +68,15 @@ test("model failures remain visible and propagate, credentials are redacted", as
     redactEval({ apiKey: "private", messages: ["Bearer abcdefghijk"] }),
   ).toEqual({ apiKey: "[已屏蔽凭据]", messages: ["Bearer [已屏蔽]"] });
 });
+test('failed upstream stores actual route and native transport code even without usage', async () => {
+  (callLLM as jest.Mock).mockImplementation(async (_messages, options) => {
+    options.onDiagnostic({ provider:'tokendance', model:'deepseek-v4-flash', stream:true, timeoutMs:45000,
+      firstTokenTimeoutMs:30000, attempts:1, phase:'connecting', outcome:'failed', elapsedMs:10255,
+      nativeErrorCodes:['UND_ERR_CONNECT_TIMEOUT'] });
+    throw Error('Request timed out.');
+  });
+  const spans: EvalSpan[] = [];
+  await expect(withEvalObserver({ spans, save:async()=>{} }, () => observedResumeLLM([{role:'user',content:'sample'}]))).rejects.toThrow('Request timed out');
+  expect(spans[0]).toMatchObject({status:'failed',model:'deepseek-v4-flash',transport:{provider:'tokendance',attempts:1,nativeErrorCodes:['UND_ERR_CONNECT_TIMEOUT']}});
+  expect(spans[0].usage).toBeUndefined();
+});

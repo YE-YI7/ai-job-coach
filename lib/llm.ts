@@ -5,6 +5,7 @@ import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationU
 import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 import { hostedStepModel } from "./hosted-model";
+import { diagnosticFetch, type LlmTransportDiagnostic } from './llm-transport';
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -12,6 +13,7 @@ type Message = {
 };
 
 type LlmOptions = {
+  onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
   onDelta?: (text: string) => void;
   firstTokenTimeoutMs?: number;
   onUsage?: (details: {model:string;inputTokens:number;outputTokens:number;latencyMs:number;averageTokensPerSecond:number|null;provider?:string;cacheHitTokens?:number|null;estimatedCostUsd?:number|null;pricingVersion?:string|null;retryCount?:number}) => void;
@@ -92,14 +94,17 @@ async function callWithTimeoutAndRetry<T>(
     try {
       // Promise.race -> timeout
       const p = clientCallFn();
-      const res = await Promise.race([
-        p,
-        (async () => {
-          await setTimeoutPromise(timeoutMs);
-          throw new Error("LLM_REQUEST_TIMEOUT");
-        })(),
-      ]);
-      return res;
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          p,
+          new Promise<never>((_resolve, reject) => {
+            deadline = setTimeout(() => reject(new Error('LLM_REQUEST_TIMEOUT')), timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (deadline) clearTimeout(deadline);
+      }
     } catch (e: unknown) {
       lastErr = e;
       const details = e && typeof e === "object" ? e as Record<string, unknown> : {};
@@ -248,6 +253,12 @@ export async function callLLM(
     throw error;
   }
 
+  const diagnostic: LlmTransportDiagnostic = {
+    provider, model, stream: Boolean(options?.onDelta),
+    timeoutMs: options?.timeoutMs ?? options?.timeout ?? 30000,
+    firstTokenTimeoutMs: options?.onDelta ? options.firstTokenTimeoutMs ?? 15000 : null,
+    attempts: 0, phase: 'connecting',
+  };
   const client = new OpenAI({
     apiKey,
     maxRetries: options?.maxRetries ?? 2,
@@ -260,6 +271,7 @@ export async function callLLM(
         : undefined, // OpenAI 使用默认 baseURL
     defaultHeaders: provider === "tokendance" ? tokenDanceAttributionHeaders() : undefined,
     timeout: options?.timeout ?? options?.timeoutMs ?? 30000, // SDK 与调用方声明的截止时间一致
+    ...(options?.onDiagnostic ? { fetch: diagnosticFetch(diagnostic, startedAt) } : {}),
   });
 
   // wrapper to call SDK
@@ -267,8 +279,8 @@ export async function callLLM(
     if (options?.onDelta) {
       // Abort the actual upstream request, not just the promise waiting for it.
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 45000);
-      const firstTokenTimer = setTimeout(() => controller.abort(), options.firstTokenTimeoutMs ?? 15000);
+      const timer = setTimeout(() => { diagnostic.deadline = 'total'; controller.abort(); }, options.timeoutMs ?? 45000);
+      const firstTokenTimer = setTimeout(() => { diagnostic.deadline = 'first_activity'; controller.abort(); }, options.firstTokenTimeoutMs ?? 15000);
       try {
         const stream = await client.chat.completions.create({
           ...buildChatCompletionRequest(messages, provider, model, options),
@@ -285,9 +297,18 @@ export async function callLLM(
           const upstreamDelta = chunk.choices[0]?.delta as {content?: string | null; reasoning_content?: string; reasoning?: string} | undefined;
           // Private reasoning proves the upstream is alive, but must never be
           // forwarded to the user. The absolute request deadline still applies.
-          if (upstreamDelta?.reasoning_content || upstreamDelta?.reasoning) clearTimeout(firstTokenTimer);
+          if (upstreamDelta?.reasoning_content || upstreamDelta?.reasoning) {
+            diagnostic.firstActivityMs ??= Date.now() - startedAt;
+            diagnostic.phase = 'receiving_output';
+            clearTimeout(firstTokenTimer);
+          }
           const delta = upstreamDelta?.content;
-          if (delta) { clearTimeout(firstTokenTimer); content += delta; options.onDelta(delta); }
+          if (delta) {
+            diagnostic.firstActivityMs ??= Date.now() - startedAt;
+            diagnostic.firstContentMs ??= Date.now() - startedAt;
+            diagnostic.phase = 'receiving_output';
+            clearTimeout(firstTokenTimer); content += delta; options.onDelta(delta);
+          }
         }
         if (controller.signal.aborted) throw new Error("Request timed out.");
         if (!finished || !content) throw new Error("模型输出中断，请重试");
@@ -343,8 +364,12 @@ export async function callLLM(
       knowledgeDocumentIds: trace?.knowledgeDocumentIds,
     }).catch((error) => console.warn("LLM telemetry write failed:", error));
 
+    diagnostic.phase = 'completed'; diagnostic.outcome = 'success'; diagnostic.elapsedMs = Date.now() - startedAt;
+    options?.onDiagnostic?.({ ...diagnostic });
     return content;
   } catch (e: unknown) {
+    diagnostic.outcome = 'failed'; diagnostic.elapsedMs = Date.now() - startedAt;
+    options?.onDiagnostic?.({ ...diagnostic });
     const details = e && typeof e === "object" ? e as Record<string, unknown> : {};
     const cause = details.cause && typeof details.cause === "object" ? details.cause as Record<string, unknown> : {};
     await recordGenerationEvent({

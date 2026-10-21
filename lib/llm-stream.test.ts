@@ -49,4 +49,16 @@ describe("upstream streaming",()=>{
   (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
   await expect(callLLM([{role:"user",content:"hi"}],{onDelta:()=>{},maxRetries:0,timeoutMs:10})).rejects.toThrow("timed out");
  });
+ test('successful streaming clears all deadline timers and emits transport evidence once',async()=>{
+  jest.useFakeTimers();
+  try {
+   const create=jest.fn().mockResolvedValue((async function*(){yield {choices:[{delta:{content:'ok'},finish_reason:'stop'}]};})());
+   (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+   const onDiagnostic=jest.fn();
+   expect(await callLLM([{role:'user',content:'hi'}],{onDelta:()=>{},onDiagnostic,maxRetries:0,timeoutMs:45000})).toBe('ok');
+   expect(jest.getTimerCount()).toBe(0);
+   expect(onDiagnostic).toHaveBeenCalledTimes(1);
+   expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({outcome:'success',phase:'completed',stream:true,timeoutMs:45000}));
+  } finally { jest.useRealTimers(); }
+ });
 });

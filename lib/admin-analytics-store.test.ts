@@ -1,9 +1,32 @@
 import {
   readAnalyticsRows,
   readAnalyticsDetail,
+  readAnalyticsSummary,
 } from "./admin-analytics-store";
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
 const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+test.each([
+  "turns",
+  "resumeChat",
+  "legacyChat",
+  "opportunities",
+  "material",
+] as const)(
+  "excluded user cannot be inspected via %s even with a direct ID",
+  async (kind) => {
+    const previous = process.env.ANALYTICS_INTERNAL_USER_IDS;
+    process.env.ANALYTICS_INTERNAL_USER_IDS = id;
+    try {
+      const a = fixture();
+      expect(await readAnalyticsDetail(a.db, id, kind, 0, id)).toBeNull();
+      expect(a.reads).toEqual([]);
+    } finally {
+      if (previous === undefined)
+        delete process.env.ANALYTICS_INTERNAL_USER_IDS;
+      else process.env.ANALYTICS_INTERNAL_USER_IDS = previous;
+    }
+  },
+);
 function fixture(rows: Record<string, unknown[]> = {}) {
   const reads: {
     table: string;
@@ -32,6 +55,7 @@ function fixture(rows: Record<string, unknown[]> = {}) {
         lt: () => query,
         gte: () => query,
         order: () => query,
+        limit: () => query,
         range: (a: number, b: number) => {
           record.range = [a, b];
           return query;
@@ -69,6 +93,27 @@ test("bounded reads paginate and do not silently truncate", async () => {
   await expect(
     readAnalyticsRows(a.db, "product_events", "id", null, "end", 2000),
   ).rejects.toThrow("analytics_capacity");
+});
+test("production fails closed if the operator exclusion config disappears", async () => {
+  const env = process.env.VERCEL_ENV,
+    ids = process.env.ANALYTICS_INTERNAL_USER_IDS;
+  process.env.VERCEL_ENV = "production";
+  delete process.env.ANALYTICS_INTERNAL_USER_IDS;
+  try {
+    const a = fixture();
+    await expect(readAnalyticsSummary(a.db, 30)).rejects.toThrow(
+      "analytics_exclusions_missing",
+    );
+    await expect(
+      readAnalyticsDetail(a.db, id, "turns", 0, null),
+    ).rejects.toThrow("analytics_exclusions_missing");
+    expect(a.reads).toEqual([]);
+  } finally {
+    if (env === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = env;
+    if (ids === undefined) delete process.env.ANALYTICS_INTERNAL_USER_IDS;
+    else process.env.ANALYTICS_INTERNAL_USER_IDS = ids;
+  }
 });
 test("material whitelist masks contacts and reconstructs working draft without saving", async () => {
   const a = fixture({

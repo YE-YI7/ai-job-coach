@@ -64,12 +64,79 @@ test("historical unmatched IDs never inflate registered active users or usage", 
   expect(data.usage.sessions).toBe(1);
   expect(data.features[0]).toMatchObject({ count: 1, users: 1 });
 });
+test("operator accounts and explicit anonymous browser IDs are excluded from every metric", () => {
+  const input = [user("owner"), user("linked-owner"), user("customer")];
+  const rows = [
+    event("1", "2026-10-18T00:00:00Z", "page_viewed", "owner"),
+    event("2", "2026-10-18T00:01:00Z", "workspace_saved", "owner"),
+    event("3", "2026-10-18T00:02:00Z", "page_viewed", "linked-owner"),
+    event("4", "2026-10-18T00:03:00Z", "page_viewed", "", {
+      user_id: null,
+      anon_id: "operator-browser",
+      event_identity: "anon:operator-browser",
+    }),
+    event("5", "2026-10-18T00:04:00Z", "page_viewed", "customer"),
+  ];
+  const snapshot = JSON.stringify({ input, rows });
+  const data = buildAnalytics(
+    input,
+    rows,
+    window,
+    new Set(["owner", "linked-owner"]),
+    new Set(["operator-browser"]),
+  );
+  expect(data.users.map((u) => u.id)).toEqual(["customer"]);
+  expect(data.totals).toMatchObject({
+    users: 1,
+    excludedUsers: 2,
+    activeUsers: 1,
+    events: 1,
+    excludedEvents: 4,
+  });
+  expect(data.traffic).toMatchObject({ pv: 1, uv: 1 });
+  expect(data.sources[0]).toMatchObject({ pv: 1, uv: 1 });
+  expect(data.features[0]).toMatchObject({ count: 1, users: 1 });
+  expect(data.usage.sessions).toBe(1);
+  expect(data.retention).toMatchObject({ denominator: 1, numerator: 1 });
+  expect(data.daily.reduce((n, d) => n + d.registered, 0)).toBe(1);
+  expect(JSON.stringify({ input, rows })).toBe(snapshot);
+});
 test("China natural days, current partial day and month boundaries", () => {
   expect(analyticsDay("2026-10-20T16:00:00Z")).toBe("2026-10-21");
   expect(window.start).toBe("2026-10-14T16:00:00.000Z");
   expect(analyticsWindow(30, new Date("2026-03-01T01:00:00Z")).start).toBe(
     "2026-01-30T16:00:00.000Z",
   );
+});
+test("excluding every new visit does not replace zero with legacy traffic", () => {
+  const data = buildAnalytics(
+    [user("owner"), user("u1")],
+    [
+      event("owner-view", "2026-10-21T00:00:00Z", "page_viewed", "owner"),
+      event("old", "2026-10-18T00:00:00Z", "landing_viewed", "u1"),
+    ],
+    window,
+    new Set(["owner"]),
+  );
+  expect(data.traffic).toMatchObject({
+    mode: "unified",
+    pv: 0,
+    uv: 0,
+    legacyPv: 1,
+  });
+});
+test("known collection start preserves zero traffic across empty windows", () => {
+  const data = buildAnalytics(
+    [],
+    [],
+    window,
+    new Set(),
+    new Set(),
+    "2026-10-16T00:00:00Z",
+  );
+  expect(data.traffic).toMatchObject({ mode: "unified", pv: 0, uv: 0 });
+  expect(data.daily[0].pv).toBeNull();
+  expect(data.daily.at(-1)?.pv).toBe(0);
 });
 test("mature registration cohorts only; last_active alone is not retention", () => {
   const data = buildAnalytics(

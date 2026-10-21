@@ -13,6 +13,16 @@ import type { ResumeChange } from "./opportunities/types";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDbClient>>>;
 const PAGE = 1000;
+function analyticsPolicy() {
+  const users = analyticsInternalIds(process.env.ANALYTICS_INTERNAL_USER_IDS);
+  if (process.env.VERCEL_ENV === "production" && !users.size) {
+    throw new Error("analytics_exclusions_missing");
+  }
+  return {
+    users,
+    visitors: analyticsInternalIds(process.env.ANALYTICS_INTERNAL_ANON_IDS),
+  };
+}
 /** Stop rather than silently publish biased totals if a range outgrows this bounded reader. */
 export async function readAnalyticsRows(
   db: Db,
@@ -41,8 +51,9 @@ export async function readAnalyticsRows(
   return all;
 }
 export async function readAnalyticsSummary(db: Db, days: number) {
+  const policy = analyticsPolicy();
   const window = analyticsWindow(days);
-  const [users, events] = await Promise.all([
+  const [users, events, tracking] = await Promise.all([
     readAnalyticsRows(
       db,
       "users",
@@ -54,17 +65,29 @@ export async function readAnalyticsSummary(db: Db, days: number) {
     readAnalyticsRows(
       db,
       "product_events",
-      "id,user_id,event_identity,event_name,created_at,source:properties->>source,page:properties->>page,host:properties->>host,environment:properties->>environment,qa:properties->>qa,is_test:properties->>is_test,account_cohort:properties->>account_cohort",
+      "id,user_id,anon_id,event_identity,event_name,created_at,source:properties->>source,page:properties->>page,host:properties->>host,environment:properties->>environment,qa:properties->>qa,is_test:properties->>is_test,account_cohort:properties->>account_cohort",
       window.start,
       window.end,
       20000,
     ),
+    db
+      .from("product_events")
+      .select("created_at")
+      .eq("event_name", "page_viewed")
+      .eq("properties->>environment", "production")
+      .lt("created_at", window.end)
+      .order("created_at")
+      .limit(1)
+      .maybeSingle(),
   ]);
+  if (tracking.error) throw tracking.error;
   return buildAnalytics(
     users as AnalyticsUser[],
     events as AnalyticsEvent[],
     window,
-    analyticsInternalIds(process.env.ANALYTICS_INTERNAL_USER_IDS),
+    policy.users,
+    policy.visitors,
+    tracking.data?.created_at || null,
   );
 }
 const safeText = (v: unknown, max = 60000) =>
@@ -88,6 +111,9 @@ export async function readAnalyticsDetail(
   offset: number,
   opportunityId: string | null,
 ) {
+  // This is a backend policy, not a hidden UI row. Apply it before reading any
+  // owner record or private material, including direct requests with a known ID.
+  if (analyticsPolicy().users.has(userId)) return null;
   const owner = await db
     .from("users")
     .select("id")

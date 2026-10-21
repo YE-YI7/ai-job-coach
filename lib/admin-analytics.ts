@@ -8,6 +8,7 @@ export interface AnalyticsUser {
 export interface AnalyticsEvent {
   id: string;
   user_id: string | null;
+  anon_id?: string | null;
   event_identity: string | null;
   event_name: string;
   created_at: string;
@@ -42,9 +43,19 @@ export function analyticsInternalIds(raw = "") {
   );
 }
 const marked = (x: unknown) => x === true || x === "true" || x === "1";
-export function isExcludedEvent(e: AnalyticsEvent, ids: Set<string>) {
+export function isExcludedEvent(
+  e: AnalyticsEvent,
+  ids: Set<string>,
+  visitors = new Set<string>(),
+) {
   return (
     Boolean(e.user_id && ids.has(e.user_id)) ||
+    Boolean(!e.user_id && e.anon_id && visitors.has(e.anon_id)) ||
+    Boolean(
+      !e.user_id &&
+      e.event_identity?.startsWith("anon:") &&
+      visitors.has(e.event_identity.slice(5)),
+    ) ||
     e.account_cohort === "internal" ||
     marked(e.qa) ||
     marked(e.is_test) ||
@@ -163,6 +174,8 @@ export function buildAnalytics(
   raw: AnalyticsEvent[],
   window: ReturnType<typeof analyticsWindow>,
   internal = new Set<string>(),
+  internalVisitors = new Set<string>(),
+  pageTrackingStartedAt?: string | null,
 ) {
   internal = new Set([
     ...internal,
@@ -170,24 +183,39 @@ export function buildAnalytics(
       .filter((e) => e.account_cohort === "internal" && e.user_id)
       .map((e) => e.user_id!),
   ]);
+  const excludedEvent = (e: AnalyticsEvent) =>
+    isExcludedEvent(e, internal, internalVisitors);
   const eligibleUsers = users.filter((u) => !internal.has(u.id)),
-    excluded = raw.filter((e) => isExcludedEvent(e, internal));
+    excluded = raw.filter(excludedEvent);
   const knownUsers = new Set(users.map((u) => u.id));
   const unmatched = raw.filter(
-    (e) =>
-      !isExcludedEvent(e, internal) && e.user_id && !knownUsers.has(e.user_id),
+    (e) => !excludedEvent(e) && e.user_id && !knownUsers.has(e.user_id),
   );
   const events = raw.filter(
     (e) =>
-      !isExcludedEvent(e, internal) &&
+      !excludedEvent(e) &&
       isActivityEvent(e) &&
       (!e.user_id || knownUsers.has(e.user_id)),
   );
   const unified = events.filter((e) => e.event_name === "page_viewed"),
     legacy = events.filter((e) => LEGACY_VIEWS.has(e.event_name));
   // Never add legacy view events to unified views; both can fire on the same navigation.
-  const views = unified.length ? unified : legacy,
-    trafficMode = unified.length ? "unified" : "legacy";
+  // Coverage is product metadata, not inferred from the remaining visitors.
+  // Removing all operator visits must give 0, not silently switch to old PV.
+  const firstUnified =
+    pageTrackingStartedAt ||
+    raw
+      .filter(
+        (e) =>
+          e.event_name === "page_viewed" &&
+          !["development", "preview"].includes(e.environment || ""),
+      )
+      .map((e) => e.created_at)
+      .sort()[0] ||
+    null;
+  const unifiedInWindow = firstUnified && firstUnified < window.end;
+  const views = unifiedInWindow ? unified : legacy,
+    trafficMode = unifiedInWindow ? "unified" : "legacy";
   const unique = (rows: AnalyticsEvent[]) =>
     new Set(rows.map((e) => e.event_identity).filter(Boolean)).size;
   const identityEvents = new Map<string, AnalyticsEvent[]>(),
@@ -254,7 +282,6 @@ export function buildAnalytics(
     a.push(e);
     sources.set(k, a);
   }
-  const firstUnified = unified.map((e) => e.created_at).sort()[0] || null;
   const daily = Array.from({ length: window.days }, (_, i) => {
     const day = analyticsDay(Date.parse(window.start) + i * DAY),
       rows = views.filter((e) => analyticsDay(e.created_at) === day);
@@ -286,6 +313,7 @@ export function buildAnalytics(
     },
     totals: {
       users: eligibleUsers.length,
+      excludedUsers: users.length - eligibleUsers.length,
       newUsers: cohortRows.reduce((n, c) => n + c.registered, 0),
       activeUsers: userEvents.size,
       events: events.length,
@@ -293,7 +321,7 @@ export function buildAnalytics(
       unmatchedEvents: unmatched.length,
       diagnosticEvents: raw.filter(
         (e) =>
-          !isExcludedEvent(e, internal) &&
+          !excludedEvent(e) &&
           !isActivityEvent(e) &&
           (!e.user_id || knownUsers.has(e.user_id)),
       ).length,

@@ -97,55 +97,58 @@ function Trend({ rows }: { rows: AnalyticsSummary["daily"] }) {
     .filter((r) => r.pv !== null);
   return (
     <figure className={styles.trend}>
-      <figcaption>
-        每日访问 <span>PV 实线 · UV 虚线</span>
-      </figcaption>
-      <svg
-        viewBox="0 0 800 244"
-        role="img"
-        aria-label="每日已记录页面 PV 与 UV 趋势，精确数值见下方每日明细"
-      >
-        {[...new Set([0, Math.ceil(max / 2), max])].map((v, i) => (
-          <g key={i}>
-            <line
-              x1="48"
-              x2="752"
-              y1={y(v)}
-              y2={y(v)}
-              className={styles.gridLine}
-            />
-            <text x="36" y={y(v) + 5} textAnchor="end">
-              {v}
-            </text>
-          </g>
-        ))}
-        <polyline
-          points={visible.map((r) => `${x(r.i)},${y(r.pv!)}`).join(" ")}
-          className={styles.pvLine}
-        />
-        <polyline
-          points={visible.map((r) => `${x(r.i)},${y(r.uv)}`).join(" ")}
-          className={styles.uvLine}
-        />
-        {visible.length === 1 ? (
-          <circle
-            cx={x(visible[0].i)}
-            cy={y(visible[0].pv!)}
-            r="3"
-            className={styles.pvDot}
-          />
-        ) : null}
-        {[0, Math.floor((rows.length - 1) / 2), rows.length - 1].map((i, k) => (
-          <text
-            key={k}
-            x={x(i)}
-            y="236"
-            textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"}
+      {visible.length > 1 ? (
+        <>
+          <figcaption>
+            每日访问 <span>浏览次数 实线 · 访客数 虚线</span>
+          </figcaption>
+          <svg
+            viewBox="0 0 800 244"
+            role="img"
+            aria-label="每日已记录页面 PV 与 UV 趋势，精确数值见下方每日明细"
           >
-            {rows[i]?.day.slice(5)}
-          </text>
-        ))}
-      </svg>
+            {[...new Set([0, Math.ceil(max / 2), max])].map((v, i) => (
+              <g key={i}>
+                <line
+                  x1="48"
+                  x2="752"
+                  y1={y(v)}
+                  y2={y(v)}
+                  className={styles.gridLine}
+                />
+                <text x="36" y={y(v) + 5} textAnchor="end">
+                  {v}
+                </text>
+              </g>
+            ))}
+            <polyline
+              points={visible.map((r) => `${x(r.i)},${y(r.pv!)}`).join(" ")}
+              className={styles.pvLine}
+            />
+            <polyline
+              points={visible.map((r) => `${x(r.i)},${y(r.uv)}`).join(" ")}
+              className={styles.uvLine}
+            />
+            {[0, Math.floor((rows.length - 1) / 2), rows.length - 1].map(
+              (i, k) => (
+                <text
+                  key={k}
+                  x={x(i)}
+                  y="236"
+                  textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"}
+                >
+                  {rows[i]?.day.slice(5)}
+                </text>
+              ),
+            )}
+          </svg>
+        </>
+      ) : (
+        <p className={styles.collectionState}>
+          {visible.length ? `${visible[0].day} · 当日记录` : "暂无访问记录"}
+          <span>积累两天记录后显示趋势；未覆盖的日期不补成零。</span>
+        </p>
+      )}
       <details>
         <summary>每日明细</summary>
         <div className={styles.scrollTable}>
@@ -179,88 +182,142 @@ function Trend({ rows }: { rows: AnalyticsSummary["daily"] }) {
 }
 function Overview({ data }: { data: AnalyticsSummary }) {
   const [eventQuery, setEventQuery] = useState("");
-  const features = data.features.filter((r) =>
-    `${r.name} ${r.label}`.toLowerCase().includes(eventQuery.toLowerCase()),
+  const [allEvents, setAllEvents] = useState(false);
+  const [showCodes, setShowCodes] = useState(false);
+  const pageEvents = new Set([
+    "page_viewed",
+    "landing_viewed",
+    "cockpit_viewed",
+    "resume_gap_viewed",
+  ]);
+  const features = data.features.filter(
+    (r) =>
+      (allEvents || !pageEvents.has(r.name)) &&
+      `${r.name} ${r.label}`.toLowerCase().includes(eventQuery.toLowerCase()),
   );
   return (
     <>
       <div className={styles.coverage}>
         <p>
-          {data.traffic.mode === "unified"
-            ? `统一页面埋点 · 本区间从 ${date(data.traffic.firstUnified)} 起有记录，未与旧埋点相加。`
-            : "历史入口统计 · 仅覆盖首页、工作区、简历工具，不代表全站访问。"}
-        </p>
-        <p>
-          UV 为浏览器／账户去重标识，不等于自然人数；匿名与登录未合并。
-          {data.traffic.knownHostViews < data.traffic.pv
-            ? "部分历史事件没有域名，不能只归于新域。"
-            : ""}
+          {data.totals.excludedUsers
+            ? "已排除本人关联账号与已知测试流量"
+            : "已排除标记的测试流量"}{" "}
+          <a href="#analytics-methods">查看口径</a>
         </p>
       </div>
       <div className={styles.summaryGrid}>
-        <dl className={styles.metrics}>
-          <div>
-            <dt>页面 UV</dt>
-            <dd>{number(data.traffic.uv)}</dd>
+        <section className={styles.usageSummary} aria-label="用户使用">
+          <div className={styles.sectionHead}>
+            <h2>用户使用</h2>
+            <span>近 {data.window.days} 天</span>
           </div>
-          <div>
-            <dt>页面 PV</dt>
-            <dd>{number(data.traffic.pv)}</dd>
+          <dl className={styles.metrics}>
+            <div>
+              <dt>新增账户</dt>
+              <dd>{number(data.totals.newUsers)}</dd>
+            </div>
+            <div>
+              <dt>活跃账户</dt>
+              <dd>{number(data.totals.activeUsers)}</dd>
+            </div>
+            <div>
+              <dt>
+                会话平均时长 <small>估算</small>
+              </dt>
+              <dd>{duration(data.usage.averageSeconds)}</dd>
+            </div>
+            <div>
+              <dt>次日留存</dt>
+              <dd>
+                {percent(data.retention.rate)}
+                <small>
+                  {data.retention.numerator} / {data.retention.denominator}{" "}
+                  个成熟账户
+                </small>
+              </dd>
+            </div>
+          </dl>
+          <p className={styles.note}>
+            活跃指发生过访问或操作；平均时长按埋点间隔估算，并非精确停留时长。
+          </p>
+        </section>
+        <section className={styles.trafficSummary} aria-label="网站访问">
+          <div className={styles.sectionHead}>
+            <h2>网站访问</h2>
+            <span>
+              {data.traffic.mode === "unified"
+                ? "统一页面记录"
+                : "历史入口记录"}
+            </span>
           </div>
-          <div>
-            <dt>新增账户</dt>
-            <dd>{number(data.totals.newUsers)}</dd>
-          </div>
-          <div>
-            <dt>活跃账户</dt>
-            <dd>{number(data.totals.activeUsers)}</dd>
-          </div>
-          <div>
-            <dt>
-              会话平均时长 <small>估算</small>
-            </dt>
-            <dd>{duration(data.usage.averageSeconds)}</dd>
-          </div>
-          <div>
-            <dt>
-              次日留存 <small>已成熟</small>
-            </dt>
-            <dd>{percent(data.retention.rate)}</dd>
-          </div>
-        </dl>
-        <div>
+          <p className={styles.trafficScope}>
+            {data.traffic.mode === "unified"
+              ? `仅覆盖 ${date(data.traffic.firstUnified)} 起的记录`
+              : "仅首页、工作区、简历工具，未覆盖全站"}
+          </p>
+          <dl className={styles.trafficMetrics}>
+            <div>
+              <dt>
+                访客数 <small>UV</small>
+              </dt>
+              <dd>{number(data.traffic.uv)}</dd>
+            </div>
+            <div>
+              <dt>
+                浏览次数 <small>PV</small>
+              </dt>
+              <dd>{number(data.traffic.pv)}</dd>
+            </div>
+          </dl>
           <Trend rows={data.daily} />
           <p className={styles.note}>
-            今天截至 {date(data.generatedAt)}
-            。新埋点上线前不补造历史；全周期历史入口：
-            {number(data.traffic.legacyPv)} 次 / {number(data.traffic.legacyUv)}{" "}
-            个标识。
+            同一访客去重；匿名与登录身份未合并，不等于自然人数。
           </p>
-        </div>
+        </section>
       </div>
       <div className={styles.columns}>
         <section>
           <div className={styles.sectionHead}>
             <h2>功能使用</h2>
-            <span>{number(data.totals.events)} 条事件</span>
+            <span>{allEvents ? "含页面访问事件" : "不含页面访问事件"}</span>
           </div>
-          <label className={styles.search}>
-            <span>筛选事件</span>
-            <input
-              aria-label="筛选事件"
-              value={eventQuery}
-              onChange={(e) => setEventQuery(e.target.value)}
-              placeholder="名称或埋点代码"
-            />
-          </label>
+          <div className={styles.eventControls}>
+            <label className={styles.search}>
+              <span>查找功能</span>
+              <input
+                aria-label="查找功能"
+                value={eventQuery}
+                onChange={(e) => setEventQuery(e.target.value)}
+                placeholder="如简历、导师、导出"
+              />
+            </label>
+            <div className={styles.eventOptions}>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={allEvents}
+                  onChange={(e) => setAllEvents(e.target.checked)}
+                />
+                全部埋点
+              </label>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={showCodes}
+                  onChange={(e) => setShowCodes(e.target.checked)}
+                />
+                显示代码
+              </label>
+            </div>
+          </div>
           <div className={styles.scrollTable}>
             <table>
               <thead>
                 <tr>
-                  <th>事件</th>
+                  <th>功能动作</th>
                   <th>次数</th>
-                  <th>标识</th>
-                  <th>账户</th>
+                  <th>去重访客</th>
+                  <th>登录账户</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,7 +325,7 @@ function Overview({ data }: { data: AnalyticsSummary }) {
                   <tr key={r.name}>
                     <td>
                       {r.label}
-                      <code>{r.name}</code>
+                      {showCodes ? <code>{r.name}</code> : null}
                     </td>
                     <td>{number(r.count)}</td>
                     <td>{number(r.identities)}</td>
@@ -290,12 +347,12 @@ function Overview({ data }: { data: AnalyticsSummary }) {
             <div className={styles.sectionHead}>
               <h2>次日留存</h2>
               <span>
-                {data.retention.numerator} / {data.retention.denominator} 人
+                {data.retention.numerator} / {data.retention.denominator} 个账户
               </span>
             </div>
             <p className={styles.note}>
               注册次日有产品活动算返回；次日已完整结束才入分母。
-              {data.retention.pending} 人待成熟。
+              {data.retention.pending} 个账户待成熟。
             </p>
             <div className={styles.scrollTable}>
               <table>
@@ -354,8 +411,13 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           </section>
         </div>
       </div>
-      <details className={styles.methods}>
+      <details id="analytics-methods" className={styles.methods}>
         <summary>统计方法与数据覆盖</summary>
+        <p>
+          内部账号已从账户列表、全部统计及资料读取入口排除，共{" "}
+          {data.totals.excludedUsers} 个。只影响此数据看板，原资料、Eval
+          运行、旧作答和积分没有删除或改写。只排除明确确认的账号及浏览器；其他无法确认归属的匿名访问不猜测。
+        </p>
         <p>
           数据来自 users 与
           product_events，按服务端接收时间、北京时间自然日统计；查询直接读取后台，无本地模拟补值。仅排除明确标记的测试、预览和内部事件：
@@ -376,6 +438,13 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           总账户 {data.totals.users}{" "}
           个，不受时间筛选；新增、活跃和事件受时间筛选。最多完整读取 20,000 事件
           / 10,000 账户，超限直接报错，不报截断总量。
+        </p>
+        <p>
+          全周期历史入口单列：{number(data.traffic.legacyPv)} 次 /{" "}
+          {number(data.traffic.legacyUv)} 个标识，未与统一访问记录相加。
+          {data.traffic.knownHostViews < data.traffic.pv
+            ? "部分历史记录缺少域名，不能只归于新域。"
+            : ""}
         </p>
       </details>
     </>
@@ -740,7 +809,6 @@ export default function AnalyticsClient() {
         <div className={styles.heading}>
           <div>
             <h1>产品数据</h1>
-            <p>从使用情况，看到具体用户与材料。</p>
           </div>
           <div className={styles.toolbar}>
             <label>
@@ -848,9 +916,9 @@ export default function AnalyticsClient() {
                     <th>用户 ID</th>
                     <th>注册方式</th>
                     <th>注册时间</th>
-                    <th>最近埋点</th>
-                    <th>事件数</th>
-                    <th>总可观测时长</th>
+                    <th>最近活动</th>
+                    <th>操作记录</th>
+                    <th>估算使用时长</th>
                   </tr>
                 </thead>
                 <tbody>

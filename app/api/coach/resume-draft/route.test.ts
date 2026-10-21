@@ -3,7 +3,7 @@ import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
 import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { callLLM } from "@/lib/llm";
-import { finalizeQuota, reserveQuota } from "@/lib/quota";
+import { finalizeQuota, reserveQuota, reserveResumeTrial } from "@/lib/quota";
 import { applyResumeChanges, reviewAtsText, compileContextBundle } from "@/lib/coach-harness";
 import { resumeTaskInput, persistResumeAnswerClaims,ownedResumeTaskSource,finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
@@ -60,6 +60,36 @@ describe("resume draft source mapping", () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  const trialResume='姓名：虚构同学\n实习经历\n2025.01-2025.03 甲门店 运营实习\n核对退货原因，把记录整理成分类表，交给店长每周查看。\n\n2025.04-2025.06 乙门店 运营实习\n整理库存记录，交给同事核对。';
+  async function trialRequest(){
+    const {resumeTrialTargets}=await import('@/lib/resume-experience-trial');const target=resumeTrialTargets(trialResume)[0];
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[],edit_scope:target});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:trialResume,jd:'',revision:'r',changes:[]});
+    const {compileContextBundle:compile}=jest.requireActual('@/lib/coach-harness/context');
+    (compileContextBundle as jest.Mock).mockImplementation(input=>compile(input));
+    return new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeTaskId:'task',resumeTaskLease:'lease',resumeText:trialResume,mode:'general_resume'})});
+  }
+  test('a used trial never spends paid quota or calls a model',async()=>{
+    (reserveResumeTrial as jest.Mock).mockResolvedValue(null);
+    expect((await POST(await trialRequest())).status).toBe(403);
+    expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+  test('trial only admits selected facts, uses site model and refunds a timeout',async()=>{
+    (reserveResumeTrial as jest.Mock).mockResolvedValue({id:'trial-r',source:'resume_experience_trial',remaining:0});
+    (callLLM as jest.Mock).mockRejectedValue(new Error('LLM_REQUEST_TIMEOUT'));
+    expect((await POST(await trialRequest())).status).toBe(503);
+    expect(getContextBundleForUser).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
+    const prompts=JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);expect(prompts).toContain('甲门店');expect(prompts).not.toContain('乙门店');
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:75000,firstTokenTimeoutMs:30000,maxRetries:0,onDelta:expect.any(Function)});
+    expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].userId).toBeUndefined();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({id:'trial-r'}),false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+  test('model proposing an edit in another experience cannot create a free artifact',async()=>{
+    (reserveResumeTrial as jest.Mock).mockResolvedValue({id:'trial-r',source:'resume_experience_trial',remaining:0});
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'整理库存记录，交给同事核对。',after:'整理库存记录供同事核对。',sourceIds:['claim-1']}]}));
+    const response=await POST(await trialRequest());expect(response.ok).toBe(false);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({id:'trial-r'}),false);
+  });
 
   test.each(["opp-1", ""])("no-JD draft includes reviewed methods with opportunity %s", async opportunityId => {
     // Use the real compiler here so the direct/no-opportunity branch is covered.

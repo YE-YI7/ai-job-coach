@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUserId } from '@/lib/auth';
-import { checkQuota, getOrCreateQuota } from '@/lib/quota';
+import { checkQuota, getOrCreateQuota, checkResumeTrial } from '@/lib/quota';
 import { getDbClient } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -41,9 +41,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      resumeTrial: { available: await checkResumeTrial(userId), scope: 'one_experience', lifetimeLimit: 1 },
       quota: {
         free_chat_daily: quota.free_chat_daily,
-        free_resume_daily: quota.free_resume_daily,
+        free_resume_daily: 0,
         paid_chat_remaining: quota.paid_chat_remaining,
         paid_resume_remaining: quota.paid_resume_remaining,
         paid_interview_remaining: quota.paid_interview_remaining,

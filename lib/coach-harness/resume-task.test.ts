@@ -11,6 +11,20 @@ test('动作与交付加案例清单也收敛成一个事实槽位',()=>{expect(
 let db:FakeDb;
 beforeEach(()=>{db=new FakeDb({coach_opportunities:[{id:'opp',user_id:'owner',status:'active',jd_text:'',metadata:{resumeText:source,workspaceType:'preparation',resumeRevision:'rev'}}],coach_resume_tasks:[{id:'task',user_id:'owner',opportunity_id:'opp',fingerprint:resumeTaskFingerprint(source,'','rev'),state:'needs_detail',question:q,answers:[],result:null,error:null,lease_id:null,version:1,updated_at:new Date().toISOString()}]});(getDbClient as jest.Mock).mockResolvedValue(db);});
 const messageId='44444444-4444-4444-8444-444444444444';
+test('trial range is server-owned, survives refresh/retry, paid restart clears only scope',async()=>{
+ const text='实习经历\n2025.01-2025.03 某门店 运营实习\n核对退货原因，把记录整理成分类表，交给店长每周查看。';
+ const {resumeTrialTargets}=await import('@/lib/resume-experience-trial');const target=resumeTrialTargets(text)[0];
+ Object.assign(db.rows('coach_opportunities')[0],{metadata:{resumeText:text,resumeRevision:'rev',workspaceType:'preparation'}});
+ Object.assign(db.rows('coach_resume_tasks')[0],{fingerprint:resumeTaskFingerprint(text,'','rev'),state:'failed',question:null});
+ await expect(claimResumeTask('owner','opp',{action:'restart',trialBlockId:target.blockId,trialExcerpt:'伪造范围'})).rejects.toThrow('经历已变化');
+ const claimed=await claimResumeTask('owner','opp',{action:'restart',trialBlockId:target.blockId,trialExcerpt:target.excerpt});expect(claimed.task.editScope?.excerpt).toBe(target.excerpt);
+ expect((await readResumeTask('owner','opp'))?.editScope).toEqual(claimed.task.editScope);
+ Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed'});
+ expect((await claimResumeTask('owner','opp',{action:'retry'})).task.editScope).toEqual(claimed.task.editScope);
+ Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed'});
+ expect((await claimResumeTask('owner','opp',{action:'restart'})).task.editScope).toBeUndefined();
+ expect(db.rows('interview_answers')).toEqual([]);expect(db.rows('watcha_wallets')).toEqual([]);
+});
 test('a discussion preserves question, old draft and answers and never claims generation',async()=>{
  const opened=await beginResumeMessage('owner','opp',messageId,'为什么要这样写？先别改。');
  expect(opened.task).toMatchObject({state:'needs_detail',question:q,answers:[]});

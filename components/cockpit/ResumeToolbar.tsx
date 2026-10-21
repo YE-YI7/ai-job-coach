@@ -72,7 +72,7 @@ export default function ResumeToolbar({
       </div>
       <fieldset className={styles.actions} disabled={!ready} aria-label="简历主要操作" aria-busy={!ready}>
         <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy} disabled={busy || !canGenerate} onClick={onGenerate}>
-          {busy ? <span className={styles.readingLine} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改" : "开始修改"}
+          {busy ? <span className={styles.readingLine} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改整份" : "修改整份"}
         </button>
         {deliveryAction}
         {exportControl}

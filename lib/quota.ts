@@ -32,11 +32,11 @@ export async function reserveQuota(
     return { id: `tokenpay-${idempotencyKey}`, source: 'tokenpay', remaining: null };
   }
   const client = await getDbClient();
-  if (!client) return { id: `offline-${idempotencyKey}`, source: 'offline', remaining: null };
+  if (!client) return type === 'resume' ? null : { id: `offline-${idempotencyKey}`, source: 'offline', remaining: null };
   if (await hasWatchaOperation(userId, `${type}:${idempotencyKey}`)) return null;
   const { data, error } = await client.rpc('reserve_user_quota', {
     p_user_id: userId,
-    p_quota_type: type,
+    p_quota_type: type === 'resume' ? 'resume_paid' : type,
     p_idempotency_key: idempotencyKey,
   });
   if (error) throw error;
@@ -46,6 +46,24 @@ export async function reserveQuota(
     return reserveWatchaPoint(userId, `${type}:${idempotencyKey}`);
   }
   return { id: String(row.reservation_id), source: String(row.source_field || 'unknown'), remaining: row.remaining == null ? null : Number(row.remaining) };
+}
+
+/** One successful experience rewrite per account, including legacy free successes. */
+export async function checkResumeTrial(userId: string): Promise<boolean> {
+  const db = await getDbClient();
+  if (!db) return false;
+  const {data,error} = await db.from('quota_usage_ledger').select('id').eq('user_id',userId)
+    .in('source_field',['free_resume_daily','resume_experience_trial']).in('status',['reserved','committed']).limit(1);
+  if (error) throw error;
+  return !data?.length;
+}
+export async function reserveResumeTrial(userId: string, key: string): Promise<QuotaReservation | null> {
+  const db = await getDbClient();
+  if (!db) return null;
+  const {data,error} = await db.rpc('reserve_resume_experience_trial',{p_user_id:userId,p_idempotency_key:key});
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row?.allowed && row.reservation_id ? {id:String(row.reservation_id),source:'resume_experience_trial',remaining:0} : null;
 }
 
 /** Service-only, atomic first learning round (explanation + feedback). No database means no grant. */
@@ -73,7 +91,7 @@ export async function finalizeQuota(reservation: QuotaReservation | null, succes
 }
 
 const DEFAULT_FREE_CHAT = 3;
-const DEFAULT_FREE_RESUME = 1;
+const DEFAULT_FREE_RESUME = 0; // Deprecated daily pool; never authorizes an entire résumé.
 
 /**
  * 获取或创建用户额度（惰性创建）
@@ -106,7 +124,6 @@ export async function getOrCreateQuota(userId: string): Promise<UserQuota> {
         .from('user_quotas')
         .update({
           free_chat_daily: DEFAULT_FREE_CHAT,
-          free_resume_daily: DEFAULT_FREE_RESUME,
           last_free_reset: today,
           updated_at: new Date().toISOString(),
         })
@@ -168,9 +185,6 @@ export async function checkQuota(
   }
 
   if (type === 'resume') {
-    if (quota.free_resume_daily > 0) {
-      return { allowed: true, remaining: quota.free_resume_daily, source: 'free' };
-    }
     if (quota.paid_resume_remaining > 0) {
       return { allowed: true, remaining: quota.paid_resume_remaining, source: 'paid' };
     }
@@ -218,10 +232,7 @@ export async function consumeQuota(
       return false;
     }
   } else if (type === 'resume') {
-    if (quota.free_resume_daily > 0) {
-      field = 'free_resume_daily';
-      currentValue = quota.free_resume_daily;
-    } else if (quota.paid_resume_remaining > 0) {
+    if (quota.paid_resume_remaining > 0) {
       field = 'paid_resume_remaining';
       currentValue = quota.paid_resume_remaining;
     } else {

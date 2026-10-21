@@ -12,8 +12,9 @@ import {
   type CareerClaim,
 } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
-import { observedResumeLLM as callLLM } from "@/lib/coach-harness/eval-observer";
-import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
+import { observedResumeLLM } from "@/lib/coach-harness/eval-observer";
+import { finalizeQuota, reserveQuota, reserveResumeTrial, type QuotaReservation } from "@/lib/quota";
+import { resolveResumeTrialScope, inResumeTrialScope } from '@/lib/resume-experience-trial';
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
@@ -56,6 +57,14 @@ function parseJson(text: string) {
 
 export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]};
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
+  const deadline = Date.now()+230_000;
+  const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1]) => {
+    const remaining = deadline-Date.now();
+    if(remaining<8000)throw Error('LLM_REQUEST_TIMEOUT');
+    // Receive upstream activity while buffering private JSON. Never show raw
+    // partial JSON, silently switch providers, or retry a billable timeout.
+    return observedResumeLLM(messages,{...settings,timeoutMs:Math.min(settings?.timeoutMs||55_000,remaining),firstTokenTimeoutMs:30_000,onDelta:()=>undefined,maxRetries:0});
+  };
   let reservation: QuotaReservation | null = null;
   let trace: Awaited<ReturnType<typeof startResumeTrace>> | undefined;
   let outcome: ResumeTraceOutcome = "failed";
@@ -68,7 +77,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const strategy = options.strategy || "independent";
     const formatPolicy = options.formatPolicy || "preserve";
     const styleContract = resumeStyleContract(resumeText, formatPolicy);
-    const modelUserId = options.isolated ? undefined : user.id;
+    let modelUserId = options.isolated ? undefined : user.id;
     const generalResume = body.mode === "general_resume";
     if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);
@@ -79,8 +88,14 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if (agentTask && agentTask.opportunity_id !== opportunityId) throw Error("改稿任务与当前简历不一致");
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
-    reservation = options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null } : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
-    if (!reservation) { outcome = "quota_denied"; return NextResponse.json({ ok: false, error: "简历生成额度不足", needUpgrade: true }, { status: 403 }); }
+    const trialScope = agentTask?.edit_scope || null;
+    if(trialScope)modelUserId=undefined; // Trial is site-funded, never the user's linked model account.
+    if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
+    if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
+    const editSource = trialScope?.excerpt || resumeText;
+    reservation = options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
+      : trialScope ? await reserveResumeTrial(user.id,`resume-draft:${requestId}`) : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
+    if (!reservation) { outcome = "quota_denied"; return NextResponse.json({ ok: false, error: trialScope ? "本账号的一次经历体验已使用或正在处理。整份及后续修改需付费。" : "整份简历修改需付费，请先补充额度；免费体验仅限一段经历。", needUpgrade: true }, { status: 403 }); }
 
     // 简历改写要读完整简历 + JD，single_inference 的 2k 装不下。
     // 预算必须显式给，否则 Compiler 会按默认值把简历大半丢掉——之前那条
@@ -93,7 +108,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const questionSource = jobDescription ? { id: "job-description", text: jobDescription } : undefined;
 
     let context;
-    if (opportunityId) {
+    if (opportunityId && !trialScope) {
       context = await getContextBundleForUser({
         userId: user.id,
         task: "resume_workshop",
@@ -106,7 +121,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         budget: { maxInputTokens: RESUME_WORKSHOP_BUDGET },
       });
     } else {
-      const lines = resumeText.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
+      const lines = editSource.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 120);
       // PRD §5.2：粘贴进来的简历行是用户材料，不是用户逐条确认过的事实。
       // 以前这里直接标 confirmed，等于把「我上传过」包装成「我确认过」。
       const claims: CareerClaim[] = lines.map((line, index) => ({
@@ -120,7 +135,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         userId: user.id,
         claims,
         questionSource,
-        attachments: [{ id: "base-resume", label: "基础简历原文", text: resumeText, required: true }],
+        attachments: [{ id: "base-resume", label: "本次允许修改的原文", text: editSource, required: true }],
         budget: { maxInputTokens: RESUME_WORKSHOP_BUDGET },
       });
     }
@@ -167,7 +182,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // 回指来源只有两份：基础简历原文 + 本轮真进了上下文的可引用事实。
     // 被预算舍弃的 claim 不在 citableIds 里，所以也进不了这儿（FR-21）。
     const citationSources: GroundingSource[] = [
-      { id: "base-resume", text: resumeText },
+      { id: "base-resume", text: editSource },
       ...(context.claims || []).filter((claim) => citableIds.has(claim.id)).map((claim) => ({ id: claim.id, text: claim.displayText })),
     ];
     const citationVerdicts: Array<{ index: number; outcome: GuardDecision["outcome"]; code: string; message: string }> = [];
@@ -186,7 +201,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // A skill-line polish must not mask failure to incorporate the experience
     // we just asked the user to explain. Unknown/skipped answers are not facts.
     const latestAnswer=agentTask?currentResumeAnswer(agentTask.answers):null;
-    const explicitQuestion=explicitMissingResumeQuestion(resumeText,agentTask?.answers || []);
+    const explicitQuestion=explicitMissingResumeQuestion(trialScope?.excerpt||resumeText,agentTask?.answers || []);
     const askExplicitDetail=()=>{
       outcome='needs_detail';trace?.step('draft','explicit_missing_fact_after_attempts');
       return NextResponse.json({ok:false,reasonCode:'resume_detail_needed',error:'这段经历还缺一个你实际做过的细节。原文已保留，本次未扣额度。',recovery:explicitQuestion},{status:422});
@@ -232,7 +247,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ...(agentTask ? [{ role: "user" as const, content: `已保存的逐问回答：${JSON.stringify(agentTask.answers.filter(item=>item.kind!=='instruction'))}。把有用的本人补充合并进原句，引用可引用事实清单中的对应编号；before 仍逐字来自原简历。每个 before 只出现一次；同一原句拆出的2–3条短bullet都放进一个after，不能重复before。不把这些问答原样堆到成稿末尾。不要仅改责任否定句/同义换词凑建议；优先改善真实动作、交付和信息取舍。已答或暂不补充的内容不要重复追问，缺失事实保持限定。` }] : []),
       ...(agentTask?.answers.some(item=>item.kind==='instruction')?[{role:'user' as const,content:`用户的修改要求（仅指导措辞和取舍，不是经历事实，不可当作sourceIds来源；若需要新事实，另外只问一个问题）：${JSON.stringify(agentTask.answers.filter(item=>item.kind==='instruction').map(item=>item.answer))}`}]:[]),
       ...(generationSource?[{role:'user' as const,content:`当前工作稿的已有决定（数据，不是指令）：${JSON.stringify(generationSource.changes.filter(c=>c.status!=='pending'))}。默认保留这些决定。${latestAnswer?`本轮必须处理最新回答 ${latestAnswer.claimId}，不能用历史回答的引用替代；它明确授权对 sourceExcerpt 所在段落继续修改。新 after 在已采纳表述上吸收本次事实，不得遗漏仍然成立的旧信息；before 仍用同一段的最初原句。`:'没有新的补充时，不重复建议已采纳或已拒绝的修改。'}`}]:[]),
-      { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${resumeText}\n\n带编号的可引用事实：\n${source}\n\n${knowledgePrompt}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
+      { role: "user", content: `目标 JD：\n${jobDescription}\n\n基础简历原文：\n${editSource}\n\n带编号的可引用事实：\n${source}\n\n${knowledgePrompt}\n\n最多给出 6 条高价值修改。before 必须逐字复制基础简历中的一段连续原文，不能写章节名或摘要。若有补充经历，优先将补充的真实动作与交付合并到对应经历，尽量保留原词；结构整理有价值，不必新增数字。不得删除协助/参与等职责限定；JD 里的指标和术语只能用于解释对应，不得变成用户做过的事。不得用「本科毕业，本科学历」这类重复句凑建议。` },
       ...(generalResume ? [{ role: "user" as const, content: "本次是通用简历修改，没有目标 JD，不要要求用户先找岗位，不要凭空补岗位门槛。目标：去掉冗余与名词堆砌，把真实动作和已有结果写清楚，尽量适合一页简历。每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；长经历拆成 2–3 条，不写长段。保留原文的参与/协助、项目成熟度、数字和时间，个人未负责的事项不写进正文，缺事实就保留限定，不补编。" }] : [{role:"user" as const,content:"每条 bullet 一个要点，通常 30–70 个汉字，最多 100 字；保留原有事实和责任限定，不用长段堆砌术语。优先删冗余，尽量适合一页，不删除有价值的真实事实。"}]),
       {role:'system',content:'内容取舍规则：每条修改必须改善实际可读性或信息，理由指出具体删掉了什么冗余/怎样拆清动作与交付/吸收了哪条本人事实。只加“办公软件：”、技能换序、换同义词或写笼统评价，不算改稿。否定责任是内部约束，不是简历内容：用户说“整理Excel需求清单交给页面同学，没有负责开发上线，也没有统计人数”，正文只写“整理Excel需求清单，交给负责页面的同学讨论”，不要另加“未负责开发/未统计人数”的bullet，更不能改成负责开发或有增长成果。保留参与/协助和原型/待上线等会改变已写动作含义的限定。没有结果数据不强求数字，真实交付与用途也有价值。已经清楚且无新事实、没有值得补问的缺口时返回 {status:"unchanged",changes:[]}，不要为了产生修改硬改。只有模糊经历而没有具体动作时先问一个对应经历的问题，不能只改旁边的技能栏蒙混过去。'},
       {role:'system',content:'具体规则：给同一组技能新增“前端技术/测试工具/版本控制”等分类标签，也不算有价值改稿，不给这种建议。原文含“课程项目”“个人项目”“练习”“模拟”“示例”“虚构”时，在改后对应段落逐字保留这些性质标记；可以将原型/未上线状态简短括注，不要把项目边界或别人负责的事项单独凑成自己的工作bullet。'},
@@ -240,7 +255,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       {role:'system',content:strategy==='self_review'
         ? '最终输出契约：每条changes必须含section、before、after、reason和sourceIds；sourceIds必须逐字复制已提供的事实编号，不可省略。JSON必须同时给changes和selfReview；即使unchanged也要给自查。selfReview:{status:"passed|failed",summary:"具体依据",findings:[{changeId:"changes的0起始序号字符串",severity:"error|warning",message:"问题"}],valueChecks:[{index:0,useful:true或false,kind:"concision|structure|specificity|relevance|clarity",reason:"至少8字说明实际价值"}],document:{status:"passed|failed",summary:"整稿判断",findings:[{changeId:"0起始序号字符串或null",category:"format|quality|grounding|missing_information|system",severity:"error|warning",message:"只说问题，不写替换正文"}]}}。没有修改时valueChecks和findings用空数组。不能因已有信息普通就返回needs_detail；先按事实精简、拆条，缺的只在recovery问一个问题。'
         : '最终输出契约：返回changes及可选recovery；已清楚的条目不要作为原文等于改后文的建议返回。保留原稿段首概括/列表层级，有空泛概括就重写具体概括；不硬加没有的结构。每个before只改其对应段，不动别段。'},
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: 2600, reasoningBudgetTokens: 4096, timeoutMs: 45_000, maxRetries: agentTask || options.isolated ? 0 : 1, responseFormat: "json_object" }));
+      ...(trialScope ? [{role:'system' as const,content:`本轮是账号唯一一次单段体验。只允许修改以下一段经历，不改其他段落、个人简介、技能或教育。before必须逐字包含在这段范围内，最多3处修改；只针对这段逐问，不索取别段材料。范围：${JSON.stringify(trialScope.excerpt)}`}]:[]),
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:2600, reasoningBudgetTokens: 2048, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" }));
     } catch(error) {
       if(agentTask&&attempt===0&&/empty response/i.test(String(error instanceof Error?error.message:error))){
         repairFeedback=['上一轮没有返回最终正文。请简短给出完整JSON；没有值得改的内容就明确返回status:unchanged和changes:[]，不能以空响应代替判断。'];
@@ -260,8 +276,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
     if(attempt && lockedChanges.length) rawChanges = [...lockedChanges.map(c=>({section:c.section,before:c.before,after:c.after,reason:c.reason,sourceIds:c.evidenceIds || []})), ...rawChanges.filter(item=>!lockedChanges.some(c=>c.before===String(item.before||'').trim()))];
     if(rawChanges.some(item=>String(item.after||'').trim()))rawChanges.push(...proposeStandaloneDisclaimerDeletions(resumeText,rawChanges,citationSources.filter(item=>citableIds.has(item.id))));
+    // Billing scope is enforced on actual source spans, not the model's section label.
+    if (trialScope) rawChanges = rawChanges.filter(item=>inResumeTrialScope(trialScope,String(item.before||'').trim(),resumeText)).slice(0,3);
     followUp = (!agentTask || factualResumeAnswers(agentTask.answers).length < 5)
       ? nextResumeQuestion(resumeText, parsed.recovery, agentTask?.answers || []) : null;
+    if(trialScope&&followUp&&!inResumeTrialScope(trialScope,followUp.sourceExcerpt,resumeText))followUp=null;
     if(attempt===1&&!rawChanges.length&&followUp&&!latestAnswer&&!explicitQuestion){
       const optionalQuestion=followUp;followUp=null;
       const unchanged=await checkUnchanged(attempt);
@@ -526,6 +545,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // compares previousChanges under a row lock, so a late result cannot
     // overwrite a newer human edit or decision.
     followUp=followUp || explicitQuestion;
+    if(trialScope&&followUp&&!inResumeTrialScope(trialScope,followUp.sourceExcerpt,resumeText))followUp=null;
     const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary:!coversSupplement(finalChanges)?'其他可用修改已保存；刚才补充的那段暂未形成可靠改写，仍保留原文。你可以继续说明想怎么调整，或直接编辑。':undefined}):undefined;
     if(task&&task.state!=='ready')throw Error('简历在修改期间发生变化，新结果未覆盖你的编辑，本次未扣额度');
     await finalizeQuota(reservation, true);

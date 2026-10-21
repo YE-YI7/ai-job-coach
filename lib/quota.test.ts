@@ -1,6 +1,6 @@
 import { getDbClient } from "./db";
 import { hasActiveTokenPayConnection } from "./tokenpay";
-import { checkQuota, finalizeQuota, reserveQuota, reserveFirstCoachingQuota } from "./quota";
+import { checkQuota, finalizeQuota, reserveQuota, reserveFirstCoachingQuota, reserveResumeTrial } from "./quota";
 
 jest.mock("./db", () => ({ getDbClient: jest.fn() }));
 jest.mock("./tokenpay", () => ({ hasActiveTokenPayConnection: jest.fn() }));
@@ -22,6 +22,19 @@ describe('Watcha points', () => {
     mockDb.mockResolvedValue({rpc:jest.fn().mockResolvedValue({data:[{allowed:false,reservation_id:'existing'}],error:null})} as never);
     expect(await reserveQuota('user','chat','request-123')).toBeNull();
     expect(reserveWatchaPoint).not.toHaveBeenCalled();
+  });
+  it('full résumé uses paid-only RPC type even against an unupgraded database',async()=>{
+    const rpc=jest.fn().mockResolvedValue({data:[{allowed:true,reservation_id:'paid',source_field:'paid_resume_remaining',remaining:2}],error:null});mockDb.mockResolvedValue({rpc} as never);
+    expect((await reserveQuota('user','resume','request-full'))?.source).toBe('paid_resume_remaining');
+    expect(rpc).toHaveBeenCalledWith('reserve_user_quota',expect.objectContaining({p_quota_type:'resume_paid'}));
+  });
+  it('a trial never falls through to paid credit or a connected user key',async()=>{
+    mockHasTokenPay.mockResolvedValue(true);
+    mockDb.mockResolvedValue({rpc:jest.fn().mockResolvedValue({data:[{allowed:false,reservation_id:null}],error:null})} as never);
+    expect(await reserveResumeTrial('user','request-trial')).toBeNull();expect(mockHasTokenPay).not.toHaveBeenCalled();expect(reserveWatchaPoint).not.toHaveBeenCalled();
+  });
+  it('database absence cannot grant a free full résumé or experience',async()=>{
+    mockDb.mockResolvedValue(null);expect(await reserveQuota('user','resume','request-full')).toBeNull();expect(await reserveResumeTrial('user','trial')).toBeNull();
   });
   it('refunds the paid reservation atomically using its ledger ID', async () => {
     const rpc=jest.fn().mockResolvedValue({data:true,error:null});mockDb.mockResolvedValue({rpc} as never);

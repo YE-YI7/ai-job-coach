@@ -9,13 +9,15 @@ import type { ResumeRecovery } from "./resume-recovery";
 import { mergeResumeAgentChanges } from "@/lib/opportunities/resume-agent-merge";
 import { currentResumeAnswer } from './resume-supplement';
 import { resumeMessageExpired } from './resume-conversation-recovery';
+import { resolveResumeTrialScope, type ResumeTrialScope } from '@/lib/resume-experience-trial';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
-type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string };
+type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
 export class ResumeTaskError extends Error { constructor(message: string, public status = 409) { super(message); } }
 export const resumeTaskFingerprint = (resume: string, jd: string, revision?: string) => createHash("sha256").update(JSON.stringify([resume.trim(), jd.trim(), revision || ""])).digest("hex");
 export function publicResumeTask(row: Row): ResumeAgentTask {
   return { id: row.id, state: row.state, question: row.question, answers: row.answers, updatedAt: row.updated_at,
+    ...(row.edit_scope ? {editScope:row.edit_scope} : {}),
     ...(row.conversation?.length?{conversation:row.conversation.map(({id,message,reply,status,decision,savedAt,failure})=>({id,message,reply,status,decision,savedAt,...(failure?{failure}:{})}))}:{}),
     ...(row.result ? { result: row.result } : {}), ...(row.error ? { error: row.error } : {}) };
 }
@@ -82,7 +84,7 @@ export async function failResumeMessage(userId:string,opportunityId:string,id:st
 }
 
 /** 回答先用版本 CAS 保存，然后独占生成。两个并发请求不能启动两次模型。 */
-export async function claimResumeTask(userId: string, opportunityId: string, input: { action?: string; questionId?: string; answer?: string; messageId?:string }) {
+export async function claimResumeTask(userId: string, opportunityId: string, input: { action?: string; questionId?: string; answer?: string; messageId?:string; trialBlockId?: string; trialExcerpt?:string }) {
   const db = requireDb(await getDbClient()), source = await ownedResumeTaskSource(userId, opportunityId);
   let row = await readRow(userId, opportunityId);
   if (!row) {
@@ -101,13 +103,21 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
   if (row.fingerprint !== source.fingerprint) {
     if (input.action === "answer" || input.action === "revise" || input.action==='conversation') throw new ResumeTaskError("简历已更换，这条补充不再适用；输入仍保留");
     const retained=source.revision&&row.source_revision===source.revision?row.answers.filter(answer=>source.resume.includes(answer.sourceExcerpt)):[];
-    await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, conversation:[],result: null, error: null, lease_id: null });
+    await write({ fingerprint: source.fingerprint, source_revision:source.revision, state: "idle", question: null, answers: retained, conversation:[],result: null, error: null, lease_id: null, edit_scope:null });
   }
   if(row!.state==='needs_detail'&&!nextResumeQuestion(source.resume,row!.question,row!.answers))await write({state:'idle',question:null,error:null});
   if (row!.state === "running") {
     // 超过整条请求时限才允许用户显式重试；旧持有者的 lease 已失效，不能迟到覆盖。
     if (input.action !== "retry" || Date.now() - Date.parse(row!.updated_at) < 330_000) return { task: publicResumeTask(row!), source, claimed: false };
     await write({ state: "failed", lease_id: null, error: "上一轮未完成，已保留补充" });
+  }
+  if (input.trialBlockId !== undefined) {
+    if (!['start','restart'].includes(input.action || '')) throw new ResumeTaskError('请从体验入口选择一段经历',400);
+    const scope = resolveResumeTrialScope(source.resume,String(input.trialBlockId));
+    if (!scope || input.trialExcerpt !== scope.excerpt) throw new ResumeTaskError('经历已变化，请重新选择一段工作、实习或项目经历；不能免费修改整份简历',400);
+    await write({edit_scope:scope,state:'idle',question:null,error:null});
+  } else if (input.action === 'restart') {
+    await write({edit_scope:null}); // Explicit full paid restart, never inherited from a free trial.
   }
   let conversationAnswers: ResumeAgentAnswer[] | undefined;
   if(input.action==='conversation'){

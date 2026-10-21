@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
     name: body.name,
     clientEventId,
     occurredAt,
-    properties: {...sanitizeEventProperties(body.properties), account_cohort:analyticsCohort(userId,process.env.ANALYTICS_INTERNAL_USER_IDS)},
+    properties: {...sanitizeEventProperties(body.properties), account_cohort:analyticsCohort(userId,process.env.ANALYTICS_INTERNAL_USER_IDS),
+      host: request.nextUrl.hostname, environment: process.env.VERCEL_ENV || "development"},
   });
   const { error } = await db.from("product_events").upsert(row, { onConflict, ignoreDuplicates: true });
 

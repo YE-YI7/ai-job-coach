@@ -1,4 +1,5 @@
 export const PRODUCT_EVENT_NAMES = [
+  "page_viewed",
   "landing_viewed",
   "landing_task_clicked",
   "resume_gap_viewed",
@@ -46,6 +47,14 @@ export const PRODUCT_EVENT_NAMES = [
   "resume_gap_used",
   "resume_gap_signup",
 ] as const;
+
+/** Route buckets only: never send URL queries, account IDs or material paths. */
+export function analyticsPage(pathname: string): string | null {
+  if (/^\/(?:admin|eval-lab|api|_qa)(?:\/|$)/.test(pathname)) return null;
+  if (["/", "/cockpit", "/login", "/onboarding", "/pricing", "/register", "/agent"].includes(pathname)) return pathname;
+  if (/^\/tools\/(?:resume-jd-gap|offer-calculator)\/?$/.test(pathname)) return pathname.replace(/\/$/, "");
+  return "/other";
+}
 
 export type ProductEventName = (typeof PRODUCT_EVENT_NAMES)[number];
 export type ProductEventProperties = Record<string, string | number | boolean | null | undefined>;

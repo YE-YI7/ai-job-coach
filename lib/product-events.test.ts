@@ -3,9 +3,16 @@ import {
   isProductEventName,
   normalizeAnonId,
   sanitizeEventProperties,
+  analyticsPage,
 } from "./product-events";
 
 describe("product events", () => {
+  it("tracks public route buckets without queries, IDs or admin traffic", () => {
+    expect(isProductEventName("page_viewed")).toBe(true);
+    expect(analyticsPage("/cockpit")).toBe("/cockpit");
+    expect(analyticsPage("/unknown/private-id")).toBe("/other");
+    for (const path of ["/admin/evals", "/admin/evals/analytics", "/eval-lab/index.html", "/api/private", "/_qa/test"]) expect(analyticsPage(path)).toBeNull();
+  });
   it("separates entry views from intentional use", () => {
     for (const name of ["landing_viewed", "landing_task_clicked", "resume_gap_viewed", "resume_gap_used", "resume_gap_sample_used", "resume_gap_checklist_downloaded", "resume_gap_checklist_copied"]) {
       expect(isProductEventName(name)).toBe(true);

@@ -19,7 +19,7 @@ import { runWithGenerationContext } from "@/lib/generation-context";
 import type { ResumeChange } from "@/lib/opportunities/types";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { isTrivialRewrite, coalesceResumeProposals } from "@/lib/coach-harness/resume-diff";
-import {RESUME_EDITORIAL_STANDARD,proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
+import {RESUME_EDITORIAL_STANDARD,proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,resumeSourceBulletSpan,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,type ResumeValueCheck} from '@/lib/coach-harness/resume-edit-value';
 import { resumeRecovery, modelResumeRecovery } from "@/lib/coach-harness/resume-recovery";
 import { renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { selectResumeDraftKnowledge } from "@/lib/knowledge/resume-methods";
@@ -322,7 +322,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => citableIds.has(id)) : [];
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);
-      const before = anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore;
+      const before = resumeSourceBulletSpan(resumeText,anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore);
       const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);
       const after = normalizeResumeDeletion(before,omitStandaloneDisclaimers(proposedAfter));
       // A standalone personal disclaimer is factual context, not an
@@ -335,6 +335,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const sourceIssues = resumeSourceProtection(before, after, String(raw.section || ""), resumeText);
       const valueIssues = resumeEditValueIssues(before,after);
       const mappingIssues = [
+        ...(trialScope&&!inResumeTrialScope(trialScope,before,resumeText)?['修改越过本次体验所选经历，不能保存']:[]),
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
         ...sourceIssues,
         ...valueIssues,

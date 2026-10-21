@@ -2,6 +2,10 @@ import { checkResumeFormat, readDocumentReview, resumeStyleContract } from "./re
 import type { ResumeChange } from "@/lib/opportunities/types";
 const before="- **整理订单记录。** 每周将订单记录整理在Excel，交给同事核对。";
 const change=(after:string):ResumeChange=>({id:"change-1",section:"实习",before,after,reason:"删重复",evidenceId:"source",status:"pending"});
+test('duplicate list prefixes introduced by replacement fail deterministically; untouched old defects do not expand scope',()=>{
+ expect(checkResumeFormat('• 原文','• • 新文',[],'preserve')).toEqual([expect.objectContaining({category:'format',severity:'error'})]);
+ expect(checkResumeFormat('• • 旧缺陷','• • 旧缺陷',[],'preserve')).toEqual([]);
+});
 test("lost bold lead is caught, not repaired by blindly restoring old wording",()=>{
   expect(checkResumeFormat(before,"candidate",[change("- 每周整理Excel订单记录，交给同事核对。")],"preserve")[0]).toMatchObject({changeId:"change-1",category:"format"});
   expect(checkResumeFormat(before,"candidate",[change("- **订单记录整理。** 每周整理Excel订单记录，交给同事核对。")],"preserve")).toEqual([]);

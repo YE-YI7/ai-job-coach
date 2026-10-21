@@ -45,6 +45,21 @@ if(mode==='--cleanup'){
   await unlink(statePath);console.log(JSON.stringify({syntheticFixturesRemoved:true}));process.exit(0);
 }
 
+if(mode==='--read-only'){
+  assert.ok(fixtures.length>=1&&fixtures.length<=2);
+  for(const f of fixtures){
+    const login=await request('/api/auth/create-session',{inviteCode:f.code});assert.equal(login.data.userId,f.id);assert.ok(login.cookie);
+    const saved=await request('/api/coach/opportunities',null,login.cookie),own=saved.data.opportunities.find(o=>o.id===f.opportunityId);
+    assert.equal(own?.resumeText,f.resume);assert.equal(own.resumeChanges.length,f.task.result.changes.length);
+    for(const c of f.task.result.changes){const stored=own.resumeChanges.find(item=>item.id===c.id);assert.equal(stored?.after,c.after);assert.equal(stored.before,c.before);}
+    const task=await request(`/api/coach/resume-agent?opportunityId=${f.opportunityId}`,null,login.cookie);assert.equal(task.data.task.state,'ready');assert.equal(task.data.task.editScope.excerpt,f.selected);
+    const quota=await request('/api/quota/check',null,login.cookie);assert.equal(quota.data.resumeTrial.available,false);assert.equal(quota.data.checks.resume.allowed,false);assert.equal(quota.data.quota.free_resume_daily,0);
+    const events=await checked(await db.from('ai_generation_events').select('id').eq('user_id',f.id));assert.equal(events.length,f.modelEvents.length);
+    console.log(JSON.stringify({target,sample:f.index+1,savedResultRestored:true,rawResumePreserved:true,usedTrialNotRegranted:true,noNewModelCalls:true}));
+  }
+  process.exit(0);
+}
+
 assert.equal(fixtures.length,0,'Never rerun models using an existing fixture state; inspect it or clean it first');
 const samples=[{
   selected:'2025.01-2025.03 甲门店 运营实习\n• 协助店长做退货记录整理工作，逐单核对退货原因，用 Excel 把同类原因归类并形成分类表，交给店长每周查看和讨论。我认为这锻炼了严谨细致的习惯和团队协作能力。',
@@ -54,7 +69,7 @@ const samples=[{
   other:'2025.04-2025.06 虚构实验室 课程实习\n• 按课程要求记录实验步骤，整理成实验记录表。',
 }];
 
-for(let index=0;index<samples.length;index++){
+for(let index=mode==='--second-only'?1:0;index<samples.length;index++){
   const sample=samples[index],id=randomUUID(),code='trialqa-'+randomUUID();
   const resume=`姓名：验收示例同学（虚构）\n教育经历\n某大学 本科\n实习经历\n${sample.selected}\n\n${sample.other}\n技能\nExcel`;
   const f={id,code,email:`resume-trial-qa-${id}@example.invalid`,resume,selected:sample.selected,index};
@@ -76,6 +91,7 @@ for(let index=0;index<samples.length;index++){
   const task=revised.data.task;f.task=task;f.elapsedMs=Date.now()-start;await writeFile(statePath,JSON.stringify(fixtures),{mode:0o600});
   assert.equal(task?.state,'ready',task?.error||'Expected saved generation');assert.ok(task.result?.changes?.length,'Must produce an actually useful change');
   assert.equal(task.editScope?.excerpt,sample.selected);assert.ok(task.result.resumeGenerationId);
+  let applied=resume;for(const c of task.result.changes)applied=applied.replace(c.before,c.after);assert.doesNotMatch(applied,/^\s*[-*•]\s+[-*•]\s/m,'No duplicate source/replacement list marker');
   for(const change of task.result.changes){assert.ok(sample.selected.includes(change.before),'No edit outside selected experience');assert.notEqual(change.before,change.after);assert.ok(!change.after.includes(sample.other));}
   const read=await request(`/api/coach/resume-agent?opportunityId=${f.opportunityId}`,null,cookie);assert.deepEqual(read.data.task.result,task.result);assert.deepEqual(read.data.task.editScope,task.editScope);
   const saved=await request('/api/coach/opportunities',null,cookie);const own=saved.data.opportunities.find(o=>o.id===f.opportunityId);assert.equal(own.resumeText,resume);assert.deepEqual(own.resumeChanges,task.result.changes);

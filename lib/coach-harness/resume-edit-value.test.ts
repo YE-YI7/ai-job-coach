@@ -1,4 +1,14 @@
-import {proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
+import {proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,resumeSourceBulletSpan,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
+
+test('source list marker is part of a body-only model span, without changing prose or ambiguous matches',()=>{
+ const source='实习经历\n• 参与工单梳理，整理40条工单。这让我很有沟通能力。\n• 核对库存';
+ const before='参与工单梳理，整理40条工单。这让我很有沟通能力。';
+ const anchored=resumeSourceBulletSpan(source,before),after='• 参与工单梳理，整理40条工单\n• 汇总为需求清单';
+ expect(anchored).toBe('• '+before);expect(source.replace(anchored,after)).not.toContain('• •');
+ expect(resumeSourceBulletSpan(source,'• '+before)).toBe('• '+before);
+ expect(resumeSourceBulletSpan('正文中参与工单梳理','参与工单梳理')).toBe('参与工单梳理');
+ expect(resumeSourceBulletSpan('• 整理工单\n• 整理工单','整理工单')).toBe('整理工单');
+});
 describe('resume editing value, separate from factuality',()=>{
   test('proposes only uniquely anchored, sourced, standalone disclaimer deletion',()=>{
     const before='- 没有负责后端开发。',source={id:'own',text:'没有负责后端开发。'};

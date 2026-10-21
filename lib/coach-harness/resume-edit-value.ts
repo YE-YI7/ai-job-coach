@@ -11,6 +11,16 @@ export const RESUME_EDITORIAL_STANDARD = `简历编辑不只是保真压缩，�
 
 export function isPersonalDisclaimer(text:string){return personalDisclaimer.test(clean(text));}
 
+/** Include an existing list prefix when the model copied only its body.
+ * Otherwise replacing “正文” with “• 新正文” leaves “• • 新正文”. */
+export function resumeSourceBulletSpan(source:string,before:string){
+  if(!before||/^\s*[-*•]\s+/.test(before))return before;
+  const start=source.indexOf(before);
+  if(start<0||start!==source.lastIndexOf(before))return before;
+  const lineStart=source.lastIndexOf('\n',start-1)+1,prefix=source.slice(lineStart,start);
+  return /^\s*[-*•]\s+$/.test(prefix)?prefix+before:before;
+}
+
 /** Fix an unambiguous model list delimiter, not source prose or numeric ranges. */
 export function normalizeResumeBulletBreaks(text:string,before=''){
   const normalized = /^\s*[-*•]\s+/.test(text)?text.replace(/[；;]\s*[-*•]\s+(?=\S)/g,'\n- '):text;

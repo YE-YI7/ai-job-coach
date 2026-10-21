@@ -30,6 +30,8 @@ export function checkResumeFormat(source:string,candidate:string,changes:ResumeC
       findings.push({changeId:change.id,category:"format",severity:"error",message:"加粗标记不配对。"});
     if(!source.includes(change.before))findings.push({changeId:change.id,category:"system",severity:"error",message:"修改原文已无法定位。"});
   }
+  const repeatedMarkers=(text:string)=>(text.match(/^\s*[-*•]\s+[-*•]\s+/gm)||[]).length;
+  if(repeatedMarkers(candidate)>repeatedMarkers(source))findings.push({changeId:null,category:'format',severity:'error',message:'本轮在已有列表前重复添加了列表符号，需要返回原编辑修正原文边界。'});
   if(!candidate.trim())findings.push({changeId:null,category:"format",severity:"error",message:"应用后整份简历为空。"});
   return findings;
 }

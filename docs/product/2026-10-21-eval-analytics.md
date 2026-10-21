@@ -35,4 +35,4 @@ FINISH：unreviewed and undocumented is unfinished; this build ends with the fin
 
 Impeccable手动detect一次并集中修复，再复核一次；仅剩Eval原有ID字体栈SFMono-Regular未登记根DESIGN的告警，保留既有等宽语义，不扩修历史HTML告警。独立finish-review发现手机图表文字随viewBox缩小、输入焦点不清两项；修成32 SVG单位（390宽实际13.76px）以及“输入中”/标签加粗/下偏柔影，遵守本人否决彩框灰框的更高约束。独立verdict两项resolved/ship；此结论只覆盖两项，不冒充生产验收。
 
-既有DESIGN保持；没有新图像素材。待正式核对：管理员真实聚合与DB独立交叉、旧作答/积分/机会整行哈希、匿名401、后台不触发PV、新前台埋点落库与刷新。没有调用模型、短信、充值或兑换。
+既有DESIGN保持；没有新图像素材。最终bddf3da / Production Bn7H9dh…正式通过：原管理员真实页面/刷新/7与90天API/四类明细、QA工作稿原保存标记和原文/JD均可读；匿名401，私有不缓存。独立SQL与API固定快照逐项一致（60账户、23新增、24活跃、D1为3/22、估时33795.126秒/418会话）；历史未关联611条单列。后台刷新不计PV；首页访问/刷新0→1→2且host/env正确。旧41作答/36机会及钱包、转账、预留整行哈希全部未变。最终71项Jest+16项Eval脚本过；没有调用模型、短信、充值或兑换。详见 `docs/operations/2026-10-21-eval-analytics-acceptance.md`，短时健康不当长期保证。

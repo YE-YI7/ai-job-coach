@@ -37,4 +37,4 @@ FINISH：unreviewed and undocumented is unfinished; this build ends with the fin
 
 ## 验收
 
-本地验收已完成：70项针对性Jest、16项Eval脚本、136页构建、类型/lint；Chrome合成隔离环境验证桌面1465、手机390、筛选/空态/分页/对话Markdown、逐层资料、刷新及503不显示假0。独立review两项修复（手机图表字、输入焦点）均resolved；输入按本人既定无彩框约束使用“输入中”/标签加粗/下偏柔影。文档验收确认继承既有DESIGN，无新全局token或图像；历史Trace宽度文档漂移不扩修。正式聚合/权限/埋点落库与旧数据哈希仍待发布后单独验，不复制真实材料到报告。
+已完成71项Jest、16项Eval脚本、136页构建及类型/lint；合成隔离Chrome桌面1465/手机390的筛选、空态、分页、对话Markdown、逐层材料、刷新与503不报假0通过。独立review两项修复均resolved；输入继续遵守本人无彩框要求。文档验收无需新全局token/图像，不扩修历史漂移。最终bddf3da/Bn7H9dh正式页面/权限/7与90天API/原账号四类明细可读；独立SQL逐项复算一致，历史未关联ID事件单列，后台不计PV，前台0→1→2落库。41旧作答/36机会和积分三表整行hash未变。详见项目operations/2026-10-21-eval-analytics-acceptance.md；未复制真实正文到报告。

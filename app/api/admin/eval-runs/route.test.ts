@@ -70,6 +70,13 @@ test("storage failure and same-ID replay never invoke the model", async () => {
   }
   expect(rewrite).not.toHaveBeenCalled();
 });
+test("run list excludes development archives instead of presenting them as real model spans", async () => {
+  const q: any = { select: jest.fn(() => q), eq: jest.fn(() => q), not: jest.fn(() => q), order: jest.fn(() => q), limit: async () => ({ data: [], error: null }) };
+  (getDbClient as jest.Mock).mockResolvedValue({ from: () => q });
+  expect((await GET(new Request(origin))).status).toBe(200);
+  expect(q.not).toHaveBeenCalledWith('run', 'cs', '{"recordType":"development_log"}');
+  expect(rewrite).not.toHaveBeenCalled();
+});
 test("reading a saved run enriches only recorded retrieval and never fabricates stage I/O", async () => {
   const saved = { id, input: "original input", knowledge: [], spans: [{ id: "checkpoint", kind: "stage", name: "知识检索", code: "retrieval", durationMs: 0, input: null, output: null, knowledge: [] }] };
   const query = (data: unknown) => ({ eq: jest.fn().mockReturnThis(), maybeSingle: async () => ({ data, error: null }) });

@@ -2,8 +2,8 @@ import type { ResumeChange } from "@/lib/opportunities/types";
 export type ReviewStrategy = "independent" | "self_review" | "format_only";
 export type FormatPolicy = "preserve" | "repair" | "standard";
 export type DocumentFinding = {changeId: string | null; category: string; severity: "error" | "warning"; message: string};
-export type DocumentReview = {status: "passed" | "failed"; summary: string; findings: DocumentFinding[]; source: "independent" | "self_review" | "deterministic_format"};
-export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v6";
+export type DocumentReview = {status: "passed" | "failed"; summary: string; findings: DocumentFinding[]; source: "independent" | "self_review" | "deterministic_format"; contractError?:'invalid_document_verdict'};
+export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v7";
 const lead = (text:string) => /^\s*(?:[-*•]\s+)?\*\*[^*\n]{2,80}\*\*/.test(text);
 const marker = (text:string) => text.match(/^\s*([-*•]|\d+[.)])\s+/)?.[1];
 
@@ -38,7 +38,7 @@ export function checkResumeFormat(source:string,candidate:string,changes:ResumeC
 /** Reviewer has no editing authority. Unexpected rewrite fields invalidate its verdict. */
 export function readDocumentReview(raw:unknown,changes:ResumeChange[],strategy:ReviewStrategy):DocumentReview {
   const source=strategy==="format_only"?"deterministic_format":strategy;
-  const invalid=():DocumentReview=>({status:"failed",source,summary:"整稿检查未返回可验证的判断，不视为通过。",findings:[{changeId:null,category:"system",severity:"error",message:"整稿检查缺失、格式无效或越权返回改写正文。"}]});
+  const invalid=():DocumentReview=>({status:"failed",source,contractError:'invalid_document_verdict',summary:"整稿检查未返回可验证的判断，不视为通过。",findings:[{changeId:null,category:"system",severity:"error",message:"整稿检查缺失、格式无效或越权返回改写正文。"}]});
   if(!raw||typeof raw!=="object"||Array.isArray(raw))return invalid();
   const d=raw as Record<string,unknown>;
   if(Object.keys(d).some(key=>!["status","summary","findings"].includes(key)) || !["passed","failed"].includes(String(d.status)) || typeof d.summary!=="string" || !d.summary.trim() || !Array.isArray(d.findings)||d.findings.length>20)return invalid();

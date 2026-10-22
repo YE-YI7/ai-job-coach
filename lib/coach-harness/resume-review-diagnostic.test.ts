@@ -1,4 +1,20 @@
-import {resumeReviewDiagnostic} from './resume-review-diagnostic';
+import {resumeReviewDiagnostic,resumeReviewProtocolIssue} from './resume-review-diagnostic';
+import type {ResumeChange} from '@/lib/opportunities/types';
+const changes=[{id:'c-1'} as ResumeChange];
+const valid={status:'passed',summary:'检查已有事实和表述',findings:[],valueChecks:[{index:0,useful:true,kind:'clarity',reason:'将事实动作和交付清晰对应'}],document:{status:'passed',summary:'整稿结构和事实一致',findings:[]}};
+test('separates protocol errors from actionable manuscript findings',()=>{
+ expect(resumeReviewProtocolIssue(valid,changes)).toBeNull();
+ expect(resumeReviewProtocolIssue({...valid,status:'failed'},changes)).toBe('review_failure_unattributed');
+ expect(resumeReviewProtocolIssue({...valid,status:undefined},changes)).toBe('review_status_invalid');
+ expect(resumeReviewProtocolIssue({...valid,document:undefined},changes)).toBe('review_document_invalid');
+ expect(resumeReviewProtocolIssue({...valid,status:'failed',findings:[{changeId:'c-1',severity:'error',message:'丢掉参与限定，须退回原编辑'}]},changes)).toBeNull();
+ expect(resumeReviewProtocolIssue({...valid,document:{status:'failed',summary:'本轮破坏列表',findings:[{changeId:'c-1',category:'format',severity:'error',message:'列表符号丢失'}]}},changes)).toBeNull();
+});
+test('unknown references, duplicate value verdicts and unauthorized rewrites are not manuscript findings',()=>{
+ expect(resumeReviewProtocolIssue({...valid,findings:[{changeId:'0',severity:'error',message:'wrong mapping'}]},changes)).toBe('review_finding_unmapped');
+ expect(resumeReviewProtocolIssue({...valid,valueChecks:[...valid.valueChecks,...valid.valueChecks]},changes)).toBe('review_value_checks_invalid');
+ expect(resumeReviewProtocolIssue({...valid,after:'unauthorized rewrite'},changes)).toBe('review_unexpected_fields');
+});
 test('records fixed diagnostic categories without copying raw status, messages or IDs',()=>{
  const secret='private material';
  const result=resumeReviewDiagnostic({status:secret,findings:[{changeId:secret,message:secret,severity:'error'}]},['c-1'],1);

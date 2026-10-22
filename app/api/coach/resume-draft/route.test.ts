@@ -200,7 +200,7 @@ describe("resume draft source mapping", () => {
   test('factually approved edits still require independent value approval',async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',findings:[]}));
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
-    expect(response.status).toBe(422);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(response.status).toBe(503);expect((await response.json()).reasonCode).toBe('resume_review_unavailable');expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);expect(callLLM).toHaveBeenCalledTimes(3);
   });
 
   test.each(['unchanged',undefined])('independently checked empty result (%s) keeps existing decisions and does not charge generation success',async status=>{
@@ -612,12 +612,28 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     expect((await response.json()).workflow.maxRepairs).toBe(1);
   });
   test('missing whole-document verdict twice blocks, never becomes success because some changes survive',async()=>{
-    let n=0;(callLLM as jest.Mock).mockImplementation(async()=>JSON.stringify(n++%2===0?
-      {changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}:
-      {status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+      .mockResolvedValue(JSON.stringify({status:'passed',valueChecks:usefulValueChecks,findings:[]}));
     const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
-    expect(response.status).toBe(422);expect((await response.json()).reasonCode).toBe('resume_document_review_failed');
-    expect(callLLM).toHaveBeenCalledTimes(4);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(response.status).toBe(503);expect((await response.json()).reasonCode).toBe('resume_review_unavailable');
+    expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    const operations=(runWithGenerationContext as jest.Mock).mock.calls.map(([c])=>c.operation);
+    expect(operations.filter(x=>x==='resume_draft')).toHaveLength(1);expect(operations.filter(x=>x==='resume_review')).toHaveLength(2);
+  });
+  test.each([undefined,'failed'])('unattributed review status %s repairs only reviewer, retaining grounded draft and one reservation',async status=>{
+    const review={status:'passed',summary:'真实动作与交付清晰',document:passedDocument,valueChecks:usefulValueChecks,findings:[]};
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({...review,status})).mockResolvedValueOnce(JSON.stringify(review));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(3);expect(reserveQuota).toHaveBeenCalledTimes(1);
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    const calls=(callLLM as jest.Mock).mock.calls;
+    expect(calls[2][0].find((m:{content:string})=>m.content.includes('待审修改（'))).toEqual(calls[1][0].find((m:{content:string})=>m.content.includes('待审修改（')));
+    expect(JSON.stringify(calls[2][0])).toContain('候选正文没有变化');
+    const operations=(runWithGenerationContext as jest.Mock).mock.calls.map(([c])=>c.operation);
+    expect(operations).toEqual(['resume_draft','resume_review','resume_review']);
   });
   test('whole-document candidate includes earlier accepted decisions and equals the saved preview',async()=>{
     const resumeText='负责模型评测\n维护评测记录';

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getDbClient } from "@/lib/db";
 import { captureEvalStage, type EvalStageIO } from "./eval-scope";
 import {resumeProcessingSummary} from './resume-processing';
+import type {ResumeReviewDiagnostic} from './resume-review-diagnostic';
 
 export const RESUME_TRACE_EVENT = "resume_agent_trace";
 export type ResumeTraceOutcome = "running" | "completed" | "unchanged" | "needs_detail" | "blocked" | "failed" | "quota_denied";
@@ -17,6 +18,7 @@ export interface ResumeTrace {
   editingValue?: { reviewed:number; useful:number; rejected:number; kinds:string[]; personalDisclaimersOmitted:number; disposition:'revised'|'unchanged' };
   /** Fixed diagnostic categories only; never persist rejected text or prompts. */
   groundingRejections?: Array<{ attempt:number; index:number; codes:string[] }>;
+  reviewDiagnostics?: ResumeReviewDiagnostic[];
 }
 export function resumeRequestHash(requestId: string) { return createHash("sha256").update(requestId).digest("hex"); }
 

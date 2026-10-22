@@ -39,6 +39,7 @@ import {
   type Slot3Input,
 } from "@/lib/coach-harness/guard-slots";
 import { ACTION_VOCAB, type GroundingSource } from "@/lib/coach-harness/citation-verifier";
+import {resumeReviewDiagnostic} from './resume-review-diagnostic';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -355,6 +356,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
           ...(!after && !disclaimerDeletion ? ['empty_after'] : []), ...(!before ? ['empty_before'] : []),
           ...(before && !resumeText.includes(before) ? ['source_mapping'] : []),
           ...(!report.ok ? ['claim_validation'] : []), ...(sourceIssues.length ? ['source_identity_or_marker'] : []),
+          ...report.issues.filter(issue=>issue.severity==='error').map(issue=>`claim_${issue.code}`),
           ...(valueIssues.length ? ['editorial_value'] : []),
           ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement ? ['vague_without_supplement'] : []),
           ...(mappingIssues.some(issue=>issue.includes('仅同义换词')) ? ['cosmetic_rewrite'] : []),
@@ -444,6 +446,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     trace.step('review','value_verdicts_received',valueChecks.length);
     trace.step('review','useful_changes',usefulIndexes.size);
     reviewerFindings.push(...changes.flatMap((change,index)=>usefulIndexes.has(index)?[]:[{changeId:change.id,severity:'error',message:valueChecks.find(check=>check.index===index)?.reason||'缺少明确的逐条修改价值判断，不能只以事实正确当成改稿完成'}]));
+    trace.data.reviewDiagnostics=[...(trace.data.reviewDiagnostics||[]),{attempt,...resumeReviewDiagnostic(reviewer,changes.map(c=>c.id),usefulIndexes.size)}];
     reviewerPassed = reviewer.status === "passed" && !reviewerFindings.some((finding) => String((finding as Record<string, unknown>)?.severity) === "error");
     // 质检 error 对应的建议直接不下发（用户实测残缺文本「已上线腾」就是从这漏出去的）：
     // 与其让用户面对一条半截话的黄色高亮，不如宁缺毋滥。

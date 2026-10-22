@@ -1,4 +1,6 @@
 import {parseResumeConversationDecision,resumeConversationMessages} from './resume-conversation-decision';
+import {resumeReplyPreview} from './resume-reply-stream';
+import {singleResumeQuestionReply,skipsResumeFact} from './resume-single-question';
 const source='实习期间参与产品需求工作，负责收集反馈并整理记录。';
 const turns=[{id:'one',message:'我整理了访谈分类表，交给产品经理。',reply:'这份表的用途是什么？',status:'completed' as const,savedAt:'now'},
  {id:'two',message:'你为什么建议写这个，先别改？',reply:'',status:'pending' as const,savedAt:'now'}];
@@ -20,4 +22,15 @@ test('mentor sees questions and discussion plus reviewed methods, not an assumed
  expect(input.messages[0].content).toContain('发送消息不等于要求执行改稿');
  expect(input.messages[1].content).toContain(turns[1].message);
  expect(input.messages[1].content).toContain('earlierTurnsNotLoaded');
+});
+test('streamed and saved mentor replies ask the same single question and preserve Markdown',()=>{
+ const reply='先用已有事实，不需要编数字。\n\n**你具体交付了什么？**\n\n后来有什么结果？';
+ const raw=JSON.stringify({action:'discuss',reply});const onReply=jest.fn(),stream=resumeReplyPreview(onReply);
+ for(const char of raw)stream(char);
+ const saved=parseResumeConversationDecision(raw,source,turns).reply;
+ expect(saved).toBe('先用已有事实，不需要编数字。\n\n**你具体交付了什么？**');
+ expect(onReply.mock.calls.at(-1)?.[0]).toBe(saved);
+ expect(singleResumeQuestionReply('参考 https://example.org/?a=1，再讨论。')).toContain('?a=1');
+ expect(singleResumeQuestionReply('你问“为什么这样写？”我先解释依据，再讨论。')).toBe('你问“为什么这样写？”我先解释依据，再讨论。');
+ expect(skipsResumeFact('不知道怎么改')).toBe(false);expect(skipsResumeFact('跳过')).toBe(true);
 });

@@ -4,6 +4,8 @@ import {callLLM} from "@/lib/llm";
 import {reserveQuota,finalizeQuota} from "@/lib/quota";
 import {buildAgentKnowledgeContext} from "@/lib/knowledge/context";
 import { readIntakeResponse } from "@/lib/opportunities/intake-flow";
+import { lookup } from 'node:dns/promises';
+jest.mock('node:dns/promises',()=>({lookup:jest.fn()}));
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
@@ -165,6 +167,10 @@ describe("supplement keeps the client's ground truth",()=>{
 describe("public JD URL intake",()=>{
  beforeEach(()=>{
   jest.resetAllMocks();
+  // Public fixtures must not depend on the developer's proxy/DNS. Every HTTP
+  // response and the model are mocked; an unconfigured fetch fails closed.
+  (lookup as jest.Mock).mockResolvedValue([{address:'8.8.8.8',family:4}]);
+  jest.spyOn(globalThis,'fetch').mockRejectedValue(Error('Unexpected network request in JD fixture'));
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:"owner"});
   (reserveQuota as jest.Mock).mockResolvedValue({source:"free",remaining:3});
   (finalizeQuota as jest.Mock).mockResolvedValue(undefined);
@@ -205,6 +211,7 @@ describe("public JD URL intake",()=>{
   expect(String(fetchMock.mock.calls[0][0])).toContain("/api/trpc/hr/applications.publicJobs");
   expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("职位：Agent 产品经理");
   expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain("能够通过原型或技术实验验证产品想法");
+  expect(callLLM).toHaveBeenCalledTimes(1);
  });
 
  test.each([
@@ -218,6 +225,15 @@ describe("public JD URL intake",()=>{
   expect((await response.json()).input.sourceLabel).toBe("岗位链接导入");
   expect(String(fetchMock.mock.calls[0][0])).toContain(api);
   expect((callLLM as jest.Mock).mock.calls[0][0][1].content).toContain(title);
+  expect(callLLM).toHaveBeenCalledTimes(1);
+ });
+
+ test.each(['198.18.0.1','127.0.0.1','10.0.0.1'])('still blocks a hostname resolving to protected %s before HTTP, quota or model',async(address)=>{
+  (lookup as jest.Mock).mockResolvedValue([{address,family:4}]);
+  const response=await POST(new Request('https://example.com/api/opportunities/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceText:'https://careers.example.org/jobs/one'})}));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({ok:false,error:expect.stringContaining('不能读取内网地址')});
+  expect(fetch).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();
  });
 
  test("extracts generic JSON application state from common server-rendered SPA shells",async()=>{

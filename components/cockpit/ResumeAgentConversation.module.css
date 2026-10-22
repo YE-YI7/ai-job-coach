@@ -25,6 +25,14 @@
 .records{margin:0 0 18px;padding-left:4px}
 .records>div{margin:12px 0}
 .records p{margin:4px 0;white-space:pre-wrap}
+.receipt{margin:0 0 18px;padding:0 4px;color:var(--cockpit-studio-muted,#636861);font:inherit;font-size:13px;line-height:1.75}
+.receipt>summary{cursor:pointer;min-height:44px;padding-block:10px;color:inherit;font:inherit}
+.receipt>summary:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:4px}
+.receipt dl{margin:4px 0 12px}
+.receipt dl>div{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:12px;margin:10px 0}
+.receipt dt,.receipt dd{margin:0;font:inherit;color:inherit}
+.receipt dd ul{margin:0;padding-inline-start:1.2em}
+.receiptId{margin:0;overflow-wrap:anywhere;font:inherit}
 .conversation summary{cursor:pointer;min-height:32px;align-content:center}
 .anchor{margin-top:8px}
 .anchor p,.failureDetails p{padding-block:6px}

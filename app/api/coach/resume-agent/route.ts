@@ -61,5 +61,8 @@ async function executeClaimed(request:Request,opportunityId:string,userId:string
     // failure happens after that commit, return the saved generation, not a
     // failed task or a second model run.
     const committed = !result.ok ? await readResumeTask(userId, opportunityId).catch(()=>null) : null;
-    return result.task || (committed?.state==='ready'&&committed.result?.resumeGenerationId===`${claimed.task.id}:${claimed.version}`?committed:null) || await finishResumeTask(userId, claimed.task.id, claimed.lease!, claimed.source, result);
+    const task=result.task || (committed?.state==='ready'&&committed.result?.resumeGenerationId===`${claimed.task.id}:${claimed.version}`?committed:null) || await finishResumeTask(userId, claimed.task.id, claimed.lease!, claimed.source, result);
+    // The draft's finally has now flushed its real trace. Re-read the owned
+    // task so the receipt and a subsequent refresh expose the same metadata.
+    return await readResumeTask(userId,opportunityId).catch(()=>null) || task;
 }

@@ -221,6 +221,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const check=parseJson(checkOutput);
       if(check.status!=='passed'||check.unchanged!==true||String(check.summary||'').length<8){repairFeedback.push('独立检查认为仍有值得处理的内容：'+String(check.summary||'请先精简已有事实或对模糊经历问一个问题'));return null;}
       const summary='已检查，当前内容可以保留。本轮没有新增修改；仍可直接编辑或导出。';
+      trace!.step('review','original_document_checked_unchanged');
       const kept=generationSource?.changes||[];
       const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:kept,unchanged:true,summary,applicationQuality:generationSource.applicationQuality}):undefined;
       if(task&&task.state!=='ready')throw Error('简历已更新，本次检查未覆盖你的编辑，请刷新核对');

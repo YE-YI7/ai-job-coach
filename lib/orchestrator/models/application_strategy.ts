@@ -11,7 +11,6 @@ export type ApplicationStrategyResult = {
     targetCompanies?: Array<{
       name: string;
       position: string;
-      matchScore?: number;
       notes?: string;
     }>;
   };
@@ -45,7 +44,6 @@ export async function runDeepSeekStrategy(
   const companies: Array<{
     name: string;
     position: string;
-    matchScore?: number;
     notes?: string;
   }> = [];
 
@@ -58,7 +56,6 @@ export async function runDeepSeekStrategy(
           companies.push({
             name,
             position: "待定",
-            matchScore: 80, // 默认匹配度
           });
         }
       }

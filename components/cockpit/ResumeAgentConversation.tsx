@@ -5,6 +5,7 @@ import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import { resumeMessageExpired } from '@/lib/coach-harness/resume-conversation-recovery';
 import styles from "./ResumeAgentConversation.module.css";
 import TutorMarkdown from './TutorMarkdown';
+import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
@@ -66,6 +67,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
         <summary>{factualAnswers.length?`补充记录 · ${factualAnswers.length} 条`:'本次修改要求'}</summary>
         {task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}
       </details>}
+      {(running||showOutcome)&&task.processing&&<ResumeProcessingReceipt processing={task.processing}/>}
       {visibleTurns.map(turn=><div key={turn.id} data-turn-id={turn.id} className={styles.turn} style={readingTurn?.id===turn.id?{minHeight:readingTurn.height}:undefined}>
         <div className={`${styles.message} ${styles.userMessage}`} aria-label="你"><p>{turn.message}</p></div>
         {(incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply)&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师" aria-busy={incoming?.id===turn.id||undefined}><TutorMarkdown className={styles.reply} streaming={incoming?.id===turn.id}>{incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply}</TutorMarkdown></div>}

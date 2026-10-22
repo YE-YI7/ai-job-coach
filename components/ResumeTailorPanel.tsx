@@ -37,7 +37,6 @@ export default function ResumeTailorPanel({
   const [result, setResult] = useState<{
     tailoredResume: TailoredResumeResult;
     adjustmentNotes: string[];
-    matchScore: number | null;
     keyMatches: string[];
     gaps: string[];
   } | null>(null);
@@ -72,7 +71,6 @@ export default function ResumeTailorPanel({
       setResult({
         tailoredResume: data.tailoredResume,
         adjustmentNotes: data.adjustmentNotes,
-        matchScore: data.matchScore,
         keyMatches: data.keyMatches,
         gaps: data.gaps,
       });
@@ -175,23 +173,6 @@ export default function ResumeTailorPanel({
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-4"
                 >
-                  {/* Match Score */}
-                  {result.matchScore !== null && (
-                    <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shrink-0">
-                        <span className="text-lg font-bold text-white">{result.matchScore}</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">岗位匹配度</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {result.matchScore >= 80 ? "匹配度很高，简历已针对性优化" :
-                           result.matchScore >= 60 ? "匹配度中等，建议补强相关经历" :
-                           "匹配度较低，建议重点调整经历描述"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Key Matches */}
                   {result.keyMatches.length > 0 && (
                     <div>

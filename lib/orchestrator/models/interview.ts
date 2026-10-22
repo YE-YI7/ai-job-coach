@@ -54,7 +54,6 @@ export async function runDeepSeekInterview(
     structured.interviewReports = [{
       id: `interview_${Date.now()}`,
       round: "第一轮：技术面试",
-      overallScore: 80, // 默认分数
       strengths: ["表达清晰"],
       improvements: ["可以增加更多具体案例"],
     }];

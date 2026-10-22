@@ -10,6 +10,8 @@ import { mergeResumeAgentChanges } from "@/lib/opportunities/resume-agent-merge"
 import { currentResumeAnswer } from './resume-supplement';
 import { resumeMessageExpired } from './resume-conversation-recovery';
 import { resolveResumeTrialScope, type ResumeTrialScope } from '@/lib/resume-experience-trial';
+import {readResumeProcessing} from './resume-trace';
+import {skipsResumeFact} from './resume-single-question';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
@@ -41,8 +43,15 @@ async function readRow(userId: string, opportunityId: string): Promise<Row | nul
 }
 export async function readResumeTask(userId: string, opportunityId: string) {
   const source = await ownedResumeTaskSource(userId, opportunityId), row = await readRow(userId, opportunityId);
-  if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
-  return row && row.fingerprint === source.fingerprint ? publicResumeTask(row) : null;
+  if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&row.question&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
+  if(!row||row.fingerprint!==source.fingerprint)return null;
+  const task=publicResumeTask(row);
+  const generation=row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`;
+  if(generation){
+    const processing=await readResumeProcessing(userId,`resume-task:${generation}`,Boolean(source.jd),row.state==='ready');
+    if(processing)task.processing=processing;
+  }
+  return task;
 }
 
 /** Discussion has its own receipt, not a generation lease or an experience answer. */
@@ -69,9 +78,12 @@ export async function completeResumeMessage(userId:string,opportunityId:string,i
   const source=await ownedResumeTaskSource(userId,opportunityId),row=await readRow(userId,opportunityId);
   if(!row||row.version!==version||row.fingerprint!==source.fingerprint||row.state==='running')throw new ResumeTaskError('简历或对话已更新，本轮未执行修改，请刷新核对');
   if(!row.conversation?.some(t=>t.id===id&&t.status==='pending'))throw new ResumeTaskError('消息进度已变化，请刷新核对');
-  const conversation=row.conversation.map(t=>t.id===id?{...t,status:'completed' as const,reply:plan.reply,decision:plan.action,plan}:t);
+  const turn=row.conversation.find(t=>t.id===id)!;
+  const skipped=row.question&&skipsResumeFact(turn.message)&&!row.answers.some(answer=>answer.id===row.question!.id);
+  const safePlan=skipped?{...plan,supplement:null}:plan;
+  const conversation=row.conversation.map(t=>t.id===id?{...t,status:'completed' as const,reply:safePlan.reply,decision:safePlan.action,plan:safePlan}:t);
   const db=requireDb(await getDbClient());
-  const {data,error}=await db.from('coach_resume_tasks').update({conversation,version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version).select('*').maybeSingle();
+  const {data,error}=await db.from('coach_resume_tasks').update({conversation,...(skipped?{question:null,answers:[...row.answers,{...row.question!,answer:'',skipped:true,savedAt:new Date().toISOString()}]}:{}),version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version).select('*').maybeSingle();
   if(error||!data)throw new ResumeTaskError('导师回复尚未保存，输入已保留，未执行修改',error?503:409);
   return publicResumeTask(data);
 }

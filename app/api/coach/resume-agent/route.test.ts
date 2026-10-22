@@ -9,7 +9,7 @@ jest.mock('../resume-draft/route',()=>({POST:jest.fn()}));
 jest.mock('@/lib/coach-harness/resume-task',()=>({claimResumeTask:jest.fn(),finishResumeTask:jest.fn(),readResumeTask:jest.fn(),ResumeTaskError:class extends Error{constructor(message:string,public status=409){super(message);}}}));
 const id='12345678-1234-4234-9234-123456789abc';
 const request=(body:unknown,stream=false)=>new Request('https://example.com/api/coach/resume-agent',{method:'POST',headers:stream?{accept:'application/x-ndjson'}:{},body:JSON.stringify(body)});
-beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});});
+beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});(readResumeTask as jest.Mock).mockResolvedValue(null);});
 test('unauthenticated and invalid actions never claim a task',async()=>{
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValueOnce(null);
   expect((await POST(request({opportunityId:id,action:'start'}))).status).toBe(401);

@@ -107,6 +107,16 @@ test('source change during thinking blocks late reply and never edits a new docu
  await expect(completeResumeMessage('owner','opp',messageId,opened.version,{action:'revise',reply:'准备改',editorBrief:'修改旧段',supplement:null})).rejects.toThrow('未执行修改');
  expect(db.rows('coach_resume_tasks')[0].state).toBe('needs_detail');
 });
+test('unknown or skipped detail is remembered once, never becomes evidence and does not trigger editing',async()=>{
+ const opened=await beginResumeMessage('owner','opp',messageId,'记不清了');
+ const task=await completeResumeMessage('owner','opp',messageId,opened.version,{action:'discuss',reply:'没关系，先保留已有事实。',editorBrief:'',supplement:null});
+ expect(task.state).toBe('needs_detail');expect(task.question).toBeNull();
+ expect(task.answers).toHaveLength(1);expect(task.answers[0]).toMatchObject({id:q.id,skipped:true,answer:''});
+ expect(factualResumeAnswers(task.answers)).toEqual([]);
+ expect(nextResumeQuestion(source,q,task.answers)).toBeNull();
+ const restored=await readResumeTask('owner','opp');expect(restored?.state).toBe('needs_detail');expect(restored?.question).toBeNull();expect(restored?.answers).toEqual(task.answers);
+ expect(db.rows('interview_answers')).toEqual([]);expect(db.rows('watcha_wallets')).toEqual([]);
+});
 test('failed task accepts editing directions without turning them into career facts',async()=>{
   Object.assign(db.rows('coach_resume_tasks')[0],{state:'failed',question:null,error:'旧校验失败'});
   const result=await claimResumeTask('owner','opp',{action:'revise',answer:'请精简实习那段，不要加新事实。'});

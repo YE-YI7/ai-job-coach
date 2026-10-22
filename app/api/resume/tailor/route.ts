@@ -42,6 +42,7 @@ async function handlePost(req: Request) {
 5. 量化指标尽量保留并强化
 6. 语气专业但不夸张
 7. 内部知识库只能帮助理解岗位表达和常见筛选点，不能把外部案例写进用户简历
+8. 不输出岗位匹配分数或百分比；用已有证据和缺口说明适配情况
 
 ⚠️ 极其重要的输出规则：
 - personalInfo、education、campusExperience、projects、workExperience、selfEvaluation 这6个字段的值必须是【完整的简历正文内容】
@@ -60,7 +61,6 @@ async function handlePost(req: Request) {
   "workExperience": "字节跳动 产品实习生 2023.06-2023.09\n- 主导...",
   "selfEvaluation": "3年互联网产品经验，擅长数据驱动决策...",
   "adjustment_notes": ["将项目经历中的推荐系统经验前置，匹配JD中的算法要求", "在自我评价中强调了数据分析能力"],
-  "match_score": 85,
   "key_matches": ["数据分析", "用户增长"],
   "gaps": ["缺少B端产品经验"]
 }
@@ -152,7 +152,6 @@ ${knowledge.contextText ? `---\n\n${knowledge.contextText}` : ""}
         selfEvaluation: parsed.selfEvaluation || resumeData.selfEvaluation,
       },
       adjustmentNotes: parsed.adjustment_notes || [],
-      matchScore: parsed.match_score || null,
       keyMatches: parsed.key_matches || [],
       gaps: parsed.gaps || [],
     });

@@ -482,11 +482,6 @@ export default function WhiteboardCanvas({
                 content={
                   <div className="space-y-1">
                     <div className="text-sm font-medium">{company.position}</div>
-                    {company.matchScore !== undefined && (
-                      <div className="text-xs text-yellow-600">
-                        匹配度：{company.matchScore}%
-                      </div>
-                    )}
                     {company.notes && (
                       <div className="text-xs text-gray-600 line-clamp-2">
                         {company.notes}

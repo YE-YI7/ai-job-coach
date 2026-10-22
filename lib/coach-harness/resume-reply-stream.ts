@@ -1,4 +1,5 @@
 import { stableTutorMarkdownPrefix } from './tutor-format';
+import {singleResumeQuestionReply} from './resume-single-question';
 
 /** Decode only a root-level JSON reply string, never plans, evidence or reasoning.
  * This is a provisional display prefix; the existing full parser still controls
@@ -50,7 +51,7 @@ export function resumeReplyPrefix(raw: string): string {
     }
     space(); if (text[i++] !== ',') break;
   }
-  return ['discuss', 'revise'].includes(action) && reply.length <= 2000 ? reply : '';
+  return ['discuss', 'revise'].includes(action) && reply.length <= 2000 ? singleResumeQuestionReply(reply) : '';
 }
 export function resumeReplyPreview(onReply: (text: string) => void) {
   let raw = '', shown = '';

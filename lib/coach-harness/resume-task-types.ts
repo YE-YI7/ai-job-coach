@@ -16,6 +16,7 @@ export interface ResumeAgentAnswer extends ResumeAgentQuestion {
   claimId?: string;
 }
 export interface ResumeAgentTask {
+  processing?: import('./resume-processing').ResumeProcessingSummary;
   editScope?: import('@/lib/resume-experience-trial').ResumeTrialScope;
   id: string;
   state: "idle" | "running" | "needs_detail" | "ready" | "failed" | "stale";

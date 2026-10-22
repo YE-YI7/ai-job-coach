@@ -7,6 +7,7 @@ import { saveWhiteboard } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { withMeteredAiRoute } from "@/lib/metered-ai-route";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
+import { withoutUnfoundedMatchScores } from '@/lib/unfounded-match-score';
 
 type Message = {
   role?: "user" | "assistant" | "system";
@@ -67,7 +68,6 @@ type WhiteboardData = {
   targetCompanies?: Array<{      // 目标公司
     name: string;
     position: string;
-    matchScore?: number;         // 匹配度
     notes?: string;
   }>;
   
@@ -266,7 +266,7 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
 - targetCompanies: 目标公司列表，每个公司包含：
   - name: 公司名称
   - position: 岗位名称
-  - matchScore: 匹配度 0-100（可选）
+  - 不生成匹配百分比或分数，只保留可核对的岗位与备注
   - notes: 备注（可选）
 
 对话内容：
@@ -278,7 +278,6 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
     {
       "name": "公司名称",
       "position": "岗位名称",
-      "matchScore": 85,
       "notes": "备注或null"
     }
   ]
@@ -386,7 +385,7 @@ ${messages.map((msg, i) => `${msg.role || (msg.isUser ? "user" : "assistant")}: 
       // 尝试提取 JSON
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        whiteboardData = JSON.parse(jsonMatch[0]);
+        whiteboardData = withoutUnfoundedMatchScores(JSON.parse(jsonMatch[0]));
       } else {
         throw new Error("未找到 JSON 格式");
       }

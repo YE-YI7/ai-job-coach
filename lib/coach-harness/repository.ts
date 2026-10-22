@@ -872,6 +872,8 @@ export async function updateCockpitOpportunity(userId: string, opportunity: Oppo
   const {data:written,error}=await write.select("id").maybeSingle();
   if (error) throw error;
   if(!written)throw new ResumeRevisionConflict();
+  // Observe the committed document only; telemetry cannot fail an autosave.
+  await import('./resume-delivery-record').then(({recordResumeDocument})=>recordResumeDocument(userId,id,mergedMetadata,currentMetadata)).catch(()=>{});
   if (jdChanged && nextJd) {
     const source = await recordSource({ userId, opportunityId: id, sourceType: "jd", title: `${company} · ${role} JD`, content: nextJd });
     await createOpportunitySnapshot({ userId, opportunityId: id, snapshotType: "jd", title: `${company} · ${role} JD`, content: { text: nextJd }, sourceId: source.id, createdBy: "user" });

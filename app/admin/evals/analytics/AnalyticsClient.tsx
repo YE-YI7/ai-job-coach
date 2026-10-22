@@ -277,6 +277,18 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           </p>
         </section>
       </div>
+      <section>
+        <div className={styles.sectionHead}><h2>改稿最终交付</h2><span>新口径 · {date(data.resumeDelivery.enabledAt)} 起</span></div>
+        <p className={styles.note}>以服务端确认保存为准，模型返回不算交付。新口径记录 {number(data.resumeDelivery.attemptsStarted)} 次生成开始；仍在处理 {number(data.resumeDelivery.outcomes.running)} 次，未确认终态 {number(data.resumeDelivery.outcomes.unconfirmed)} 次。历史记录不回填。</p>
+        <div className={styles.scrollTable}><table><thead><tr><th>已确认交付</th><th>部分交付</th><th>未产生新改动</th><th>待补信息</th><th>失败</th><th>额度不足</th><th>被阻止</th></tr></thead><tbody><tr>
+          <td>{number(data.resumeDelivery.retrievableComplete)}</td><td>{number(data.resumeDelivery.retrievablePartial)}</td><td>{number(data.resumeDelivery.outcomes.unchanged)}</td><td>{number(data.resumeDelivery.outcomes.needs_detail)}</td><td>{number(data.resumeDelivery.outcomes.failed)}</td><td>{number(data.resumeDelivery.outcomes.quota_denied)}</td><td>{number(data.resumeDelivery.outcomes.blocked)}</td>
+        </tr></tbody></table></div>
+        <details><summary>查看展现、决定和入口</summary>
+          <p className={styles.note}>已在页面展现 {number(data.resumeDelivery.presented)} 代修改；已记录决定 {number(data.resumeDelivery.changeDecisions)} 处；确认保存 {number(data.resumeDelivery.documentsPersisted)} 个文档版本。仅返回、未确认保存 {number(data.resumeDelivery.returnedOnly)} 次。这些是不同阶段，不相加成成功数；浏览器事件可能缺失，PDF 不据此倒推成功。</p>
+          <table><thead><tr><th>起点</th><th>选择</th><th>提交</th><th>结果展现</th><th>出现失败</th></tr></thead><tbody>{data.resumeDelivery.entries.map(row=><tr key={row.kind}><td>{{resume:'我有简历',jd:'我有 JD',find_jobs:'帮我找岗位',one_sentence:'先说一句话'}[row.kind]}</td><td>{row.selected}</td><td>{row.submitted}</td><td>{row.presented}</td><td>{row.failed}</td></tr>)}</tbody></table>
+          <p className={styles.note}>入口按提交编号去重；失败后重试成功可同时出现在两列。匿名与登录阶段不强行拼接。具体输入输出在 <Link href="/admin/evals">Eval 运行</Link>，验收过程在 <Link href="/admin/evals/records">开发记录</Link>。</p>
+        </details>
+      </section>
       <div className={styles.columns}>
         <section>
           <div className={styles.sectionHead}>

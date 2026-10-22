@@ -15,7 +15,7 @@ jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
 jest.mock("@/lib/coach-harness/resume-task");
-jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn() }));
+jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn(),readResumeTrace:jest.fn().mockResolvedValue(null) }));
 jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: jest.fn((_context: unknown, run: () => unknown) => run()) }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
 jest.mock("@/lib/coach-harness/repository", () => ({

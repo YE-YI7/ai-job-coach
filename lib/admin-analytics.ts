@@ -24,6 +24,18 @@ export interface AnalyticsEvent {
   account_cohort?: string | null;
   qa?: string | boolean | null;
   is_test?: string | boolean | null;
+  schema_version?: string | number | null;
+  delivery_outcome?: string | null;
+  generation_id?: string | null;
+  persistence?: string | null;
+  workflow_version?: string | null;
+  delivery_stage?: string | null;
+  reason_code?: string | null;
+  change_id?: string | null;
+  document_revision?: string | null;
+  entry_kind?: string | null;
+  submission_id?: string | null;
+  request_id?: string | null;
 }
 const DAY = 86400000,
   CHINA_OFFSET = 8 * 3600000;
@@ -72,9 +84,16 @@ export function isExcludedEvent(
     ["development", "preview"].includes(e.environment || "")
   );
 }
-// Server-only traces are diagnostics, not evidence of a person returning to use the app.
-export const isActivityEvent = (e: AnalyticsEvent) =>
-  e.event_name !== "resume_agent_trace";
+const DIAGNOSTIC_EVENTS = new Set([
+  "resume_agent_trace",
+  "resume_task_started",
+  "resume_task_outcome",
+  "resume_result_presented",
+  "resume_change_decided",
+  "resume_document_persisted",
+]);
+// Server traces and one-generation delivery rows are diagnostics, not a return visit.
+export const isActivityEvent = (e: AnalyticsEvent) => !DIAGNOSTIC_EVENTS.has(e.event_name);
 export function estimateUsage(events: AnalyticsEvent[]) {
   const sorted = [...events].sort(
     (a, b) =>
@@ -116,9 +135,18 @@ export const EVENT_LABELS: Record<string, string> = {
   material_intake_completed: "材料导入完成",
   material_intake_failed: "材料导入失败",
   material_intake_deferred: "暂后处理材料",
-  resume_generation_started: "简历改稿开始",
-  resume_generation_completed: "简历改稿完成",
-  resume_generation_failed: "简历改稿失败",
+  resume_generation_started: "简历改稿开始（历史）",
+  resume_generation_completed: "简历改稿完成（历史）",
+  resume_generation_failed: "简历改稿失败（历史）",
+  resume_task_started: "改稿尝试",
+  resume_task_outcome: "改稿结果",
+  resume_result_presented: "改稿结果已展现",
+  resume_change_decided: "修改决定",
+  resume_document_persisted: "简历文档已保存",
+  entry_selected: "选择起点",
+  entry_submitted: "提交起点",
+  entry_result_presented: "起点结果已展现",
+  entry_failed: "起点失败",
   resume_print_requested: "请求导出 PDF",
   resume_change_reviewed: "简历建议采纳／保留",
   resume_change_edited: "简历手动编辑",
@@ -181,6 +209,55 @@ export const providerLabel = (x: string | null) => {
   };
   return x && Object.hasOwn(labels, x) ? labels[x] : x || "未记录";
 };
+
+const DELIVERY_OUTCOMES = ["delivered", "partial_delivered", "unchanged", "needs_detail", "blocked", "failed", "quota_denied", "unconfirmed", "running", "unknown"] as const;
+/** schema_version=2 only. Old resume_generation_* rows are not added in. */
+export function summarizeResumeDelivery(events: AnalyticsEvent[], now=Date.now()) {
+  const current = events.filter((event) => String(event.schema_version || "") === "2");
+  const generationKey=(event:AnalyticsEvent)=>event.generation_id?`${event.user_id||event.event_identity}:${event.generation_id}`:'';
+  const unique = (rows: AnalyticsEvent[], key: (event: AnalyticsEvent) => string) => new Set(rows.map(key).filter(Boolean));
+  const started = current.filter((event) => event.event_name === "resume_task_started");
+  const outcomes = current.filter((event) => event.event_name === "resume_task_outcome");
+  const outcomeByGeneration = new Map<string, AnalyticsEvent>();
+  const conflicts=new Set<string>();
+  for (const event of outcomes) {
+    const key=generationKey(event);if(!key)continue;
+    const prior=outcomeByGeneration.get(key);
+    if(prior&&(prior.delivery_outcome!==event.delivery_outcome||prior.persistence!==event.persistence))conflicts.add(key);
+    if(!prior||event.created_at>prior.created_at)outcomeByGeneration.set(key,event);
+  }
+  const counts = Object.fromEntries(DELIVERY_OUTCOMES.map((outcome) => [outcome, 0])) as Record<(typeof DELIVERY_OUTCOMES)[number], number>;
+  const seen = new Set<string>();
+  for (const event of outcomeByGeneration.values()) {
+    const outcome = conflicts.has(generationKey(event))?'unconfirmed':(DELIVERY_OUTCOMES as readonly string[]).includes(event.delivery_outcome || "") ? event.delivery_outcome as (typeof DELIVERY_OUTCOMES)[number] : "unknown";
+    counts[outcome] += 1;
+    seen.add(generationKey(event));
+  }
+  for (const event of started) {const key=generationKey(event);if(key&&!seen.has(key)){counts[now-Date.parse(event.created_at)>330_000?'unconfirmed':'running']+=1;seen.add(key);}}
+  const confirmed = (outcome: string) => [...outcomeByGeneration.values()].filter((event) => !conflicts.has(generationKey(event))&&event.delivery_outcome === outcome && event.persistence === "confirmed").length;
+  const workflows = new Map<string, number>();
+  for (const event of outcomeByGeneration.values()) workflows.set(event.workflow_version || "未记录", (workflows.get(event.workflow_version || "未记录") || 0) + 1);
+  return {
+    schemaVersion: 2,
+    note: "历史 resume_generation_* 不与本口径相加。缺展现、采纳和 PDF 不倒填。",
+    enabledAt: started.map((event) => event.created_at).sort()[0] || null,
+    attemptsStarted: unique(started, generationKey).size,
+    executableAttempts: Math.max(0, unique(started, generationKey).size - counts.quota_denied),
+    outcomes: counts,
+    retrievableComplete: confirmed("delivered"),
+    retrievablePartial: confirmed("partial_delivered"),
+    returnedOnly: [...outcomeByGeneration.values()].filter((event) => event.persistence === "returned_only").length,
+    presented: unique(current.filter((event) => event.event_name === "resume_result_presented"), generationKey).size,
+    changeDecisions: unique(current.filter((event) => event.event_name === "resume_change_decided"), (event) => `${generationKey(event)}:${event.change_id || event.id}`).size,
+    documentsPersisted: unique(current.filter((event) => event.event_name === "resume_document_persisted"), (event) => `${generationKey(event)}:${event.document_revision||event.id}`).size,
+    byWorkflow: [...workflows].map(([version, count]) => ({ version, count })).sort((a, b) => b.count - a.count || a.version.localeCompare(b.version)),
+    entries:['resume','jd','find_jobs','one_sentence'].map(kind=>{
+      const rows=current.filter(e=>e.entry_kind===kind);
+      const count=(name:string)=>unique(rows.filter(e=>e.event_name===name),e=>`${e.user_id||e.event_identity}:${e.submission_id||e.request_id||e.id}`).size;
+      return {kind,selected:count('entry_selected'),submitted:count('entry_submitted'),presented:count('entry_result_presented'),failed:count('entry_failed')};
+    }),
+  };
+}
 
 export function buildAnalytics(
   users: AnalyticsUser[],
@@ -385,6 +462,7 @@ export function buildAnalytics(
       sessionSources: sourceRows("session_source"),
       firstSources: sourceRows("first_source"),
     },
+    resumeDelivery: summarizeResumeDelivery(raw.filter((e) => !excludedEvent(e)&&(!e.user_id||knownUsers.has(e.user_id))),Date.parse(window.end)),
     users: eligibleUsers.map((u) => {
       const rows = userEvents.get(u.id) || [],
         usage = estimateUsage(rows);

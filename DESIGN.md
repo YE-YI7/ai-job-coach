@@ -69,6 +69,26 @@ colors:
   cockpit-studio-composer-focus: "#8d9a7c"
   resume-workspace: "#f5f6f2"
 typography:
+  entry-display:
+    fontFamily: "SmileySub, PingFang SC, sans-serif"
+    fontSize: "clamp(48px, 6vw, 88px)"
+    fontWeight: 400
+    lineHeight: 1.12
+  entry-english:
+    fontFamily: "InstrumentSerif, serif"
+    fontSize: "30px"
+    fontWeight: 400
+    lineHeight: 1.3
+  entry-numerals:
+    fontFamily: "SpaceGrotesk, Outfit, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.5
+  entry-meta:
+    fontFamily: "KodeMono, monospace"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.6
   studio-heading:
     fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
     fontSize: "26px"
@@ -400,6 +420,7 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 ### Resume Paper Scale
 
 当前文字成稿与 PDF 共用 `resumePrintHtml`。简洁蓝灰与温润纸感使用无衬线字体栈；经典黑白使用 Songti SC / Noto Serif SC / serif。`resume-paper-*` 令牌记录简洁蓝灰的实际尺度：正文、姓名、求职方向、分节标题和联系方式分层清晰，日期使用与联系方式相同的字号、常规字重。日期和所属条目成对排列，右侧日期不换行；正文与段落始终左对齐。
+
 
 ### Public Surface Scale
 

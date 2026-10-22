@@ -11,6 +11,7 @@ import { currentResumeAnswer } from './resume-supplement';
 import { resumeMessageExpired } from './resume-conversation-recovery';
 import { resolveResumeTrialScope, type ResumeTrialScope } from '@/lib/resume-experience-trial';
 import {readResumeProcessing} from './resume-trace';
+import {readResumeDelivery} from './resume-delivery-record';
 import {skipsResumeFact} from './resume-single-question';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
@@ -46,7 +47,9 @@ export async function readResumeTask(userId: string, opportunityId: string) {
   if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&row.question&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
   if(!row||row.fingerprint!==source.fingerprint)return null;
   const task=publicResumeTask(row);
-  const generation=row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`;
+  const delivery=await readResumeDelivery(userId,row.id,source.revision,row.state==='ready'?row.result?.resumeGenerationId:row.state==='running'?`${row.id}:${row.version}`:undefined);
+  if(delivery)task.delivery=delivery.outcome==='running'&&row.state!=='running'?{...delivery,outcome:'unconfirmed'}:delivery;
+  const generation=delivery?.generationId||(row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`);
   if(generation){
     const processing=await readResumeProcessing(userId,`resume-task:${generation}`,Boolean(source.jd),row.state==='ready');
     if(processing)task.processing=processing;

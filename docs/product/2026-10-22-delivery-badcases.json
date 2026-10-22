@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "status": "historical_metadata_not_replayable_inputs",
+  "observedWindow": "2026-09-23 00:00 to 2026-10-22 18:05 Asia/Shanghai",
+  "source": "Read-only formal product_events resume_agent_trace and ai_generation_events; two non-internal accounts, owner/confirmed-linked and marked QA excluded",
+  "population": { "traceCoveredAccounts": 2, "attempts": 11, "failed": 11, "dates": ["2026-10-19", "2026-10-21"] },
+  "upstreamDraftCalls": { "provider": "stepfun", "model": "step-3.7-flash", "total": 20, "success": 4, "emptyResponse": 12, "timeout": 4, "isFinalDeliverySuccessRate": false },
+  "cases": [
+    { "id": "YZ-DELIVERY-20261022-01", "traceId": "48e0c423-84ca-4137-ac2d-6e3cd7d57786", "elapsedMs": 90606, "observedCodes": ["empty_response_bounded_repair", "empty_response", "request_failed"], "outcome": "failed", "changeId": null, "rawInput": null, "rawOutput": null, "known": "An empty-response repair attempt was followed by empty_response and final failure.", "unknown": "Original content, precise provider finish reason and parser cause were not captured in this trace metadata." },
+    { "id": "YZ-DELIVERY-20261022-02", "traceId": "badb837e-7d1d-442d-ab19-ddaca716f757", "elapsedMs": 107098, "observedCodes": ["one_bounded_repair", "timeout", "request_failed"], "outcome": "failed", "changeId": null, "rawInput": null, "rawOutput": null, "known": "A candidate reached review and a bounded repair, but final delivery failed.", "unknown": "Missing raw reviewer I/O cannot prove which specific reviewer field or text caused repair." },
+    { "id": "YZ-DELIVERY-20261022-03", "traceId": "b7515672-d2cf-4615-b419-2430b7a4ead2", "elapsedMs": 51960, "observedCodes": ["timeout", "request_failed"], "outcome": "failed", "changeId": null, "rawInput": null, "rawOutput": null, "known": "A returning non-internal account had a failed attempt on October 21; draft upstream timeout was recorded.", "unknown": "This historical attempt does not establish that the October 22 fix still fails." }
+  ],
+  "positiveControlReport": "docs/operations/2026-10-22-review-repair-acceptance.md",
+  "positiveControlTraceIds": ["35dd0cb8-4b27-40ba-a6a1-54469ed4f03b", "dc977099-3a1b-49cc-bb81-d14315f865e5"],
+  "rules": ["Do not reconstruct missing raw I/O or change IDs.", "Do not replay customer materials or run a model under a real user account.", "Use explicitly fictional fixtures with deterministic failure injection for implementation tests.", "Keep provider call success separate from final persisted delivery and browser presentation.", "Latest code already contains review-protocol self-repair; retain it rather than treating every old failure as an unfixed current bug."]
+}

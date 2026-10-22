@@ -500,6 +500,7 @@
 .onboardingSteps strong { font-size: 13px; } .onboardingSteps span { color: var(--muted); font-size: 11px; line-height: 1.6; }
 
 .createPage { max-width: 900px; margin: 0 auto; padding: clamp(52px, 8vh, 92px) clamp(24px, 6vw, 84px) 80px; }
+.createBare { width: 100%; }
 .createIntro { max-width: 690px; margin-bottom: 31px; }
 .createIntro h1 { margin: 0 0 14px; font-family: "Songti SC", "Noto Serif SC", "STSong", serif; font-size: clamp(34px, 4.2vw, 42px); line-height: 1.12; font-weight: 700; letter-spacing: -.03em; text-wrap: balance; }
 .createIntro p { max-width: 61ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; }

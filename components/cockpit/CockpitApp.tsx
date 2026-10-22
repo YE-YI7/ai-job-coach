@@ -21,7 +21,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  BriefcaseBusiness,
   ChevronDown,
   ChevronRight,
   CircleAlert,
@@ -106,6 +105,11 @@ import { applyUserResumeEdit } from "@/lib/opportunities/resume-edit";
 import { applyReorderToOpportunity } from "@/lib/opportunities/resume-blocks";
 import { commitStage, mergeStageResult } from "@/lib/opportunities/stage-save";
 import { trackProductEvent } from "@/lib/product-events";
+import { ChatStartDoor, StartConversation, StartDoors } from "./StartDoors";
+import startStyles from "./StartDoors.module.css";
+import { conversationTitle, intakeEntryFor, isMaterialEntry, type EntryKind } from "@/lib/entry-doors";
+import { clearChatOpened, clearDoorDraft, markChatOpened, readDoorDrafts, restoredChatEntry, saveDoorDraft, type DoorDraft } from "@/lib/door-drafts";
+import { trackEntryFailed, trackEntryPresented, trackEntrySelected, trackEntrySubmitted } from "@/lib/entry-telemetry";
 import styles from "./CockpitApp.module.css";
 
 type CockpitTab = "overview" | "evidence" | "resume" | "interview" | "review" | "salary";
@@ -158,6 +162,7 @@ export function CockpitApp(props: {
   userId?: string;
   dataMode?: "demo" | "live";
   initialTab?: CockpitTab;
+  initialEntry?: EntryKind;
 }) {
   return <ResumeDraftSession key={props.userId || props.userEmail || props.dataMode || "demo"}><CockpitWorkspace {...props} /></ResumeDraftSession>;
 }
@@ -168,12 +173,14 @@ function CockpitWorkspace({
   userId,
   dataMode = "demo",
   initialTab,
+  initialEntry,
 }: {
   initialOpportunities: Opportunity[];
   userEmail?: string;
   userId?: string;
   dataMode?: "demo" | "live";
   initialTab?: CockpitTab;
+  initialEntry?: EntryKind;
 }) {
   const router = useRouter();
   const [opportunities, setOpportunities] = useState(() => shareBaseResumeAcrossOpportunities(initialOpportunities));
@@ -191,6 +198,17 @@ function CockpitWorkspace({
   const intakeCache = useRef(createIntakeCache<AnalyzeIntakeResult>());
   const [newEntry, setNewEntry] = useState<"direction" | "resume" | "interview">("direction");
   const [createOrigin, setCreateOrigin] = useState<"today" | "opportunity">("today");
+  // Four same-level starting doors for a workspace that holds nothing yet.
+  const startAccount = userEmail || userId || "demo";
+  const [startEntry, setStartEntry] = useState<EntryKind>(initialEntry ?? "resume");
+  const [startExplicit, setStartExplicit] = useState(Boolean(initialEntry));
+  const [startReceipt, setStartReceipt] = useState<{ opportunity: Opportunity; deferred: boolean; savedOnly: boolean } | null>(null);
+  const [startDrafts, setStartDrafts] = useState<Partial<Record<EntryKind, DoorDraft>>>({});
+  const [startReady, setStartReady] = useState(false);
+  const [startFileLost, setStartFileLost] = useState(false);
+  const [startChat, setStartChat] = useState<CoachingStart | null>(null);
+  const [startChatOpen, setStartChatOpen] = useState<EntryKind | null>(null);
+  const [startPresent, setStartPresent] = useState<{ kind: EntryKind; submissionId: string; opportunityId: string; requestId: string; deferred: boolean } | null>(null);
   const [generatingResume, setGeneratingResume] = useState(false);
   const [resumeMessageBusy,setResumeMessageBusy]=useState(false);
   const resumeRequestBusy = useRef(false);
@@ -620,6 +638,14 @@ function CockpitWorkspace({
 
   const [resumeFocus,setResumeFocus]=useState(0);
   const [profileView,setProfileView]=useState("profile");
+  const presentedGenerations=useRef(new Set<string>());
+  useEffect(()=>{
+    const receipt=active&&resumeAgentTasks[active.id]?.delivery;
+    if(dataMode==='live'&&receipt?.generationId&&receipt.persistence==='confirmed'&&!presentedGenerations.current.has(receipt.generationId)&&!creating&&!startExplicit&&(activeTab==='resume'||active?.workspaceType==='preparation'&&profileView==='profile')){
+      presentedGenerations.current.add(receipt.generationId);
+      trackProductEvent('resume_result_presented',{generation_id:receipt.generationId});
+    }
+  },[active,activeTab,creating,dataMode,resumeAgentTasks,startExplicit,profileView]);
   useEffect(()=>setProfileView("profile"),[activeId]);
   const focusResumeMentor=()=>{setResumeFocus(value=>value+1);setMobileRail("actions");};
   const changeResumeBlock=(id:string,text:string,expected:string)=>{if(!active)return;const updated=editResumeBlock(active,id,text,expected);setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));};
@@ -629,6 +655,8 @@ function CockpitWorkspace({
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,{ ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? decideResumeChange(change,status) : change) }) : item));
     if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
+    const generation=resumeAgentTasks[active.id]?.delivery?.generationId;
+    if(dataMode==='live'&&generation)trackProductEvent('resume_change_decided',{generation_id:generation,change_id:changeId,decision:status==='accepted'?'accept':'keep'});
     logAction(status === "accepted" ? "接受了一处简历修改建议" : "对一处简历修改保留了原文");
     announce(status === "accepted" ? "已采纳 · 可撤销" : "已保留原文 · 可撤销");
   };
@@ -1066,6 +1094,76 @@ function CockpitWorkspace({
     router.refresh();
   };
 
+  // Drafts live in sessionStorage and cannot be read during SSR, so the doors wait for one client pass.
+  useEffect(() => {
+    const drafts = readDoorDrafts(startAccount);
+    const chat = restoredChatEntry(startAccount);
+    setStartDrafts(drafts);
+    setStartFileLost(Object.values(drafts).some((item) => item.hadFile));
+    if (chat && !initialEntry) { if(!drafts[chat]?.text)setStartChatOpen(chat); setStartEntry(chat); }
+    if (initialEntry && dataMode === "live") trackEntrySelected(initialEntry, "url");
+    setStartReady(true);
+  }, [startAccount, initialEntry, dataMode]);
+
+  useEffect(() => {
+    if (!startPresent || !startPresent.opportunityId || !startReceipt) return;
+    if (dataMode === "live") trackEntryPresented(startPresent.kind, startPresent.submissionId, { request_id: startPresent.requestId, reused_material: false, deferred: startPresent.deferred });
+    setStartPresent(null);
+  }, [startPresent, startReceipt, dataMode]);
+
+  function selectStartEntry(kind: EntryKind) {
+    setStartEntry(kind);
+    setStartFileLost(false);
+    if (dataMode === "live") trackEntrySelected(kind, "click");
+  }
+
+  function persistStartDraft(kind: EntryKind, draft: DoorDraft) {
+    saveDoorDraft(startAccount, kind, draft);
+    setStartDrafts((current) => {
+      const next = { ...current };
+      if (draft.text || draft.hadFile) next[kind] = draft; else delete next[kind];
+      return next;
+    });
+    if (draft.hadFile) setStartFileLost(false);
+  }
+
+  async function submitStartMaterial(intake: OpportunityIntake, entry: "direction" | "resume" | "interview", onProgress: IntakeProgress) {
+    setStartExplicit(true);
+    const kind = startEntry;
+    const submissionId = crypto.randomUUID();
+    const baseProfile = opportunities.find((item) => item.workspaceType === "preparation" && item.resumeText?.trim());
+    const reused = entry !== "direction" && Boolean(baseProfile?.resumeText?.trim());
+    let requestId = "";
+    if (dataMode === "live") trackEntrySubmitted(kind, submissionId, null, { reused_material: reused });
+    try {
+      const result = await createOpportunity(intake, entry, (phase, id) => { if (id) requestId = id; onProgress(phase, id); });
+      clearDoorDraft(startAccount, kind);
+      setStartDrafts((current) => { const next = { ...current }; delete next[kind]; return next; });
+      setStartPresent({ kind, submissionId, opportunityId: result.opportunity.id, requestId, deferred: result.deferred });
+      setStartReceipt({...result,savedOnly:entry==='direction'});
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (dataMode === "live" && !message.includes("已取消")) trackEntryFailed(kind, error instanceof IntakeSaveError ? "save" : "analysis", error instanceof IntakeSaveError ? "save_failed" : "intake_failed", submissionId);
+      throw error;
+    }
+  }
+
+  function startDoorConversation(text: string) {
+    const kind = startEntry;
+    const submissionId = crypto.randomUUID();
+    if (dataMode === "live") trackEntrySubmitted(kind, submissionId, null, { reused_material: false });
+    markChatOpened(startAccount, kind);
+    setStartChatOpen(kind);
+    setStartChat({ id: submissionId, title: conversationTitle(kind, text), prompt: text, newConversation:true });
+  }
+
+  function leaveStartConversation() {
+    clearChatOpened(startAccount);
+    setStartChatOpen(null);
+    setStartChat(null);
+  }
+
 
   const documentSaveState = active && savedPayloads.current.get(active.id) === JSON.stringify(active)
     ? "saved" : active && saveReceipts[active.id]?.payload === JSON.stringify(active) && saveReceipts[active.id]?.status === "failed"
@@ -1097,7 +1195,44 @@ function CockpitWorkspace({
     </div>
   ) : null;
 
-  if (!active && !creating) return <EmptyCockpit userEmail={userEmail} onCreate={(entry) => { setNewEntry(entry); setCreateOrigin("opportunity"); setCreating(true); }} onLogout={logout} />;
+  if ((!active || startExplicit) && !creating) return (
+    <main className={styles.shell}>
+      <header className={styles.topbar}>
+        <div className={styles.detailBrand}><Brand /></div>
+        <div className={styles.topbarContext}>
+          <span className={dataMode === "demo" ? styles.demoState : styles.liveState}>{dataMode === "demo" ? "示例工作区" : "个人工作区"}</span>
+          <WorkspaceAccount label={compactAccountLabel(userEmail)} live={dataMode === "live"} onLogout={logout} />
+        </div>
+      </header>
+      {active&&!startReceipt&&<button type="button" className={styles.textButton} disabled={intakeBusy} onClick={()=>{setStartExplicit(false);leaveStartConversation();router.replace('/cockpit');}}>← 返回原工作区</button>}
+      {startReceipt ? <MaterialReceipt {...startReceipt} onContinue={()=>{setStartExplicit(false);setStartReceipt(null);router.replace('/cockpit');}}/> : startChatOpen
+        ? <StartConversation kind={startChatOpen} startRequest={startChat} onConsumed={() => setStartChat(null)} onAttempt={attempt=>{if(attempt.status==='presented'){clearDoorDraft(startAccount,startChatOpen);if(dataMode==='live')trackEntryPresented(startChatOpen,attempt.submissionId,{request_id:attempt.requestId||null});}else if(dataMode==='live')trackEntryFailed(startChatOpen,'conversation','reply_failed',attempt.submissionId);}} onBack={leaveStartConversation} enabled={dataMode === "live"} />
+        : startReady && (
+          <StartDoors
+            entry={startEntry}
+            onEntryChange={selectStartEntry}
+            fileLostNotice={startFileLost}
+            recovery={<a className={startStyles.recovery} href="/account/phone?recover=1">以前用过益职？找回原来的工作区 <span aria-hidden="true">→</span></a>}
+          >
+            {isMaterialEntry(startEntry)
+              ? <NewOpportunityForm
+                  hideChrome
+                  initialEntry={intakeEntryFor(startEntry) ?? "direction"}
+                  initialSourceText={startDrafts[startEntry]?.text || ""}
+                  onDraftChange={(draft) => persistStartDraft(startEntry, draft)}
+                  onCreate={submitStartMaterial}
+                  onBusyChange={setIntakeBusy}
+                />
+              : <ChatStartDoor
+                  kind={startEntry}
+                  text={startDrafts[startEntry]?.text || ""}
+                  onChange={(value) => persistStartDraft(startEntry, { text: value, hadFile: false })}
+                  onStart={startDoorConversation}
+                />}
+          </StartDoors>
+        )}
+    </main>
+  );
 
   return (
     <main className={styles.shell}>
@@ -1210,36 +1345,6 @@ type OpportunityIntake = { sourceText: string; file: File | null };
 type AnalyzeIntakeResult = { input: NewOpportunityInput; analysis: Partial<Opportunity> | null; analysisDeferred?: boolean; savedOnly?:boolean; reasonCode?: string };
 type OpportunitySupplement = { kind: "job" | "resume" | "experience"; sourceText: string; file: File | null; saveOnly?:boolean };
 
-function EmptyCockpit({ userEmail, onCreate, onLogout }: { userEmail?: string; onCreate: (entry: "direction" | "resume" | "interview") => void; onLogout: () => void }) {
-  return (
-    <main className={styles.shell}>
-      <header className={styles.topbar}>
-        <Brand />
-        <div className={styles.topbarContext}><WorkspaceAccount label={compactAccountLabel(userEmail)} live onLogout={onLogout} /></div>
-      </header>
-      <section className={styles.emptyCockpit}>
-        <div className={styles.emptyCopy}>
-          <span className={styles.emptyIcon}><BriefcaseBusiness size={24} /></span>
-          <h1>先给我简历，一起找到下一步</h1>
-          <p>先了解你的经历，再确定方向和目标岗位。不需要先准备 JD。</p>
-          <button type="button" className={styles.primaryButton} onClick={()=>onCreate("direction")}><UploadCloud size={18}/>导入我的简历</button>
-          <div className={styles.intakeChoices}>
-            <button type="button" onClick={() => onCreate("direction")}>还没有简历，带我梳理</button>
-            <button type="button" onClick={() => onCreate("resume")}>我已经有目标岗位</button>
-            <button type="button" onClick={() => onCreate("interview")}>直接准备面试</button>
-          </div>
-          <a className={styles.recoverWorkspace} href="/account/phone?recover=1">以前用过益职？找回原来的工作区 <span aria-hidden="true">→</span></a>
-        </div>
-        <ol className={styles.onboardingSteps}>
-          <li><strong>还没找到岗位</strong><span>先传简历或说一个目标，整理方向与经历。</span></li>
-          <li><strong>已经有心仪岗位</strong><span>贴招聘链接或 JD，再检查简历该怎么改。</span></li>
-          <li><strong>马上要面试</strong><span>带上岗位与简历，开始针对性练习。</span></li>
-        </ol>
-      </section>
-    </main>
-  );
-}
-
 function DemoNotice({ onCreate }: { onCreate: () => void }) {
   return (
     <section className={styles.demoNotice} aria-label="示例工作区说明">
@@ -1323,7 +1428,7 @@ function RailCompanyMark({company}:{company:string}) {
   return logo&&!failed?<Image className={styles.railCompanyMark} src={logo} alt="" width={24} height={24} onError={()=>setFailed(true)}/>:null;
 }
 
-function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "resume", initialSourceText = "" }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview", progress: IntakeProgress) => Promise<{ opportunity: Opportunity; deferred: boolean }>; onCancel: () => void; onBusyChange: (busy: boolean) => void; initialEntry?: "direction" | "resume" | "interview"; initialSourceText?: string }) {
+function NewOpportunityForm({ onCreate, onCancel, onBusyChange, onDraftChange, initialEntry = "resume", initialSourceText = "", hideChrome = false }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview", progress: IntakeProgress) => Promise<{ opportunity: Opportunity; deferred: boolean }>; onCancel?: () => void; onBusyChange: (busy: boolean) => void; onDraftChange?: (draft: DoorDraft) => void; initialEntry?: "direction" | "resume" | "interview"; initialSourceText?: string; hideChrome?: boolean }) {
   const [entry, setEntry] = useState(initialEntry);
   const inputRef = useRef<HTMLInputElement>(null);
   const [sourceText, setSourceText] = useState(initialSourceText);
@@ -1351,16 +1456,20 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
     setSaveFailed(false);
   };
 
-  if (receipt) return <MaterialReceipt {...receipt} savedOnly={entry==="direction"} onContinue={onCancel}/>;
+  // The starting doors keep unsent text across a refresh; a File cannot be restored, only flagged.
+  useEffect(() => { onDraftChange?.({ text: sourceText, hadFile: Boolean(file) }); }, [sourceText, file]);
 
+  if (receipt) return <MaterialReceipt {...receipt} savedOnly={entry==="direction"} onContinue={() => onCancel?.()}/>;
   return (
-    <div className={styles.createPage}>
-      <button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>← 返回工作区</button>
-      <div className={styles.createIntro}>
-        <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
-        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" disabled={submitting} key={value} aria-pressed={entry === value} onClick={() => {setEntry(value);setSaveFailed(false);}}>{label}</button>)}</div>
-        <p>{entry === "direction" ? "先上传简历，或写下想做的方向。不要求先有 JD；这里先整理目标，尚不自动搜索招聘网站。" : entry === "interview" ? "粘贴这次面试的 JD 或招聘链接。已有简历也可以一起上传，建立档案后进入模拟面试。" : "先粘贴 JD 或招聘链接，也可以上传简历。缺的材料会在下一步提醒你补，不用一次填完。"}</p>
-      </div>
+    <div className={hideChrome ? styles.createBare : styles.createPage}>
+      {!hideChrome && <button type="button" disabled={submitting} className={styles.secondaryButton} onClick={() => onCancel?.()}>← 返回工作区</button>}
+      {!hideChrome && (
+        <div className={styles.createIntro}>
+          <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
+          <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" disabled={submitting} key={value} aria-pressed={entry === value} onClick={() => {setEntry(value);setSaveFailed(false);}}>{label}</button>)}</div>
+          <p>{entry === "direction" ? "先上传简历，或写下想做的方向。不要求先有 JD；这里先整理目标，尚不自动搜索招聘网站。" : entry === "interview" ? "粘贴这次面试的 JD 或招聘链接。已有简历也可以一起上传，建立档案后进入模拟面试。" : "先粘贴 JD 或招聘链接，也可以上传简历。缺的材料会在下一步提醒你补，不用一次填完。"}</p>
+        </div>
+      )}
       <form
         className={styles.createForm}
         onSubmit={async (event) => {
@@ -1422,7 +1531,7 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
         <MaterialDataNotice saveOnly={entry==="direction"}/>
         {submitting && <MaterialTaskProgress phase={phase} startedAt={startedAt} requestId={requestId} saveOnly={entry==="direction"}/>}
         {error && <div role="alert"><p className={styles.intakeError}>{error}</p>{requestId && <small>任务编号：{requestId}</small>}</div>}
-        <div className={styles.formActions}><button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>返回</button><button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在处理…" : saveFailed ? "重试保存 · 不消耗模型额度" : entry === "direction" ? "保存简历 · 免费" : `${error ? "重试整理" : "让导师整理"} · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
+        <div className={styles.formActions}>{!hideChrome && <button type="button" disabled={submitting} className={styles.secondaryButton} onClick={() => onCancel?.()}>返回</button>}<button type="submit" className={styles.primaryButton} disabled={!canSubmit || submitting}>{submitting ? "正在处理…" : saveFailed ? "重试保存 · 不消耗模型额度" : entry === "direction" ? "保存简历 · 免费" : `${error ? "重试整理" : "让导师整理"} · ${quotaLabel}`}<ArrowRight size={16} /></button></div>
       </form>
     </div>
   );

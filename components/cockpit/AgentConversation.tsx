@@ -26,13 +26,17 @@ import type {LearningOutcome} from "@/lib/coach-harness/learning-outcome";
 type Turn={id:string;question:string;answer:string;learning_trace?:{interactionMode?:"coaching"|"mock_interview";suggestions?:string[];model?:string;modelCalls?:number;proactive?:boolean;insufficiency?:InsufficiencyTrace|null;outcome?:LearningOutcome|null;outcomeNote?:string|null;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
 type ScopedTurn=Turn&{opportunity_id?:string|null};
 type Session={id:string;title:string;status:"active"|"archived";summary?:string;opportunity_id?:string|null};
-export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean};
+export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean;newConversation?:boolean};
+export type ConversationAttempt={submissionId:string;requestId?:string;status:'presented'|'failed'};
 export type TutorInvitation={id:string;text:string;title:string;prompt:string};
 async function archiveRemote(sessionId:string){
  const r=await fetch("/api/coach/agent/archive",{method:"POST",headers:{"Content-Type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({sessionId})});
  const b=await r.json();if(!b.ok)throw Error(b.error||"保存进展失败");return b;
 }
-export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onArchived,onStageAdvanced,chatContext,opening,invitation,jobLabels={},resumeWorkflow,resumeContext=false}:{opportunityId?:string;label:string;jobLabels?:Record<string,string>;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage,opportunityId?:string)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null;resumeWorkflow?:{key:string;content:React.ReactNode};resumeContext?:boolean}){
+export default function AgentConversation({opportunityId,label,enabled=true,startRequest,onStartConsumed,onAttempt,onArchived,onStageAdvanced,chatContext,opening,invitation,jobLabels={},resumeWorkflow,resumeContext=false}:{opportunityId?:string;label:string;jobLabels?:Record<string,string>;enabled?:boolean;startRequest?:CoachingStart|null;onStartConsumed?:(id:string)=>void;onAttempt?:(attempt:ConversationAttempt)=>void;onArchived?:()=>void;onStageAdvanced?:(stage:OpportunityStage,opportunityId?:string)=>void|Promise<boolean>;chatContext?:string;opening?:{text:string;prompts:string[]};invitation?:TutorInvitation|null;resumeWorkflow?:{key:string;content:React.ReactNode};resumeContext?:boolean}){
+ const attemptCallback=useRef(onAttempt);attemptCallback.current=onAttempt;
+ const entryAttempt=useRef<{submissionId:string;requestId?:string}|null>(null);
+ const renderedAttempt=useRef<{id:string;submissionId:string;requestId:string}|null>(null);
  const [resumeGuided,setResumeGuided]=useState(Boolean(resumeWorkflow));
  const workflowKey=resumeWorkflow?.key,startId=startRequest?.id;
  useEffect(()=>{if(workflowKey)setResumeGuided(true);},[workflowKey]);
@@ -41,6 +45,7 @@ export default function AgentConversation({opportunityId,label,enabled=true,star
  const [dismissedInvitations,setDismissedInvitations]=useState<string[]>([]);
  const [outreach,setOutreach]=useState<TutorInvitation|null>(null);
  const [turns,setTurns]=useState<ScopedTurn[]>([]),[message,setMessage]=useState(""),[error,setError]=useState("");
+ useEffect(()=>{const receipt=renderedAttempt.current;if(receipt&&turns.some(turn=>turn.id===receipt.id)){renderedAttempt.current=null;entryAttempt.current=null;attemptCallback.current?.({submissionId:receipt.submissionId,requestId:receipt.requestId,status:'presented'});}},[turns]);
  const [owner,setOwner]=useState<string|null>(null),[resumeEntry,setResumeEntry]=useState(false);
  const stageTarget=useRef<string|undefined>(undefined);
  const pendingTarget=useRef<string|null>(null);
@@ -186,6 +191,7 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    const retrying=retry.current?.text===text&&retry.current.sessionId===selected!.id;
    const targetId=retrying&&retry.current?.opportunityId!==undefined?retry.current.opportunityId:opportunityId??null;
    const requestId=retrying?retry.current!.requestId:crypto.randomUUID();
+   if(entryAttempt.current)entryAttempt.current.requestId=requestId;
    const effectiveMode=proactive?"coaching":retrying?retry.current!.interactionMode??interactionMode:interactionMode;
    retry.current={text,sessionId:selected!.id,requestId,opportunityId:targetId,interactionMode:effectiveMode};
    if(!proactive){setProgress("先保存你的回答…");await persistPendingAnswer(retry.current,signal);if(token!==generation.current)return;setProgress("回答已保存，正在连接导师…");}
@@ -206,15 +212,16 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    // Failure to clean up must not turn a confirmed turn into a failed answer.
    void fetch("/api/coach/agent/pending",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:selected!.id,requestId})}).catch(()=>{});
    answerReceivedAt.current=performance.now();
+   if(entryAttempt.current)renderedAttempt.current={...entryAttempt.current,id:b.id,requestId};
    setDraft("");
    setTurns(t=>t.some(x=>x.id===b.id)?t:[...t,{id:b.id,question:text,answer:b.answer,opportunity_id:targetId,learning_trace:b.learning_trace}]);setPending("");setResumeEntry(false);
    if(b.stageSuggestion){stageTarget.current=targetId??undefined;setStageSuggestion(b.stageSuggestion);}
    const notice=modelTurnNotice({modelMode,trace:b.learning_trace});
    if(notice&&!isAcknowledged(ackStore(),notice))setModelNotice(notice);
-  });}catch(e){if(token===generation.current){setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||text);}}
+  });}catch(e){if(token===generation.current){if(entryAttempt.current)attemptCallback.current?.({...entryAttempt.current,status:'failed'});setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||text);}}
   finally{if(token===generation.current){setBusy(false);lock.current=false;}}
  },[enabled,loading,opportunityId,session,modelMode,interactionMode,chatContext,ackStore,setModelNotice,owner]);
- useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current&&!confirmGate.current){seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,false,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed,modelNotice]);
+ useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current&&!confirmGate.current){seen.current.add(startRequest.id);if(startRequest.newConversation)entryAttempt.current={submissionId:startRequest.id};onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,startRequest.newConversation===true,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed,modelNotice]);
  async function archive(){
   if(!session||lock.current||!turns.length)return false;lock.current=true;setBusy(true);setError("");const token=generation.current;
   try{const b=await archiveRemote(session.id);if(token!==generation.current)return false;const closed={...session,status:"archived" as const,summary:b.summary};setSession(closed);setSessions(s=>s.map(x=>x.id===closed.id?closed:x));onArchived?.();return true;}

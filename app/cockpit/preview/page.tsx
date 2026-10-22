@@ -1,3 +1,4 @@
+import { parseEntryKind } from "@/lib/entry-doors";
 import { notFound } from "next/navigation";
 import { CockpitApp } from "@/components/cockpit/CockpitApp";
 import { demoOpportunities } from "@/lib/opportunities/demo";
@@ -22,7 +23,7 @@ const preparationPreview: Opportunity = {
   nextEventLabel: "今天完成第一步",
 };
 
-export default async function CockpitPreviewPage({ searchParams }: { searchParams: Promise<{ empty?: string; preparation?: string; tab?: string; longResume?: string; narrative?: string; changes?: string; studio?:string }> }) {
+export default async function CockpitPreviewPage({ searchParams }: { searchParams: Promise<{ empty?: string; preparation?: string; tab?: string; longResume?: string; narrative?: string; changes?: string; studio?:string; entry?:string }> }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
   const longResume = ["测试求职者（纯虚构验收材料）", "教育经历\n示例大学 · 信息管理专业", ...Array.from({length:24},(_,i)=>`项目经历 ${i+1}：知识助手验收项目\n职责：拆解用户问题，编写需求与评测说明。\n动作：设计检索测试集，检查来源与答案是否一致；记录失败路径和改进方案。\n结果：此处仅用于分页验收，不代表真实求职成果。\n完整性标记：RESUME-CHECK-${String(i+1).padStart(2,"0")}`), "简历正文结束 · RESUME-END"].join("\n\n");
@@ -64,6 +65,7 @@ export default async function CockpitPreviewPage({ searchParams }: { searchParam
       initialOpportunities={params.studio==="1"?studioOpportunities:params.empty === "1" ? [] : params.narrative === "1" ? previewOpportunities.map(item=>({...item,resumeText:narrativeResume,resumeChanges:params.changes === "1" ? [{ ...demoOpportunities[0].resumeChanges[0], id: "narrative-edit", before: "完整性标记 NARRATIVE-1，仅为排版测试。", after: "完整性标记 NARRATIVE-1，已核对排版测试。", status: "pending" as const }] : []})) : params.longResume === "1" ? previewOpportunities.map(item=>({...item,resumeText:longResume})) : previewOpportunities}
       userEmail="cockpit-preview@example.com"
       dataMode="demo"
+      initialEntry={parseEntryKind(params.entry) ?? undefined}
       initialTab={params.tab === "interview" ? "interview" : params.tab === "resume" ? "resume" : undefined}
     />
   );

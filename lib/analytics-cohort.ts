@@ -6,7 +6,7 @@ export function analyticsCohort(
   configuredVisitors: string | undefined = undefined,
 ) {
   const ids = new Set(
-    (configuredIds || "")
+    [configuredIds,process.env.EVAL_CAPTURE_USER_IDS].filter(Boolean).join(',')
       .split(",")
       .map((id) => id.trim().toLowerCase())
       .filter(Boolean),

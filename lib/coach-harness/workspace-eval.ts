@@ -10,9 +10,10 @@ import {
 } from "./eval-scope";
 import { RESUME_TRACE_EVENT, resumeRequestHash } from "./resume-trace";
 
-/** Deliberate owner allowlist, not every admin and never user-editable metadata. */
+/** Server-only consent allowlists, not user-editable metadata. Capture-only
+ * identities do not acquire administrator permissions. */
 export function workspaceEvalEnabled(user: { id: string }) {
-  return (process.env.EVAL_ADMIN_USER_IDS || "")
+  return [process.env.EVAL_ADMIN_USER_IDS,process.env.EVAL_CAPTURE_USER_IDS].filter(Boolean).join(',')
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)

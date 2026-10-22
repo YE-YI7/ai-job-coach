@@ -25,7 +25,16 @@ function editDistanceWithin(a: string, b: string, limit: number) {
   return prev[a.length];
 }
 
-/** 忽略空白与标点后编辑距离 ≤10%（下限 2）视为同义换词：没有信息增量，不该让用户确认。 */
+/** Deterministic no-op only. Preserve line structure and punctuation: fixing
+ * a missing result separator or an OCR typo may be a valuable small edit. */
+export function isResumeTextUnchanged(before: string, after: string) {
+  const visible = (value: string) => value.replace(/[^\S\n]+/g, "").replace(/\n{2,}/g, "\n").trim();
+  return visible(before) === visible(after);
+}
+
+/** Similarity heuristic, NOT a quality verdict. OCR corrections and repairs to
+ * fused sentences often fall below the same edit-distance threshold. Only the
+ * independent reviewer can decide whether such a non-no-op is useful. */
 export function isTrivialRewrite(before: string, after: string) {
   const a = normalizeForDiff(before);
   const b = normalizeForDiff(after);

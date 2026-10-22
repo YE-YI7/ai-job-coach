@@ -1,7 +1,7 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { POST as draftResume } from "../resume-draft/route";
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from "@/lib/coach-harness/resume-task";
-import { deliveryFromTask, normalizeResumeReason } from "@/lib/coach-harness/resume-delivery";
+import { countNewResumeChanges, deliveryFromTask, normalizeResumeReason } from "@/lib/coach-harness/resume-delivery";
 import { recordResumeServerEvent, recordResumeDocument } from "@/lib/coach-harness/resume-delivery-record";
 import { readResumeTrace } from "@/lib/coach-harness/resume-trace";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
@@ -63,7 +63,7 @@ async function executeClaimed(request:Request,opportunityId:string,userId:string
     const started=Date.now();
     const coordinates={taskId:claimed.task.id,sourceRevision:claimed.source.revision,opportunityId,startedAt:new Date(started).toISOString(),mode:claimed.source.general?'general_resume':'target_resume'};
     if (generationId) await recordResumeServerEvent(userId, "resume_task_started", generationId, deliveryFromTask(null, { generationId, taskState: "running" }),coordinates);
-    let result:{ok?:boolean;task?:ResumeAgentTask;needUpgrade?:boolean;blocked?:boolean;reasonCode?:string;retryable?:boolean;error?:string;documentReview?:{status?:string}};
+    let result:{ok?:boolean;task?:ResumeAgentTask;needUpgrade?:boolean;blocked?:boolean;reasonCode?:string;retryable?:boolean;error?:string;rejectedCount?:number;documentReview?:{status?:string}};
     let evalRunId:string|null=null;
     try {
       const response = await draftResume(new Request(request.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
@@ -95,14 +95,17 @@ async function executeClaimed(request:Request,opportunityId:string,userId:string
         traceFinishMissing: !sameSaved&&saved.state==='running',
         traceId:trace?.traceId,
         evalRunId,
-        stage:failure?.stage||trace?.steps.at(-1)?.stage||null,
-        hasUnresolved:Boolean(result.documentReview?.status==='failed'),
+        stage:failure?trace?.steps.filter(step=>step.stage!=='failure').at(-1)?.stage||'failure':trace?.steps.at(-1)?.stage||null,
+        // previousChanges is a transient CAS input removed by the save RPC.
+        // The claim's owned snapshot is the actual before-set for this attempt.
+        newChangeCount:sameSaved?countNewResumeChanges(claimed.source.changes||[],saved.result?.changes):null,
+        hasUnresolved:Boolean(result.documentReview?.status==='failed'||result.rejectedCount),
         quotaDenied: !sameSaved&&(result?.needUpgrade === true||trace?.outcome==='quota_denied'),
         blocked: !sameSaved&&(Boolean(result?.blocked) || /发生变化/.test(String(result?.error || ""))),
         reasonCode: normalizeResumeReason(result?.reasonCode) || (/发生变化/.test(String(result?.error || "")) ? "cas_conflict" : result?.ok === false && !sameSaved ? "request_failed" : null),
         retryable: typeof result?.retryable === "boolean" ? result.retryable : null,
       });
-      const observed=await recordResumeServerEvent(userId, "resume_task_outcome", generationId, saved.delivery,{...coordinates,elapsedMs:Date.now()-started,changeIds:sameSaved?saved.result?.changes.filter(c=>!saved.result?.previousChanges?.some(p=>p.id===c.id)).map(c=>c.id):[]});
+      const observed=await recordResumeServerEvent(userId, "resume_task_outcome", generationId, saved.delivery,{...coordinates,elapsedMs:Date.now()-started,changeIds:sameSaved?saved.result?.changes.filter(c=>!claimed.source.changes?.some(p=>p.id===c.id)).map(c=>c.id):[]});
       saved.delivery.observation=observed==='recorded'?'confirmed':'unconfirmed';
       if(sameSaved)await recordResumeDocument(userId,opportunityId,{resumeText:claimed.source.resume,resumeRevision:claimed.source.revision,resumeGenerationId:generationId,resumeChanges:saved.result?.changes}).catch(()=>{});
     }

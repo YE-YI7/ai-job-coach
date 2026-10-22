@@ -48,6 +48,18 @@ export async function recordResumeServerEvent(userId: string, event: "resume_tas
       properties,
     });
     const { error } = await db.from("product_events").upsert(write.row, { onConflict: write.onConflict, ignoreDuplicates: true });
+    // Only enrich the newly captured, owned run returned by this execution.
+    // Never rewrite historical statuses or reconstruct missing Agent I/O.
+    if(!error&&event==='resume_task_outcome'&&receipt.evalRunId){
+      try {
+        const run=await db.from('coach_eval_runs').select('run').eq('user_id',userId).eq('id',receipt.evalRunId).maybeSingle();
+        if(!run.error&&run.data?.run){
+          const original=run.data.run;
+          const result={...original.result,delivery:receipt,rawResponse:{...original.result?.rawResponse,delivery:receipt}};
+          await db.from('coach_eval_runs').update({run:{...original,result},updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',receipt.evalRunId);
+        }
+      }catch{/* Missing observation does not undo a committed document. */}
+    }
     return error ? "unconfirmed" as const : "recorded" as const;
   } catch {
     return "unconfirmed" as const;

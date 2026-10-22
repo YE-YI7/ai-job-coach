@@ -87,3 +87,11 @@ test('a committed result survives a later response failure without double finish
   expect(await (await POST(request({opportunityId:id,action:'retry'}))).json()).toMatchObject({ok:true,task:{state:'ready'}});
   expect(finishResumeTask).not.toHaveBeenCalled();
 });
+test('counts new changes from the claimed source, not the transient CAS field removed by the RPC',async()=>{
+ const generation='task:4',saved={id:'task',state:'ready',result:{resumeGenerationId:generation,changes:[{id:'retained'},{id:'new-change'}]}};
+ (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:4,lease:'lease',source:{resume:'原文',jd:'',revision:'rev',changes:[{id:'retained'}]}});
+ (draft as jest.Mock).mockResolvedValue(Response.json({ok:true,task:saved}));
+ (readResumeTask as jest.Mock).mockResolvedValue(saved);
+ expect(await(await POST(request({opportunityId:id,action:'start'}))).json()).toMatchObject({task:{delivery:{outcome:'delivered',deliveredCount:1}}});
+ expect(recordResumeServerEvent).toHaveBeenLastCalledWith('owner','resume_task_outcome',generation,expect.objectContaining({outcome:'delivered'}),expect.objectContaining({changeIds:['new-change']}));
+});

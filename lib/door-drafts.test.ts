@@ -1,4 +1,4 @@
-import { clearChatOpened, clearDoorDraft, markChatOpened, readDoorDrafts, restoredChatEntry, saveDoorDraft } from "./door-drafts";
+import { clearChatOpened, clearDoorDraft, markChatOpened, readDoorDrafts, restoredChatEntry, recoverableChatEntry, saveDoorDraft } from "./door-drafts";
 
 function installStorage(options: { throwOnAccess?: boolean; raw?: string } = {}) {
   const data = new Map<string, string>();
@@ -72,5 +72,19 @@ describe("unsubmitted door drafts", () => {
     expect(readDoorDrafts("a@b.com")).toEqual({ jd: { text: "JD", hadFile: false } });
     clearDoorDraft("other@b.com", "jd");
     expect(readDoorDrafts("a@b.com")).toEqual({ jd: { text: "JD", hadFile: false } });
+  });
+
+  it("restores a confirmed conversation through the same entry URL without replaying input", () => {
+    installStorage();
+    saveDoorDraft("a@b.com", "one_sentence", {text:"先讨论",hadFile:false});
+    markChatOpened("a@b.com", "one_sentence");
+    expect(recoverableChatEntry("a@b.com", "one_sentence")).toBeNull();
+    clearDoorDraft("a@b.com", "one_sentence");
+    expect(recoverableChatEntry("a@b.com", "one_sentence")).toBe("one_sentence");
+    expect(recoverableChatEntry("a@b.com")).toBe("one_sentence");
+    expect(recoverableChatEntry("a@b.com", "jd")).toBeNull();
+    expect(recoverableChatEntry("other@b.com", "one_sentence")).toBeNull();
+    clearChatOpened("a@b.com");
+    expect(recoverableChatEntry("a@b.com", "one_sentence")).toBeNull();
   });
 });

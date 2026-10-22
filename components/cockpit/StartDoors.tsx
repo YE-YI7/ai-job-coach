@@ -12,12 +12,13 @@ import styles from "./StartDoors.module.css";
  * belonging to the selected door expands. Nothing is sent until the person
  * presses the door's own submit button.
  */
-export function StartDoors({ entry, onEntryChange, fileLostNotice, recovery, children }: {
+export function StartDoors({ entry, onEntryChange, fileLostNotice, recovery, children, busy=false }: {
   entry: EntryKind;
   onEntryChange: (kind: EntryKind) => void;
   fileLostNotice?: boolean;
   recovery?: ReactNode;
   children?: ReactNode;
+  busy?:boolean;
 }) {
   const door = ENTRY_DOOR_BY_KIND[entry];
   return (
@@ -31,6 +32,7 @@ export function StartDoors({ entry, onEntryChange, fileLostNotice, recovery, chi
           <button
             type="button"
             key={item.kind}
+            disabled={busy}
             className={styles.door}
             aria-pressed={entry === item.kind}
             onClick={() => onEntryChange(item.kind)}
@@ -41,7 +43,7 @@ export function StartDoors({ entry, onEntryChange, fileLostNotice, recovery, chi
           </button>
         ))}
       </div>
-      <div className={styles.panel} key={entry}>
+      <div className={styles.panel} key={entry} aria-busy={busy}>
         <div className={styles.panelHead}>
           <span className={styles.panelMeta}>{door.meta}</span>
           <p className={styles.panelOut}>这一步会得到：{door.out}</p>

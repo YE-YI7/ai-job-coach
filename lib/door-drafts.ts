@@ -69,6 +69,14 @@ export function restoredChatEntry(account: string): EntryKind | null {
   return state.chatOpen && ENTRY_KINDS.includes(state.chatOpen) ? state.chatOpen : null;
 }
 
+/** Restore the submitted conversation on refresh, including a matching entry URL.
+ * Unconfirmed text remains editable and is never submitted by restoration. */
+export function recoverableChatEntry(account: string, requested?: EntryKind): EntryKind | null {
+  const kind = restoredChatEntry(account);
+  if (!kind || (kind !== "one_sentence" && kind !== "find_jobs") || (requested && requested !== kind)) return null;
+  return readDoorDrafts(account)[kind]?.text ? null : kind;
+}
+
 export function markChatOpened(account: string, kind: EntryKind) {
   const state = read();
   const own = state && state.account === account ? state : { account, drafts: {}, chatOpen: null } as DoorDraftState;

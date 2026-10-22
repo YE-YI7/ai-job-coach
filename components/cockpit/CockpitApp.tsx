@@ -108,7 +108,7 @@ import { trackProductEvent } from "@/lib/product-events";
 import { ChatStartDoor, StartConversation, StartDoors } from "./StartDoors";
 import startStyles from "./StartDoors.module.css";
 import { conversationTitle, intakeEntryFor, isMaterialEntry, type EntryKind } from "@/lib/entry-doors";
-import { clearChatOpened, clearDoorDraft, markChatOpened, readDoorDrafts, restoredChatEntry, saveDoorDraft, type DoorDraft } from "@/lib/door-drafts";
+import { clearChatOpened, clearDoorDraft, markChatOpened, readDoorDrafts, recoverableChatEntry, saveDoorDraft, type DoorDraft } from "@/lib/door-drafts";
 import { trackEntryFailed, trackEntryPresented, trackEntrySelected, trackEntrySubmitted } from "@/lib/entry-telemetry";
 import styles from "./CockpitApp.module.css";
 
@@ -1097,10 +1097,12 @@ function CockpitWorkspace({
   // Drafts live in sessionStorage and cannot be read during SSR, so the doors wait for one client pass.
   useEffect(() => {
     const drafts = readDoorDrafts(startAccount);
-    const chat = restoredChatEntry(startAccount);
+    const chat = recoverableChatEntry(startAccount, initialEntry);
     setStartDrafts(drafts);
     setStartFileLost(Object.values(drafts).some((item) => item.hadFile));
-    if (chat && !initialEntry) { if(!drafts[chat]?.text)setStartChatOpen(chat); setStartEntry(chat); }
+    if(initialEntry){setStartEntry(initialEntry);setStartExplicit(true);}
+    setStartChatOpen(chat);
+    if (chat) { setStartEntry(chat); setStartExplicit(true); }
     if (initialEntry && dataMode === "live") trackEntrySelected(initialEntry, "url");
     setStartReady(true);
   }, [startAccount, initialEntry, dataMode]);
@@ -1112,6 +1114,7 @@ function CockpitWorkspace({
   }, [startPresent, startReceipt, dataMode]);
 
   function selectStartEntry(kind: EntryKind) {
+    if(intakeBusy)return;
     setStartEntry(kind);
     setStartFileLost(false);
     if (dataMode === "live") trackEntrySelected(kind, "click");
@@ -1210,6 +1213,7 @@ function CockpitWorkspace({
         : startReady && (
           <StartDoors
             entry={startEntry}
+            busy={intakeBusy}
             onEntryChange={selectStartEntry}
             fileLostNotice={startFileLost}
             recovery={<a className={startStyles.recovery} href="/account/phone?recover=1">以前用过益职？找回原来的工作区 <span aria-hidden="true">→</span></a>}

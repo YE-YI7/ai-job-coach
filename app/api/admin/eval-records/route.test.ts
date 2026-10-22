@@ -1,0 +1,18 @@
+import {GET,POST} from './route';
+import {getCurrentUserFromRequest} from '@/lib/auth';
+import {getDbClient} from '@/lib/db';
+import {evalRecordFixture as sample} from '@/lib/coach-harness/testing/eval-record-fixture';
+import {parseEvalRecord,recordHash} from '@/lib/coach-harness/eval-records';
+jest.mock('@/lib/auth',()=>({getCurrentUserFromRequest:jest.fn()}));
+jest.mock('@/lib/db',()=>({getDbClient:jest.fn()}));
+const url='https://example.invalid/api/admin/eval-records';
+const request=(body:unknown=sample,origin='https://example.invalid')=>new Request(url,{method:'POST',headers:{origin},body:JSON.stringify(body)});
+const original=process.env.EVAL_ADMIN_USER_IDS;
+beforeEach(()=>{jest.clearAllMocks();process.env.EVAL_ADMIN_USER_IDS='admin';(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'admin'});});
+afterAll(()=>{if(original===undefined)delete process.env.EVAL_ADMIN_USER_IDS;else process.env.EVAL_ADMIN_USER_IDS=original;});
+function db(options:{duplicate?:boolean;hash?:string;fail?:boolean}={}){const rows:unknown[]=[];const q:any={select:jest.fn(()=>q),eq:jest.fn(()=>q),order:()=>q,limit:()=>q,insert:(r:unknown)=>{rows.push(r);return Promise.resolve({error:options.duplicate?{code:'23505'}:options.fail?{code:'fail'}:null});},maybeSingle:async()=>({data:{run:{recordType:'development_log',archiveHash:options.hash,record:parseEvalRecord(sample)},created_at:'2026-10-22'},error:null}),then:(resolve:(x:unknown)=>unknown)=>resolve({data:[],error:null})};const from=jest.fn(()=>q);(getDbClient as jest.Mock).mockResolvedValue({from});return{q,from,rows};}
+test('all read/download/write paths require existing admin before DB',async()=>{for(const user of [null,{id:'ordinary',user_metadata:{admin:true}}]){(getCurrentUserFromRequest as jest.Mock).mockResolvedValue(user);expect([401,403]).toContain((await GET(new Request(url+'?id='+sample.id+'&file=pdf'))).status);expect([401,403]).toContain((await POST(request())).status);}expect(getDbClient).not.toHaveBeenCalled();});
+test('CSRF, arbitrary identities, invalid UUID and oversize rejected without writes',async()=>{expect((await POST(request(sample,'https://evil.invalid'))).status).toBe(403);expect((await POST(request({...sample,userId:'victim'}))).status).toBe(400);expect((await POST(request({...sample,summary:'x'.repeat(800000)}))).status).toBe(413);expect((await GET(new Request(url+'?id=bad'))).status).toBe(400);expect(getDbClient).not.toHaveBeenCalled();});
+test('stores new archive only in private eval table with actor derived server-side',async()=>{const {rows,from}=db();expect((await POST(request())).status).toBe(200);expect(rows[0]).toMatchObject({user_id:'admin',run:{recordType:'development_log',record:{id:sample.id}}});expect(from).toHaveBeenCalledWith('coach_eval_runs');});
+test('idempotent replay never overwrites conflicting evidence or triggers any model',async()=>{db({duplicate:true,hash:recordHash(parseEvalRecord(sample)!)});expect(await(await POST(request())).json()).toMatchObject({saved:true,replayed:true});db({duplicate:true,hash:'different'});expect((await POST(request())).status).toBe(409);db({fail:true});expect((await POST(request())).status).toBe(503);});
+test('bounded list uses metadata only; detail strips attachment payload; missing file is 404',async()=>{const {q}=db();const r=await GET(new Request(url));expect(r.headers.get('cache-control')).toBe('private, no-store');expect(q.select).toHaveBeenCalledWith('id,label,status,created_at,record_index:run->recordIndex');expect(q.eq).toHaveBeenCalledWith('run->>recordType','development_log');expect((await GET(new Request(url+'?limit=1000'))).status).toBe(400);expect((await GET(new Request(url+'?id='+sample.id+'&file=unknown'))).status).toBe(404);});

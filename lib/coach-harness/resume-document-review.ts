@@ -4,7 +4,7 @@ export type FormatPolicy = "preserve" | "repair" | "standard";
 export type DocumentFinding = {changeId: string | null; category: string; severity: "error" | "warning"; message: string};
 export type DocumentReviewContractError='document_missing'|'document_unexpected_fields'|'document_status_invalid'|'document_summary_invalid'|'document_findings_invalid'|'document_finding_invalid'|'document_finding_fields_invalid'|'document_finding_id_invalid'|'document_finding_verdict_invalid'|'document_failed_without_error';
 export type DocumentReview = {status: "passed" | "failed"; summary: string; findings: DocumentFinding[]; source: "independent" | "self_review" | "deterministic_format"; contractError?:DocumentReviewContractError};
-export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v7";
+export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v8-ocr-review";
 const lead = (text:string) => /^\s*(?:[-*•]\s+)?\*\*[^*\n]{2,80}\*\*/.test(text);
 const marker = (text:string) => text.match(/^\s*([-*•]|\d+[.)])\s+/)?.[1];
 

@@ -134,6 +134,37 @@ describe("resume draft source mapping", () => {
     }
   });
 
+  test.each([
+    ['平台运营：负责社团官方平台的内容容运营，累计发布通知并整理每周阅读记录。','平台运营：负责社团官方平台的内容运营，累计发布通知并整理每周阅读记录。'],
+    ['平台运营：累计发布通知，实现关注人数增长20%月平均阅读量提升15%。','平台运营：累计发布通知，实现关注人数增长20%、月平均阅读量提升15%。'],
+  ])('OCR and fused metrics reach independent review despite low edit distance',async(before,after)=>{
+    expect(isTrivialRewrite(before,after)).toBe(true);
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after,reason:'修复重复字或并列指标粘连，不新增任何事实',sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',summary:'修复文字错误，事实和结果口径保持不变',findings:[],document:passedDocument,valueChecks:[{index:0,useful:true,kind:'clarity',reason:'修复重复字或粘连指标，使原有内容清晰可读'}]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'ocr-artifact',version:1});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.status).toBe(200);
+    expect((await response.json()).changes[0]).toMatchObject({before,after,status:'pending'});
+    expect(callLLM).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('OCR错字');
+    const trace=await(startResumeTrace as jest.Mock).mock.results[0].value;
+    expect(trace.step).toHaveBeenCalledWith('grounding','similar_changes_require_review',1);
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+  });
+
+  test('a semantic similarity hint cannot override an independent no-value verdict',async()=>{
+    const before='核对活动页面的图片与标题，记录差异并交给页面同事修改。',after='核对活动页面的图片与标题，记录差异后移交页面同事修改。';
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after,sourceIds:['claim-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',summary:'事实未变，但只有交接动词的同义替换',findings:[],document:passedDocument,valueChecks:[{index:0,useful:false,kind:'clarity',reason:'只有交给与移交的同义替换，没有实际改善'}]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.ok).toBe(false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test('cosmetic labels never become a paid deliverable',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]}));
@@ -294,10 +325,11 @@ describe("resume draft source mapping", () => {
     const before='参与校园项目,负责需求工作,个人交付未梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[{sourceExcerpt:before,answer:'我整理了需求清单。',claimId:'claim-1'}]});
     const skill=JSON.stringify({changes:[{before:'使用 Excel 整理资料',after:'- 使用 Excel\n- 整理资料',sourceIds:['claim-1']}]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(skill).mockResolvedValueOnce(skill);
+    (callLLM as jest.Mock).mockResolvedValueOnce(skill).mockResolvedValueOnce(skill)
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',summary:'把工具与动作拆成孤立标签，没有编辑价值',findings:[],document:passedDocument,valueChecks:[{index:0,useful:false,kind:'structure',reason:'仅把使用工具和整理资料拆开，反而破坏原动作关系'}]}));
     const response=await POST(new Request('https://example.com/api/coach/resume-draft',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before+'\n使用 Excel 整理资料',mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
-    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(2);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
-    expect(await response.json()).toMatchObject({reasonCode:'resume_draft_unverified',retryable:true});
+    expect(response.status).toBe(422);expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(await response.json()).toMatchObject({reasonCode:'resume_review_failed',retryable:true});
   });
 
   test('safe valuable edits elsewhere survive an unhandled supplement after one bounded repair',async()=>{

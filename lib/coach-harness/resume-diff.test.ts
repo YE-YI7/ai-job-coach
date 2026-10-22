@@ -1,4 +1,21 @@
-import { isTrivialRewrite } from "./resume-diff";
+import { isTrivialRewrite, isResumeTextUnchanged } from "./resume-diff";
+
+describe('deterministic no-op versus semantic similarity',()=>{
+  test('high similarity does not prove a repeated OCR character has no value',()=>{
+    const before='平台运营：负责社团官方平台的内容容运营，累计发布通知并整理每周阅读记录。';
+    const after='平台运营：负责社团官方平台的内容运营，累计发布通知并整理每周阅读记录。';
+    expect(isTrivialRewrite(before,after)).toBe(true);
+    expect(isResumeTextUnchanged(before,after)).toBe(false);
+  });
+  test('a missing separator between existing result metrics is not a no-op',()=>{
+    expect(isResumeTextUnchanged('关注人数增长20%月平均阅读量提升15%。','关注人数增长20%、月平均阅读量提升15%。')).toBe(false);
+  });
+  test('space-only edits remain no-ops but factual paragraph splits do not',()=>{
+    expect(isResumeTextUnchanged('负责客户咨询。','负责 客户咨询。')).toBe(true);
+    expect(isResumeTextUnchanged('- 客户咨询。\n- 退款登记。','- 客户咨询。\n\n- 退款登记。')).toBe(true);
+    expect(isResumeTextUnchanged('客户咨询。退款登记。','- 客户咨询。\n- 退款登记。')).toBe(false);
+  });
+});
 
 describe("useful factual restructuring", () => {
   it('rejects explanatory padding that makes an already clear bullet longer',()=>{

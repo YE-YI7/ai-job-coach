@@ -34,6 +34,10 @@ UI 手动 Impeccable detect 一次：0 primary，仅原进度条历史 2px 圆�
 
 ## 发布验收
 
+暂存 `dpl_EH2zZjxSUdtoLYuPY25nnBGrNJR2`（7cc3e5e）未晋级：干净归档 14 套 139 项、138 路由生产构建通过。隔离虚构缺口案例 Trace `7f890d64-652d-4073-864c-643a1b013e34` 两次站点 StepFun 成功返回，但第一轮格式修复、第二轮候选丢参与/限定或缺少实际动作，被事实门禁拒绝，回到单问、未保存、未消费体验；不计作成功改稿。运行中的浏览器已看到真实的简历/三条知识/阶段记录。
+
+实点“先别改”正常 discuss，列表渲染且仅一个问题；随后“记不清了”被模型错误判成 revise（回复仍在询问要不要改），验收因此不通过。追加确定性规则：单独未知/跳过一律只讨论，记录 skipped 但不调编辑；已补对抗模型输出的回归，不将错误候选晋级。
+
 待：干净归档回归/生产构建、隔离账号真实处理记录和讨论/跳过、保存刷新、桌面/窄屏模型菜单与 Markdown、真实 PDF 文件目视与文字检查、同构建正式域回读、QA 精确清理及保护快照重核。未通过前不切正式。
 
 技术核对参考：[Supabase JSON 条件过滤](https://supabase.com/docs/reference/javascript/using-filters)、[Vercel 同构建晋级](https://vercel.com/docs/deployments/promoting-a-deployment)。未新增数据库表/字段或认证权限。

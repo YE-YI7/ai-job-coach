@@ -34,3 +34,8 @@ test('streamed and saved mentor replies ask the same single question and preserv
  expect(singleResumeQuestionReply('你问“为什么这样写？”我先解释依据，再讨论。')).toBe('你问“为什么这样写？”我先解释依据，再讨论。');
  expect(skipsResumeFact('不知道怎么改')).toBe(false);expect(skipsResumeFact('跳过')).toBe(true);
 });
+test('a bare unknown or skip cannot invoke editing even if the model says revise',()=>{
+ const pending={id:'skip',message:'记不清了',reply:'',status:'pending' as const,savedAt:'now'};
+ const plan=parseResumeConversationDecision(JSON.stringify({action:'revise',reply:'没关系，保留已知事实。',editorBrief:'删除未知经历',supplement:null}),source,[...turns,pending]);
+ expect(plan).toEqual({action:'discuss',reply:'没关系，保留已知事实。',editorBrief:'',supplement:null});
+});

@@ -91,7 +91,9 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
       }
       localStorage.setItem("inviteCode", inviteCode);
 
-      router.push(getPostLoginTarget());
+      // A prefetched signed-out RSC response can otherwise send the freshly
+      // authenticated user back here. Read the destination with the new cookie.
+      window.location.assign(getPostLoginTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败");
       shakeCard();
@@ -228,7 +230,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
       }
       localStorage.setItem("userEmail", email.trim());
 
-      router.push(getPostLoginTarget());
+      window.location.assign(getPostLoginTarget());
     } catch (err) {
       setError(err instanceof Error ? err.message : "验证失败");
       shakeCard();

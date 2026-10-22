@@ -4,8 +4,8 @@ import { middleware } from './middleware';
 import { verifySessionToken } from '@/lib/session';
 jest.mock('@/lib/session', () => ({ verifySessionToken: jest.fn() }));
 beforeEach(() => { jest.resetAllMocks(); (verifySessionToken as jest.Mock).mockResolvedValue(null); });
-test('privacy notice is readable without a cookie or auth check', async () => {
-  const response = await middleware(new NextRequest('https://example.com/privacy'));
+test.each(['/privacy','/demo'])('published static sample or notice is readable without auth: %s', async path => {
+  const response = await middleware(new NextRequest('https://example.com'+path));
   expect(response.headers.get('x-middleware-next')).toBe('1');
   expect(verifySessionToken).not.toHaveBeenCalled();
 });
@@ -14,7 +14,7 @@ test.each([...PUBLIC_INDEX_PATHS])('published public page bypasses login %s', as
   expect(response.headers.get('x-middleware-next')).toBe('1');
   expect(verifySessionToken).not.toHaveBeenCalled();
 });
-test.each(['/cockpit', '/privacy-export', '/admin/evals', '/admin/evals/analytics', '/guides/private-draft', '/profile'])('publishing guides does not expose protected route %s', async path => {
+test.each(['/cockpit', '/privacy-export', '/demo/private', '/admin/evals', '/admin/evals/analytics', '/guides/private-draft', '/profile'])('publishing guides does not expose protected route %s', async path => {
   const response = await middleware(new NextRequest('https://example.com' + path));
   expect(response.status).toBe(307);
   expect(response.headers.get('location')).toContain('/login?redirect=');

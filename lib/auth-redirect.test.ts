@@ -8,6 +8,7 @@ describe("OAuth redirect helpers", () => {
     expect(postLoginTarget('/onboarding?redirect=%2Fadmin%2Fevals')).toBe('/admin/evals');
     expect(postLoginTarget('/account/phone?recover=1')).toBe('/account/phone?recover=1');
     expect(postLoginTarget('/resume-score')).toBe('/resume-score');
+    expect(postLoginTarget('/cockpit?entry=one_sentence')).toBe('/cockpit?entry=one_sentence');
     expect(postLoginTarget('/\\evil.test')).toBe('/cockpit');
     expect(postLoginTarget('/onboarding?redirect=%2Fonboarding')).toBe('/cockpit');
   });

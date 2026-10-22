@@ -1,0 +1,678 @@
+{
+  "notice": "Metadata-only synthetic QA evidence. Not reconstructed stage or model I/O. Intermediate 1e263d2 useful:0 before contract evaluation is a diagnostic bug, corrected to null in 0edf9ff; do not interpret as a model value verdict.",
+  "traces": [
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 6809
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 6811
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 6811
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 23884
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 23897
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 0,
+          "stage": "review",
+          "elapsedMs": 48662
+        },
+        {
+          "code": "value_verdicts_received",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 48663
+        },
+        {
+          "code": "useful_changes",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 48663
+        },
+        {
+          "code": "review_passed",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 48664
+        },
+        {
+          "code": "artifact_saved",
+          "stage": "save",
+          "elapsedMs": 52733
+        }
+      ],
+      "outcome": "completed",
+      "quality": {
+        "ats": true,
+        "score": 100,
+        "subject": "draft_quality_not_candidate",
+        "proposed": 1,
+        "retained": 1,
+        "grounding": true,
+        "shortBullets": true,
+        "independentReview": true
+      },
+      "traceId": "1ae5615a-fc5a-41db-bf21-6ef0403ad5db",
+      "version": 1,
+      "elapsedMs": 53108,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "3e917e3fafb7fd7cec2285aaf85cc04bb9c08933f4084879818d5acdfcd2e4a2",
+      "editingValue": {
+        "kinds": [
+          "structure"
+        ],
+        "useful": 1,
+        "rejected": 0,
+        "reviewed": 1,
+        "disposition": "revised",
+        "personalDisclaimersOmitted": 0
+      },
+      "reviewDiagnostics": [
+        {
+          "code": "review_verdict_received",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 1,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 4425
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 4427
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 4428
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 45679
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 45688
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 0,
+          "stage": "review",
+          "elapsedMs": 62463
+        },
+        {
+          "code": "value_verdicts_received",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 62463
+        },
+        {
+          "code": "useful_changes",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 62463
+        },
+        {
+          "code": "review_passed",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 62464
+        },
+        {
+          "code": "artifact_saved",
+          "stage": "save",
+          "elapsedMs": 66569
+        }
+      ],
+      "outcome": "completed",
+      "quality": {
+        "ats": true,
+        "score": 100,
+        "subject": "draft_quality_not_candidate",
+        "proposed": 1,
+        "retained": 1,
+        "grounding": true,
+        "shortBullets": true,
+        "independentReview": true
+      },
+      "traceId": "19a95677-4304-4d3f-9ec0-51d3a704dff9",
+      "version": 1,
+      "elapsedMs": 66826,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "a3fb5b51b46c855bce7761a49bf739d42ce6a5cb03e4b373e4add12686b041ff",
+      "editingValue": {
+        "kinds": [
+          "structure"
+        ],
+        "useful": 1,
+        "rejected": 0,
+        "reviewed": 1,
+        "disposition": "revised",
+        "personalDisclaimersOmitted": 0
+      },
+      "reviewDiagnostics": [
+        {
+          "code": "review_verdict_received",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 1,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 4850
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 4852
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 4852
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 43457
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 43466
+        },
+        {
+          "code": "review_contract_repair",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 75829
+        },
+        {
+          "code": "review_contract_failed",
+          "stage": "review",
+          "elapsedMs": 94387
+        }
+      ],
+      "outcome": "blocked",
+      "quality": null,
+      "traceId": "1c077627-f9bd-4cd7-bb98-3f50202c6596",
+      "version": 1,
+      "elapsedMs": 94764,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "69a6dfe77473923a7977e58acf1020b0dc9750466573d44ef1da3a132644d2a9",
+      "reviewDiagnostics": [
+        {
+          "code": "review_no_useful_change",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 0,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0,
+          "protocolIssue": "review_document_invalid"
+        },
+        {
+          "code": "review_no_useful_change",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 0,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0,
+          "protocolIssue": "review_document_invalid"
+        }
+      ],
+      "groundingRejections": [
+        {
+          "codes": [
+            "citation_negation_or_hedge_dropped",
+            "rule_qualifier-NEG-dropped",
+            "verb_梳理"
+          ],
+          "index": 1,
+          "attempt": 0
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 4598
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 4602
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 4602
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 41900
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 41914
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 81748
+        },
+        {
+          "code": "value_verdicts_received",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 81748
+        },
+        {
+          "code": "useful_changes",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 81748
+        },
+        {
+          "code": "review_passed",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 81750
+        },
+        {
+          "code": "artifact_saved",
+          "stage": "save",
+          "elapsedMs": 85898
+        }
+      ],
+      "outcome": "completed",
+      "quality": {
+        "ats": true,
+        "score": 100,
+        "subject": "draft_quality_not_candidate",
+        "proposed": 2,
+        "retained": 1,
+        "grounding": true,
+        "shortBullets": true,
+        "independentReview": true
+      },
+      "traceId": "dc977099-3a1b-49cc-bb81-d14315f865e5",
+      "version": 1,
+      "elapsedMs": 86735,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "0297ee017ae07ede2a4ac0bb1cc8a63de4f706e35cd96a49a1ee0812dfecd223",
+      "editingValue": {
+        "kinds": [
+          "concision"
+        ],
+        "useful": 1,
+        "rejected": 1,
+        "reviewed": 1,
+        "disposition": "revised",
+        "personalDisclaimersOmitted": 0
+      },
+      "reviewDiagnostics": [
+        {
+          "code": "review_verdict_received",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 1,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0
+        }
+      ],
+      "groundingRejections": [
+        {
+          "codes": [
+            "citation_negation_or_hedge_dropped",
+            "rule_qualifier-NEG-dropped",
+            "verb_梳理"
+          ],
+          "index": 1,
+          "attempt": 0
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 3805
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 3807
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 3807
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 46984
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 46992
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 0,
+          "stage": "review",
+          "elapsedMs": 68614
+        },
+        {
+          "code": "value_verdicts_received",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 68614
+        },
+        {
+          "code": "useful_changes",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 68614
+        },
+        {
+          "code": "review_passed",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 68615
+        },
+        {
+          "code": "artifact_saved",
+          "stage": "save",
+          "elapsedMs": 73268
+        }
+      ],
+      "outcome": "completed",
+      "quality": {
+        "ats": true,
+        "score": 100,
+        "subject": "draft_quality_not_candidate",
+        "proposed": 1,
+        "retained": 1,
+        "grounding": true,
+        "shortBullets": true,
+        "independentReview": true
+      },
+      "traceId": "35dd0cb8-4b27-40ba-a6a1-54469ed4f03b",
+      "version": 1,
+      "elapsedMs": 73590,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "0d8216ca20b5c79a164551cef32bfea69d2e3c425fa77000b1bb8464c5715851",
+      "editingValue": {
+        "kinds": [
+          "structure"
+        ],
+        "useful": 1,
+        "rejected": 0,
+        "reviewed": 1,
+        "disposition": "revised",
+        "personalDisclaimersOmitted": 0
+      },
+      "reviewDiagnostics": [
+        {
+          "code": "review_verdict_received",
+          "errors": 0,
+          "mapped": 0,
+          "status": "passed",
+          "useful": 1,
+          "attempt": 0,
+          "findings": 0,
+          "unmapped": 0,
+          "numericIds": 0
+        }
+      ]
+    }
+  ]
+}

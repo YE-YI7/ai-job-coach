@@ -1,0 +1,361 @@
+{
+  "scope": "Synthetic QA only. Fixed operational metadata, not full agent input/output. Archived before QA cleanup; IDs do not imply live Eval records.",
+  "candidateCommit": "e8a1fb3",
+  "counts": {
+    "tasks": 2,
+    "quotas": 1,
+    "invites": 1,
+    "wallets": 0,
+    "model_events": 11,
+    "quota_ledger": 6,
+    "opportunities": 2,
+    "product_events": 18,
+    "point_transfers": 0,
+    "point_reservations": 0
+  },
+  "traces": [
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 4651
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 4653
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 4653
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 26279
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 26288
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 0,
+          "stage": "review",
+          "elapsedMs": 41265
+        },
+        {
+          "code": "value_verdicts_received",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 41265
+        },
+        {
+          "code": "useful_changes",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 41265
+        },
+        {
+          "code": "one_bounded_repair",
+          "count": 0,
+          "stage": "review",
+          "elapsedMs": 41265
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 56820
+        },
+        {
+          "code": "no_grounded_change",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 56822
+        }
+      ],
+      "outcome": "blocked",
+      "quality": null,
+      "traceId": "a8d9327d-0357-4af5-ad60-80c1804c8503",
+      "version": 1,
+      "elapsedMs": 57122,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "9cd90bcb3dc5725e3ba07258950da4b001fa638c1a820323ea406c1fba023df6",
+      "groundingRejections": [
+        {
+          "codes": [
+            "claim_validation"
+          ],
+          "index": 0,
+          "attempt": 1
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 2928
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 2929
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 2930
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 20293
+        },
+        {
+          "code": "proposals_checked",
+          "count": 1,
+          "stage": "grounding",
+          "elapsedMs": 20303
+        },
+        {
+          "code": "whole_document_checked",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 72154
+        },
+        {
+          "code": "returned_to_original_editor",
+          "count": 1,
+          "stage": "review",
+          "elapsedMs": 72154
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 90504
+        },
+        {
+          "code": "no_grounded_change",
+          "count": 2,
+          "stage": "grounding",
+          "elapsedMs": 90506
+        }
+      ],
+      "outcome": "blocked",
+      "quality": null,
+      "traceId": "4eba3968-1364-4016-a8e4-78488f57570c",
+      "version": 1,
+      "elapsedMs": 90802,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "c7eb92b125f17f09ed0b1d9e75ef812d5603af1b5ebb60affd7315ad41c9fc8f",
+      "groundingRejections": [
+        {
+          "codes": [
+            "vague_without_supplement"
+          ],
+          "index": 1,
+          "attempt": 0
+        },
+        {
+          "codes": [
+            "citation_negation_or_hedge_dropped",
+            "rule_qualifier-NEG-dropped",
+            "rule_cover-gap",
+            "verb_梳理"
+          ],
+          "index": 0,
+          "attempt": 1
+        },
+        {
+          "codes": [
+            "vague_without_supplement"
+          ],
+          "index": 1,
+          "attempt": 1
+        }
+      ]
+    },
+    {
+      "mode": "general_resume",
+      "steps": [
+        {
+          "code": "own_materials_compiled",
+          "stage": "context",
+          "elapsedMs": 4926
+        },
+        {
+          "code": "no_close_example",
+          "count": 0,
+          "stage": "retrieval",
+          "elapsedMs": 4929
+        },
+        {
+          "code": "reviewed_methods_in_context",
+          "count": 3,
+          "stage": "retrieval",
+          "elapsedMs": 4929
+        },
+        {
+          "code": "invalid_format_bounded_repair",
+          "stage": "draft",
+          "elapsedMs": 34118
+        },
+        {
+          "code": "model_returned",
+          "stage": "draft",
+          "elapsedMs": 57995
+        },
+        {
+          "code": "no_grounded_change",
+          "count": 2,
+          "stage": "grounding",
+          "elapsedMs": 58007
+        },
+        {
+          "code": "explicit_missing_fact_after_attempts",
+          "stage": "draft",
+          "elapsedMs": 58816
+        }
+      ],
+      "outcome": "needs_detail",
+      "quality": null,
+      "traceId": "7f890d64-652d-4073-864c-643a1b013e34",
+      "version": 1,
+      "elapsedMs": 58816,
+      "retrieval": {
+        "status": "no_close_example",
+        "matches": [],
+        "candidates": 0,
+        "includedIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "documentTitles": [
+          {
+            "id": "resume.factual-rewriting.v1",
+            "title": "简历改写：用已有事实写清贡献"
+          },
+          {
+            "id": "resume.progressive-discovery.v1",
+            "title": "简历补问：一问一答，补完继续改"
+          },
+          {
+            "id": "resume.layout-and-export.v1",
+            "title": "简历交付：保留原样式，检查实际文件"
+          }
+        ],
+        "includedMethodIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "methodCandidateIds": [
+          "resume.factual-rewriting.v1",
+          "resume.progressive-discovery.v1",
+          "resume.layout-and-export.v1"
+        ],
+        "excludedByBudgetIds": []
+      },
+      "requestHash": "d948e13c886e63d702e4ec34192fbe99f63b1f1dbce588e1a3146781212350c6",
+      "groundingRejections": [
+        {
+          "codes": [
+            "citation_negation_or_hedge_dropped",
+            "rule_qualifier-NEG-dropped",
+            "verb_梳理"
+          ],
+          "index": 0,
+          "attempt": 1
+        },
+        {
+          "codes": [
+            "vague_without_supplement"
+          ],
+          "index": 1,
+          "attempt": 1
+        }
+      ]
+    }
+  ]
+}

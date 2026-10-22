@@ -25,3 +25,10 @@ test("missing, rewriting, unknown change or unexplained failed verdict never pas
     expect(readDocumentReview(raw,c,"independent").status).toBe("failed");
   expect(readDocumentReview({status:"passed",summary:"原格式与信息取舍一致",findings:[]},c,"self_review").source).toBe("self_review");
 });
+test('precise schema errors give the reviewer actionable contract repair without exposing material',()=>{
+ const c=[change('- 整理订单记录。')];
+ expect(readDocumentReview(undefined,c,'independent').contractError).toBe('document_missing');
+ expect(readDocumentReview({status:'passed',summary:'okay',findings:[{changeId:'null',category:'missing_information',severity:'warning',message:'原稿待补'}]},c,'independent').contractError).toBe('document_finding_id_invalid');
+ expect(readDocumentReview({status:'passed',summary:'okay',findings:[{changeId:null,category:'missing_information',severity:'warning',message:'原稿待补',question:'多余字段'}]},c,'independent').contractError).toBe('document_finding_fields_invalid');
+ expect(readDocumentReview({status:'failed',summary:'缺信息',findings:[{changeId:null,category:'missing_information',severity:'warning',message:'原稿待补'}]},c,'independent').contractError).toBe('document_failed_without_error');
+});

@@ -546,7 +546,7 @@ describe("resume draft source mapping", () => {
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain("没有目标 JD");
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
     expect(runWithGenerationContext).toHaveBeenCalledWith(expect.objectContaining({userId:"user-1",operation:"resume_review"}),expect.any(Function));
-    expect((callLLM as jest.Mock).mock.calls[1][1]).toMatchObject({maxTokens:2200,reasoningBudgetTokens:4096,maxRetries:0});
+    expect((callLLM as jest.Mock).mock.calls[1][1]).toMatchObject({maxTokens:2200,reasoningBudgetTokens:8192,maxRetries:0,responseSchema:{name:'resume_independent_review_v1',schema:{required:['status','summary','findings','valueChecks','document','recovery']}}});
   });
 
   test("model exhaustion preserves source and refunds with an actionable message",async()=>{

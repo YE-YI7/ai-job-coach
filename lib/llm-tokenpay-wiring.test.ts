@@ -131,9 +131,15 @@ describe("站点 StepFun 接线", () => {
   });
   test("推理 allowance 仅给 Step，总上限有界，不放大用户网关预算", () => {
     const options={maxTokens:1400,reasoningBudgetTokens:9000,responseFormat:"json_object" as const};
-    expect(buildChatCompletionRequest(messages,"stepfun","step-3.7-flash",options).max_tokens).toBe(5496);
+    expect(buildChatCompletionRequest(messages,"stepfun","step-3.7-flash",options).max_tokens).toBe(9592);
     expect(buildChatCompletionRequest(messages,"tokendance","glm-5.3",options).max_tokens).toBe(1400);
     expect(buildChatCompletionRequest(messages,"deepseek","deepseek-chat",options).max_tokens).toBe(1400);
+  });
+  test('only hosted Step receives strict reviewer schema; connected gateways keep JSON mode and budgets',()=>{
+    const responseSchema={name:'review',schema:{type:'object',properties:{status:{type:'string'}},required:['status'],additionalProperties:false}};
+    const options={responseFormat:'json_object' as const,responseSchema,maxTokens:2200,reasoningBudgetTokens:8192};
+    expect(buildChatCompletionRequest(messages,'stepfun','step-3.7-flash',options)).toMatchObject({max_tokens:10392,response_format:{type:'json_schema',json_schema:{strict:true,...responseSchema}}});
+    expect(buildChatCompletionRequest(messages,'tokendance','deepseek-v4-flash',options)).toMatchObject({max_tokens:2200,response_format:{type:'json_object'}});
   });
 });
 

@@ -31,6 +31,8 @@ type LlmOptions = {
   maxRetries?: number;
   thinking?: "enabled" | "disabled";
   responseFormat?: "json_object";
+  /** Hosted Step only; user-selected gateways retain their existing protocol. */
+  responseSchema?: {name:string;schema:Record<string,unknown>};
 };
 
 export function tokenDanceRecoveryActionFromError(error: unknown): TokenPayRecoveryAction | undefined {
@@ -65,7 +67,8 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
   // already separates reasoning). Do not promise reasoning is disabled.
   if (provider === "stepfun") {
     request.reasoning_effort = "low";
-    request.max_tokens = (options?.maxTokens ?? 2000) + Math.min(4096, Math.max(0, Math.floor(options?.reasoningBudgetTokens ?? 0)));
+    request.max_tokens = (options?.maxTokens ?? 2000) + Math.min(8192, Math.max(0, Math.floor(options?.reasoningBudgetTokens ?? 0)));
+    if(options?.responseSchema)request.response_format={type:'json_schema',json_schema:{...options.responseSchema,strict:true}};
   }
   // Kimi thinking models may require fixed sampling parameters; omit rather
   // than sending the application's generic temperature (TokenDance Kimi guide).

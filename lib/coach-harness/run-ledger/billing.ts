@@ -2,7 +2,7 @@
  * W5 / PRD FR-35 + §5.6：按任务计费，不按请求计费。
  *
  * 三条硬规矩：
- *  1. **不发明价格**。唯一的单价来源是 `llm-telemetry.estimateGenerationCost`
+ *  1. **不发明价格**。本旧报价路径冻结使用 `llm-telemetry.estimateLegacyUnitCost`
  *     （目前只有 deepseek 两档，pricingVersion 写在返回值里）。目录里其它档位
  *     按 model-catalog.ts 的注释是「手工参考值、非扣费倍率」，所以一律记 unknown。
  *  2. 输入侧 token 预算取自上下文编译器的 `DEFAULT_ROUTE_BUDGET`，
@@ -11,7 +11,7 @@
  */
 
 import { getDbClient } from "@/lib/db";
-import { estimateGenerationCost, type GenerationUsage } from "@/lib/llm-telemetry";
+import { estimateLegacyUnitCost, type GenerationUsage } from "@/lib/llm-telemetry";
 import { DEFAULT_ROUTE_BUDGET, type CoachRunStatus, type RouteClass } from "../types";
 import { requireDb } from "../repository";
 import type { TaskLedger, TaskStatus } from "./types";
@@ -106,7 +106,7 @@ export function estimateUnitCost(input: EstimateInput): CostEstimate {
     cacheHitTokens: 0,
     cacheMissTokens: budgetedInputTokens,
   };
-  const priced = estimateGenerationCost(input.provider, input.model, lowerBoundUsage);
+  const priced = estimateLegacyUnitCost(input.provider, input.model, lowerBoundUsage);
   if (priced.estimatedCostUsd === null) {
     unknowns.unshift(
       `单价：${input.provider}/${input.model} 在现有目录里没有可比价口径（model-catalog 明示为手工参考值），成本预估不可用。`,

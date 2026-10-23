@@ -1,4 +1,5 @@
 import { getDbClient } from "./db";
+import {COST_CNY_PER_USD_ASSUMPTION,MODEL_COST_AS_OF,modelCostRate} from './llm-cost-rates';
 
 export interface GenerationUsage {
   inputTokens: number;
@@ -6,6 +7,9 @@ export interface GenerationUsage {
   totalTokens: number;
   cacheHitTokens: number;
   cacheMissTokens: number;
+  /** False means an absent/invalid provider report, not a measured zero. */
+  cacheHitReported?: boolean;
+  reported?: boolean;
 }
 
 export interface GenerationEvent {
@@ -25,21 +29,58 @@ export interface GenerationEvent {
 }
 
 function numberValue(value: unknown) {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
+  if (typeof value === 'string' && !/^\d+(?:\.0+)?$/.test(value)) return undefined;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 export function normalizeGenerationUsage(raw: Record<string, unknown> | null | undefined): GenerationUsage {
-  const inputTokens = numberValue(raw?.prompt_tokens ?? raw?.input_tokens);
-  const outputTokens = numberValue(raw?.completion_tokens ?? raw?.output_tokens);
-  const cacheHitTokens = numberValue(raw?.prompt_cache_hit_tokens ?? raw?.cache_read_input_tokens);
-  const explicitMiss = numberValue(raw?.prompt_cache_miss_tokens);
-  const cacheMissTokens = explicitMiss || Math.max(0, inputTokens - cacheHitTokens);
-  const totalTokens = numberValue(raw?.total_tokens) || inputTokens + outputTokens;
-  return { inputTokens, outputTokens, totalTokens, cacheHitTokens, cacheMissTokens };
+  const input = numberValue(raw?.prompt_tokens ?? raw?.input_tokens);
+  const output = numberValue(raw?.completion_tokens ?? raw?.output_tokens);
+  const inputTokens = input ?? 0, outputTokens = output ?? 0;
+  const details = (value:unknown):Record<string,unknown> =>
+    value && typeof value === 'object' ? value as Record<string,unknown> : {};
+  const candidates = [
+    raw?.prompt_cache_hit_tokens,
+    raw?.cached_tokens, // Step's documented native usage field.
+    details(raw?.prompt_tokens_details).cached_tokens,
+    details(raw?.input_tokens_details).cached_tokens,
+    raw?.cache_read_input_tokens,
+  ];
+  const hit = candidates.map(numberValue).find(n=>n!==undefined&&n<=inputTokens);
+  const miss = numberValue(raw?.prompt_cache_miss_tokens);
+  const cacheHitReported = hit!==undefined || (miss!==undefined&&miss<=inputTokens);
+  const cacheHitTokens = hit ?? (miss!==undefined&&miss<=inputTokens ? inputTokens-miss : 0);
+  const cacheMissTokens = inputTokens-cacheHitTokens;
+  const totalTokens = Math.max(numberValue(raw?.total_tokens) ?? 0,inputTokens+outputTokens);
+  return {
+    inputTokens,outputTokens,totalTokens,cacheHitTokens,cacheMissTokens,
+    cacheHitReported,reported:input!==undefined&&output!==undefined,
+  };
 }
 
 export function estimateGenerationCost(provider: string, model: string, usage: GenerationUsage) {
+  const rate = modelCostRate(provider,model);
+  if (!rate || usage.reported===false) return {estimatedCostUsd:null,pricingVersion:null};
+  const cost = (
+    usage.cacheHitTokens*rate.cached
+    + usage.cacheMissTokens*rate.input
+    + usage.outputTokens*rate.output
+  )/1_000_000;
+  const conversion = rate.currency==='CNY' ? COST_CNY_PER_USD_ASSUMPTION : 1;
+  return {
+    estimatedCostUsd:cost/conversion,
+    pricingVersion:[provider,MODEL_COST_AS_OF,rate.basis,
+      ...(rate.currency==='CNY'?['cny-usd-fx7.2']:[]),
+      ...(usage.cacheHitReported===false?['cache-unknown-upper-bound']:[]),
+    ].join('/'),
+  };
+}
+
+/** Frozen legacy task-quote reference. Keep existing quote/billing behaviour
+ * unchanged while new generation telemetry adopts dated provider prices. */
+export function estimateLegacyUnitCost(provider: string, model: string, usage: GenerationUsage) {
   if (provider !== "deepseek") return { estimatedCostUsd: null, pricingVersion: null };
   const normalizedModel = model.toLowerCase();
   const isPro = normalizedModel.includes("v4-pro") || normalizedModel.includes("reasoner");

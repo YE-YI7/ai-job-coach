@@ -358,11 +358,19 @@ export async function callLLM(
     const latencyMs=Date.now()-startedAt;
     const cost = estimateGenerationCost(provider, model, usage);
     if(completion.usage){
-      const rawUsage=completion.usage as unknown as Record<string,unknown>;
-      options?.onUsage?.({model:completion.model||model,provider,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,
-        cacheHitTokens:rawUsage.prompt_cache_hit_tokens!==undefined||rawUsage.cache_read_input_tokens!==undefined?usage.cacheHitTokens:null,
-        estimatedCostUsd:cost.estimatedCostUsd,pricingVersion:cost.pricingVersion,retryCount,latencyMs,
-        averageTokensPerSecond:latencyMs>0?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null});
+      options?.onUsage?.({
+        model:completion.model||model,
+        provider,
+        inputTokens:usage.inputTokens,
+        outputTokens:usage.outputTokens,
+        cacheHitTokens:usage.cacheHitReported===false?null:usage.cacheHitTokens,
+        estimatedCostUsd:cost.estimatedCostUsd,
+        pricingVersion:cost.pricingVersion,
+        retryCount,
+        latencyMs,
+        averageTokensPerSecond:latencyMs>0
+          ?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null,
+      });
     }
     await recordGenerationEvent({
       userId: trace?.userId,
@@ -389,9 +397,18 @@ export async function callLLM(
     const cause = details.cause && typeof details.cause === "object" ? details.cause as Record<string, unknown> : {};
     const failedUsage=normalizeGenerationUsage(receivedUsage as unknown as Record<string,unknown>|undefined);
     const failedCost=receivedUsage?estimateGenerationCost(provider,model,failedUsage):{estimatedCostUsd:null,pricingVersion:null};
-    if(receivedUsage)options?.onUsage?.({model,provider,inputTokens:failedUsage.inputTokens,outputTokens:failedUsage.outputTokens,
-      cacheHitTokens:failedUsage.cacheHitTokens,estimatedCostUsd:failedCost.estimatedCostUsd,pricingVersion:failedCost.pricingVersion,retryCount,
-      latencyMs:Date.now()-startedAt,averageTokensPerSecond:null});
+    if(receivedUsage)options?.onUsage?.({
+      model,
+      provider,
+      inputTokens:failedUsage.inputTokens,
+      outputTokens:failedUsage.outputTokens,
+      cacheHitTokens:failedUsage.cacheHitReported===false?null:failedUsage.cacheHitTokens,
+      estimatedCostUsd:failedCost.estimatedCostUsd,
+      pricingVersion:failedCost.pricingVersion,
+      retryCount,
+      latencyMs:Date.now()-startedAt,
+      averageTokensPerSecond:null,
+    });
     await recordGenerationEvent({
       userId: trace?.userId,
       operation: trace?.operation || "unclassified",

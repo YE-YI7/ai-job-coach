@@ -15,7 +15,7 @@ type Payload = {
     material?: Material;
 };
 const views = { daily: "基础数据", sessions: "会话下钻", users: "按用户", geo: "GEO 研究" };
-const metricNames: Record<string, string> = { registered: "注册", activeUsers: "活跃用户", featureUsers: "功能使用人数", sent: "用户消息", replies: "导师回复", completedRounds: "完成轮", averageMessages: "人均消息", averageUseSeconds: "估算秒数", timedUserShare: "估时覆盖", failedReplies: "回复失败事件", pv: "PV", uv: "UV", d1: "成熟次留" };
+const metricNames: Record<string, string> = { resumeAttempts: "改稿尝试", resumeDelivered: "完整交付", resumePartial: "部分交付", resumeFailed: "改稿失败", resumeBlocked: "质检／保存受阻", resumeUnconfirmed: "结果未确认", registered: "注册", activeUsers: "活跃用户", featureUsers: "功能使用人数", sent: "用户消息", replies: "导师回复", completedRounds: "完成轮", averageMessages: "人均消息", averageUseSeconds: "估算秒数", timedUserShare: "估时覆盖", failedReplies: "回复失败事件", pv: "PV", uv: "UV", d1: "成熟次留" };
 const defaultColumns = ["registered", "activeUsers", "sent", "completedRounds", "averageMessages", "averageUseSeconds", "failedReplies"];
 const tabs = { conversation: "对话", resume: "简历", jd: "JD／岗位", interview: "面试", stage: "阶段判断", events: "行为／断点", trace: "Eval／Trace" };
 const keys = ["view", "from", "to", "feature", "cohort", "scope", "stage", "source", "sort", "search", "minRounds", "maxRounds", "offset", "user", "session", "messageOffset", "sessionOffset", "eventOffset", "full", "tab", "opportunity", "asOf", "columns"];

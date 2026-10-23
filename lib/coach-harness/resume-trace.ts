@@ -22,6 +22,16 @@ export interface ResumeTrace {
 }
 export function resumeRequestHash(requestId: string) { return createHash("sha256").update(requestId).digest("hex"); }
 
+export async function readResumeTrace(userId:string,requestId:string):Promise<ResumeTrace|null>{
+  try {
+    const db=await getDbClient();if(!db)return null;
+    const hash=resumeRequestHash(requestId);
+    const {data,error}=await db.from('product_events').select('properties').eq('user_id',userId).eq('event_name',RESUME_TRACE_EVENT)
+      .eq('properties->>requestHash',hash).order('occurred_at',{ascending:false}).limit(1).maybeSingle();
+    return !error&&data?.properties?.version===1&&data.properties.requestHash===hash?data.properties as ResumeTrace:null;
+  }catch{return null;}
+}
+
 /** Private operational metadata only: no résumé, JD, answer, contact, prompt or model reasoning. */
 export async function startResumeTrace(userId: string, requestId: string, general: boolean) {
   const db = await getDbClient();

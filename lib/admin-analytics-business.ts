@@ -1,4 +1,4 @@
-import { analyticsDay, isActivityEvent as legacyActivityEvent, isExcludedEvent, EVENT_LABELS, type AnalyticsEvent } from "./admin-analytics";
+import { analyticsDay, isActivityEvent as legacyActivityEvent, isExcludedEvent, EVENT_LABELS, summarizeResumeDelivery, type AnalyticsEvent } from "./admin-analytics";
 export const BUSINESS_QUERY_VERSION = "business-v2";
 export const BUSINESS_DURATION_VERSION = "per-user-midnight-split-v2";
 export const DAY = 86400000, MAX_DAYS = 62;
@@ -141,6 +141,17 @@ export function businessUsers(accounts: BusinessAccount[], events: AnalyticsEven
         return filters.scope === "all" ? true : filters.scope === "registered" ? row.age === "new" : filters.scope === "active" ? row.active : row.active || row.age === "new";
     }).sort((a, b) => filters.sort === "rounds" ? b.completed - a.completed || a.id.localeCompare(b.id) : filters.sort === "registered" ? (epoch(b.registeredAt || "") || 0) - (epoch(a.registeredAt || "") || 0) || a.id.localeCompare(b.id) : epoch(b.lastEventAt || "1970-01-01") - epoch(a.lastEventAt || "1970-01-01") || a.id.localeCompare(b.id));
 }
+export function businessResumeMetrics(all:AnalyticsEvent[],daily:AnalyticsEvent[],day:string,now:number){
+    const first=all.filter(e=>String(e.schema_version)==='2'&&['resume_task_started','resume_task_outcome'].includes(e.event_name)).map(e=>e.created_at).sort()[0];
+    const known=Boolean(first&&day>=analyticsDay(first)), summary=summarizeResumeDelivery(daily,now);
+    const key=(e:AnalyticsEvent)=>`${e.user_id||e.event_identity}:${e.generation_id}`;
+    const starts=new Set(daily.filter(e=>e.event_name==='resume_task_started'&&e.generation_id).map(key));
+    const related=all.filter(e=>analyticsDay(e.created_at)===day||(e.event_name==='resume_task_outcome'&&starts.has(key(e))));
+    const withLaterOutcome=summarizeResumeDelivery(related,now);
+    return {resumeAttempts:known?summary.attemptsStarted:null,resumeDelivered:known?summary.retrievableComplete:null,
+        resumePartial:known?summary.retrievablePartial:null,resumeFailed:known?summary.outcomes.failed:null,
+        resumeBlocked:known?summary.outcomes.blocked:null,resumeUnconfirmed:known?withLaterOutcome.outcomes.unconfirmed:null};
+}
 export function businessDaily(accounts: BusinessAccount[], events: AnalyticsEvent[], window: BusinessWindow, internal = new Set<string>(), visitors = new Set<string>(), feature?: string, turns: BusinessTurn[] = []) {
     const eligible = accounts.filter(a => !internal.has(a.id.toLowerCase())), all = events.filter(e => !isExcludedEvent(e, internal, visitors)), kept = all.filter(e => inBusinessWindow(e.created_at, window));
     const rows = [];
@@ -157,7 +168,8 @@ export function businessDaily(accounts: BusinessAccount[], events: AnalyticsEven
         const views = dayEvents.filter(e => e.event_name === "page_viewed"), cohort = eligible.filter(a => a.createdAt && analyticsDay(a.createdAt) === day), next = new Date(time + DAY).toISOString(), mature = epoch(next) + DAY <= epoch(window.asOf);
         const returned = cohort.filter(a => all.some(e => e.user_id?.toLowerCase() === a.id.toLowerCase() && isActivityEvent(e) && analyticsDay(e.created_at) === analyticsDay(next))).length;
         const failures = new Set(dayEvents.filter(e => e.event_name === "coach_response_failed").map(e => `${e.user_id}:${(e as BusinessEvent).request_id || e.id}`));
-        rows.push({ day, registered: cohort.length, activeUsers: users.size, featureUsers: feature ? new Set(dayEvents.filter(e => featureMatches(e.event_name, feature)).map(e => e.user_id).filter(Boolean)).size : null, senders: senders.size, replies: metrics.replies, sent: metrics.sent, completedRounds: metrics.completed, failedReplies: failures.size, averageMessages: senders.size ? metrics.sent / senders.size : null, averageUseSeconds: users.size ? seconds / users.size : null, timedUserShare: users.size ? timed / users.size : null, durationVersion: BUSINESS_DURATION_VERSION, pv: views.length, uv: new Set(views.map(e => e.user_id || e.event_identity || e.anon_id).filter(Boolean)).size, d1: mature && cohort.length ? returned / cohort.length : null, d1Eligible: mature ? cohort.length : 0, d1Returned: mature ? returned : null });
+        const resumeMetrics=businessResumeMetrics(all,dayEvents,day,epoch(window.asOf));
+        rows.push({ ...resumeMetrics, day, registered: cohort.length, activeUsers: users.size, featureUsers: feature ? new Set(dayEvents.filter(e => featureMatches(e.event_name, feature)).map(e => e.user_id).filter(Boolean)).size : null, senders: senders.size, replies: metrics.replies, sent: metrics.sent, completedRounds: metrics.completed, failedReplies: failures.size, averageMessages: senders.size ? metrics.sent / senders.size : null, averageUseSeconds: users.size ? seconds / users.size : null, timedUserShare: users.size ? timed / users.size : null, durationVersion: BUSINESS_DURATION_VERSION, pv: views.length, uv: new Set(views.map(e => e.user_id || e.event_identity || e.anon_id).filter(Boolean)).size, d1: mature && cohort.length ? returned / cohort.length : null, d1Eligible: mature ? cohort.length : 0, d1Returned: mature ? returned : null });
     }
     return { rows, coverage: { excludedEvents: events.filter(e => inBusinessWindow(e.created_at, window) && isExcludedEvent(e, internal, visitors)).length } };
 }

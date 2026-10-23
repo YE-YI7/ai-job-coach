@@ -11,6 +11,7 @@ import { currentResumeAnswer } from './resume-supplement';
 import { resumeMessageExpired } from './resume-conversation-recovery';
 import { resolveResumeTrialScope, type ResumeTrialScope } from '@/lib/resume-experience-trial';
 import {readResumeProcessing} from './resume-trace';
+import {readResumeDelivery} from './resume-delivery-record';
 import {skipsResumeFact} from './resume-single-question';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
@@ -46,7 +47,9 @@ export async function readResumeTask(userId: string, opportunityId: string) {
   if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&row.question&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
   if(!row||row.fingerprint!==source.fingerprint)return null;
   const task=publicResumeTask(row);
-  const generation=row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`;
+  const delivery=await readResumeDelivery(userId,row.id,source.revision,row.state==='ready'?row.result?.resumeGenerationId:row.state==='running'?`${row.id}:${row.version}`:undefined);
+  if(delivery)task.delivery=delivery.outcome==='running'&&row.state!=='running'?{...delivery,outcome:'unconfirmed'}:delivery;
+  const generation=delivery?.generationId||(row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`);
   if(generation){
     const processing=await readResumeProcessing(userId,`resume-task:${generation}`,Boolean(source.jd),row.state==='ready');
     if(processing)task.processing=processing;
@@ -219,7 +222,7 @@ export async function persistResumeTrialClaims(userId:string,opportunityId:strin
   return rows.map(row=>({id:String(row.id),entityType:'experience',entityKey:String(row.entity_key),claimType:'resume_trial_source',value:row.value,displayText:String(row.display_text),sourceExcerpt:String(row.source_excerpt),sourceId,status:row.status as CareerClaim['status'],visibility:'recruiter_safe',sourceKind:'user_upload',verificationLevel:'self_reported'}));
 }
 
-export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean}) {
+export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean;partial?:boolean;reasonCode?:string}) {
   const db = requireDb(await getDbClient()), row = await resumeTaskInput(userId, taskId, lease);
   const question = body.ok ? nextResumeQuestion(source.resume, body.followUp, row.answers)
     : body.recovery && !body.recovery.detailSaved ? nextResumeQuestion(source.resume, body.recovery, row.answers) : null;
@@ -227,7 +230,7 @@ export async function finishResumeTask(userId: string, taskId: string, lease: st
   const current=body.ok?await ownedResumeTaskSource(userId,row.opportunity_id):null;
   const previous=source.changes??current?.changes??[];
   const answer=currentResumeAnswer(row.answers);
-  const result = body.ok ? { changes: body.prepared?body.changes||[]:mergeResumeAgentChanges(source.resume,previous,body.changes||[],answer?[answer.sourceExcerpt]:[]), applicationQuality: body.applicationQuality, resumeGenerationId: `${taskId}:${row.version}`, previousChanges:previous, resumeCheckStale:Boolean(previous.some(change=>change.status!=='pending')), ...(body.summary?{summary:body.summary}:{}), ...(body.unchanged?{unchanged:true}:{}) } : null;
+  const result = body.ok ? { changes: body.prepared?body.changes||[]:mergeResumeAgentChanges(source.resume,previous,body.changes||[],answer?[answer.sourceExcerpt]:[]), applicationQuality: body.applicationQuality, resumeGenerationId: `${taskId}:${row.version}`, previousChanges:previous, resumeCheckStale:Boolean(previous.some(change=>change.status!=='pending')), ...(body.summary?{summary:body.summary}:{}), ...(body.unchanged?{unchanged:true}:{}), ...('partial' in body && body.partial===true?{partial:true,reasonCode:'reasonCode' in body?body.reasonCode:null}:{}) } : null;
   const { data, error } = await db.rpc("finish_coach_resume_task", { p_user_id: userId, p_task_id: taskId, p_lease: lease,
     p_state: state, p_question: question, p_result: result, p_error: body.ok || question ? null : String(body.error || "改稿暂未完成，补充已保存，可以重试"),
     p_source: source.resume, p_jd: source.jd, p_revision: source.revision });

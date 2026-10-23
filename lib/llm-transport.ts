@@ -16,6 +16,17 @@ export interface LlmTransportDiagnostic {
   deadline?: 'total' | 'first_activity';
   outcome?: 'success' | 'failed';
   elapsedMs?: number;
+  finishReason?: string;
+  outputCharacters?: number;
+  reasoningReceived?: boolean;
+  outputStatus?: 'complete' | 'empty' | 'truncated';
+}
+
+/** Final text only. Never treat private reasoning or a length cutoff as success. */
+export function assertFinalLlmOutput(content: string | null | undefined, finishReason: string | null | undefined) {
+  if (!content?.trim()) throw new Error(`Empty response from LLM (finish_reason=${finishReason || 'missing'})`);
+  if (!finishReason || finishReason === 'length' || finishReason === 'content_filter')
+    throw new Error(`模型输出中断 Incomplete response from LLM (finish_reason=${finishReason || 'missing'})`);
 }
 
 export function nativeTransportCodes(error: unknown): string[] {

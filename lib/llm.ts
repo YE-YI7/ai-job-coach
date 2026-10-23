@@ -5,7 +5,7 @@ import { classifyGenerationFailure, estimateGenerationCost, normalizeGenerationU
 import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, type TokenPayRecoveryAction } from "./tokenpay";
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 import { hostedStepModel } from "./hosted-model";
-import { diagnosticFetch, type LlmTransportDiagnostic } from './llm-transport';
+import { assertFinalLlmOutput, diagnosticFetch, type LlmTransportDiagnostic } from './llm-transport';
 
 type Message = {
   role: "system" | "user" | "assistant";
@@ -261,6 +261,7 @@ export async function callLLM(
     firstTokenTimeoutMs: options?.onDelta ? options.firstTokenTimeoutMs ?? 15000 : null,
     attempts: 0, phase: 'connecting',
   };
+  let receivedUsage: OpenAI.Completions.CompletionUsage | undefined;
   const client = new OpenAI({
     apiKey,
     maxRetries: options?.maxRetries ?? 2,
@@ -291,15 +292,16 @@ export async function callLLM(
         let content = "";
         let usage: OpenAI.Completions.CompletionUsage | undefined;
         let actualModel = model;
-        let finished = false;
+        let finishReason: string | null = null;
         for await (const chunk of stream) {
           if (chunk.model) actualModel = chunk.model;
-          if (chunk.usage) usage = chunk.usage;
-          if (chunk.choices[0]?.finish_reason) finished = true;
+          if (chunk.usage) { usage = chunk.usage; receivedUsage = chunk.usage; }
+          if (chunk.choices[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
           const upstreamDelta = chunk.choices[0]?.delta as {content?: string | null; reasoning_content?: string; reasoning?: string} | undefined;
           // Private reasoning proves the upstream is alive, but must never be
           // forwarded to the user. The absolute request deadline still applies.
           if (upstreamDelta?.reasoning_content || upstreamDelta?.reasoning) {
+            diagnostic.reasoningReceived = true;
             diagnostic.firstActivityMs ??= Date.now() - startedAt;
             diagnostic.phase = 'receiving_output';
             clearTimeout(firstTokenTimer);
@@ -313,7 +315,10 @@ export async function callLLM(
           }
         }
         if (controller.signal.aborted) throw new Error("Request timed out.");
-        if (!finished || !content) throw new Error("模型输出中断，请重试");
+        diagnostic.finishReason = finishReason || 'missing';
+        diagnostic.outputCharacters = content.length;
+        diagnostic.outputStatus = !content.trim() ? 'empty' : !finishReason || finishReason === 'length' || finishReason === 'content_filter' ? 'truncated' : 'complete';
+        assertFinalLlmOutput(content, finishReason);
         return { choices: [{ message: { content } }], usage, model: actualModel };
       } catch (error) {
         if (controller.signal.aborted) throw new Error("LLM_REQUEST_TIMEOUT");
@@ -323,10 +328,15 @@ export async function callLLM(
     const completion = await client.chat.completions.create(
       buildChatCompletionRequest(messages, provider, model, options) as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
     );
-    if (!completion.choices[0]?.message?.content) {
-      const finishReason = completion.choices[0]?.finish_reason || "unknown";
-      throw new Error(`Empty response from LLM (finish_reason=${finishReason})`);
-    }
+    receivedUsage = completion.usage;
+    const content = completion.choices[0]?.message?.content;
+    const finishReason = completion.choices[0]?.finish_reason;
+    diagnostic.finishReason = finishReason || 'missing';
+    diagnostic.outputCharacters = content?.length || 0;
+    diagnostic.outputStatus = !content?.trim() ? 'empty' : !finishReason || finishReason === 'length' || finishReason === 'content_filter' ? 'truncated' : 'complete';
+    // Some compatible non-streaming test/providers omit finish_reason; retain
+    // that legacy compatibility for nonempty text, but never accept length.
+    assertFinalLlmOutput(content, finishReason || 'stop');
     return completion;
   };
 
@@ -374,6 +384,11 @@ export async function callLLM(
     options?.onDiagnostic?.({ ...diagnostic });
     const details = e && typeof e === "object" ? e as Record<string, unknown> : {};
     const cause = details.cause && typeof details.cause === "object" ? details.cause as Record<string, unknown> : {};
+    const failedUsage=normalizeGenerationUsage(receivedUsage as unknown as Record<string,unknown>|undefined);
+    const failedCost=receivedUsage?estimateGenerationCost(provider,model,failedUsage):{estimatedCostUsd:null,pricingVersion:null};
+    if(receivedUsage)options?.onUsage?.({model,provider,inputTokens:failedUsage.inputTokens,outputTokens:failedUsage.outputTokens,
+      cacheHitTokens:failedUsage.cacheHitTokens,estimatedCostUsd:failedCost.estimatedCostUsd,pricingVersion:failedCost.pricingVersion,retryCount,
+      latencyMs:Date.now()-startedAt,averageTokensPerSecond:null});
     await recordGenerationEvent({
       userId: trace?.userId,
       operation: trace?.operation || "unclassified",
@@ -383,9 +398,8 @@ export async function callLLM(
       status: "error",
       latencyMs: Date.now() - startedAt,
       retryCount,
-      usage: normalizeGenerationUsage(null),
-      estimatedCostUsd: null,
-      pricingVersion: null,
+      usage: failedUsage,
+      ...failedCost,
       failureType: classifyGenerationFailure(e),
       knowledgeDocumentIds: trace?.knowledgeDocumentIds,
     }).catch((error) => console.warn("LLM telemetry write failed:", error));

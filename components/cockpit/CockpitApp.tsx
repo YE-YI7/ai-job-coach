@@ -620,6 +620,14 @@ function CockpitWorkspace({
 
   const [resumeFocus,setResumeFocus]=useState(0);
   const [profileView,setProfileView]=useState("profile");
+  const presentedGenerations=useRef(new Set<string>());
+  useEffect(()=>{
+    const receipt=active&&resumeAgentTasks[active.id]?.delivery;
+    if(dataMode==='live'&&receipt?.generationId&&receipt.persistence==='confirmed'&&active?.resumeGenerationId===receipt.generationId&&!presentedGenerations.current.has(receipt.generationId)&&!creating&&(activeTab==='resume'||active?.workspaceType==='preparation'&&profileView==='profile')){
+      presentedGenerations.current.add(receipt.generationId);
+      trackProductEvent('resume_result_presented',{generation_id:receipt.generationId});
+    }
+  },[active,activeTab,creating,dataMode,resumeAgentTasks,profileView]);
   useEffect(()=>setProfileView("profile"),[activeId]);
   const focusResumeMentor=()=>{setResumeFocus(value=>value+1);setMobileRail("actions");};
   const changeResumeBlock=(id:string,text:string,expected:string)=>{if(!active)return;const updated=editResumeBlock(active,id,text,expected);setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));};
@@ -629,6 +637,8 @@ function CockpitWorkspace({
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,{ ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? decideResumeChange(change,status) : change) }) : item));
     if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
+    const generation=resumeAgentTasks[active.id]?.delivery?.generationId;
+    if(dataMode==='live'&&generation===active.resumeGenerationId)trackProductEvent('resume_change_decided',{generation_id:generation,change_id:changeId,decision:status==='accepted'?'accept':'keep'});
     logAction(status === "accepted" ? "接受了一处简历修改建议" : "对一处简历修改保留了原文");
     announce(status === "accepted" ? "已采纳 · 可撤销" : "已保留原文 · 可撤销");
   };

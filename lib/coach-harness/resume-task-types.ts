@@ -16,6 +16,7 @@ export interface ResumeAgentAnswer extends ResumeAgentQuestion {
   claimId?: string;
 }
 export interface ResumeAgentTask {
+  delivery?: import('./resume-delivery').ResumeDeliveryReceipt;
   processing?: import('./resume-processing').ResumeProcessingSummary;
   editScope?: import('@/lib/resume-experience-trial').ResumeTrialScope;
   id: string;
@@ -25,7 +26,7 @@ export interface ResumeAgentTask {
   updatedAt: string;
   conversation?: ResumeConversationTurn[];
   error?: string;
-  result?: { changes: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean };
+  result?: { changes: ResumeChange[]; previousChanges?: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean; partial?:boolean; reasonCode?:string|null };
 }
 
 export interface ResumeConversationTurn {

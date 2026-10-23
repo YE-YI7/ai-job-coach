@@ -32,6 +32,20 @@ describe("upstream streaming",()=>{
   expect(await callLLM([{role:"user",content:"hi"}],{onDelta,maxRetries:0,firstTokenTimeoutMs:10,timeoutMs:200})).toBe("你好");
   expect(onDelta.mock.calls).toEqual([["你好"]]);
  });
+ test.each(['length','stop'])('reasoning-only final is an empty-response failure with its real finish reason: %s',async finishReason=>{
+  const create=jest.fn().mockResolvedValue((async function*(){yield {choices:[{delta:{reasoning_content:'private'}}]};yield {choices:[{delta:{},finish_reason:finishReason}],usage:{prompt_tokens:10,completion_tokens:20,total_tokens:30}};})());
+  (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+  const onDelta=jest.fn(),onDiagnostic=jest.fn();
+  await expect(callLLM([{role:'user',content:'hi'}],{onDelta,onDiagnostic,maxRetries:0,timeoutMs:100})).rejects.toThrow(`Empty response from LLM (finish_reason=${finishReason})`);
+  expect(create).toHaveBeenCalledTimes(1);expect(onDelta).not.toHaveBeenCalled();
+  expect(onDiagnostic).toHaveBeenCalledWith(expect.objectContaining({outcome:'failed',finishReason,outputStatus:'empty',outputCharacters:0,reasoningReceived:true}));
+ });
+ test('a length-cutoff containing partial JSON is never a successful final',async()=>{
+  const create=jest.fn().mockResolvedValue((async function*(){yield {choices:[{delta:{content:'{"changes":['},finish_reason:'length'}]};})());
+  (OpenAI as unknown as jest.Mock).mockImplementation(()=>({chat:{completions:{create}}}));
+  await expect(callLLM([{role:'user',content:'hi'}],{onDelta:()=>{},maxRetries:0,timeoutMs:100})).rejects.toThrow('Incomplete response');
+  expect(create).toHaveBeenCalledTimes(1);
+ });
  test("reasoning never removes the total request deadline",async()=>{
   const create=jest.fn().mockImplementation(async(_request,{signal})=>(async function*(){
     yield {choices:[{delta:{reasoning_content:"private"}}]};

@@ -15,7 +15,7 @@ jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
 jest.mock("@/lib/quota");
 jest.mock("@/lib/coach-harness/resume-task");
-jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn() }));
+jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn(),readResumeTrace:jest.fn().mockResolvedValue(null) }));
 jest.mock("@/lib/generation-context", () => ({ runWithGenerationContext: jest.fn((_context: unknown, run: () => unknown) => run()) }));
 jest.mock("@/lib/tokenpay-recovery", () => ({ tokenPayRecoveryResponse: () => null }));
 jest.mock("@/lib/coach-harness/repository", () => ({
@@ -502,7 +502,7 @@ describe("resume draft source mapping", () => {
   test("model exhaustion preserves source and refunds with an actionable message",async()=>{
     (callLLM as jest.Mock).mockRejectedValue(new Error("Empty response from LLM (finish_reason=length)"));
     const response=await POST(new Request("https://example.com/api/coach/resume-draft",{method:"POST",body:JSON.stringify({opportunityId:"opp-1",resumeText:"负责模型评测",mode:"general_resume"})}));
-    expect(response.status).toBe(503);expect(await response.json()).toMatchObject({reasonCode:"model_response_incomplete",retryable:true,error:expect.stringContaining("未扣额度")});
+    expect(response.status).toBe(503);expect(await response.json()).toMatchObject({reasonCode:"resume_empty_response",retryable:true,error:expect.stringContaining("未扣额度")});
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
 
@@ -627,6 +627,33 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     expect(recordArtifactReview).toHaveBeenCalledWith(expect.objectContaining({ reviewerType: "facts", status: "passed", findings: [] }));
     expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({ content: expect.objectContaining({ discardedSuggestions: [expect.objectContaining({ index: 0 })] }) }));
   });
+  test.each(['pass','reject','global-block'])('a timed-out repair keeps only a freshly rechecked subset: %s',async finalReview=>{
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    const changes=[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']},{before:'负责数据评测',after:'数据评测覆盖准确率口径',sourceIds:['claim-1']}];
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes}))
+      .mockImplementationOnce(async(messages)=>{
+        const list=JSON.parse(messages.find((m:{content:string})=>m.content.includes('待审修改（findings')).content.split('：\n').at(-1));
+        return JSON.stringify({status:'passed',summary:'逐条有价值，但第二处需返修',valueChecks:usefulValueChecks,findings:[],document:{status:'failed',summary:'第二处段落需要检查',findings:[{changeId:finalReview==='global-block'?null:list[1].id,category:'quality',severity:'error',message:'第二处段落结构需返修，第一处可用'}]}});
+      }).mockRejectedValueOnce(new Error('LLM_REQUEST_TIMEOUT'))
+      .mockResolvedValueOnce(JSON.stringify({document:finalReview==='reject'?{status:'failed',summary:'保留稿仍有整稿问题',findings:[{changeId:null,category:'quality',severity:'error',message:'保留稿仍不应交付'}]}:passedDocument}));
+    (applyResumeChanges as jest.Mock).mockImplementation((_source,items)=>({text:items.map((c:{after:string})=>c.after).join('\n'),findings:[]}));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeTaskId:'task',resumeTaskLease:'lease',resumeText:'负责模型评测\n负责数据评测',mode:'general_resume'})}));
+    const result=await response.json();
+    if(finalReview==='pass'){
+      expect(response.status).toBe(200);expect(result.partial).toBe(true);expect(result.reasonCode).toBe('resume_repair_timeout');
+      expect(result.changes).toHaveLength(1);expect(result.changes[0].before).toBe('负责模型评测');
+      expect(result.documentReview.status).toBe('passed');expect(result.summary).toContain('部分返修暂未完成');
+      expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    }else{
+      expect(response.status).toBe(finalReview==='global-block'?503:422);
+      expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    }
+    expect(callLLM).toHaveBeenCalledTimes(finalReview==='global-block'?3:4);
+    if(finalReview!=='global-block')expect(JSON.stringify((callLLM as jest.Mock).mock.calls[3][0])).toContain('只检查过滤后的最终保留稿');
+  });
+
   test('whole-document failure returns diagnosis to original editor once; reviewer never writes',async()=>{
     const draft={changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]};
     const review={status:'passed',summary:'逐条可用',valueChecks:usefulValueChecks,findings:[],document:passedDocument};

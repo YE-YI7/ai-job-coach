@@ -3,13 +3,17 @@ import { getCurrentUserFromRequest } from '@/lib/auth';
 import { POST as draft } from '../resume-draft/route';
 import { claimResumeTask, finishResumeTask, readResumeTask, ResumeTaskError } from '@/lib/coach-harness/resume-task';
 import { runResumeConversation } from '@/lib/coach-harness/resume-conversation';
+import {recordResumeServerEvent,recordResumeDocument} from '@/lib/coach-harness/resume-delivery-record';
+import {readResumeTrace} from '@/lib/coach-harness/resume-trace';
 jest.mock('@/lib/auth');
+jest.mock('@/lib/coach-harness/resume-trace',()=>({readResumeTrace:jest.fn().mockResolvedValue(null)}));
+jest.mock('@/lib/coach-harness/resume-delivery-record',()=>({recordResumeServerEvent:jest.fn().mockResolvedValue('recorded'),recordResumeDocument:jest.fn().mockResolvedValue(undefined)}));
 jest.mock('@/lib/coach-harness/resume-conversation',()=>({runResumeConversation:jest.fn()}));
 jest.mock('../resume-draft/route',()=>({POST:jest.fn()}));
 jest.mock('@/lib/coach-harness/resume-task',()=>({claimResumeTask:jest.fn(),finishResumeTask:jest.fn(),readResumeTask:jest.fn(),ResumeTaskError:class extends Error{constructor(message:string,public status=409){super(message);}}}));
 const id='12345678-1234-4234-9234-123456789abc';
 const request=(body:unknown,stream=false)=>new Request('https://example.com/api/coach/resume-agent',{method:'POST',headers:stream?{accept:'application/x-ndjson'}:{},body:JSON.stringify(body)});
-beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});(readResumeTask as jest.Mock).mockResolvedValue(null);});
+beforeEach(()=>{jest.resetAllMocks();(getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'owner'});(readResumeTask as jest.Mock).mockResolvedValue(null);(readResumeTrace as jest.Mock).mockResolvedValue(null);(recordResumeServerEvent as jest.Mock).mockResolvedValue('recorded');(recordResumeDocument as jest.Mock).mockResolvedValue(undefined);});
 test('unauthenticated and invalid actions never claim a task',async()=>{
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValueOnce(null);
   expect((await POST(request({opportunityId:id,action:'start'}))).status).toBe(401);
@@ -66,8 +70,10 @@ test('a real upstream failure is finalized, with saved answers left intact',asyn
   (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},lease:'lease',source:{resume:'原文',jd:'',general:true}});
   (draft as jest.Mock).mockRejectedValue(Error('model timeout'));
   (finishResumeTask as jest.Mock).mockResolvedValue({state:'failed'});
-  expect((await POST(request({opportunityId:id,action:'retry'}))).status).toBe(503);
-  expect(finishResumeTask).toHaveBeenCalledWith('owner','task','lease',expect.anything(),{ok:false,error:'model timeout'});
+  const response=await POST(request({opportunityId:id,action:'retry'}));
+  expect(await response.json()).toMatchObject({task:{state:'failed'}});
+  expect(finishResumeTask).toHaveBeenCalledTimes(1);
+  expect(finishResumeTask).toHaveBeenCalledWith('owner','task','lease',expect.anything(),expect.objectContaining({ok:false,reasonCode:'request_failed'}));
 });
 test('owner failure does not call model or finish someone else’s task',async()=>{
   (claimResumeTask as jest.Mock).mockRejectedValue(new ResumeTaskError('当前简历不可访问',404));
@@ -80,4 +86,12 @@ test('a committed result survives a later response failure without double finish
   (readResumeTask as jest.Mock).mockResolvedValue({id:'task',state:'ready',result:{resumeGenerationId:'task:4',changes:[]}});
   expect(await (await POST(request({opportunityId:id,action:'retry'}))).json()).toMatchObject({ok:true,task:{state:'ready'}});
   expect(finishResumeTask).not.toHaveBeenCalled();
+});
+test('counts new changes from the claimed source, not the transient CAS field removed by the RPC',async()=>{
+ const generation='task:4',saved={id:'task',state:'ready',result:{resumeGenerationId:generation,changes:[{id:'retained'},{id:'new-change'}]}};
+ (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:4,lease:'lease',source:{resume:'原文',jd:'',revision:'rev',changes:[{id:'retained'}]}});
+ (draft as jest.Mock).mockResolvedValue(Response.json({ok:true,task:saved}));
+ (readResumeTask as jest.Mock).mockResolvedValue(saved);
+ expect(await(await POST(request({opportunityId:id,action:'start'}))).json()).toMatchObject({task:{delivery:{outcome:'delivered',deliveredCount:1}}});
+ expect(recordResumeServerEvent).toHaveBeenLastCalledWith('owner','resume_task_outcome',generation,expect.objectContaining({outcome:'delivered'}),expect.objectContaining({changeIds:['new-change']}));
 });

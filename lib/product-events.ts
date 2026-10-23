@@ -33,6 +33,11 @@ export const PRODUCT_EVENT_NAMES = [
   "resume_generation_started",
   "resume_generation_completed",
   "resume_generation_failed",
+  "resume_task_started",
+  "resume_task_outcome",
+  "resume_result_presented",
+  "resume_change_decided",
+  "resume_document_persisted",
   "resume_change_reviewed",
   "resume_change_edited",
   "resume_change_revalidated",
@@ -52,6 +57,12 @@ export const PRODUCT_EVENT_NAMES = [
   "offer_save_signup",
   "resume_gap_used",
   "resume_gap_signup",
+  // Four-door start surface. Client-side only: selection, explicit submit, real
+  // render and a fixed failure stage. Server-side delivery stays authoritative.
+  "entry_selected",
+  "entry_submitted",
+  "entry_result_presented",
+  "entry_failed",
 ] as const;
 
 /** Route buckets only: never send URL queries, account IDs or material paths. */

@@ -67,6 +67,7 @@ export function classifyGenerationFailure(error: unknown) {
   if (status === 401 || code.includes("api_key") || message.includes("authentication")) return "authentication";
   if (status === 402 || code.includes("quota") || message.includes("balance")) return "provider_quota";
   if (message.includes("empty response")) return "empty_response";
+  if (message.includes("incomplete response") || message.includes("模型输出中断")) return "incomplete_response";
   if (status >= 500) return "provider_error";
   if (status === 400 || status === 422 || message.includes("invalid")) return "invalid_request";
   return "unknown";

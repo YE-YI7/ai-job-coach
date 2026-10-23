@@ -58,6 +58,13 @@ try{
   }
   writeFileSync(join(dir,'private.json'),JSON.stringify(q),{mode:0o600});save('inputs',{synthetic:true,source,opportunityIds:q.opportunityIds});
   console.log(JSON.stringify({phase,passed:true,syntheticUsers:1,opportunities:q.opportunityIds}));
+ }else if(phase==='clone'){
+  const i=Number(index);assert.ok(i===0||i===1);
+  const result=await api.post('/api/coach/opportunities',{data:{opportunity:{workspaceType:'preparation',company:'虚构验收材料',role:i?'电商运营助理':'产品助理',location:'国内',stage:'evaluating',stageLabel:'准备中',priority:'medium',sourceLabel:'隔离 QA',capturedAtLabel:'今日',jdText:'',resumeText:source[i],profileText:source[i],nextEventLabel:null,recommendation:'prepare_then_apply',recommendationLabel:'准备',recommendationReason:'虚构验收，不用于投递',evidenceCoverage:{strong:0,weak:0,missing:0,unverified:0},requirements:[],actions:[],activities:[],resumeChanges:[],interviewFocus:[]}}});
+  assert.equal(result.status(),201,await result.text());
+  q.previousOpportunityIds=[...(q.previousOpportunityIds||[]),q.opportunityIds[i]];q.opportunityIds[i]=(await result.json()).opportunity.id;
+  writeFileSync(join(dir,'private.json'),JSON.stringify(q),{mode:0o600});
+  console.log(JSON.stringify({phase,passed:true,index:i,newSyntheticOpportunity:q.opportunityIds[i],sameInputFreshGeneration:true}));
  }else if(phase==='generate'){
   const i=Number(index),started=Date.now();assert.ok(i===0||i===1);
   // Exactly one explicit full-edit attempt per fixture. No automatic retry.

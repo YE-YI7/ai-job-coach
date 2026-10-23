@@ -637,8 +637,10 @@ function CockpitWorkspace({
     if (!active) return;
     setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,{ ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? decideResumeChange(change,status) : change) }) : item));
     if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
-    const generation=resumeAgentTasks[active.id]?.delivery?.generationId;
-    if(dataMode==='live'&&generation===active.resumeGenerationId)trackProductEvent('resume_change_decided',{generation_id:generation,change_id:changeId,decision:status==='accepted'?'accept':'keep'});
+    // The saved document already owns this generation. A fast click may precede
+    // the task readback; the server validates its receipt and change ownership.
+    const generation=active.resumeGenerationId;
+    if(dataMode==='live'&&generation)trackProductEvent('resume_change_decided',{generation_id:generation,change_id:changeId,decision:status==='accepted'?'accept':'keep'});
     logAction(status === "accepted" ? "接受了一处简历修改建议" : "对一处简历修改保留了原文");
     announce(status === "accepted" ? "已采纳 · 可撤销" : "已保留原文 · 可撤销");
   };

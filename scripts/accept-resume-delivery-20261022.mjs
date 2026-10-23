@@ -90,7 +90,9 @@ try{
    // Click the app's actual inline decision, not a handcrafted PATCH.
    const marks=paper.locator('mark[data-ink]');
    await marks.first().click();
+   const decided=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/product-events'&&r.request().postDataJSON()?.name==='resume_change_decided',{timeout:45000});void decided.catch(()=>{});
    await page.getByRole('button',{name:'采纳这处修改',exact:true}).click();
+   assert.equal((await decided).status(),200,'A fast adoption must have an authoritative delivery event');
    await page.getByText('已保存到工作区',{exact:true}).waitFor({timeout:45000});
    let list=await (await context.request.get(origin+'/api/coach/opportunities')).json();
    const own=list.opportunities.find(o=>o.id===selectedId);

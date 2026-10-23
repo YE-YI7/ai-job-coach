@@ -5,9 +5,10 @@
 
 import { POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { saveResumeUpload } from "@/lib/db";
+import { getDbClient, saveResumeUpload } from "@/lib/db";
 import { callLLM } from "@/lib/llm";
 import { extractPdfText } from "@/lib/pdf-text";
+import { finalizeQuota, reserveQuota, reserveFirstCoachingQuota, reserveResumeTrial } from "@/lib/quota";
 import mammoth from "mammoth";
 
 // Mock 认证模块
@@ -15,6 +16,14 @@ jest.mock("@/lib/auth");
 
 // Mock 数据库模块
 jest.mock("@/lib/db");
+
+// 保留真实计费路由包装，只模拟额度边界；文件校验不依赖离线免费放行。
+jest.mock("@/lib/quota", () => ({
+  reserveQuota: jest.fn(),
+  finalizeQuota: jest.fn(),
+  reserveFirstCoachingQuota: jest.fn(),
+  reserveResumeTrial: jest.fn(),
+}));
 
 // Mock LLM调用
 jest.mock("@/lib/llm");
@@ -25,10 +34,14 @@ jest.mock("mammoth");
 
 describe("Resume Upload API - File Validation", () => {
   const mockUser = { id: "test-user-123", email: "test@example.com" };
+  const reservation = { id: "fixture-resume-reservation", source: "paid_resume_remaining", remaining: 1 };
 
   beforeEach(() => {
+    jest.resetAllMocks();
     // 默认模拟已认证用户
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(mockUser);
+    jest.mocked(reserveQuota).mockResolvedValue(reservation);
+    jest.mocked(finalizeQuota).mockResolvedValue(true);
     
     // Mock PDF解析
     (extractPdfText as jest.Mock).mockResolvedValue(
@@ -117,6 +130,13 @@ describe("Resume Upload API - File Validation", () => {
       expect(response.status).toBe(200);
       expect(data.ok).toBe(true);
       expect(data.filename).toBe("resume.pdf");
+      expect(reserveQuota).toHaveBeenCalledTimes(1);
+      expect(reserveQuota).toHaveBeenCalledWith(mockUser.id, "resume", expect.stringMatching(/^resume_upload_parse:/));
+      expect(finalizeQuota).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).toHaveBeenCalledWith(reservation, true);
+      expect(response.headers.get("x-yi-zhi-quota-source")).toBe("paid_resume_remaining");
+      expect(response.headers.get("x-yi-zhi-quota-remaining")).toBe("1");
+      expect(getDbClient).not.toHaveBeenCalled();
     });
 
     test("应该接受 .docx 文件", async () => {
@@ -165,6 +185,10 @@ describe("Resume Upload API - File Validation", () => {
       expect(data.ok).toBe(false);
       expect(data.code).toBe("INVALID_FILE_TYPE");
       expect(data.error).toContain("仅支持PDF和Word格式");
+      expect(finalizeQuota).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).toHaveBeenCalledWith(reservation, false);
+      expect(callLLM).not.toHaveBeenCalled();
+      expect(saveResumeUpload).not.toHaveBeenCalled();
     });
 
     test("应该拒绝 .jpg 图片文件", async () => {
@@ -317,6 +341,11 @@ describe("Resume Upload API - File Validation", () => {
       expect(data.ok).toBe(false);
       expect(data.code).toBe("UNAUTHORIZED");
       expect(data.error).toContain("未授权");
+      expect(reserveQuota).not.toHaveBeenCalled();
+      expect(finalizeQuota).not.toHaveBeenCalled();
+      expect(extractPdfText).not.toHaveBeenCalled();
+      expect(callLLM).not.toHaveBeenCalled();
+      expect(saveResumeUpload).not.toHaveBeenCalled();
     });
 
     test("应该拒绝包含API密钥的请求", async () => {
@@ -336,6 +365,63 @@ describe("Resume Upload API - File Validation", () => {
       expect(response.status).toBe(400);
       expect(data.ok).toBe(false);
       expect(data.code).toBe("FORBIDDEN_KEY");
+    });
+  });
+
+  describe("额度与结算边界", () => {
+    test("已登录但无额度时拒绝整份解析，不能借用首次辅导或单段试用", async () => {
+      jest.mocked(reserveQuota).mockResolvedValue(null);
+      const response = await POST(createMockRequest({ name: "resume.pdf", type: "application/pdf", size: 1024 }));
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ ok: false, needUpgrade: true });
+      expect(reserveQuota).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).not.toHaveBeenCalled();
+      expect(reserveFirstCoachingQuota).not.toHaveBeenCalled();
+      expect(reserveResumeTrial).not.toHaveBeenCalled();
+      expect(extractPdfText).not.toHaveBeenCalled();
+      expect(mammoth.extractRawText).not.toHaveBeenCalled();
+      expect(callLLM).not.toHaveBeenCalled();
+      expect(saveResumeUpload).not.toHaveBeenCalled();
+      expect(getDbClient).not.toHaveBeenCalled();
+    });
+
+    test("PDF解析失败时释放已预留额度，不调用模型或保存简历", async () => {
+      jest.mocked(extractPdfText).mockRejectedValue(new Error("Invalid PDF fixture"));
+      const response = await POST(createMockRequest({ name: "resume.pdf", type: "application/pdf", size: 1024 }));
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ ok: false, code: "INVALID_PDF" });
+      expect(finalizeQuota).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).toHaveBeenCalledWith(reservation, false);
+      expect(callLLM).not.toHaveBeenCalled();
+      expect(saveResumeUpload).not.toHaveBeenCalled();
+    });
+
+    test("保存失败时释放已预留额度，不按模型已返回而结算成功", async () => {
+      jest.mocked(saveResumeUpload).mockRejectedValue(new Error("fixture storage failure"));
+      const response = await POST(createMockRequest({ name: "resume.pdf", type: "application/pdf", size: 1024 }));
+
+      expect(response.status).toBe(500);
+      expect(await response.json()).toMatchObject({ ok: false, code: "DATABASE_ERROR" });
+      expect(callLLM).toHaveBeenCalledTimes(1);
+      expect(saveResumeUpload).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).toHaveBeenCalledTimes(1);
+      expect(finalizeQuota).toHaveBeenCalledWith(reservation, false);
+      expect(getDbClient).not.toHaveBeenCalled();
+    });
+
+    test("积分结算未确认时不能返回上传成功，并请求释放同一预留", async () => {
+      const pointReservation = { id: "watcha:fixture-point", source: "watcha", remaining: 1 };
+      jest.mocked(reserveQuota).mockResolvedValue(pointReservation);
+      jest.mocked(finalizeQuota).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+      await expect(POST(createMockRequest({ name: "resume.pdf", type: "application/pdf", size: 1024 })))
+        .rejects.toThrow("积分结算未完成，请重试");
+      expect(finalizeQuota).toHaveBeenCalledTimes(2);
+      expect(finalizeQuota).toHaveBeenNthCalledWith(1, pointReservation, true);
+      expect(finalizeQuota).toHaveBeenNthCalledWith(2, pointReservation, false);
+      expect(getDbClient).not.toHaveBeenCalled();
     });
   });
 });

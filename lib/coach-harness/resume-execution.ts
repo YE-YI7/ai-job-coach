@@ -27,6 +27,7 @@ import { selectResumeDraftKnowledge } from "@/lib/knowledge/resume-methods";
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
+import {resolveResumeSourceIds} from './resume-source-ids';
 import { resumeTaskInput, persistResumeAnswerClaims, persistResumeTrialClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
@@ -354,7 +355,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     }
     rejected = [];
     changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
-      const sourceIds = Array.isArray(raw.sourceIds) ? raw.sourceIds.map(String).filter((id) => citableIds.has(id)) : [];
+      const citationIds = resolveResumeSourceIds(raw.sourceIds, citableIds);
+      const sourceIds = citationIds.ids;
+      if(citationIds.resolved.length)trace!.step('grounding','source_id_abbreviation_resolved',citationIds.resolved.length,{input:{attempt,index,sourceIds:raw.sourceIds},output:{resolved:citationIds.resolved}});
       const rawBefore = String(raw.before || "").trim().slice(0, 2000);
       const before = resumeSourceBulletSpan(resumeText,anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore);
       const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);

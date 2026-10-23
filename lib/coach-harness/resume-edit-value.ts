@@ -9,7 +9,9 @@ const clean = (text:string) => text.replace(/^\s*[-*•]\s*/gm,'').trim();
 export const RESUME_EDITORIAL_STANDARD = `简历编辑不只是保真压缩，还要筛掉随笔口吻。不要把“某年某月提出某机制的重要性”“思考某方向”“希望AI更好”当成一个成果卖点；时间不必占据bullet开头，日期对任职/项目范围有意义时才保留在对应位置。优先写清具体问题、本人已做的判断/动作、交付与实际用途，有什么写什么，不要求凑齐四项或数字。
 只有设想、提案或产品判断时，先把已有的问题与具体提案写清楚，并明确保留“提出/建议/计划”等阶段；不能改成设计完成、落地、上线、持续运行或带来效果。能安全改的先交付；若值得深挖，再一问“这项提案目前推进到了哪一步？”，不要停稿等证明。不要把未负责事项塞进简历，也不把别人的交付写成自己的。原本清楚的短句不加解释性赘词凑修改；没有补入已有但遗漏的事实、消除真实歧义或改善信息取舍时，越改越长不算specificity或clarity，应保留原文。
 教学对照（不是用户事实）：原句“某月提出提醒机制的重要性。协作周期长，信息不断变；希望系统在必要时提醒，而不是等人来问。”可以整理为“针对协作周期长、信息持续变化的问题，提出按需主动提醒的机制，减少对人工提问的依赖（提案）。”其中“减少依赖”只能是方案目的，绝不能变成已实现的结果。若来源没有具体提案，只问本人实际做过的一件事，不把泛泛思考美化成行动。每条短句一个要点，避免空泛标题和冗长说明。保留原稿段首概括与列表层级：概括空泛就改成具体概括，不因这条规则去掉加粗领头结构；原稿没有概括时也不强加。教学示例只示范内容选择，不能覆盖原稿的格式约定。
-反例：原文已经说明用了什么技术、完成哪两个页面且处于原型阶段，把“使用…完成”换成“基于…开发”、把“两个页面”换成两个“页”，信息没有更清晰，不算改稿；已经写明测试数量和覆盖项目，再加“用例”“两类场景”也是赘写。不能以动词看起来更专业为由判定有价值。把技能两句的句号换成分号、和换成与，不是压缩内容；把所在项目标题中的店铺名再搬进正文，不是补充新事实或消除歧义；仅删介词并将交给换成提交，也不是让本来清楚的交付更具体。应返回 useful=false，不要给这些变化套concision/clarity标签。`;
+反例：原文已经说明用了什么技术、完成哪两个页面且处于原型阶段，把“使用…完成”换成“基于…开发”、把“两个页面”换成两个“页”，信息没有更清晰，不算改稿；已经写明测试数量和覆盖项目，再加“用例”“两类场景”也是赘写。不能以动词看起来更专业为由判定有价值。把技能两句的句号换成分号、和换成与，不是压缩内容；把所在项目标题中的店铺名再搬进正文，不是补充新事实或消除歧义；仅删介词并将交给换成提交，也不是让本来清楚的交付更具体。应返回 useful=false，不要给这些变化套concision/clarity标签。
+责任边界一致性：原文“协助店铺完成105件商品销售，未统计个人贡献比例”，正文保留“协助店铺完成105件商品销售”时，团队/店铺主体和协助限定都仍在，删除“未统计个人贡献比例”不是夸大，不要求加回；该说明仍保留在原始证据中。改成“独立完成105件销售”或“个人贡献105件”必须拒绝。未负责/未统计等个人说明不同于“协助/参与”“原型/未上线”等必要限定，后者不能删除。不要为落实这条规则删除已有交付物的具体对象。
+内容取舍正例（纯教学，数字不作为用户事实）：原句“后台运营：平时主要负责后台运营。整理了30条反馈，整理后交给负责人每周查看，未统计业务增长。”可写“后台运营：整理30条反馈，交给负责人每周查看。”这是删除重复职责/过程，突出已有动作、交付与用途，不是换动词或编造增长。原稿已达到后一种清晰度，就保留，不硬凑修改。`;
 
 export function isPersonalDisclaimer(text:string){return personalDisclaimer.test(clean(text));}
 
@@ -104,7 +106,7 @@ const valueKinds=new Set(['concision','structure','specificity','relevance','cla
 export function readResumeValueChecks(raw:unknown,count:number):ResumeValueCheck[]{
   if(!Array.isArray(raw))return [];
   return raw.filter((item):item is ResumeValueCheck=>Boolean(item&&typeof item==='object'&&Number.isInteger(item.index)&&item.index>=0&&item.index<count
-    &&typeof item.useful==='boolean'&&(item.impact===undefined||['correction','content'].includes(item.impact))&&(valueKinds.has(item.kind)||(!item.useful&&['none','format'].includes(item.kind)))&&typeof item.reason==='string'&&item.reason.trim().length>=8));
+    &&typeof item.useful==='boolean'&&(item.impact===undefined||['correction','content'].includes(item.impact))&&(valueKinds.has(item.kind)||(!item.useful&&['none','format','grounding'].includes(item.kind)))&&typeof item.reason==='string'&&item.reason.trim().length>=8));
 }
 export function usefulResumeIndexes(checks:ResumeValueCheck[]){
   return new Set(checks.filter(check=>check.useful&&checks.filter(other=>other.index===check.index).length===1).map(check=>check.index));

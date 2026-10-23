@@ -25,6 +25,11 @@ describe('resume editing value, separate from factuality',()=>{
     expect(resumeEditValueIssues('大学英语四级，可阅读英文资料。掌握Excel筛选和透视表。','大学英语四级，可阅读英文资料；掌握Excel筛选与透视表。')).toContain('技能说明仅更换句号/分号或连接词，没有内容改善，不作为修改交付');
     expect(resumeEditValueIssues('掌握ExcelWord。','掌握Excel、Word。')).toEqual([]);
   });
+  test('a negative grounding diagnosis is a rejection, not a reason to ask the reviewer to rejudge',()=>{
+    const rejected={index:0,useful:false,kind:'grounding',reason:'删除了原稿的协助限定，扩大本人责任'};
+    expect(readResumeValueChecks([rejected],1)).toEqual([rejected]);expect(usefulResumeIndexes([rejected]).size).toBe(0);
+    expect(readResumeValueChecks([{...rejected,useful:true}],1)).toEqual([]);
+  });
   test('adding a field separator to education cannot substitute for a content edit',()=>{
     expect(resumeEditValueIssues('示例大学 国际经济与贸易 本科 2022.09-2026.06','示例大学 国际经济与贸易 本科 | 2022.09-2026.06')).toContain('仅改空白或字段分隔符，不作为内容改稿交付');
     expect(resumeEditValueIssues('整理30条问答，整理后交给同学试用。','整理30条问答，交给同学试用。')).toEqual([]);

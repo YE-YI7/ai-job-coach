@@ -705,18 +705,20 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
   });
 
   test('whole-document failure returns diagnosis to original editor once; reviewer never writes',async()=>{
-    const draft={changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]};
+    const draft={changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']},{before:'Excel、Word',after:'技能：Excel、Word',sourceIds:['claim-1']}]};
     const review={status:'passed',summary:'逐条可用',valueChecks:usefulValueChecks,findings:[],document:passedDocument};
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify(draft))
       .mockImplementationOnce(async(messages)=>{
         const list=JSON.parse(messages.find((m:{content:string})=>m.content.includes('待审修改（findings')).content.split('待审修改（findings 里的 changeId 必须从这里逐字取）：\n')[1]);
         return JSON.stringify({...review,document:{status:'failed',summary:'整稿可读性还需修复',findings:[{changeId:list[0].id,category:'quality',severity:'error',message:'段内动作顺序不一致，退回原编辑检查'}]}});
-      }).mockResolvedValueOnce(JSON.stringify(draft)).mockResolvedValueOnce(JSON.stringify(review));
+      }).mockResolvedValueOnce(JSON.stringify({changes:draft.changes.slice(0,1)})).mockResolvedValueOnce(JSON.stringify(review));
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
-    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
+    const response=await POST(new Request('https://example.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测\nExcel、Word',mode:'general_resume'})}));
     expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(4);
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('段内动作顺序不一致');
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('仅改标签');
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[2][0])).toContain('Excel、Word');
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('appliedCandidate');
     expect((await response.json()).workflow.maxRepairs).toBe(1);
   });

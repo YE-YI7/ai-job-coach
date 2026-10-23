@@ -505,7 +505,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       captureCheckpoint(attempt);
       const flagged=new Set(documentReview.findings.filter(f=>f.severity==="error").map(f=>f.changeId));
       lockedChanges=flagged.has(null)?[]:changes.filter(c=>!flagged.has(c.id));
-      repairFeedback=documentReview.findings.filter(f=>f.severity==="error").map(f=>JSON.stringify({changeId:f.changeId,before:changes.find(c=>c.id===f.changeId)?.before,problem:f.message}));
+      repairFeedback=[...rejected.map(item=>JSON.stringify({before:rawChanges[item.index]?.before,problem:item.reasons.join('；')})),...documentReview.findings.filter(f=>f.severity==="error").map(f=>JSON.stringify({changeId:f.changeId,before:changes.find(c=>c.id===f.changeId)?.before,problem:f.message}))].slice(0,10);
       trace.step("review","returned_to_original_editor",repairFeedback.length,{input:documentReview,output:{repairFeedback,lockedChangeIds:lockedChanges.map(c=>c.id),maxRepairs:1}});
       continue;
     }

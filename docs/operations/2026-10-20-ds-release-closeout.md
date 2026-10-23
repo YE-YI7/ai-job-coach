@@ -14,7 +14,7 @@
 项目 `wynjnexofolzusmtjltd`。从已审阅提交精确读取迁移和 SQL 测试：
 
 1. 首先事务内替换函数并执行 SQL 断言，最终 ROLLBACK。辅助脚本初次拼接 DO 分隔符出错，整条语法失败；修正脚本后断言通过并回滚，没有把该辅助错误归因到 DS 迁移。
-2. 用正式 migration 接口应用相同 SQL，返回 success。记录名 `phone_daily_limit_30`，远端实际版本 `20261021042719`；源文件名仍为 `20261021030000_phone_daily_limit_30.sql`，两者对应关系明确记录，不重命名已推文件或篡改旧迁移记录。
+2. 用正式 migration 接口应用相同 SQL，返回 success。记录名 `phone_daily_limit_30`，远端实际版本 `20261021042719`；源文件名仍为 `20261021042719_phone_daily_limit_30.sql`，两者对应关系明确记录，不重命名已推文件或篡改旧迁移记录。
 3. 对已生效函数再次事务内运行 DS SQL 断言并回滚：第 30 次放行、第 31 次拒绝、拒绝不继续扣日额度、旧 sent challenge 保留、全站拒绝退还号码计数、冷却不扣额度均通过。
 4. 回读函数：号码上限 30、全站上限 100、security definer=false；anon/authenticated 不可执行，service_role 可执行。没有放开浏览器权限。
 5. 虚构号码 challenge 和虚构计数桶残留均为 0，没有发送短信，也没有留下测试账户或 OTP。

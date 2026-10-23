@@ -274,8 +274,8 @@
 | `lib/interview-review/db.ts` | ✅ | 数据库操作层（Session CRUD、Followup、Training Tasks、标签更新、简历关联、历史标签聚合） |
 | `lib/interview-review/index.ts` | ✅ | 统一导出 |
 | `lib/interview-review/sanitize.ts` | ✅ | 自动脱敏工具（手机号/邮箱/姓名/链接/IP） |
-| `sql/006-interview-review.sql` | ✅ | 数据库建表 SQL（sessions + followups + 索引） |
-| `sql/007-interview-review-tasks.sql` | ✅ | 训练任务建表 SQL（tasks + 索引 + RLS） |
+| `supabase/migrations/20260303071533_create_interview_review_tables.sql` | ✅ | 已恢复的生产迁移；旧SQL在docs/archive/sql-20261023/sql/ |
+| `supabase/migrations/20260303082853_create_interview_review_tasks.sql` | ✅ | 已恢复的生产迁移；新变更不得执行旧初始化 |
 | `app/api/interview-review/parse/route.ts` | ✅ | 解析 API（并行调用解析+标签推荐，支持持久化） |
 | `app/api/interview-review/analyze/route.ts` | ✅ | 分析 API（逐题讨论+打分+改写+汇总，支持持久化） |
 | `app/api/interview-review/followup/route.ts` | ✅ | 追问出题 API + 追问记录查询（GET/POST） |

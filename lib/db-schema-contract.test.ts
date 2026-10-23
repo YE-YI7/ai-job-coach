@@ -5,8 +5,9 @@
  * 永远不会红；到了生产是整条 PostgREST 查询报 42703，功能直接 500。
  * 本轮就抓到一次——邀请码台账选了生产库里不存在的 `invites.expires_at`。
  *
- * 真源是 data/supabase-production-schema.json（从生产 PostgREST 拉的快照），
- * 不是 supabase/migrations：生产有若干历史手工建的表不在迁移目录里。
+ * 列名合同使用 data/supabase-production-schema.json（生产 PostgREST 快照）。
+ * 2026-10-23 已恢复完整62条生产迁移；npm run schema:verify 另外在隔离库
+ * 重建并比较列、默认值、约束、索引、函数、触发器、RLS和权限。此静态扫描不代替回放。
  *
  * 有意不扫 `.eq()/.order()` 的列名：多个查询会在 Promise.all 里交错
  * （repository.ts 的 claimQuery/artifactQuery 就是），"最近的 .from()" 这种

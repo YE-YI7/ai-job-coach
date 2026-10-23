@@ -1,4 +1,3 @@
--- Bound AI calls finish within minutes. Recover abandoned reservations after one hour.
 create function public.recover_watcha_points(p_user_id text,p_environment text) returns integer language plpgsql security invoker set search_path=public as $$
 declare n integer;
 begin

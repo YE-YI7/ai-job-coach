@@ -19,7 +19,7 @@ DS 原记录日期：2026-10-21 UTC（本地为 10-20）。最新状态：**三�
 
 ### 1. 短信日限 30 次/号码/日
 
-- 新增迁移 `supabase/migrations/20261021030000_phone_daily_limit_30.sql`：以 `create or replace` 重写 `reserve_phone_auth_send`，仅把 `phone-send-number` 的日窗口上限 5 → 30。
+- 新增迁移 `supabase/migrations/20261021042719_phone_daily_limit_30.sql`：以 `create or replace` 重写 `reserve_phone_auth_send`，仅把 `phone-send-number` 的日窗口上限 5 → 30。
 - 保持不变的防护：全站 100 次/日（`phone-send-global` 86400,100）、同一号码 60 秒重发冷却、发送 IP 10 次/15 分钟、验证 IP 30 次/15 分钟、每个验证码 5 次尝试上限、拒绝请求整体回滚（不消耗日额度、不使旧 OTP 失效）。
 - 设计判断：不重置已有计数桶；提高上限后当前 UTC 日立即按新上限生效。30 与全站 100 的关系是「单号码先到 30，全站合计先到 100」，两者都保留。
 - 更新 `supabase/tests/phone_send_reservation.sql`：拒绝场景的计数基线改为 30；新增边界断言「第 30 次放行、计数为 30，第 31 次拒绝且计数保持 30」。

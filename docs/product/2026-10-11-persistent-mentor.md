@@ -27,6 +27,6 @@
 
 ## 正式发布
 
-- 运行时代码 `9d8adc1`，数据库迁移 `20261011063000_persistent_mentor_turn_guard.sql` 已应用并读回；独立 `codex/persistent-mentor` 分支推送 GitHub，不混入共享 auth/admin/pay/source 改动。
+- 运行时代码 `9d8adc1`，数据库迁移 `20261011062325_persistent_mentor_turn_guard.sql` 已应用并读回；独立 `codex/persistent-mentor` 分支推送 GitHub，不混入共享 auth/admin/pay/source 改动。
 - `dpl_9jJwSRboZYfYYcuebai8cx1ZJAdq` 云构建 READY 后 promote；`ai-job-coach.xin` 与 `www.ai-job-coach.xin` inspect 同一 READY ID，健康接口 200、匿名会话接口 401。正式 Chrome 刷新末验：同一会话的双岗位问题/回复、接着做入口恢复，重新打开成果仍读回用户编辑版并显示已保存到我的笔记。
 - 上一稳定代码发布 `dpl_AMeBC1Qv9sL8P99BjMitCpJTbNgS` 可回退；数据库若退回旧单岗位 guard 会再次拒绝跨岗回复，不应在仍运行长期导师前端时单独回退该约束。

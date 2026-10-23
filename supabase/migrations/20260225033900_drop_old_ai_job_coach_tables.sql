@@ -1,0 +1,24 @@
+
+-- Drop all old ai-job-coach tables (with CASCADE to handle FK dependencies)
+DROP TABLE IF EXISTS conversation_messages CASCADE;
+DROP TABLE IF EXISTS user_memories CASCADE;
+DROP TABLE IF EXISTS memory_summaries CASCADE;
+DROP TABLE IF EXISTS resume_changes_log CASCADE;
+DROP TABLE IF EXISTS user_resumes CASCADE;
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS whiteboard_states CASCADE;
+DROP TABLE IF EXISTS interview_answers CASCADE;
+DROP TABLE IF EXISTS interview_questions CASCADE;
+DROP TABLE IF EXISTS interview_sessions CASCADE;
+DROP TABLE IF EXISTS interview_calendar CASCADE;
+DROP TABLE IF EXISTS user_analytics CASCADE;
+DROP TABLE IF EXISTS email_verification_codes CASCADE;
+DROP TABLE IF EXISTS user_quotas CASCADE;
+DROP TABLE IF EXISTS redemption_codes CASCADE;
+DROP TABLE IF EXISTS referrals CASCADE;
+DROP TABLE IF EXISTS user_progress CASCADE;
+DROP TABLE IF EXISTS stage_tasks CASCADE;
+DROP TABLE IF EXISTS resumes CASCADE;
+DROP TABLE IF EXISTS invites CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS users CASCADE;

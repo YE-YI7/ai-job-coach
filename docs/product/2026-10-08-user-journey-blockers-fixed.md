@@ -37,7 +37,7 @@
 ## 发布与清理完成
 
 - 修复代码 `7931e39`、`bd94621` 均已推送 `backend`。仅选择本任务文件构建发布，未混入共享工作树的 auth/admin 改动。
-- 最终部署 `dpl_CGJiLeSyr7xccpS2iWp8iLL9azoQ` 为 Ready，已 promote；正式域名 https://www.ai-job-coach.xin 的 inspect 指向该部署。生产迁移 `20261008030906_first_learning_round.sql` 已执行。
+- 最终部署 `dpl_CGJiLeSyr7xccpS2iWp8iLL9azoQ` 为 Ready，已 promote；正式域名 https://www.ai-job-coach.xin 的 inspect 指向该部署。生产迁移 `20261008031147_first_learning_round.sql` 已执行。
 - 发布前受保护部署回读岗位、已编辑笔记、新版推荐结果与首次教学幂等回复通过。发布后正式域名新搜索返回 200，结果版本 `evidence-shortlist-v5-validated-partial`；关键词无「销售」，返回网易运营实习生、大专家产品运营经理、上海往圣 AI 应用 SaaS 产品运营经理，无明确高级职级。笔记回读已保存，390px 列表保底 96px、队列上限 120px。仍需核实具体岗位任职/学生资格，不将这些标题当作适配结论。
 - 尾检最近 10 分钟该部署 error 级日志查询无记录，仅表示本次短窗口未查到错误，不是全量可靠性保证。
 - 主合成账号已删除并确认不存在，16 条测试事件已标记；RPC 并发测试账号已删除。仅本次浏览器会话的 cookies 已清除并关闭，临时生产凭据文件已删除；未清除用户浏览器登录态或客户数据。

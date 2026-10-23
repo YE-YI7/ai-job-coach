@@ -1,0 +1,7 @@
+-- 删除代码中未引用的6张表
+DROP TABLE IF EXISTS projects CASCADE;
+DROP TABLE IF EXISTS conversations CASCADE;
+DROP TABLE IF EXISTS negotiations CASCADE;
+DROP TABLE IF EXISTS interview_summaries CASCADE;
+DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS whiteboards CASCADE;

@@ -1,4 +1,3 @@
--- Applied version follows the production migration history.
 -- Preserve the existing 5/number/day and 100/site/day caps. Reserve only after
 -- the atomic challenge admission: cooldown/conflict requests must not burn SMS
 -- budget. A rejected budget check rolls back admission and preserves prior OTPs.

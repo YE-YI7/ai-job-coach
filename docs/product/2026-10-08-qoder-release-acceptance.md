@@ -141,7 +141,7 @@ F1–F7 的代码缺陷已修复，正式发布仍不签收。
 
 ### 已实证
 
-1. 生产 AJC 数据库已成功应用 `20261008081209_coach_release_atomic_outcomes.sql`，仅增列、索引、事务函数。匿名和 authenticated 不能直接调用，两函数仅 service_role 可执行。
+1. 生产 AJC 数据库已成功应用 `20261008081717_coach_release_atomic_outcomes.sql`，仅增列、索引、事务函数。匿名和 authenticated 不能直接调用，两函数仅 service_role 可执行。
 2. `evals/release-persistence.sql` 在真实数据库中执行并 ROLLBACK：成果版本恢复／幂等／冲突／跨 owner；决定插入故障回滚／批次成员伪造／跨 owner／同 URL 跨批次隔离通过。不修改真实用户记录，没有遗留合成测试账号。
 3. 隔离本轮文件的快照（排除已有 auth/admin 脏改动）：174 套通过、1 套跳过，1765 用例通过、2 跳过；类型检查及 production build 成功。工作树全量另为 176 套通过、1 跳过，1772 用例通过、1 跳过。此计数在最后新增结构首屏回归用例之前；后续单独运行质量集验收该新增用例，不能冒称上述全量计数包含它。
 4. 本轮文件 lint 无错误。手动 Impeccable detect 一次：无主要问题、30 条配色／字号建议，未当成新增回归一律修改；自动钩子保持关闭，未新增忽略规则。

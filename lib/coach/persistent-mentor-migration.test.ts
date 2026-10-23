@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
-const sql=readFileSync(join(process.cwd(),'supabase/migrations/20261011063000_persistent_mentor_turn_guard.sql'),'utf8');
+const sql=readFileSync(join(process.cwd(),'supabase/migrations/20261011062325_persistent_mentor_turn_guard.sql'),'utf8');
 describe('persistent mentor database guard',()=>{
  it('allows a different job in the same owner conversation',()=>{
    expect(sql).not.toContain('opportunity_id is not distinct from new.opportunity_id');

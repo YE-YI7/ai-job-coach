@@ -50,6 +50,7 @@ next-env.d.ts
 .codebuddy/
 
 # temp files
+/supabase/.temp/
 *.ps1
 t.txt
 清除旧凭据.ps1

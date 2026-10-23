@@ -43,7 +43,7 @@
 - 浏览器实测发现成果保存显示原始 `Failed to fetch`，7e6dc16 增补中文恢复提示与“保存失败，重试”。新版已通过回归与正常刷新读取；该文案的再次断网触发被原生输入/滚动连接失效阻挡，未把它记成浏览器二次触发通过。首次断网保稿、同稿重试与刷新恢复是实际 Chrome 验收，不是模拟接口。
 - 浏览器额外诊断发现 DevTools 沿用 Offline 预设，最终已恢复 No throttling；Chrome 扩展连接仍不稳定，采用原生操作验收，未宣称扩展连接彻底修复。
 - Impeccable：对本次两处 TSX 集中 `detect --json`，返回 `[]`；自动钩子保持关闭。React 检查未发现本次引入的新 hook/权限/布局问题；未改字体或配色。
-- 数据库迁移 `20261013105338_coach_agent_request_claims.sql` 已在 AJC 执行；服务端专用表与 RPC，anon/authenticated 无权限。
+- 数据库迁移 `20261013110051_coach_agent_request_claims.sql` 已在 AJC 执行；服务端专用表与 RPC，anon/authenticated 无权限。
 - 平台硬杀且无终态记录时不自动抢占旧 lease。保留 UNKNOWN 与原文，避免不确定上游再收费；耐久 worker/结算对账是另一个仍未实现的范围，不能宣称所有平台崩溃都可自动续跑。
 - 不把旧审查中的内容质量门、全部 E2E、招聘覆盖与耐久任务等未修项一起宣称完成。
 

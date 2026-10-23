@@ -1,5 +1,4 @@
 -- Full-resume requests are paid only. The obsolete daily field is not reset or spent.
--- Version matches the production migration journal applied through Supabase MCP.
 -- No rewrite of users, old answers, balances or historical ledger entries.
 alter table public.coach_resume_tasks add column if not exists edit_scope jsonb;
 alter table public.quota_usage_ledger drop constraint quota_usage_ledger_source_field_check;

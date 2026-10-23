@@ -1,0 +1,363 @@
+{
+  "capturedAt": "2026-10-23",
+  "source": "read-only pg_catalog and supabase_migrations.schema_migrations; no business rows",
+  "project": "wynjnexofolzusmtjltd",
+  "migrations": [
+    {
+      "file": "20260224083653_create_interview_calendar.sql",
+      "version": "20260224083653",
+      "sha256": "8cddfe09b0aaea928b743ef98522dce2ec6439cca26043b4efa158b995375785"
+    },
+    {
+      "file": "20260224083654_create_user_analytics.sql",
+      "version": "20260224083654",
+      "sha256": "a4bf22af756f73cc550ebc3d2ba191d11ac0f3744bfd117a3dae1b850f1ff62b"
+    },
+    {
+      "file": "20260224085411_create_email_verification_codes.sql",
+      "version": "20260224085411",
+      "sha256": "2caff2acdd01bbb7f9798ed38a079127a5278b2402566d2a6b139c4a557ebf2c"
+    },
+    {
+      "file": "20260224085414_create_user_quotas_and_redemption_codes.sql",
+      "version": "20260224085414",
+      "sha256": "b53469ec15a317473feb6dbc9002bd9df315b3d69e9e52cdc8fd753652106531"
+    },
+    {
+      "file": "20260224085415_create_referrals.sql",
+      "version": "20260224085415",
+      "sha256": "a20aa2cd085e20d3d601cf3265ae09e1da2654ffa003c5282c74045c26c0d627"
+    },
+    {
+      "file": "20260224085711_drop_unused_tables.sql",
+      "version": "20260224085711",
+      "sha256": "7a58ca277fd23ee9963366b64141a0e8c6377a37e81f32b3b349bd8ac53b7ef3"
+    },
+    {
+      "file": "20260224085743_create_user_progress.sql",
+      "version": "20260224085743",
+      "sha256": "7da2fc23e5bb2824c025fec48375bb43e9ccfcc55f81a510aa3ec132f0f7af72"
+    },
+    {
+      "file": "20260224112710_create_stage_tasks.sql",
+      "version": "20260224112710",
+      "sha256": "0beba7306eb25323d8e97bd6769c58ac5f95bcd5a987c4a85f5a94f451edaa53"
+    },
+    {
+      "file": "20260225033900_drop_old_ai_job_coach_tables.sql",
+      "version": "20260225033900",
+      "sha256": "70bfb858a723c440ede0a306ee36968d3a21eddeeb2133a9b07e049766845c6b"
+    },
+    {
+      "file": "20260225033950_create_rebirth_protocol_tables.sql",
+      "version": "20260225033950",
+      "sha256": "8a300b67e724c05396a9bab10e58f08a571a4cdd470aba418a64d52a43cfb864"
+    },
+    {
+      "file": "20260225034005_create_indexes_and_constraints.sql",
+      "version": "20260225034005",
+      "sha256": "7a8f325c0631ca21a2b2484e5da8e6da44941e666d8aa17bf80290e3aeff589f"
+    },
+    {
+      "file": "20260225034020_create_rls_policies.sql",
+      "version": "20260225034020",
+      "sha256": "1e3e5e47ca73ae607656ddaa236de331b7c88c6ed3d2af09f69ab678f6238f22"
+    },
+    {
+      "file": "20260225034053_create_triggers_and_functions.sql",
+      "version": "20260225034053",
+      "sha256": "3d00db5e08f30076c9ed8d3f4f9a0715f5bf2d4fcb6d226bdb99a0db30b00859"
+    },
+    {
+      "file": "20260225034135_insert_seed_data.sql",
+      "version": "20260225034135",
+      "sha256": "c550ec93b3b391c62072886f19ee86a9947a7e26666c53aa4b0d30c2cff35f2c"
+    },
+    {
+      "file": "20260225035323_drop_rebirth_tables_and_create_ai_job_coach.sql",
+      "version": "20260225035323",
+      "sha256": "3dfe9f367e2603ee2dc59a75be9dbc4bc4da571101caf480a76ca6c032b99ee2"
+    },
+    {
+      "file": "20260225062835_create_interview_tables.sql",
+      "version": "20260225062835",
+      "sha256": "a8e1df93a9937303ec184adf7843c7001e4041dc53cc373a802e0fe3d7d5d99c"
+    },
+    {
+      "file": "20260303071533_create_interview_review_tables.sql",
+      "version": "20260303071533",
+      "sha256": "4d3cb6e31b9a0e61d3ece7bc6bd2f3bd731ce950591e31b4e2a75fbce83139b5"
+    },
+    {
+      "file": "20260303072113_add_raw_content_expiry.sql",
+      "version": "20260303072113",
+      "sha256": "dc72d4b3a1bf871bb4ae5cde0003bd109d1a4397b0547118f111298acb617029"
+    },
+    {
+      "file": "20260303082853_create_interview_review_tasks.sql",
+      "version": "20260303082853",
+      "sha256": "fe4225abdc21ecc96ae0e5bce25aa446c8a26fb5d005e8505675572d5353b895"
+    },
+    {
+      "file": "20260317130628_watcha_oauth.sql",
+      "version": "20260317130628",
+      "sha256": "dab99ba64f8ec219dec23862f6598b3b3eb2451acb6df9a446e6343af8ab2003"
+    },
+    {
+      "file": "20260812132615_lock_down_public_api.sql",
+      "version": "20260812132615",
+      "sha256": "c353be9e0ff263d13baaa09fab82070e76bca4d70749a46530f3a6fff835fc8c"
+    },
+    {
+      "file": "20260814145826_coach_harness_core.sql",
+      "version": "20260814145826",
+      "sha256": "6d11a16b290775ef34642c05ed8a568e9396bb9220768d54c7acef94221fb0db"
+    },
+    {
+      "file": "20260816103209_public_job_knowledge_v1.sql",
+      "version": "20260816103209",
+      "sha256": "1c2dedebfa66b2898f2e6fbd38874e5203ee1fd3a36d38979d7fc7bca287b70d"
+    },
+    {
+      "file": "20260817143714_atomic_quota_reservations.sql",
+      "version": "20260817143714",
+      "sha256": "0b338c60a6538f4021eaf7748b84de86f1367ba6b781a0359b8664876bd66c6c"
+    },
+    {
+      "file": "20260817150709_product_events.sql",
+      "version": "20260817150709",
+      "sha256": "bd2d5fe8d4e9b8fa893126528184783f997b91317688ad1935357e64ba85a31e"
+    },
+    {
+      "file": "20260817152019_knowledge_official_job_sources.sql",
+      "version": "20260817152019",
+      "sha256": "312dddc71df5dc2125b85dd8fdb64bf3b7144e923f0300a13eaf018ab7699f20"
+    },
+    {
+      "file": "20260817155309_public_action_rate_limits.sql",
+      "version": "20260817155309",
+      "sha256": "5c40441ef105e4643f83cf8ef4ce4121b62d8837fd28bb3c7ada41cfdde0897c"
+    },
+    {
+      "file": "20260817162636_ai_generation_events.sql",
+      "version": "20260817162636",
+      "sha256": "50c48bd5cd85a64b984d3c424ef280af1efc9e1c1331321db02cdb4b47bc189b"
+    },
+    {
+      "file": "20260817165709_reject_quota_replay.sql",
+      "version": "20260817165709",
+      "sha256": "d6b167b6b5ae21d35aa0821b6f388838a8358c9c59d9d8db2e5055ecb07034cb"
+    },
+    {
+      "file": "20260817170051_interview_generation_claims.sql",
+      "version": "20260817170051",
+      "sha256": "df266bdd9171994f5886be93a5c4918b5df02d17db31a8ba88efa86bf0833a1b"
+    },
+    {
+      "file": "20260817170329_harden_function_search_paths.sql",
+      "version": "20260817170329",
+      "sha256": "f7733d7ce958d0367ff266d170c42333c244a1619c83a129c5f3a9efa13a8d65"
+    },
+    {
+      "file": "20260817171735_expand_knowledge_source_kinds.sql",
+      "version": "20260817171735",
+      "sha256": "850fc9a10cee575fe8c7884266fb167e22c0d6bc1b10644c36110acc72632326"
+    },
+    {
+      "file": "20260817180006_move_pg_trgm_to_extensions.sql",
+      "version": "20260817180006",
+      "sha256": "0859b3df3acee6cbbc91af240f97786a5ff2d078e198672fea87747662643073"
+    },
+    {
+      "file": "20260830164040_coach_application_truth_and_snapshots.sql",
+      "version": "20260830164040",
+      "sha256": "51e9a900fb7e99c966c5d63f9e84d090a883dfd76d5d2237a5835bdbe3bf3a6e"
+    },
+    {
+      "file": "20260830165932_coach_claim_links_cascade.sql",
+      "version": "20260830165932",
+      "sha256": "72d0781e4ebc54521ccba766fe00b1481b96dd14457f5f0a78ff4d57180eed18"
+    },
+    {
+      "file": "20260901092436_tokenpay_connections.sql",
+      "version": "20260901092436",
+      "sha256": "953f20adad6aa9c32b99db82cb56d06220f489eff3726b3638d54228448ca98a"
+    },
+    {
+      "file": "20260904091044_interview_sessions_opportunity_link.sql",
+      "version": "20260904091044",
+      "sha256": "6c4c0c65629c85242734534d2a12f8427cf8ac31ae7a77c0821ea0a7f221e7b6"
+    },
+    {
+      "file": "20260906121447_coach_plans_offers_parallel.sql",
+      "version": "20260906121447",
+      "sha256": "436990a6994837cc6c656236ff3958660f585c734b89bf649c2d6c68ef760133"
+    },
+    {
+      "file": "20260906123053_coach_harness_truth_layers_replay.sql",
+      "version": "20260906123053",
+      "sha256": "ade4b61e7e81e57658822df4717921bcf05fb43899d65914acfc107f524139f4"
+    },
+    {
+      "file": "20260908041045_coach_agent_workspace.sql",
+      "version": "20260908041045",
+      "sha256": "cc5232bd1bb320d48b738b41ae89e7d7e3cd9e92e7fb2c1ff669e9e09b0036ec"
+    },
+    {
+      "file": "20260913091831_coach_learning_memory.sql",
+      "version": "20260913091831",
+      "sha256": "92b4a9d05961996f321b66cc046831ac5cf406fd7ad8659dbeaa192f63a13dc8"
+    },
+    {
+      "file": "20260919153704_anon_product_events.sql",
+      "version": "20260919153704",
+      "sha256": "e4cbc83382fe53abb4e8d0f189dc6dc3e90a09e11f87732d007418fac29888a5"
+    },
+    {
+      "file": "20260930175324_coach_context_attachment_kind.sql",
+      "version": "20260930175324",
+      "sha256": "8268a780a39d90fe302c88761c2c0b497a868660c081cc63086ff617d1297f94"
+    },
+    {
+      "file": "20261008011716_first_coaching_guarantee.sql",
+      "version": "20261008011716",
+      "sha256": "816e7dee4016d1e3c595cff56b94ba15335ae837f23c0d1f80b8d0838c07ba32"
+    },
+    {
+      "file": "20261008031147_first_learning_round.sql",
+      "version": "20261008031147",
+      "sha256": "d72c480de9fbfac84abf1198a143a3026cb8e656515853a786391b2b0d8be595"
+    },
+    {
+      "file": "20261008081717_coach_release_atomic_outcomes.sql",
+      "version": "20261008081717",
+      "sha256": "86ed4d99fb645d16e6939bc2e7f617dc35bca1dece75254a6383fb1edafea7f0"
+    },
+    {
+      "file": "20261009122430_watcha_point_wallet.sql",
+      "version": "20261009122430",
+      "sha256": "87926093b1f91d984abb2f83d21c41951fae713227c7717bcaa0c842c5435430"
+    },
+    {
+      "file": "20261009122850_watcha_point_recovery.sql",
+      "version": "20261009122850",
+      "sha256": "3143b71c0b18e4005069f153ce1c631aa80eaf31336b1398f6da53112d13c7a2"
+    },
+    {
+      "file": "20261011062325_persistent_mentor_turn_guard.sql",
+      "version": "20261011062325",
+      "sha256": "948c918792dda6272912741c0637ef7114b932efaee5ef1f4c052eaca8c3b1ac"
+    },
+    {
+      "file": "20261013110051_coach_agent_request_claims.sql",
+      "version": "20261013110051",
+      "sha256": "54bb22bf6b7b66e716d1a1eeb4be6dad2e3617189d08ebf1fe8816fa8a4dd8ed"
+    },
+    {
+      "file": "20261015030215_coach_resume_agent_tasks.sql",
+      "version": "20261015030215",
+      "sha256": "21070280a067a204615355335c071c11985ee3693ee341d145e7a037df58dc71"
+    },
+    {
+      "file": "20261015032051_coach_resume_task_finish_guard.sql",
+      "version": "20261015032051",
+      "sha256": "de9091dc9f032570dc43a76bccfc10a15c410c4cfccd2aa1418eea1ed54344bd"
+    },
+    {
+      "file": "20261018033656_admin_eval_runs.sql",
+      "version": "20261018033656",
+      "sha256": "cd12f5ed9aa837d19e5644c04a56d8bd8be6189214452c878ca89c79057b8b6e"
+    },
+    {
+      "file": "20261018061015_phone_auth_challenges.sql",
+      "version": "20261018061015",
+      "sha256": "dce22367bdf33dcb413bb2a83b769cc2c123f6b2aed3c287ea36b6028091ad97"
+    },
+    {
+      "file": "20261018061531_phone_auth_user_index.sql",
+      "version": "20261018061531",
+      "sha256": "eeac266a6282c2287d39068b41d9997ddc7df11c28fbab2081b77ab18124de53"
+    },
+    {
+      "file": "20261018074409_verified_phone_recovery.sql",
+      "version": "20261018074409",
+      "sha256": "bf8a7751f2efda37d3337b4dc9e440eeb4934443204ecab494e4f743d0aac018"
+    },
+    {
+      "file": "20261018100610_phone_send_reservation.sql",
+      "version": "20261018100610",
+      "sha256": "271c272adcca716390381fb087bf3ff476ae3e4353637b5bd1660d18e12d1cb0"
+    },
+    {
+      "file": "20261019161122_eval_case_feedback_and_experiments.sql",
+      "version": "20261019161122",
+      "sha256": "0bb29c4832ebea486364cba09784cd33f9dd0aad142d768b8399f593cabb9f14"
+    },
+    {
+      "file": "20261019161227_eval_private_table_grants.sql",
+      "version": "20261019161227",
+      "sha256": "5ce93e5b63e225d2fc6366fbc83ddceaa4c015e853d613df62d537c372c0577c"
+    },
+    {
+      "file": "20261020072132_resume_mentor_conversation.sql",
+      "version": "20261020072132",
+      "sha256": "e0d3a60e94890d99a0eb0d64a23b26734c88fead76fc0123cd1bb1307e787cf5"
+    },
+    {
+      "file": "20261021042719_phone_daily_limit_30.sql",
+      "version": "20261021042719",
+      "sha256": "e9e85e70cc2de779567eade5a143fa3dfe5f65d43b93325d4b873686e322a08d"
+    },
+    {
+      "file": "20261021152823_resume_experience_trial_once.sql",
+      "version": "20261021152823",
+      "sha256": "1eb56d3a2030024d2fe7f4b0932bef19e0ade9af5683cf0ce7c967a65ffa4f4a"
+    }
+  ],
+  "sections": {
+    "tables": {
+      "count": 62,
+      "sha256": "19ff56449fd9acf4a8a90293345eedf5e72f1f667a98bb3a32c4e7963ad90959"
+    },
+    "columns": {
+      "count": 592,
+      "sha256": "0e0710d835b31c4b0da9584b0ba1e952619d6576ae2abb26f31a95bb0b625c52"
+    },
+    "indexes": {
+      "count": 193,
+      "sha256": "8f26ca98c1f0bde3407aba62202805f80ab8fadedd0304df51389e6ae1d23f5a"
+    },
+    "policies": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "triggers": {
+      "count": 6,
+      "sha256": "488cb42bad0ffc7de27d422574b9c06227fbe7fa21edd2fc2bf189caa4e389ef"
+    },
+    "functions": {
+      "count": 39,
+      "sha256": "458d4d2534744e0c75133aadebb57ab56d95cd4be869da8466cac32e258ce98c"
+    },
+    "sequences": {
+      "count": 2,
+      "sha256": "359ccb4c0d5df0750b2d01e88816e9c89f7499611901512607b940160ad95e6d"
+    },
+    "constraints": {
+      "count": 263,
+      "sha256": "61d103ec23d23717f0546ad51bf2f9395dfdca79a2c83800c510b68f50be4579"
+    },
+    "table_grants": {
+      "count": 981,
+      "sha256": "cb028d54eaf27ac12883abdd8e5619a97d348589c2b03b1ed1203422b0eb20e0"
+    },
+    "function_grants": {
+      "count": 96,
+      "sha256": "4b491e5574deacf4221b1ed67c3cb86d8032f619e5081a47cd5f3750fff087aa"
+    },
+    "default_privileges": {
+      "count": 72,
+      "sha256": "eaa225359fb098b2f261848691e325803410b508625c34d6065bfeaa8cdf660a"
+    }
+  }
+}

@@ -35,10 +35,12 @@ export function normalizeResumeBulletBreaks(text:string,before=''){
     ? `${marker} ${normalized}` : normalized;
 }
 
-// Only omit standalone disclaimer bullets/sentences. Mixed factual sentences
-// are rejected for revision, never cut mid-clause or turned into positive claims.
+// Only omit complete disclaimers. A narrowly identified terminal statistics
+// note may be omitted when its explicit team/store+assist attribution remains.
+// Mixed negative/positive clauses are never cut or turned into positive claims.
 export function omitStandaloneDisclaimers(text:string){
-  return text.split(/\n+/).filter(line=>{
+  const attributed=text.replace(/((?:协助|参与)(?:店铺|团队)[^。；;\n]{0,80})[，,]\s*(?:(?:我|本人)\s*)?(?:未统计|未单独统计)(?:个人|本人)贡献(?:比例|占比)[。.]?(?=\s*(?:\n|$))/g,'$1。');
+  return attributed.split(/\n+/).filter(line=>{
     const value=clean(line);
     return !(isPersonalDisclaimer(value)&&/^(?:(?:我|本人)(?:也|并)?|也|并)?(?:没有|并未|未曾|未|没)/.test(value)
       &&!/[；;。.!！]\s*\S/.test(value)&&!/[，,](?!\s*(?:也|并|没有|未|没))/.test(value));

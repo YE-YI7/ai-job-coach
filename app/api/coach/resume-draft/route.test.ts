@@ -215,6 +215,16 @@ describe("resume draft source mapping", () => {
     const trace=await(startResumeTrace as jest.Mock).mock.results[0].value;
     expect(trace.step).toHaveBeenCalledWith('review','polish_after_rejected_content_returned_to_editor',1);
   });
+  test('content improvement is not discarded solely for an omittable terminal statistics note',async()=>{
+    const before='负责店铺日常运营，主要做商品上架和链接整理。独立完成260条商品链接搭建与上架，整理为标题和详情页修改清单。协助店铺完成105件商品销售，未统计个人贡献比例。';
+    const after='独立完成260条商品链接搭建与上架，整理为标题和详情页修改清单；协助店铺完成105件商品销售，未统计个人贡献比例。';
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before,after,reason:'删除重复职责，突出具体工作与交付，保留责任主体',sourceIds:['claim-1']}]})).mockResolvedValueOnce(JSON.stringify({status:'passed',summary:'保留协助店铺主体、交付对象与原有数字，删除重复职责',findings:[],document:passedDocument,valueChecks:[{index:0,useful:true,kind:'concision',impact:'content',reason:'删除重复职责，保留具体交付与团队归属'}]}));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});(createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.status).toBe(200);const change=(await response.json()).changes[0];expect(change.before).toBe(before);expect(change.after).toBe(after.replace('，未统计个人贡献比例。','。'));expect(callLLM).toHaveBeenCalledTimes(2);
+    const reviewInput=(callLLM as jest.Mock).mock.calls[1][0].find((m:{content:string})=>m.content.includes('待审修改（findings'));
+    const reviewed=JSON.parse(reviewInput.content.split('待审修改（findings 里的 changeId 必须从这里逐字取）：\n')[1]);expect(reviewed[0].after).toBe(change.after);expect(reviewed[0].before).toBe(before);
+  });
   test('cosmetic labels never become a paid deliverable',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]}));

@@ -62,6 +62,10 @@ describe('resume editing value, separate from factuality',()=>{
   });
   test('other people responsibility is an internal constraint, not a personal bullet',()=>expect(resumeEditValueIssues('编写组件测试。后端由其他同学开发。','- 编写组件测试\n- 后端由其他同学开发。').length).toBeGreaterThan(0));
   test('omits standalone personal disclaimer without changing positive evidence',()=>expect(omitStandaloneDisclaimers('- 整理需求清单，交给负责页面的同学讨论\n- 未负责开发与上线，也未统计人数。')).toBe('- 整理需求清单，交给负责页面的同学讨论'));
+  test('omits only a complete terminal personal-statistics note while retaining explicit assisted shop attribution',()=>{
+    expect(omitStandaloneDisclaimers('独立完成260条链接上架；协助店铺完成105件商品销售，未统计个人贡献比例。')).toBe('独立完成260条链接上架；协助店铺完成105件商品销售。');
+    for(const text of ['完成105件商品销售，未统计个人贡献比例。','协助店铺完成105件销售，未统计个人贡献比例但独立整理了数据。','协助店铺完成105件销售，未统计退款原因。','未负责开发，但整理了需求清单。'])expect(omitStandaloneDisclaimers(text)).toBe(text);
+  });
   test('mixed sentence is rejected, not blindly transformed',()=>{const text='未负责开发，但整理了需求清单。';expect(omitStandaloneDisclaimers(text)).toBe(text);expect(resumeEditValueIssues('整理了需求清单',text)).toHaveLength(1);});
   test.each(['整理未处理工单','维护尚未上线的原型','排查未登录用户的访问异常','上线后零故障'])('preserves domain negatives and project maturity: %s',text=>{expect(isPersonalDisclaimer(text)).toBe(false);expect(omitStandaloneDisclaimers(text)).toBe(text);});
   test('missing or duplicate quality verdict cannot pass',()=>{expect(usefulResumeIndexes(readResumeValueChecks(undefined,1)).size).toBe(0);const check={index:0,useful:true,kind:'concision',reason:'删除重复职责前缀，让交付动作清楚'};expect([...usefulResumeIndexes(readResumeValueChecks([check],1))]).toEqual([0]);expect(usefulResumeIndexes(readResumeValueChecks([check,check],1)).size).toBe(0);});

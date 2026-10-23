@@ -286,7 +286,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         ? '最终输出契约：每条changes必须含section、before、after、reason和sourceIds；sourceIds必须逐字复制已提供的事实编号，不可省略。JSON必须同时给changes和selfReview；即使unchanged也要给自查。selfReview:{status:"passed|failed",summary:"具体依据",findings:[{changeId:"changes的0起始序号字符串",severity:"error|warning",message:"问题"}],valueChecks:[{index:0,useful:true或false,kind:"concision|structure|specificity|relevance|clarity",reason:"至少8字说明实际价值"}],document:{status:"passed|failed",summary:"整稿判断",findings:[{changeId:"0起始序号字符串或null",category:"format|quality|grounding|missing_information|system",severity:"error|warning",message:"只说问题，不写替换正文"}]}}。没有修改时valueChecks和findings用空数组。不能因已有信息普通就返回needs_detail；先按事实精简、拆条，缺的只在recovery问一个问题。'
         : '最终输出契约：返回changes及可选recovery；已清楚的条目不要作为原文等于改后文的建议返回。保留原稿段首概括/列表层级，有空泛概括就重写具体概括；不硬加没有的结构。每个before只改其对应段，不动别段。'},
       ...(trialScope ? [{role:'system' as const,content:`本轮是账号唯一一次单段体验。只允许修改以下一段经历，不改其他段落、个人简介、技能或教育。before必须逐字包含在这段范围内，最多3处修改；只针对这段逐问，不索取别段材料。范围：${JSON.stringify(trialScope.excerpt)}`}]:[]),
-      {role:'system',content:`最终格式约束优先于前述通用拆条示例：policy=${formatPolicy}。${formatPolicy==='preserve'?'按每个before的实际结构保留：原段没有列表标记时，after禁止新增 -、•、* 或编号列表，改为精简短句；原段已有列表时保留同种列表和段首概括。拆清动作不等于新增列表。':formatPolicy==='repair'?'只修同一经历的结构不一致，不跨段换模板。':'已获标准化授权，可用短列表但不得新增事实。'}每条reason不超过80字，只说具体改善，不写长篇解释。`},
+      {role:'system',content:`最终格式约束优先于前述通用拆条示例：policy=${formatPolicy}。${formatPolicy==='preserve'?'按每个before的实际结构保留：原段没有列表标记时，after禁止新增 -、•、* 或编号列表，改为精简短句；原段已有列表时保留同种列表和段首概括。拆清动作不等于新增列表。':formatPolicy==='repair'?'只修同一经历的结构不一致，不跨段换模板。':'已获标准化授权，可用短列表但不得新增事实。'}只加字段分隔符或改技能标点不能充当内容改稿。责任边界请区分：协助/参与/团队结果必须保留；“未统计个人贡献比例”等说明仅是内部约束，可以不塞进after，但前面的协助/团队归属仍须保留，不能改为个人独立业绩。每条reason不超过80字，只说具体改善，不写长篇解释。`},
     ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:2600, reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" },attempt?'repair':'draft'));
     } catch(error) {
       if(restoreCheckpoint(attempt,error))break;
@@ -621,8 +621,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // overwrite a newer human edit or decision.
     followUp=followUp || explicitQuestion;
     if(trialScope&&followUp&&!inResumeTrialScope(trialScope,followUp.sourceExcerpt,resumeText))followUp=null;
-    const summary=partialRecoveryReason?'已保存通过检查的修改；部分返修暂未完成，对应原文仍保留。可以继续和导师讨论，不会把这次算成整份修改完成。':!coversSupplement(finalChanges)?'其他可用修改已保存；刚才补充的那段暂未形成可靠改写，仍保留原文。你可以继续说明想怎么调整，或直接编辑。':undefined;
-    const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...(partialRecoveryReason?{partial:true,reasonCode:partialRecoveryReason}:{})}):undefined;
+    const partial=Boolean(partialRecoveryReason||rejected.length||discardedReviewFindings.length||!coversSupplement(finalChanges));
+    const partialFields=partial?{partial:true,...(partialRecoveryReason?{reasonCode:partialRecoveryReason}:{})}:{};
+    const summary=partialRecoveryReason?'已保存通过检查的修改；部分返修暂未完成，对应原文仍保留。可以继续和导师讨论，不会把这次算成整份修改完成。':!coversSupplement(finalChanges)?'其他可用修改已保存；刚才补充的那段暂未形成可靠改写，仍保留原文。你可以继续说明想怎么调整，或直接编辑。':partial?'已保存通过检查的修改；未通过的候选没有写入，对应原文保留。这是部分交付，不代表整份已修改完成。':undefined;
+    const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...partialFields}):undefined;
     if(task&&task.state!=='ready')throw Error('简历在修改期间发生变化，新结果未覆盖你的编辑，本次未扣额度');
     await finalizeQuota(reservation, true);
     const quota = { source: reservation.source, remaining: reservation.remaining };
@@ -631,7 +633,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     return NextResponse.json({
       ok: true,
       changes: finalChanges,
-      ...(partialRecoveryReason?{partial:true,reasonCode:partialRecoveryReason,summary}:{}),
+      ...partialFields,
+      ...(summary?{summary}:{}),
       ...(task?{task}:{}),
       ...(followUp ? { followUp } : {}),
       rejectedCount: rejected.length + errorChangeIds.size,

@@ -10,7 +10,7 @@ const [phase,dir,origin,index='0']=process.argv.slice(2);
 assert.ok(dir&&/^https:\/\/ai-job-coach-[a-z0-9]+-velmavalienteqejimu22-jpgs-projects\.vercel\.app$/.test(origin));
 const q=JSON.parse(readFileSync(join(dir,'private.json'),'utf8'));
 const {chromium,request}=createRequire('/Users/yi/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/package.json')('playwright');
-const output=join(dir,'evidence');mkdirSync(output,{recursive:true});
+const output=join(dir,'evidence',...(phase==='browser'?['browser-'+index]:[]));mkdirSync(output,{recursive:true});
 const state=join(dir,'session.json');
 const source=[`陈知远（虚构验收材料）
 求职方向：产品助理
@@ -41,9 +41,13 @@ const protection=process.env.VERCEL_OIDC_TOKEN?{'x-vercel-trusted-oidc-idp-token
 const initialCookies=readFileSync(join(dir,'deployment-cookies.txt'),'utf8').split('\n').filter(line=>line.split('\t').length===7).map(line=>{
  const [domain,,path,secure,expires,name,value]=line.split('\t');return {name,value,domain:domain.replace(/^#HttpOnly_/,''),path,secure:secure==='TRUE',httpOnly:domain.startsWith('#HttpOnly_'),expires:Number(expires)||-1,sameSite:'Lax'};
 });
-const api=await request.newContext({baseURL:origin,extraHTTPHeaders:protection,storageState:phase==='seed'?{cookies:initialCookies,origins:[]}:state,timeout:285000});
+const api=await request.newContext({baseURL:origin,extraHTTPHeaders:protection,storageState:['seed','login'].includes(phase)?{cookies:initialCookies,origins:[]}:state,timeout:285000});
 try{
- if(phase==='seed'){
+ if(phase==='login'){
+  const auth=await api.post('/api/auth/verify-code',{data:{email:q.email,code:q.code}});
+  assert.equal(auth.status(),200);assert.equal((await auth.json()).userId,q.id);
+  await api.storageState({path:state});console.log(JSON.stringify({phase,passed:true,sameSyntheticAccount:true}));
+ }else if(phase==='seed'){
   const auth=await api.post('/api/auth/verify-code',{data:{email:q.email,code:q.code}});
   assert.equal(auth.status(),200);assert.equal((await auth.json()).userId,q.id);
   await api.storageState({path:state});
@@ -62,17 +66,24 @@ try{
   console.log(JSON.stringify({phase,index:i,http:response.status(),durationMs:Date.now()-started,state:body.task?.state,error:body.task?.error||body.error,delivery:body.task?.delivery,changes:body.task?.result?.changes?.map(c=>({id:c.id,before:c.before,after:c.after}))}));
   assert.equal(response.status(),200);assert.equal(body.ok,true);assert.equal(body.task?.state,'ready');
   assert.ok(body.task.result.changes.length>0,'Actual model must produce usable changes');
+  assert.ok(body.task.result.changes.some(c=>/实习|项目|工作|经历/.test(c.section)&&/负责|参与|整理|协助|完成/.test(c.before)),'A separator-only education/skill edit is not an experience rewrite');
   assert.equal(body.task.delivery.persistence,'confirmed');assert.ok(['delivered','partial_delivered'].includes(body.task.delivery.outcome));
  }else if(phase==='browser'){
   const browser=await chromium.launch({channel:'chrome',headless:true});
   const context=await browser.newContext({storageState:state,viewport:{width:1512,height:982}});
+  const selectedId=q.opportunityIds[Number(index)];
+  await context.addInitScript(({owner,id})=>{
+   if(!sessionStorage.getItem('qa-selected-workspace')){
+    localStorage.setItem('yizhi:workspace-view:v1:'+owner,JSON.stringify({opportunityId:id,tab:'resume'}));
+    sessionStorage.setItem('qa-selected-workspace','yes');
+   }
+  },{owner:q.id,id:selectedId});
   await context.route('**/*',route=>route.continue({headers:{...route.request().headers(),...(new URL(route.request().url()).origin===origin?protection:{})}}));
   const page=await context.newPage();page.setDefaultTimeout(30000);const errors=[];
   page.on('pageerror',e=>errors.push(String(e)));
   try{
    await page.goto(origin+'/cockpit',{waitUntil:'domcontentloaded'});
-   // Personal preparation opens the most recently saved base résumé.
-   const selectedId=q.opportunityIds[1];
+   // Only the synthetic account's owned navigation preference is initialized.
    const paper=page.frameLocator('iframe[title="简历 · 原位修改"]');
    await paper.locator('main').waitFor();
    await page.screenshot({path:join(output,'desktop.png')});
@@ -90,13 +101,16 @@ try{
    const refreshed=list.opportunities.find(o=>o.id===selectedId);
    assert.deepEqual(refreshed.resumeChanges,own.resumeChanges);
    save('save-refresh',{passed:true,opportunityId:own.id,changes:refreshed.resumeChanges,generationId:refreshed.resumeGenerationId});
+   await page.getByRole('button',{name:'其他辅导',exact:true}).click();
    await page.getByRole('button',{name:/^选择导师模型/}).click();
    const modelPanel=page.getByRole('dialog',{name:'选择导师模型',exact:true});
    assert.ok(await modelPanel.locator('img').count()>0,'Keep provider logos in the model selector');
    await page.screenshot({path:join(output,'model-picker.png')});
    await page.getByRole('option',{name:/实惠档/}).click();
    await page.reload({waitUntil:'domcontentloaded'});
+   await page.getByRole('button',{name:'其他辅导',exact:true}).click();
    await page.getByRole('button',{name:'选择导师模型：实惠档 · 站点模型',exact:true}).waitFor();
+   await page.getByRole('button',{name:'简历修改',exact:true}).click();
    await paper.locator('main').waitFor();
    await page.screenshot({path:join(output,'saved-refresh.png')});
    const exportButton=page.getByRole('button',{name:'导出 PDF',exact:true});

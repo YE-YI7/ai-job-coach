@@ -10,6 +10,10 @@ test('source list marker is part of a body-only model span, without changing pro
  expect(resumeSourceBulletSpan('• 整理工单\n• 整理工单','整理工单')).toBe('整理工单');
 });
 describe('resume editing value, separate from factuality',()=>{
+  test('adding a field separator to education cannot substitute for a content edit',()=>{
+    expect(resumeEditValueIssues('示例大学 国际经济与贸易 本科 2022.09-2026.06','示例大学 国际经济与贸易 本科 | 2022.09-2026.06')).toContain('仅改空白或字段分隔符，不作为内容改稿交付');
+    expect(resumeEditValueIssues('整理30条问答，整理后交给同学试用。','整理30条问答，交给同学试用。')).toEqual([]);
+  });
   test('proposes only uniquely anchored, sourced, standalone disclaimer deletion',()=>{
     const before='- 没有负责后端开发。',source={id:'own',text:'没有负责后端开发。'};
     expect(proposeStandaloneDisclaimerDeletions(before,[],[source])).toEqual([expect.objectContaining({before,after:'',sourceIds:['own']})]);

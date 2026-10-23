@@ -65,6 +65,7 @@ const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专
 
 export function resumeEditValueIssues(before:string,after:string):string[]{
   const issues:string[]=[];
+  if(before!==after&&before.replace(/[ \t|｜]/g,'')===after.replace(/[ \t|｜]/g,''))issues.push('仅改空白或字段分隔符，不作为内容改稿交付');
   if(/^(?:删除|删去|移除)(?:该|此|这)(?:条|段)$/.test(clean(after).replace(/[（）()。.!！]/g,'').trim()))issues.push('编辑指令不能作为简历正文；删除必须返回空 after，且不能删除真实贡献');
   if(/(?:提出|认识到|意识到|强调).{0,28}(?:的)?重要性/.test(after))issues.push('“提出/认识到重要性”仍是随笔口吻；用来源已有的具体问题和提案重写，保留提案阶段，不冒称实施成果');
   if(isPersonalDisclaimer(after))issues.push('个人未负责/未参与/未统计的说明只作事实边界，不写进简历正文；只写实际做过的动作与交付，仍不得暗示承担被否定的工作');

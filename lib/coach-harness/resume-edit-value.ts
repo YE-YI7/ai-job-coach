@@ -83,7 +83,7 @@ const valueKinds=new Set(['concision','structure','specificity','relevance','cla
 export function readResumeValueChecks(raw:unknown,count:number):ResumeValueCheck[]{
   if(!Array.isArray(raw))return [];
   return raw.filter((item):item is ResumeValueCheck=>Boolean(item&&typeof item==='object'&&Number.isInteger(item.index)&&item.index>=0&&item.index<count
-    &&typeof item.useful==='boolean'&&valueKinds.has(item.kind)&&typeof item.reason==='string'&&item.reason.trim().length>=8));
+    &&typeof item.useful==='boolean'&&(valueKinds.has(item.kind)||(!item.useful&&['none','format'].includes(item.kind)))&&typeof item.reason==='string'&&item.reason.trim().length>=8));
 }
 export function usefulResumeIndexes(checks:ResumeValueCheck[]){
   return new Set(checks.filter(check=>check.useful&&checks.filter(other=>other.index===check.index).length===1).map(check=>check.index));

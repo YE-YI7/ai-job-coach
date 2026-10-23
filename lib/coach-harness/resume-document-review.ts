@@ -4,7 +4,7 @@ export type FormatPolicy = "preserve" | "repair" | "standard";
 export type DocumentFinding = {changeId: string | null; category: string; severity: "error" | "warning"; message: string};
 export type DocumentReviewContractError='document_missing'|'document_unexpected_fields'|'document_status_invalid'|'document_summary_invalid'|'document_findings_invalid'|'document_finding_invalid'|'document_finding_fields_invalid'|'document_finding_id_invalid'|'document_finding_verdict_invalid'|'document_failed_without_error';
 export type DocumentReview = {status: "passed" | "failed"; summary: string; findings: DocumentFinding[]; source: "independent" | "self_review" | "deterministic_format"; contractError?:DocumentReviewContractError};
-export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v8-ocr-review";
+export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v9-delivery-repair";
 const lead = (text:string) => /^\s*(?:[-*•]\s+)?\*\*[^*\n]{2,80}\*\*/.test(text);
 const marker = (text:string) => text.match(/^\s*([-*•]|\d+[.)])\s+/)?.[1];
 
@@ -22,6 +22,8 @@ export function checkResumeFormat(source:string,candidate:string,changes:ResumeC
   for(const change of changes){
     if(!change.after.trim())continue; // legitimate omissions are handled by factual guards
     const before=change.before.split("\n"),after=change.after.split("\n");
+    if(policy==='preserve' && !before.some(line=>marker(line)) && after.some(line=>marker(line)))
+      findings.push({changeId:change.id,category:'format',severity:'error',message:'原段为段落式正文，保留格式时不能新增列表标记；请精简成清楚的短句，保持原段结构。'});
     const sourceHasLead=before.some(lead);
     if(policy!=="standard" && sourceHasLead && after.filter(line=>line.trim()).some(line=>!lead(line)))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"原条目有加粗段首概括，改后丢失或只保留了部分概括；请重写具体概括并保持同段结构。"});

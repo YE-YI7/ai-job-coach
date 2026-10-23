@@ -286,6 +286,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         ? '最终输出契约：每条changes必须含section、before、after、reason和sourceIds；sourceIds必须逐字复制已提供的事实编号，不可省略。JSON必须同时给changes和selfReview；即使unchanged也要给自查。selfReview:{status:"passed|failed",summary:"具体依据",findings:[{changeId:"changes的0起始序号字符串",severity:"error|warning",message:"问题"}],valueChecks:[{index:0,useful:true或false,kind:"concision|structure|specificity|relevance|clarity",reason:"至少8字说明实际价值"}],document:{status:"passed|failed",summary:"整稿判断",findings:[{changeId:"0起始序号字符串或null",category:"format|quality|grounding|missing_information|system",severity:"error|warning",message:"只说问题，不写替换正文"}]}}。没有修改时valueChecks和findings用空数组。不能因已有信息普通就返回needs_detail；先按事实精简、拆条，缺的只在recovery问一个问题。'
         : '最终输出契约：返回changes及可选recovery；已清楚的条目不要作为原文等于改后文的建议返回。保留原稿段首概括/列表层级，有空泛概括就重写具体概括；不硬加没有的结构。每个before只改其对应段，不动别段。'},
       ...(trialScope ? [{role:'system' as const,content:`本轮是账号唯一一次单段体验。只允许修改以下一段经历，不改其他段落、个人简介、技能或教育。before必须逐字包含在这段范围内，最多3处修改；只针对这段逐问，不索取别段材料。范围：${JSON.stringify(trialScope.excerpt)}`}]:[]),
+      {role:'system',content:`最终格式约束优先于前述通用拆条示例：policy=${formatPolicy}。${formatPolicy==='preserve'?'按每个before的实际结构保留：原段没有列表标记时，after禁止新增 -、•、* 或编号列表，改为精简短句；原段已有列表时保留同种列表和段首概括。拆清动作不等于新增列表。':formatPolicy==='repair'?'只修同一经历的结构不一致，不跨段换模板。':'已获标准化授权，可用短列表但不得新增事实。'}每条reason不超过80字，只说具体改善，不写长篇解释。`},
     ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:2600, reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" },attempt?'repair':'draft'));
     } catch(error) {
       if(restoreCheckpoint(attempt,error))break;
@@ -434,6 +435,13 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
     const reviewCandidate = applyResumeChanges(resumeText, reviewMergedChanges);
     const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy);
+    // Deterministic format violations are already actionable. Return directly
+    // to the editor once, rather than spend a review call rediscovering them.
+    if(attempt===0&&formatFindings.some(f=>f.severity==='error')){
+      repairFeedback=formatFindings.filter(f=>f.severity==='error').map(f=>JSON.stringify({before:changes.find(c=>c.id===f.changeId)?.before,problem:f.message}));
+      trace.step('review','deterministic_format_returned_to_editor',formatFindings.length,{input:{styleContract,changes},output:{findings:formatFindings,maxRepairs:1}});
+      continue;
+    }
     const requestIndependentReview = (contractIssue?:string) => runWithGenerationContext({userId:modelUserId,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}${contractIssue?':contract-repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       {role:'system',content:WHOLE_DOCUMENT_REVIEW_PROMPT},

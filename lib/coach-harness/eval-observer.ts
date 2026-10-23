@@ -38,6 +38,7 @@ export async function observedResumeLLM(
         provider: args[1]?.provider,
         siteFunded: args[1]?.siteFunded === true,
         maxTokens: args[1]?.maxTokens,
+        reasoningBudgetTokens: args[1]?.reasoningBudgetTokens,
         temperature: args[1]?.temperature,
         stream: Boolean(args[1]?.onDelta),
         timeoutMs: args[1]?.timeoutMs,

@@ -15,6 +15,12 @@ test("no source lead-ins means no invented requirement; standardization is expli
   expect(checkResumeFormat(before,"候选",[change("- 整理Excel订单记录，交给同事。")],"standard")).toEqual([]);
   expect(resumeStyleContract(before,"preserve").boldLeadIns).toBe(1);
 });
+test('paragraph-only OCR text cannot acquire lists under preserve; explicit repair/standard may restructure',()=>{
+ const source='整理30条问答，交给同学试用。', c={...change('- 整理30条问答\n- 交给同学试用'),before:source};
+ expect(checkResumeFormat(source,c.after,[c],'preserve')).toEqual([expect.objectContaining({changeId:'change-1',severity:'error'})]);
+ expect(checkResumeFormat(source,c.after,[c],'standard')).toEqual([]);
+ expect(checkResumeFormat(source,c.after,[c],'repair')).toEqual([]);
+});
 test("split bullets all preserve source hierarchy, not just the first item",()=>{
   expect(checkResumeFormat(before,"候选",[change("- **订单整理。** 整理Excel记录。\n- 交给同事核对。")],"repair")).toHaveLength(1);
 });

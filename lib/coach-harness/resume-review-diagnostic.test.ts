@@ -15,6 +15,13 @@ test('unknown references, duplicate value verdicts and unauthorized rewrites are
  expect(resumeReviewProtocolIssue({...valid,valueChecks:[...valid.valueChecks,...valid.valueChecks]},changes)).toBe('review_value_checks_invalid');
  expect(resumeReviewProtocolIssue({...valid,after:'unauthorized rewrite'},changes)).toBe('review_unexpected_fields');
 });
+test('explicit negative none/format diagnoses remain rejections without a second review call',()=>{
+ for(const kind of ['none','format']){
+  const negative={...valid,valueChecks:[{index:0,useful:false,kind,reason:'仅有同义替换或不符合原稿格式，没有可交付价值'}]};
+  expect(resumeReviewProtocolIssue(negative,changes)).toBeNull();
+  expect(resumeReviewProtocolIssue({...negative,valueChecks:[{...negative.valueChecks[0],useful:true}]},changes)).toBe('review_value_checks_invalid');
+ }
+});
 test('unknown value state is null, not a made-up zero; repair hint targets the exact field',()=>{
  expect(resumeReviewDiagnostic(valid,['c-1'],null)).toMatchObject({useful:null,code:'review_contract_invalid'});
  expect(resumeReviewRepairHint('document_finding_id_invalid')).toContain('JSON的null');

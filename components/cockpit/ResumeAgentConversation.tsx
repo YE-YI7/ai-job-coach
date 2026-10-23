@@ -10,7 +10,8 @@ import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
 export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
-  const key=`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`;
+  const key=`yizhi:resume-question:${task.id}:request`;
+  const legacyKey=useRef(`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`).current;
   const [answer,setAnswer]=useState(''),[error,setError]=useState('');
   const [errorId,setErrorId]=useState('');
   const sending=useRef(false);
@@ -20,7 +21,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
   const [unconfirmedReplies,setUnconfirmedReplies]=useState<Record<string,string>>({});
   const [incoming,setIncoming]=useState<{id:string;message:string;reply:string}|null>(null);
   const [readingTurn,setReadingTurn]=useState<{id:string;height:number}|null>(null);
-  useEffect(()=>{scopeRef.current=key;let draft='';try{draft=localStorage.getItem(key)||'';}catch{}answerRef.current=draft;setAnswer(draft);},[key]);
+  useEffect(()=>{scopeRef.current=key;let draft='';try{draft=localStorage.getItem(key)||localStorage.getItem(legacyKey)||'';if(draft&&legacyKey!==key){localStorage.setItem(key,draft);localStorage.removeItem(legacyKey);}}catch{}answerRef.current=draft;setAnswer(draft);},[key,legacyKey]);
   // Restore history once. Streaming updates and server receipts never pull a
   // reader to the bottom; the newly sent turn owns one stable reading space.
   useEffect(()=>{const list=messages.current;if(list)list.scrollTop=list.scrollHeight;},[task.id]);

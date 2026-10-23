@@ -14,7 +14,9 @@ test('draft and stable receipt survive a network failure and server discussion s
  expect(view).toContain('localStorage.setItem(`${key}:request`');
  expect(view.indexOf("if(wasDraft){answerRef.current='';setAnswer('')")).toBeLessThan(view.indexOf('await onMessage'));
  expect(view).toContain('task.conversation||[]');expect(view).toContain('aria-label="简历讨论"');
- expect(view).toContain("useState('')");expect(view).toContain("draft=localStorage.getItem(key)||''");
+ expect(view).toContain("useState('')");expect(view).toContain("draft=localStorage.getItem(key)||localStorage.getItem(legacyKey)||''");
+ expect(view).toContain('const key=`yizhi:resume-question:${task.id}:request`');
+ expect(app).toContain('key={resumeAgentTasks[active.id]!.id}');
  expect(view).toContain('wasDraft&&!answerRef.current');
 });
 test('sending a discussion has thinking state instead of falsely starting editor state',()=>{

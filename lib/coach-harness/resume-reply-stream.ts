@@ -23,7 +23,7 @@ function stringAt(raw: string, start: number) {
   }
   return { value: value.replace(/[\uD800-\uDBFF]$/, ''), end: i, complete: false };
 }
-export function resumeReplyPrefix(raw: string): string {
+export function resumeReplyPrefix(raw: string, allowRevision = true): string {
   const text = raw.replace(/^\s*```(?:json)?\s*/, '').trimStart();
   if (text[0] !== '{') return '';
   let i = 1, action = '', reply = '';
@@ -51,21 +51,21 @@ export function resumeReplyPrefix(raw: string): string {
     }
     space(); if (text[i++] !== ',') break;
   }
-  return ['discuss', 'revise'].includes(action) && reply.length <= 2000 ? singleResumeQuestionReply(reply) : '';
+  return (action==='discuss'||(allowRevision&&action==='revise')) && reply.length <= 2000 ? singleResumeQuestionReply(reply) : '';
 }
-export function resumeReplyPreview(onReply: (text: string) => void) {
+export function resumeReplyPreview(onReply: (text: string) => void, allowRevision = true) {
   let raw = '', shown = '';
   return (delta: string) => {
     raw += delta;
     if (raw.length > 64_000) return;
-    const next = stableTutorMarkdownPrefix(resumeReplyPrefix(raw));
+    const next = stableTutorMarkdownPrefix(resumeReplyPrefix(raw,allowRevision));
     if (next.length > shown.length && next.startsWith(shown)) { shown = next; onReply(next); }
   };
 }
 
 /** Keep the existing request, auth, billing and CAS path. "done" is emitted only
  * after it returns a saved receipt; cancellation stops output, not a second run. */
-export function resumeConversationStream(execute: (onReply: (text: string) => void) => Promise<Response>) {
+export function resumeConversationStream(execute: (onReply: (text: string) => void, onReceipt: (task: import('./resume-task-types').ResumeAgentTask) => void) => Promise<Response>) {
   const encoder = new TextEncoder();
   let cancelled = false;
   const stream = new ReadableStream({
@@ -74,7 +74,7 @@ export function resumeConversationStream(execute: (onReply: (text: string) => vo
       const heartbeat = setInterval(() => emit({ type: 'status', message: '导师正在思考…' }), 12000);
       try {
         emit({ type: 'status', message: '导师正在思考…' });
-        const response = await execute(text => emit({ type: 'replace', text }));
+        const response = await execute(text => emit({ type: 'replace', text }),task=>emit({type:'receipt',task}));
         const result = await response.json();
         emit({ ...result, type: 'done' });
       } catch {

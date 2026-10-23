@@ -87,6 +87,17 @@ test('a committed result survives a later response failure without double finish
   expect(await (await POST(request({opportunityId:id,action:'retry'}))).json()).toMatchObject({ok:true,task:{state:'ready'}});
   expect(finishResumeTask).not.toHaveBeenCalled();
 });
+test('later editor failure returns the saved mentor conversation, not an unsent message',async()=>{
+ const task={id:'task',state:'failed',conversation:[{id,message:'交付了方案',reply:'补充已收到',status:'completed',decision:'revise'}]};
+ (runResumeConversation as jest.Mock).mockImplementation(async(_request,_user,_body,revise)=>{await revise(id);throw Error('later editor failure');});
+ (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:4,lease:'lease',source:{resume:'原文',jd:''}});
+ (draft as jest.Mock).mockRejectedValue(Error('model timeout'));
+ (readResumeTask as jest.Mock).mockResolvedValue(task);
+ (finishResumeTask as jest.Mock).mockResolvedValue(task);
+ const response=await POST(request({opportunityId:id,action:'message',requestId:id,answer:'交付了方案'}));
+ expect(response.status).toBe(503);
+ expect(await response.json()).toMatchObject({ok:false,messagePersisted:true,task});
+});
 test('counts new changes from the claimed source, not the transient CAS field removed by the RPC',async()=>{
  const generation='task:4',saved={id:'task',state:'ready',result:{resumeGenerationId:generation,changes:[{id:'retained'},{id:'new-change'}]}};
  (claimResumeTask as jest.Mock).mockResolvedValue({claimed:true,task:{id:'task'},version:4,lease:'lease',source:{resume:'原文',jd:'',revision:'rev',changes:[{id:'retained'}]}});

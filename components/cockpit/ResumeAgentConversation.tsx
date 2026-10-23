@@ -9,13 +9,15 @@ import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
-export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string,onReply?:(text:string)=>void)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
+export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
   const key=`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`;
   const [answer,setAnswer]=useState(''),[error,setError]=useState('');
   const [errorId,setErrorId]=useState('');
   const sending=useRef(false);
   const messages=useRef<HTMLDivElement>(null);
   const answerRef=useRef(''),scopeRef=useRef(key);
+  const taskRef=useRef(task);taskRef.current=task;
+  const [unconfirmedReplies,setUnconfirmedReplies]=useState<Record<string,string>>({});
   const [incoming,setIncoming]=useState<{id:string;message:string;reply:string}|null>(null);
   const [readingTurn,setReadingTurn]=useState<{id:string;height:number}|null>(null);
   useEffect(()=>{scopeRef.current=key;let draft='';try{draft=localStorage.getItem(key)||'';}catch{}answerRef.current=draft;setAnswer(draft);},[key]);
@@ -42,11 +44,20 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
     setIncoming({id:requestId,message:text,reply:''});
     const wasDraft=answerRef.current.trim()===text.trim();
     if(wasDraft){answerRef.current='';setAnswer('');try{localStorage.removeItem(key);}catch{}}
+    let preview='',receivedTurn:NonNullable<ResumeAgentTask['conversation']>[number]|undefined;
     try{
-      await onMessage(text,requestId,reply=>{if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);});
+      await onMessage(text,requestId,reply=>{preview=reply;if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);},receipt=>{receivedTurn=receipt.conversation?.find(turn=>turn.id===requestId);});
       try{const receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');if(receipt?.id===requestId)localStorage.removeItem(`${key}:request`);}catch{}
     }catch(cause){
-      if(scopeRef.current===key){setError(readableError(cause));if(wasDraft&&!answerRef.current){answerRef.current=text;setAnswer(text);try{localStorage.setItem(key,text);}catch{}}}
+      if(scopeRef.current===key){
+        const received=receivedTurn||taskRef.current.conversation?.find(turn=>turn.id===requestId);
+        if(received?.status!=='completed')setError(readableError(cause));
+        if(preview&&!received?.reply)setUnconfirmedReplies(current=>({...current,[requestId]:preview}));
+        // The saved user message is not an unsent draft. Preserve a newer draft
+        // and never put already-received text back in the composer after an
+        // editor failure or a broken final stream.
+        if(!received&&wasDraft&&!answerRef.current){answerRef.current=text;setAnswer(text);try{localStorage.setItem(key,text);}catch{}}
+      }
     }finally{sending.current=false;if(scopeRef.current===key)setIncoming(null);}
   };
   const retry=async()=>{setError('');try{await onContinue();}catch(cause){setError(readableError(cause));}};
@@ -70,7 +81,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
       {(running||showOutcome)&&task.processing&&<ResumeProcessingReceipt processing={task.processing}/>}
       {visibleTurns.map(turn=><div key={turn.id} data-turn-id={turn.id} className={styles.turn} style={readingTurn?.id===turn.id?{minHeight:readingTurn.height}:undefined}>
         <div className={`${styles.message} ${styles.userMessage}`} aria-label="你"><p>{turn.message}</p></div>
-        {(incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply)&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师" aria-busy={incoming?.id===turn.id||undefined}><TutorMarkdown className={styles.reply} streaming={incoming?.id===turn.id}>{incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply}</TutorMarkdown></div>}
+        {(incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply||unconfirmedReplies[turn.id])&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师" aria-busy={incoming?.id===turn.id||undefined}><TutorMarkdown className={styles.reply} streaming={incoming?.id===turn.id}>{incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply||unconfirmedReplies[turn.id]}</TutorMarkdown>{!turn.reply&&incoming?.id!==turn.id&&unconfirmedReplies[turn.id]&&<p>这段回复尚未确认保存。</p>}</div>}
         {incoming?.id===turn.id&&!incoming.reply&&!turn.reply&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><span className={styles.reading} aria-hidden="true"/><span>导师正在思考…</span></p></div>}
         {incoming?.id!==turn.id&&(turn.status==='failed'||resumeMessageExpired(turn,now))&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
           <p>{turn.failure?.message||'这条消息暂时没处理完成，内容已保留。可以重新发送。'}</p>

@@ -165,6 +165,35 @@ describe("resume draft source mapping", () => {
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test.each([true,false])('correction-only first draft returns to editor once; substantive=%s',async(substantive)=>{
+    const before='内容运营：平时负责整理店铺反馈，整理了30条反馈馈，整理后交给店长每周查看。';
+    const corrected='内容运营：平时负责整理店铺反馈，整理了30条反馈，整理后交给店长每周查看。';
+    const improved='内容运营：整理30条店铺反馈，交给店长每周查看。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:before,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    (callLLM as jest.Mock).mockImplementation(async(messages)=>{
+      const prompt=JSON.stringify(messages);
+      const reviews=(callLLM as jest.Mock).mock.calls.filter(([m])=>JSON.stringify(m).includes('待审修改（')).length;
+      if(prompt.includes('待审修改（'))return JSON.stringify({status:'passed',summary:'检查原文事实与表达',findings:[],document:passedDocument,valueChecks:[{index:0,useful:true,kind:reviews===2&&substantive?'concision':'clarity',impact:reviews===2&&substantive?'content':'correction',reason:reviews===2&&substantive?'精简了重复整理过程，突出交付物与用途':'只修正重复字，恢复文字可读性'}]});
+      const after=reviews>0&&substantive?improved:corrected;
+      return JSON.stringify({changes:[{section:'实习经历',before,after,reason:reviews>0&&substantive?'删除重复过程，保留交付与用途':'修正反馈馈错别字',sourceIds:['claim-1']}]});
+    });
+    (applyResumeChanges as jest.Mock).mockImplementation((_source,changes)=>({text:changes[0]?.after||before,findings:[]}));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'quality-artifact',version:1});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeTaskId:'task',resumeTaskLease:'lease',resumeText:before,mode:'general_resume'})}));
+    const body=await response.json();expect(response.status).toBe(200);
+    expect(callLLM).toHaveBeenCalledTimes(4);
+    expect(body.changes[0].after).toBe(substantive?improved:corrected);
+    if(substantive){expect(body.partial).not.toBe(true);expect(body.reasonCode).toBeUndefined();}
+    else{expect(body).toMatchObject({partial:true,reasonCode:'resume_correction_only'});expect(body.summary).toContain('尚未完成内容优化');}
+    const trace=await(startResumeTrace as jest.Mock).mock.results[0].value;
+    expect(trace.step).toHaveBeenCalledWith('review','correction_only_returned_to_editor',1);
+    expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),expect.objectContaining(substantive?{ok:true}:{partial:true,reasonCode:'resume_correction_only'}));
+  });
+
   test('cosmetic labels never become a paid deliverable',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]}));

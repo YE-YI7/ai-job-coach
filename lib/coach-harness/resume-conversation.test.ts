@@ -70,3 +70,25 @@ test('streaming an incomplete JSON reply does not weaken the final parse gate',a
  const revise=jest.fn();expect((await runResumeConversation(req(),{id:'owner'},body,revise,jest.fn())).status).toBe(503);
  expect(completeResumeMessage).not.toHaveBeenCalled();expect(revise).not.toHaveBeenCalled();expect(failResumeMessage).toHaveBeenCalledTimes(1);
 });
+test('an unplaced self-report is saved as a clarifying conversation, without streaming a false edit promise',async()=>{
+ const answer='交付了达人的对接方案，分析各个达人的特点并定制方案。';
+ const opened={...task,conversation:[{...task.conversation[0],message:answer}]};
+ (beginResumeMessage as jest.Mock).mockResolvedValue({task:opened,source:{resume:'虚构实习：负责整理品牌分析报告，交给运营负责人。',jd:'',changes:[],general:true},version:2,replayed:false});
+ (completeResumeMessage as jest.Mock).mockImplementation(async(_u,_o,_id,_v,plan)=>({...opened,conversation:[{...opened.conversation[0],status:'completed',reply:plan.reply,decision:plan.action}]}));
+ const raw=JSON.stringify({action:'revise',reply:'我会新增一段实习并应用之前的修改。',editorBrief:'新增达人经历',supplement:{turnId:id,quote:answer,sourceExcerpt:'',field:'deliverable'}});
+ (observedResumeLLM as jest.Mock).mockImplementation(async(_m,options)=>{for(const char of raw)options.onDelta(char);return raw;});
+ const preview=jest.fn(),receipt=jest.fn(),revise=jest.fn();
+ const response=await runResumeConversation(req(),{id:'owner'},{...body,answer},revise,preview,receipt);
+ expect(await response.json()).toMatchObject({ok:true,conversationDecision:'discuss',task:{conversation:[{status:'completed',message:answer}]}});
+ expect(revise).not.toHaveBeenCalled();expect(failResumeMessage).not.toHaveBeenCalled();
+ expect(preview).toHaveBeenCalledTimes(1);expect(preview.mock.calls[0][0]).toContain('哪一段实习或项目');expect(JSON.stringify(preview.mock.calls)).not.toContain('新增一段');
+ expect(receipt).toHaveBeenCalledTimes(2);expect(receipt.mock.calls[0][0].conversation[0].status).toBe('pending');expect(receipt.mock.calls[1][0].conversation[0].status).toBe('completed');
+});
+test('saved mentor receipt reaches the browser before a later editor fails',async()=>{
+ const completed={...task,conversation:[{...task.conversation[0],status:'completed',reply:'准备精简对应段落。',decision:'revise'}]};
+ (completeResumeMessage as jest.Mock).mockResolvedValue(completed);(readResumeTask as jest.Mock).mockResolvedValue(completed);
+ (observedResumeLLM as jest.Mock).mockResolvedValue(JSON.stringify({action:'revise',reply:'准备精简对应段落。',editorBrief:'只精简这段',supplement:null}));
+ const receipt=jest.fn(),revise=jest.fn(async()=>{expect(receipt).toHaveBeenLastCalledWith(completed);throw Error('editor failed');});
+ await expect(runResumeConversation(req(),{id:'owner'},body,revise,jest.fn(),receipt)).rejects.toThrow('editor failed');
+ expect(receipt).toHaveBeenCalledTimes(2);
+});

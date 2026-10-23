@@ -21,6 +21,13 @@ test('incremental preview holds unmatched stars and does not append final text t
  push('亮点**：先看结果。');expect(output).toHaveBeenLastCalledWith('**关于亮点**：先看结果。');
  push('","editorBrief":"INTERNAL_PLAN","supplement":null}');expect(output).toHaveBeenCalledTimes(1);
 });
+test('revision promises wait for target validation while discussion remains progressive',()=>{
+ const revision=jest.fn(),discuss=jest.fn();
+ resumeReplyPreview(revision,false)('{"action":"revise","reply":"我会新增一段经历。","supplement":{"sourceExcerpt":""}}');
+ expect(revision).not.toHaveBeenCalled();
+ resumeReplyPreview(discuss,false)('{"action":"discuss","reply":"我们先确认所属经历。');
+ expect(discuss).toHaveBeenCalledWith('我们先确认所属经历。');
+});
 test('browser receives the first real prefix before completion, and done only after persistence',async()=>{
  let finish!:(value:Response)=>void;const writes:string[]=[];
  const response=resumeConversationStream(async onReply=>{

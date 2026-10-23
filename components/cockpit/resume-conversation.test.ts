@@ -5,7 +5,7 @@ test('the résumé composer sends a message, never assumes that it is an answer 
  expect(view).toContain('await sendMessage(answer,requestId)');
  expect(view).toContain('await onMessage(text,requestId,reply=>');
  expect(view).not.toContain('question?onAnswer');expect(view).not.toContain('onRequest(answer)');
- expect(app).toContain('runResumeAgent("message",message,active,requestId,onReply)');
+ expect(app).toContain('runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt)');
  expect(app).toContain("if(action!=='message')await saveOpportunity.current");
  expect(app).toContain('resumeRequestBusy.current&&(!resumeMessageBusy||generatingResume)');
  expect(app).toContain('generatingResume, resumeMessageBusy, supplementingMaterial');
@@ -28,7 +28,9 @@ test('failed receipts retry directly with the original ID and cannot clear anoth
  expect(view).toContain('const requestId=failed?.id||');
  expect(view).toContain('turn.failure?.message');
  expect(view).toContain('resumeMessageExpired(turn,now)');
- expect(app.indexOf('if(result.task)receiveResumeTask(id,result.task)')).toBeLessThan(app.indexOf("if(!response.ok||!result.ok)throw Error(result.error||'暂未完成"));
+ expect(app.indexOf('if(result.task){onReceipt?.(result.task);receiveResumeTask(id,result.task);}')).toBeLessThan(app.indexOf("if(!response.ok||!result.ok)throw Error(result.error||'暂未完成"));
+ expect(view).toContain('if(!received&&wasDraft&&!answerRef.current)');
+ expect(view).toContain('receivedTurn||taskRef.current.conversation');
 });
 test('resume discussion uses two bubble roles and one unobtrusive composer, not competing headings',()=>{
  expect(view).toContain('styles.userMessage');expect(view).toContain('styles.mentorMessage');

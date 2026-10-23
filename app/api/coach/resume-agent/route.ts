@@ -28,20 +28,22 @@ export async function POST(request: Request) {
     const body = await request.json();
     if (!uuid.test(body.opportunityId || "")) return reply({ ok: false, error: "简历编号无效" }, 400);
     if(body.action==='message'){
-      const execute=async(onReply?:(text:string)=>void)=>{
+      const execute=async(onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void)=>{
         try {
           const revise=async(messageId:string)=>{
             claimed=await claimResumeTask(user.id,body.opportunityId,{action:'conversation',messageId});
             if(!claimed.claimed)return claimed.task;
             return executeClaimed(request,body.opportunityId,user.id,claimed);
           };
-          return onReply?await runResumeConversation(request,user,body,revise,onReply):await runResumeConversation(request,user,body,revise);
+          return onReply?await runResumeConversation(request,user,body,revise,onReply,onReceipt):await runResumeConversation(request,user,body,revise);
         } catch(error) {
           const message=error instanceof Error?error.message:'改稿暂未完成，补充仍保留';
           if(claimed?.claimed){
             await finishResumeTask(user.id,claimed.task.id,claimed.lease!,claimed.source,{ok:false,error:message}).catch(()=>null);
           }
-          return reply({ok:false,error:message},error instanceof ResumeTaskError?error.status:503);
+          const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
+          const received=task?.conversation?.some(turn=>turn.id===body.requestId);
+          return reply({ok:false,error:message,...(task?{task}:{}),messagePersisted:Boolean(received)},error instanceof ResumeTaskError?error.status:503);
         }
       };
       return request.headers.get('accept')?.includes('application/x-ndjson')?resumeConversationStream(execute):await execute();

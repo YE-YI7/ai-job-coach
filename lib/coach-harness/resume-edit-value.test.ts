@@ -1,4 +1,15 @@
-import {proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,resumeSourceBulletSpan,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes} from './resume-edit-value';
+import {proposeStandaloneDisclaimerDeletions,normalizeResumeDeletion,normalizeResumeBulletBreaks,resumeSourceBulletSpan,isPersonalDisclaimer,omitStandaloneDisclaimers,resumeEditValueIssues,readResumeValueChecks,usefulResumeIndexes,resumeCorrectionOnly} from './resume-edit-value';
+
+test('corrections remain useful but are not evidence of content improvement',()=>{
+ const edit={before:'平台运营：负责平台的内容容运营，整理每周阅读记录。',after:'平台运营：负责平台的内容运营，整理每周阅读记录。',reason:'修正内容容错别字'};
+ const correction={index:0,useful:true,kind:'clarity',reason:'修复重复字，使原有工作内容清晰可读'};
+ expect(resumeCorrectionOnly([edit],[correction])).toBe(true);
+ expect(resumeCorrectionOnly([edit],[{...correction,impact:'correction'}])).toBe(true);
+ expect(resumeCorrectionOnly([edit],[{...correction,impact:'content',reason:'明确了交付用途并压缩冗余表述'}])).toBe(false);
+ expect(resumeCorrectionOnly([edit],[])).toBe(false);
+ expect(resumeCorrectionOnly([],[])).toBe(false);
+ expect(resumeCorrectionOnly([{...edit,reason:'消除指代歧义'}],[{...correction,reason:'明确店铺指代和本人的具体交付'}])).toBe(false);
+});
 
 test('source list marker is part of a body-only model span, without changing prose or ambiguous matches',()=>{
  const source='实习经历\n• 参与工单梳理，整理40条工单。这让我很有沟通能力。\n• 核对库存';

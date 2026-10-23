@@ -50,3 +50,9 @@ test("JSON compatibility and streamed save errors preserved",async()=>{
  const r=new Response('{"type":"done","ok":false,"error":"未保存"}\n',{headers:{"Content-Type":"application/x-ndjson"}});
  expect(await readChatResponse(r,()=>{})).toMatchObject({ok:false,error:"未保存"});
 });
+test('durable message receipts survive a lost final stream and are not completion or new answer text',async()=>{
+ const receipt=jest.fn(),text=jest.fn();
+ const r=new Response(JSON.stringify({type:'receipt',task:{conversation:[{id:'turn',status:'completed',reply:'已保存的导师回复'}]}})+'\n',{headers:{'content-type':'application/x-ndjson'}});
+ await expect(readChatResponse(r,text,undefined,receipt)).rejects.toThrow('尚未确认保存');
+ expect(receipt).toHaveBeenCalledWith(expect.objectContaining({task:expect.any(Object)}));expect(text).not.toHaveBeenCalled();
+});

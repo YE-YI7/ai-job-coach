@@ -10,10 +10,10 @@ export function visibleTutorText(text:string) {
   return text;
 }
 
-export async function readChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void):Promise<T> {
+export async function readChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void,onReceipt?:(event:T)=>void):Promise<T> {
  const started=Date.now();
  try {
-  const result=await consumeChatResponse<T>(response,onText,onStatus);
+  const result=await consumeChatResponse<T>(response,onText,onStatus,onReceipt);
   const body=result as {ok?:boolean;learning_trace?:{timing?:{firstTextMs?:number|null;generationDoneMs?:number}}};
   trackProductEvent(body.ok?"coach_response_received":"coach_response_failed",{http_status:response.status,stream_read_ms:Date.now()-started,server_first_text_ms:body.learning_trace?.timing?.firstTextMs,server_generation_ms:body.learning_trace?.timing?.generationDoneMs});
   return result;
@@ -23,7 +23,7 @@ export async function readChatResponse<T>(response:Response,onText:(text:string)
  }
 }
 
-async function consumeChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void):Promise<T> {
+async function consumeChatResponse<T>(response:Response,onText:(text:string)=>void,onStatus?:(message:string)=>void,onReceipt?:(event:T)=>void):Promise<T> {
   if(!response.headers.get("content-type")?.includes("application/x-ndjson"))return response.json();
   if(!response.body)throw Error("连接中断，请检查历史后重试");
   const reader=response.body.getReader(),decoder=new TextDecoder();
@@ -37,6 +37,7 @@ async function consumeChatResponse<T>(response:Response,onText:(text:string)=>vo
       for(const line of lines){
         if(!line.trim())continue;
         const event=JSON.parse(line);
+        if(event.type==='receipt')onReceipt?.(event as T);
         if(event.type==="status"&&typeof event.message==="string")onStatus?.(event.message);
         if(event.type==="delta"&&typeof event.text==="string"){text+=event.text;onText(visibleTutorText(text));}
         // Checked snapshots replace earlier text; never append a full answer

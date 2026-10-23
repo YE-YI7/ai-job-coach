@@ -1,3 +1,5 @@
+import {isTrivialRewrite} from './resume-diff';
+
 /** Content selection is separate from factual grounding. Never alter source
  * facts here: personal disclaimers remain in the evidence/context as limits. */
 const personalDisclaimer = /(?:^|[，,；;。.!！])\s*(?:(?:我|本人)(?:也|并)?|也|并)?(?:没有|并未|未曾|未|没)(?:亲自|直接)?(?:负责|参与|主导|承担|统计|记录|测量|验证|量化)/;
@@ -78,13 +80,28 @@ export function resumeEditValueIssues(before:string,after:string):string[]{
   return [...new Set(issues)];
 }
 
-export type ResumeValueCheck={index:number;useful:boolean;kind:string;reason:string};
+export type ResumeValueCheck={index:number;useful:boolean;kind:string;reason:string;impact?:'correction'|'content'};
+
+/** A legitimate OCR correction is useful, but does not prove that content was
+ * tailored. Legacy small edits need BOTH author/reviewer correction evidence;
+ * similarity alone must never reject a genuine clarification or supplement. */
+export function resumeCorrectionOnly(changes:Array<{before:string;after:string;reason?:string}>,checks:ResumeValueCheck[]){
+  const correction=/(?:OCR|错别字|错字|纠错|重复字|粘连|文字错误|标点混用|标点修正|修正标点)/i;
+  return changes.length>0&&changes.every((change,index)=>{
+    const check=checks.find(c=>c.index===index&&c.useful);
+    if(!check)return false;
+    if(check.impact==='correction')return true;
+    if(check.impact==='content')return false;
+    return check.kind==='clarity'&&correction.test(check.reason)&&correction.test(change.reason||'')
+      &&isTrivialRewrite(change.before.replace(/\\r\\n|\\n/g,''),change.after.replace(/\\r\\n|\\n/g,''));
+  });
+}
 const valueKinds=new Set(['concision','structure','specificity','relevance','clarity']);
 /** Explicit per-proposal review: absent, duplicate or vague verdicts fail closed. */
 export function readResumeValueChecks(raw:unknown,count:number):ResumeValueCheck[]{
   if(!Array.isArray(raw))return [];
   return raw.filter((item):item is ResumeValueCheck=>Boolean(item&&typeof item==='object'&&Number.isInteger(item.index)&&item.index>=0&&item.index<count
-    &&typeof item.useful==='boolean'&&(valueKinds.has(item.kind)||(!item.useful&&['none','format'].includes(item.kind)))&&typeof item.reason==='string'&&item.reason.trim().length>=8));
+    &&typeof item.useful==='boolean'&&(item.impact===undefined||['correction','content'].includes(item.impact))&&(valueKinds.has(item.kind)||(!item.useful&&['none','format'].includes(item.kind)))&&typeof item.reason==='string'&&item.reason.trim().length>=8));
 }
 export function usefulResumeIndexes(checks:ResumeValueCheck[]){
   return new Set(checks.filter(check=>check.useful&&checks.filter(other=>other.index===check.index).length===1).map(check=>check.index));

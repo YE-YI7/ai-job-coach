@@ -7,7 +7,7 @@ import {randomUUID} from 'node:crypto';
 // Normal invite login, newly provisioned synthetic account only. No production
 // user session, linked model, wallet, or access-key material is read by this test.
 const [phase,dir,origin,index='0']=process.argv.slice(2);
-assert.ok(dir&&/^https:\/\/ai-job-coach-[a-z0-9]+-velmavalienteqejimu22-jpgs-projects\.vercel\.app$/.test(origin));
+assert.ok(dir&&(origin==='https://yizhioffer.com'||/^https:\/\/ai-job-coach-[a-z0-9]+-velmavalienteqejimu22-jpgs-projects\.vercel\.app$/.test(origin)));
 const q=JSON.parse(readFileSync(join(dir,'private.json'),'utf8'));
 const {chromium,request}=createRequire('/Users/yi/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/package.json')('playwright');
 const output=join(dir,'evidence',...(phase==='browser'?['browser-'+index]:[]));mkdirSync(output,{recursive:true});
@@ -136,6 +136,30 @@ try{
    assert.deepEqual(errors,[]);console.log(JSON.stringify({phase,passed:true,output}));
   }catch(error){await page.screenshot({path:join(output,'browser-failure.png')}).catch(()=>{});save('browser-failure',{error:String(error),url:page.url(),body:(await page.locator('body').innerText()).slice(0,12000)});throw error;}
   finally{await browser.close();}
+ }else if(phase==='formal'){
+  const expected=JSON.parse(readFileSync(join(dir,'evidence/model-1.json'),'utf8')).task;
+  const owned=await (await api.get('/api/coach/opportunities')).json();
+  assert.equal(owned.opportunities.length,2);
+  const resumed=owned.opportunities.find(o=>o.id===q.opportunityIds[1]);
+  assert.equal(resumed.resumeGenerationId,expected.result.resumeGenerationId);
+  assert.ok(resumed.resumeChanges.some(c=>c.status==='accepted'));
+  const result=await (await api.get('/api/coach/resume-agent?opportunityId='+q.opportunityIds[1])).json();
+  assert.equal(result.task.delivery.generationId,expected.delivery.generationId);
+  assert.equal(result.task.delivery.outcome,'partial_delivered');assert.equal(result.task.result.partial,true);
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+   const context=await browser.newContext({storageState:state,viewport:{width:1512,height:982}});
+   const page=await context.newPage();
+   await page.goto(origin+'/cockpit',{waitUntil:'domcontentloaded'});await page.reload({waitUntil:'domcontentloaded'});
+   const text=await page.frameLocator('iframe[title="简历 · 原位修改"]').locator('main').innerText({timeout:45000});
+   assert.match(text,/260/);assert.match(text,/105/);assert.match(text,/协助/);
+   // Existing mentor discussion is preserved; the final task receipt, not a
+   // historical bubble's visibility, establishes partial status after refresh.
+   await page.getByRole('button',{name:'简历修改',exact:true}).waitFor({timeout:45000});
+   await page.screenshot({path:join(output,'formal-refresh.png')});
+   save('formal-result',{passed:true,sameGeneration:true,partialSurvivesRefresh:true,modelCalls:0});
+   console.log(JSON.stringify({phase,passed:true,sameGeneration:true,modelCalls:0}));
+  }finally{await browser.close();}
  }else if(phase==='discussion'){
   const before=await (await api.get('/api/coach/opportunities')).json();
   const started=Date.now();

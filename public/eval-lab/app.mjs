@@ -305,6 +305,10 @@ async function select(id) {
     } catch (e) {
       if (seq !== requestSequence || selected !== id) return;
       notice(e.message, true);
+      $("detail").hidden = true;
+      $("empty").hidden = false;
+      $("empty-action").textContent = "返回运行列表";
+      return;
     } finally {
       if (seq === requestSequence) loading = false;
     }
@@ -993,16 +997,30 @@ async function refresh() {
         (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0),
     );
     loadedSource = "production";
+    const requestedRun = new URLSearchParams(location.search).get("run");
+    if (requestedRun && !UUID.test(requestedRun)) {
+      notice("运行编号无效，未改用其他记录代替", true);
+      $("detail").hidden = true;
+      $("empty").hidden = false;
+      $("empty-action").textContent = "返回列表";
+      loading = false;
+      return;
+    }
     $("connection").textContent = "正式站 · 管理员";
     $("connection").classList.add("live");
     notice("正式管理员记录 · 只读查看，不会自动调用模型");
     renderList();
-    let last;
-    try {
-      last = sessionStorage.getItem("yizhi-eval-selected");
-    } catch {}
-    runs = restoreSelection(runs, selected || last);
-    const id = runs.find((r) => r.id === (selected || last))?.id || runs[0]?.id;
+    let last = new URLSearchParams(location.search).get("run");
+    if (!last) {
+      try {
+        last = sessionStorage.getItem("yizhi-eval-selected");
+      } catch {}
+    }
+    // A bounded list is not an existence check. select() reads this exact ID,
+    // including a real historical run not present in the latest 20 items.
+    const preferred = requestedRun || selected || last;
+    runs = restoreSelection(runs, preferred);
+    const id = runs.find((r) => r.id === preferred)?.id || runs[0]?.id;
     renderList();
     loading = false;
     if (id) await select(id);

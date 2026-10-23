@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { isEvalAdmin } from "@/lib/coach-harness/eval-access";
-import AnalyticsClient from "./AnalyticsClient";
+import BusinessWorkspace from "./BusinessWorkspace";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "数据 · 益职 Eval Lab",
@@ -20,5 +20,5 @@ export default async function AnalyticsPage() {
         <Link href="/cockpit">返回工作区</Link>
       </main>
     );
-  return <AnalyticsClient />;
+  return <BusinessWorkspace />;
 }

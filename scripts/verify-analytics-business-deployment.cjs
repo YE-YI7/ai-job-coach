@@ -24,13 +24,18 @@ function verify(condition,label){if(!condition)throw Error(`Acceptance failed: $
 (async()=>{
  const health=curl('/api/health',null,true);verify(health.status===200,'Candidate health 200');
  serverStart=Date.parse(health.headers.match(/^date:\s*(.+)$/mi)?.[1]||'');monoStart=performance.now();if(!Number.isFinite(serverStart))throw Error('Server clock required for short-lived session');
- const range='from=2026-10-21&to=2026-10-22',first=get(`/api/admin/analytics?view=users&${range}`);verify(first.status===200&&Boolean(first.data.dataset),'Actual admin business API 200');
+ const from=process.env.ANALYTICS_QA_FROM||'2026-09-23',to=process.env.ANALYTICS_QA_TO||'2026-10-22';
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to))throw Error('Explicit date range required');
+ const range=`from=${from}&to=${to}`,first=get(`/api/admin/analytics?view=users&${range}`);verify(first.status===200&&Boolean(first.data.dataset),'Actual admin business API 200');
  const d=first.data.dataset,snapshot=encodeURIComponent(d.window.asOf),owner=get(`/api/admin/analytics?view=users&${range}&scope=all&search=${admin.toUpperCase()}&asOf=${snapshot}`);verify(owner.status===200&&owner.data.dataset.users.total===0,'Owner excluded from dataset including uppercase ID');
  verify(get(`/api/admin/analytics?view=sessions&${range}&userId=${admin.toUpperCase()}&asOf=${snapshot}`).status===404,'Owner direct detail excluded before content');
- const daily=get(`/api/admin/analytics?view=daily&${range}&asOf=${snapshot}`);verify(daily.status===200&&daily.data.dataset.rows.length===2,'Actual arbitrary date range reads daily rows');
- const u=d.users.rows.find(u=>u.sent>0)||d.users.rows.find(u=>u.active);let detail=null;
+ const daily=get(`/api/admin/analytics?view=daily&${range}&asOf=${snapshot}`);verify(daily.status===200&&daily.data.dataset.rows.length===Math.round((Date.parse(to)-Date.parse(from))/86400000)+1,'Actual arbitrary date range reads daily rows');
+ const all=get(`/api/admin/analytics?view=users&${range}&scope=all&asOf=${snapshot}`);verify(all.status===200,'Actual all-user scope reads full population');
+ if(all.data.dataset.users.nextOffset!==null){const p=get(`/api/admin/analytics?view=users&${range}&scope=all&asOf=${snapshot}&offset=${all.data.dataset.users.nextOffset}`);verify(p.status===200&&p.data.dataset.window.asOf===d.window.asOf&&p.data.dataset.users.rows.every(u=>!all.data.dataset.users.rows.some(a=>a.id===u.id)),'Actual user pagination retains asOf without overlapping users');}
+ const u=d.users.rows.find(u=>u.sent>0);verify(Boolean(u),'Saved-user-message sample exists for real session acceptance');let detail=null;
  if(u){const r=get(`/api/admin/analytics?view=sessions&${range}&userId=${u.id}&asOf=${snapshot}`);verify(r.status===200&&Boolean(r.data.sessions),'Actual non-internal user drilldown');detail=r.data.sessions;
-  if(detail.sessionPage.rows[0]){const s=get(`/api/admin/analytics?view=sessions&${range}&userId=${u.id}&asOf=${snapshot}&session=${encodeURIComponent(detail.sessionPage.rows[0].id)}`);verify(s.status===200&&s.data.sessions.selectedSession!==null,'Actual saved conversation read');}
+  verify(Boolean(detail.sessionPage.rows[0]),'Saved conversation can be selected');
+  if(detail.sessionPage.rows[0]){const s=get(`/api/admin/analytics?view=sessions&${range}&userId=${u.id}&asOf=${snapshot}&session=${encodeURIComponent(detail.sessionPage.rows[0].id)}`);verify(s.status===200&&s.data.sessions.selectedSession?.turns.total>0,'Actual saved conversation read');}
   if(detail.opportunities[0]){const m=get(`/api/admin/analytics?view=material&${range}&userId=${u.id}&asOf=${snapshot}&opportunityId=${detail.opportunities[0].id}`);verify(m.status===200&&Boolean(m.data.material),'Actual owned current material read');}
   if(detail.traces[0]){const t=detail.traces[0],r=get(`/api/admin/eval-runs?id=${t.runId||t.traceId}`);verify(r.status===200,'Actual linked Trace resolves by exact ID');}
  }

@@ -541,11 +541,16 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       if(explicitQuestion)return askExplicitDetail();
       return NextResponse.json({ ok: false, reasonCode: "resume_review_failed", retryable: true, error: "这次生成的修改未通过文字与事实质检，原文和补充已保留，本次未扣额度，可以重试", ...(agentTask ? {} : { recovery: resumeRecovery(resumeText) }) }, { status: 422 });
     }
-    if(attempt===0&&agentTask&&resumeCorrectionOnly(finalChanges,finalChanges.map(change=>({...valueChecks[changes.findIndex(c=>c.id===change.id)],index:finalChanges.indexOf(change)})))){
+    const correctionRound=resumeCorrectionOnly(finalChanges,finalChanges.map(change=>({...valueChecks[changes.findIndex(c=>c.id===change.id)],index:finalChanges.indexOf(change)})));
+    // Similarity is a repair signal, never a rejection: keep useful OCR fixes
+    // and genuine small clarifications. But rejected content plus only tiny
+    // surviving polish must not end a full edit before its one repair attempt.
+    const polishAfterRejectedContent=!latestAnswer&&rejected.length>0&&finalChanges.length>0&&finalChanges.every(change=>isTrivialRewrite(change.before,change.after));
+    if(attempt===0&&agentTask&&(correctionRound||polishAfterRejectedContent)){
       captureCheckpoint(attempt);
-      repairFeedback=['刚才通过的建议只有文字校对，没有完成用户要求的内容优化。请基于已有事实，在相同段落合并纠错与内容调整：压缩重复过程、拆清主要动作/具体交付/已有结果，保留概括领头、责任与原格式；不能只换词、增加标签或虚构JD经历。最多3处高价值修改；若确实无内容可改，保留已知事实并给一个具体补问。'];
+      repairFeedback=[...rejected.flatMap(item=>item.reasons),correctionRound?'刚才通过的建议只有文字校对，没有完成用户要求的内容优化。':'内容候选被过滤后只剩小幅措辞变化，不能靠旁边的技能和换词结束。请优先返修刚才被过滤的经历。','请基于已有事实，在相同段落合并必要纠错与内容调整：删掉重复职责和过程、突出本人主要动作/具体交付/已有结果，保留概括领头、责任与原格式。个人未统计/未负责事项仅作为内部边界，不写进正文，但不得把店铺总结果改成本人贡献。不能只换词、增加标签、重复项目标题或虚构JD经历。最多3处高价值修改；原稿本来清楚、确无内容可改可返回unchanged，不为凑修改硬改，也不笼统把系统失败归因缺信息。'];
       lockedChanges=[];
-      trace.step('review','correction_only_returned_to_editor',finalChanges.length);
+      trace.step('review',correctionRound?'correction_only_returned_to_editor':'polish_after_rejected_content_returned_to_editor',finalChanges.length);
       continue;
     }
     break;

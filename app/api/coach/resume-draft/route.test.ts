@@ -194,6 +194,27 @@ describe("resume draft source mapping", () => {
     expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),expect.objectContaining(substantive?{ok:true}:{partial:true,reasonCode:'resume_correction_only'}));
   });
 
+  test('rejected content with only tiny surviving polish cannot skip the bounded editor repair',async()=>{
+    const before='内容运营：平时负责整理店铺反馈，整理了30条反馈，整理后交给店长每周查看。';
+    const skill='掌握Excel筛选和透视表。';
+    const improved='内容运营：整理30条店铺反馈，交给店长每周查看。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:before+'\n'+skill,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    let drafts=0;
+    (callLLM as jest.Mock).mockImplementation(async(messages)=>{
+      if(JSON.stringify(messages).includes('待审修改（'))return JSON.stringify({status:'passed',summary:'逐条检查完成',findings:[],document:passedDocument,valueChecks:[{index:0,useful:true,kind:'concision',impact:'content',reason:'精简重复整理过程，保留本人动作和交付'}]});
+      drafts++;
+      return JSON.stringify({changes:drafts===1?[{before,after:before.replace('平时',''),sourceIds:['claim-1']},{before:skill,after:skill.replace('和','与'),sourceIds:['claim-1']}]:[{before,after:improved,sourceIds:['claim-1']}]});
+    });
+    (applyResumeChanges as jest.Mock).mockImplementation((_source,changes)=>({text:changes[0]?.after||before,findings:[]}));
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'quality-artifact',version:1});(recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeTaskId:'task',resumeTaskLease:'lease',resumeText:before+'\n'+skill,mode:'general_resume'})}));
+    expect(response.status).toBe(200);expect((await response.json()).changes[0].after).toBe(improved);expect(callLLM).toHaveBeenCalledTimes(4);
+    const trace=await(startResumeTrace as jest.Mock).mock.results[0].value;
+    expect(trace.step).toHaveBeenCalledWith('review','polish_after_rejected_content_returned_to_editor',1);
+  });
   test('cosmetic labels never become a paid deliverable',async()=>{
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'Excel、Word',after:'办公软件：Excel、Word',sourceIds:['claim-1']}]}));

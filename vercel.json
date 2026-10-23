@@ -1,5 +1,5 @@
 {
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
-  "git": { "deploymentEnabled": { "codex/production-release": false } },
+  "git": { "deploymentEnabled": { "codex/production-release": false, "codex/analytics-business-repair-1022": false } },
   "crons": [{ "path": "/api/cron/job-market", "schedule": "0 1 * * *" }]
 }

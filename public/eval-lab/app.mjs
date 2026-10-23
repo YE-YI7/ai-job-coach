@@ -305,6 +305,10 @@ async function select(id) {
     } catch (e) {
       if (seq !== requestSequence || selected !== id) return;
       notice(e.message, true);
+      $("detail").hidden = true;
+      $("empty").hidden = false;
+      $("empty-action").textContent = "返回运行列表";
+      return;
     } finally {
       if (seq === requestSequence) loading = false;
     }
@@ -423,6 +427,12 @@ function renderPanel() {
   }
   if (tab === "result") {
     h += `<p class="section-intro">执行状态：${esc(STATUS[r.status] || "未记录")}。内容是否可交付，请结合自评依据与人工判断。</p>`;
+    if(r.result?.delivery?.schemaVersion===2){
+      const d=r.result.delivery;
+      const labels={delivered:'完整交付',partial_delivered:'部分交付',unchanged:'未产生新改动',needs_detail:'待补信息',blocked:'被阻止',failed:'失败',quota_denied:'额度不足',running:'处理中',unconfirmed:'未确认',unknown:'未知'};
+      const persistence={confirmed:'服务端已确认保存',not_persisted:'未确认保存',returned_only:'仅返回结果，未保存',unknown:'保存状态未知'};
+      h+=`<section class="input-section"><h2>最终交付</h2><p class="prose">${esc(labels[d.outcome]||'未知')} · ${esc(persistence[d.persistence]||'未知')} · 本代新修改 ${d.deliveredCount==null?'未记录':esc(String(d.deliveredCount))} 处</p><p class="safety-note">代次 ${esc(d.generationId||'未记录')} · Trace ${esc(d.traceId||'未记录')}${d.reasonCode?` · 原因 ${esc(d.reasonCode)}`:''}。模型执行状态与最终交付分开；这条回执不代表 PDF 已验收。</p></section>`;
+    }
     if (r.result?.error)
       h += `<p class="notice-inline">${esc(r.result.error)}</p>`;
     h +=
@@ -987,16 +997,30 @@ async function refresh() {
         (Date.parse(b.startedAt) || 0) - (Date.parse(a.startedAt) || 0),
     );
     loadedSource = "production";
+    const requestedRun = new URLSearchParams(location.search).get("run");
+    if (requestedRun && !UUID.test(requestedRun)) {
+      notice("运行编号无效，未改用其他记录代替", true);
+      $("detail").hidden = true;
+      $("empty").hidden = false;
+      $("empty-action").textContent = "返回列表";
+      loading = false;
+      return;
+    }
     $("connection").textContent = "正式站 · 管理员";
     $("connection").classList.add("live");
     notice("正式管理员记录 · 只读查看，不会自动调用模型");
     renderList();
-    let last;
-    try {
-      last = sessionStorage.getItem("yizhi-eval-selected");
-    } catch {}
-    runs = restoreSelection(runs, selected || last);
-    const id = runs.find((r) => r.id === (selected || last))?.id || runs[0]?.id;
+    let last = new URLSearchParams(location.search).get("run");
+    if (!last) {
+      try {
+        last = sessionStorage.getItem("yizhi-eval-selected");
+      } catch {}
+    }
+    // A bounded list is not an existence check. select() reads this exact ID,
+    // including a real historical run not present in the latest 20 items.
+    const preferred = requestedRun || selected || last;
+    runs = restoreSelection(runs, preferred);
+    const id = runs.find((r) => r.id === preferred)?.id || runs[0]?.id;
     renderList();
     loading = false;
     if (id) await select(id);

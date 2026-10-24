@@ -5,9 +5,10 @@
 .identity>span{font-size:12px;line-height:1.5;color:var(--cockpit-studio-muted,#6b665e)}
 .actions{display:flex;align-items:center;gap:8px;min-width:0;margin:0;padding:0;border:0}
 .actions:disabled{opacity:.5;cursor:wait}
-.toolbar button,.menu button{font:inherit;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,box-shadow 160ms ease,transform 160ms cubic-bezier(.22,1,.36,1)}
+.toolbar button,.menu button{font-family:inherit;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,box-shadow 160ms ease,transform 160ms cubic-bezier(.22,1,.36,1)}
+.toolbar .actions button{font-family:inherit;font-size:13px;font-weight:500;line-height:1.5;min-height:40px}
 /* The tool has a shallow ceramic edge; the document below remains plain paper. */
-.revise{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 13px;border:0;border-radius:9px;background:linear-gradient(180deg,#fff 0%,#fafbf8 100%);color:#413c34;box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgb(52 47 40 / .1),0 1px 2px rgb(41 36 29 / .1),0 3px 6px rgb(41 36 29 / .04);font-size:13px!important;font-weight:500!important;white-space:nowrap}
+.revise{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:8px 13px;border:0;border-radius:9px;background:linear-gradient(180deg,#fff 0%,#fafbf8 100%);color:#413c34;box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgb(52 47 40 / .1),0 1px 2px rgb(41 36 29 / .1),0 3px 6px rgb(41 36 29 / .04);white-space:nowrap}
 .revise:hover:not(:disabled){box-shadow:inset 0 1px 0 #fff,inset 0 -1px 0 rgb(52 47 40 / .12),0 2px 3px rgb(41 36 29 / .1),0 5px 10px rgb(41 36 29 / .06)}
 .utilityRow{display:flex;align-items:center;gap:14px;min-height:36px;margin-top:18px}
 .history{display:flex;align-items:center;gap:2px}
@@ -50,6 +51,6 @@
 .selectValue{display:flex;align-items:center;gap:7px;color:var(--cockpit-studio-ink,#2f2a23)}
 .template select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .menu>p{font-size:12px;line-height:1.65;color:var(--cockpit-studio-muted,#6b665e);margin:10px 11px 6px}
-@media(max-width:700px){.headingRow{gap:8px}.identity{align-items:flex-start;flex-direction:column;gap:2px}.identity h2{font-size:19px}.identity>span{font-size:11px}.actions{margin-left:auto;gap:4px}.revise{padding-inline:8px;min-height:44px}.utilityRow{gap:6px;margin-top:8px}.history button,.more,.marks{min-height:44px;min-width:44px}.fee{max-width:16ch;font-size:12px}.menu>button,.menu>.photo,.template{min-height:44px}}
+@media(max-width:700px){.headingRow{gap:8px}.identity{align-items:flex-start;flex-direction:column;gap:2px}.identity h2{font-size:19px}.identity>span{font-size:11px}.actions{margin-left:auto;gap:4px;flex-wrap:wrap}.toolbar .actions button{min-height:44px}.revise{padding-inline:8px}.utilityRow{gap:6px;margin-top:8px;flex-wrap:wrap}.history button,.more,.marks{min-height:44px;min-width:44px}.fee{max-width:16ch;font-size:12px}.menu>button,.menu>.photo,.template{min-height:44px}}
 @media(max-width:380px){.utilityRow{flex-wrap:wrap}.fee{flex-basis:100%;order:5;max-width:none;margin:0;text-align:left}.more{margin-left:auto}}
 @media(prefers-reduced-motion:reduce){.toolbar button,.menu button,.toolbar button[data-tooltip]::after{transition:none!important}.toolbar button:active:not(:disabled){transform:none}.readingLine::before,.menu:popover-open{animation:none}}

@@ -1,19 +1,12 @@
 "use client";
 import {useRef,useState} from "react";
-import {Check, FileDown} from "lucide-react";
-import {printTemplates,renderResumePrintWindow,type PrintTemplate} from "@/lib/resume-print";
+import {FileDown} from "lucide-react";
+import {renderResumePrintWindow} from "@/lib/resume-print";
 import {resumePhotoDataUri, type ResumePhoto} from "@/lib/resume-photo";
 import {useResumeTemplate} from "@/lib/resume-template-preference";
 import {trackProductEvent} from "@/lib/product-events";
 import styles from "./CockpitApp.module.css";
-
-// Visual mini-previews instead of a native <select> label list (per design ask).
-// Each tile mirrors the real template: accent colour, heading rule, and typeface.
-const TEMPLATE_PREVIEWS: Record<PrintTemplate, {label:string; accent:string; serif:boolean; description:string}> = {
-  classic: {label:printTemplates.classic.label, accent:printTemplates.classic.accent, serif:true, description:"居中姓名 · 正文左齐"},
-  modern: {label:printTemplates.modern.label, accent:printTemplates.modern.accent, serif:false, description:"单列全宽 · 蓝灰分节"},
-  warm: {label:printTemplates.warm.label, accent:printTemplates.warm.accent, serif:false, description:"暖色标题 · 连续阅读"},
-};
+import ResumeTemplatePicker from "./ResumeTemplatePicker";
 
 export default function ResumeExport({opportunityId,artifactId,baseText,disabledReason,compact=false,pendingCount=0,photo}:{opportunityId:string;artifactId?:string;baseText?:string;disabledReason?:string;compact?:boolean;pendingCount?:number;photo?:ResumePhoto}){
  const [template,setTemplate]=useResumeTemplate(),[error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -30,21 +23,7 @@ export default function ResumeExport({opportunityId,artifactId,baseText,disabled
  return <div className={`${styles.exportControls} ${compact?styles.exportCompact:""}`}>
   {!compact&&<>
   <div className={styles.exportHeading}><strong>选好版式，带走这份简历</strong><span>只换呈现，不改内容</span></div>
-  <div className={styles.templatePicker} role="radiogroup" aria-label="简历版式">
-   {(Object.keys(TEMPLATE_PREVIEWS) as PrintTemplate[]).map((id)=>{const t=TEMPLATE_PREVIEWS[id];return (
-    <button key={id} type="button" role="radio" aria-label={t.label} aria-checked={template===id} data-active={template===id} data-template={id} className={styles.templateTile} onClick={()=>setTemplate(id)} title={t.label}>
-     <span aria-hidden="true" className={styles.templatePreview} style={{fontFamily:t.serif?"serif":"sans-serif"}}>
-      <b style={{color:t.accent,borderBottomColor:t.accent}}>姓名 · 联系方式</b>
-      <i style={{background:t.accent}}/>
-      <em/><em/><em/>
-      <b style={{color:t.accent,borderBottomColor:t.accent}}>经历</b>
-      <em/><em/>
-     </span>
-     <span className={styles.templateName}>{t.label}{template===id&&<Check size={14} aria-hidden="true"/>}</span>
-     <span className={styles.templateDescription}>{t.description}</span>
-    </button>
-   );})}
-  </div>
+  <ResumeTemplatePicker value={template} onChange={setTemplate} inline />
   </>}
   <button className={`${styles.secondaryButton} ${styles.exportAction}`} title={disabledReason||"预览简历并保存 PDF"} disabled={busy||Boolean(disabledReason)||(!artifactId&&!baseText)} onClick={()=>pendingCount?confirmation.current?.showModal():void open()}><FileDown size={16} aria-hidden="true"/>{busy?"正在准备…":compact?"导出 PDF":"预览 / 保存 PDF"}</button>
   <dialog ref={confirmation} className={styles.resumeExportConfirmation} aria-labelledby={`resume-export-confirm-${opportunityId}`}><h2 id={`resume-export-confirm-${opportunityId}`}>导出这份修改稿？</h2><p>还有 {pendingCount} 处修改未逐一确认。要导出的话，按我们最后给你修改的版本导出，你同不同意？</p><p>已拒绝的修改不会重新采用，导出不会替你更改采纳状态。</p><div><button type="button" onClick={()=>confirmation.current?.close()}>继续核对</button><button type="button" onClick={()=>{confirmation.current?.close();void open();}}>同意并导出</button></div></dialog>

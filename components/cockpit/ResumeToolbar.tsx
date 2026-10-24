@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Camera, ChevronDown, Eye, EyeOff, FileText, MoreHorizontal, Redo2, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
-import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
+import { Camera, Eye, EyeOff, FileText, MoreHorizontal, Redo2, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
+import type { PrintTemplate } from "@/lib/resume-print";
 import type { ResumePhoto } from "@/lib/resume-photo";
+import ResumeTemplatePicker from "./ResumeTemplatePicker";
 import styles from "./ResumeToolbar.module.css";
 
 const subscribeReady = () => () => {};
@@ -86,6 +87,7 @@ export default function ResumeToolbar({
       <button type="button" className={styles.marks} disabled={!ready} aria-label="修改标记" aria-pressed={showMarks && !showOriginal} data-tooltip={showMarks && !showOriginal ? "隐藏修改标记" : "显示修改标记"} onClick={() => onShowMarks(!showMarks || showOriginal)}>
         {showMarks && !showOriginal ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}修改标记
       </button>
+      <ResumeTemplatePicker value={template} onChange={onTemplate} disabled={!ready} />
       <small id={feeId} className={styles.fee}>{fee}</small>
       <button ref={trigger} type="button" className={styles.more} disabled={!ready} aria-label="简历更多选项" aria-expanded={open} aria-haspopup="dialog" aria-controls="resume-options-popover" popoverTarget="resume-options-popover" popoverTargetAction="toggle" data-tooltip="更多选项" onClick={event=>{event.preventDefault();toggle();}}>
         <MoreHorizontal size={19} aria-hidden="true" />
@@ -99,13 +101,6 @@ export default function ResumeToolbar({
         <span>{photoBusy ? "正在读取照片…" : photo ? "更换照片" : "上传证件照"}</span>
       </button><input ref={photoInput} type="file" aria-label="证件照文件" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy||busy} onChange={event => { const file = event.target.files?.[0]; if (file) {onPhoto(file);close(true);} event.currentTarget.value = ""; }} /></>}
       {onPhotoRemove && photo && <button type="button" disabled={photoBusy} onClick={() => { onPhotoRemove(); close(true); }}><Trash2 size={16} aria-hidden="true" />移除照片</button>}
-      <label className={styles.template}>
-        <span>导出版式</span>
-        <span className={styles.selectValue}>{printTemplates[template].label}<ChevronDown size={14} aria-hidden="true" /></span>
-        <select aria-label="简历版式" value={template} onChange={event => onTemplate(event.target.value as PrintTemplate)}>
-          {(Object.keys(printTemplates) as PrintTemplate[]).map(id => <option key={id} value={id}>{printTemplates[id].label}</option>)}
-        </select>
-      </label>
       <p>版式与照片只作用于文字工作稿和 PDF，上传的原文件保持原样。</p>
     </div>
   </header>;

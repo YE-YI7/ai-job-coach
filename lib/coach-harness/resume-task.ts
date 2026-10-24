@@ -140,11 +140,18 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     if(!turn?.plan||turn.plan.action!=='revise')throw new ResumeTaskError('导师尚未决定执行这次修改');
     const instructionId=`conversation:${turn.id}`;
     if(row!.answers.some(a=>a.id===instructionId))return {task:publicResumeTask(row!),source,claimed:false};
-    const additions:ResumeAgentAnswer[]=[{id:instructionId,kind:'instruction',field:'context',sourceExcerpt:'',question:'导师确认的本次修改目标',answer:turn.plan.editorBrief,savedAt:new Date().toISOString()}];
-    const supplement=turn.plan.supplement;
-    const factId=supplement?`conversation-fact:${supplement.turnId}:${createHash('sha256').update(JSON.stringify([supplement.sourceExcerpt,supplement.quote])).digest('hex').slice(0,16)}`:'';
-    if(supplement&&!row!.answers.some(a=>a.id===factId)){
-      additions.push({id:factId,field:supplement.field,sourceExcerpt:supplement.sourceExcerpt,question:'讨论中补充的本人经历',answer:supplement.quote,claimId:randomUUID(),savedAt:new Date().toISOString()});
+    const additions:ResumeAgentAnswer[]=[{
+      id:instructionId,kind:'instruction',field:'context',sourceExcerpt:'',
+      question:'导师确认的本次修改目标',answer:turn.plan.editorBrief,savedAt:new Date().toISOString(),
+    }];
+    const supplements=turn.plan.supplements||(turn.plan.supplement?[turn.plan.supplement]:[]);
+    for(const supplement of supplements){
+      const digest=createHash('sha256').update(JSON.stringify([supplement.sourceExcerpt,supplement.quote])).digest('hex').slice(0,16);
+      const factId=`conversation-fact:${supplement.turnId}:${digest}`;
+      if(![...row!.answers,...additions].some(a=>a.id===factId)){
+        additions.push({id:factId,field:supplement.field,sourceExcerpt:supplement.sourceExcerpt,
+          question:'讨论中补充的本人经历',answer:supplement.quote,claimId:randomUUID(),savedAt:new Date().toISOString()});
+      }
     }
     // Save the instruction and acquire its generation lease in the same CAS.
     // A process crash must not leave a consumed instruction with no editor run.

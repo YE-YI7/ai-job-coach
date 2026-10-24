@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
-import type { PrintTemplate } from "./resume-print";
+import { printTemplates, type PrintTemplate } from "./resume-print";
 
 // 版式偏好是全局一份：简历台的整页渲染和 PDF 导出必须用同一个模板，
 // 否则「选模板直接渲染上去」和实际导出的文件会对不上。
@@ -9,7 +9,7 @@ const listeners = new Set<() => void>();
 let cached: { raw: string | null; value: PrintTemplate } = { raw: null, value: "classic" };
 
 function parse(raw: string | null): PrintTemplate {
-  return raw === "modern" || raw === "warm" ? raw : "classic";
+  return raw && Object.hasOwn(printTemplates, raw) ? raw as PrintTemplate : "classic";
 }
 
 function read(): PrintTemplate {

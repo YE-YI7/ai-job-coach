@@ -45,3 +45,45 @@ test('a bare unknown or skip cannot invoke editing even if the model says revise
  const plan=parseResumeConversationDecision(JSON.stringify({action:'revise',reply:'没关系，保留已知事实。',editorBrief:'删除未知经历',supplement:null}),source,[...turns,pending]);
  expect(plan).toEqual({action:'discuss',reply:'没关系，保留已知事实。',editorBrief:'',supplement:null});
 });
+test('multi-turn facts keep exact quotes and corrected placement in one editor handoff',()=>{
+ const history=[
+  {id:'delivery',message:'交付了供应商对接方案。',reply:'属于哪段经历？',status:'completed' as const,savedAt:'now'},
+  {id:'purpose',message:'是为门店比较供应商服务范围。',reply:'',status:'completed' as const,savedAt:'now'},
+  {id:'correction',message:'不是A公司，是B项目，就常规一样。',reply:'',status:'pending' as const,savedAt:'now'},
+ ];
+ const supplements=[
+  {turnId:'delivery',quote:history[0].message,sourceExcerpt:source,field:'deliverable'},
+  {turnId:'purpose',quote:history[1].message,sourceExcerpt:source,field:'context'},
+ ];
+ const raw={action:'revise',reply:'我会改这段项目，突出对接方案和实际用途，不补编数据。',editorBrief:'只修改B项目，不能归到已纠正的A公司。',supplements};
+ expect(parseResumeConversationDecision(JSON.stringify(raw),source,history)).toEqual({...raw,supplement:supplements[0]});
+ for(const invalid of [null,{},Array(5).fill(supplements[0]),[...supplements,{...supplements[0],quote:'提高转化率30%'}]]){
+  expect(()=>parseResumeConversationDecision(JSON.stringify({...raw,supplements:invalid}),source,history)).toThrow();
+ }
+ const duplicate=parseResumeConversationDecision(JSON.stringify({...raw,supplements:[...supplements,supplements[0]]}),source,history);
+ expect(duplicate.supplements).toHaveLength(2);
+});
+test('mentor owns writing choices, keeps replies short and never asks approval for a draft in chat',()=>{
+ const prompt=resumeConversationMessages({resume:source,jd:'',changes:[]},{id:'t',state:'ready',question:null,answers:[],updatedAt:'now',conversation:turns}).messages[0].content;
+ for(const rule of ['最多180字','不能先在聊天里写一版','以用户最后一次明确纠正为准','已知个人动作或交付且归属确定','用户明确说先别改'])expect(prompt).toContain(rule);
+});
+test('a scope anchored only to the project heading locates the edit but is not a body-writing fact',()=>{
+ const text='## 项目经历\n### B项目\n'+source;
+ const decision=parseResumeConversationDecision(JSON.stringify({action:'revise',reply:'我会改B项目。',editorBrief:'只修改B项目',
+  supplements:[{turnId:'one',quote:turns[0].message,sourceExcerpt:source,field:'deliverable'},
+   {turnId:'correction',quote:'不是A，是B项目',sourceExcerpt:'### B项目',field:'scope'}]}),text,
+  [...turns,{id:'correction',message:'不是A，是B项目',reply:'',status:'pending',savedAt:'now'}]);
+ expect(decision.supplement?.field).toBe('deliverable');
+ expect(decision.supplements).toBeUndefined();
+ expect(decision.placements).toEqual([expect.objectContaining({field:'scope',sourceExcerpt:'### B项目'})]);
+});
+test('plain entry titles are placement, but measured scope on a responsibility remains a fact',()=>{
+ const text='项目经历\nB项目\n2025.01 - 2025.03\n'+source;
+ const turn={id:'detail',message:'不是A，是B项目；我整理了12份访谈记录。',reply:'',status:'pending' as const,savedAt:'now'};
+ const decision=parseResumeConversationDecision(JSON.stringify({action:'revise',reply:'我会改B项目。',editorBrief:'补入实际整理规模',supplements:[
+  {turnId:'detail',quote:'不是A，是B项目',sourceExcerpt:'B项目',field:'scope'},
+  {turnId:'detail',quote:'我整理了12份访谈记录',sourceExcerpt:source,field:'scope'},
+ ]}),text,[turn]);
+ expect(decision.placements).toHaveLength(1);
+ expect(decision.supplement).toMatchObject({quote:'我整理了12份访谈记录',sourceExcerpt:source,field:'scope'});
+});

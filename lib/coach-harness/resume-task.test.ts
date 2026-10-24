@@ -106,6 +106,24 @@ test('a failed edit claim does not consume a saved decision or its factual suppl
  expect(db.rows('coach_resume_tasks')[0].answers).toEqual([]);
  expect((await beginResumeMessage('owner','opp',messageId,message)).needsRevision).toBe(true);
 });
+test('multi-turn facts are saved together, refresh keeps them and retry cannot duplicate the handoff',async()=>{
+ const earlier='33333333-3333-4333-8333-333333333333';
+ const first=await beginResumeMessage('owner','opp',earlier,'我整理了访谈分类表。');
+ await completeResumeMessage('owner','opp',earlier,first.version,{action:'discuss',reply:'这份表用在哪里？',editorBrief:'',supplement:null});
+ const latest=await beginResumeMessage('owner','opp',messageId,'供产品经理比较需求优先级。');
+ const supplements=[
+  {turnId:earlier,quote:'我整理了访谈分类表。',sourceExcerpt:source,field:'deliverable' as const},
+  {turnId:messageId,quote:'供产品经理比较需求优先级。',sourceExcerpt:source,field:'context' as const},
+ ];
+ await completeResumeMessage('owner','opp',messageId,latest.version,{action:'revise',reply:'我会写清分类表和用途。',editorBrief:'只改该项目，不编结果。',supplement:supplements[0],supplements});
+ const claimed=await claimResumeTask('owner','opp',{action:'conversation',messageId});
+ expect(factualResumeAnswers(claimed.task.answers).map(a=>a.answer)).toEqual(supplements.map(f=>f.quote));
+ expect((await readResumeTask('owner','opp'))?.answers).toEqual(claimed.task.answers);
+ expect((await claimResumeTask('owner','opp',{action:'conversation',messageId})).claimed).toBe(false);
+ expect(db.rows('coach_resume_tasks')[0].answers).toHaveLength(3);
+ expect(db.rows('coach_opportunities')[0].metadata).toEqual({resumeText:source,workspaceType:'preparation',resumeRevision:'rev'});
+ expect(db.rows('interview_answers')).toEqual([]);expect(db.rows('watcha_wallets')).toEqual([]);
+});
 test('source change during thinking blocks late reply and never edits a new document',async()=>{
  const opened=await beginResumeMessage('owner','opp',messageId,'先讨论');
  (db.rows('coach_opportunities')[0].metadata as Record<string,unknown>).resumeRevision='replaced';

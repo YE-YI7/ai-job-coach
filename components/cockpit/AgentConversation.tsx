@@ -7,6 +7,7 @@ import styles from "./AgentConversation.module.css";
 import TutorMarkdown from "./TutorMarkdown";
 import VoiceControls from "./VoiceControls";
 import ModelPicker from "./ModelPicker";
+import ResumeComposerModel from "./ResumeComposerModel";
 import SelectMenu from "@/components/ui/SelectMenu";
 import {isChatMode,type ChatMode} from "@/lib/coach-harness/chat-options";
 import {catalogWithAvailability,type CatalogEntryAvailability} from "@/lib/coach-harness/model-catalog";
@@ -242,7 +243,12 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
    <p>{quotaLabel}。发送会调用 AI，失败释放额度；保存回答和笔记免费。</p><p>具体模型按输出参考价从高到低排列；单位为 ¥ / 百万 tokens，实际以账单为准。价格参考 TokenDance，读取于 {(modelAccess?.catalog??catalogWithAvailability([])).map(m=>m.referencePrice?.asOf.slice(0,10)).filter(Boolean).sort()[0]||'未记录'}。选择不会自动发送。</p>{!modelAccess&&<p>具体模型列表暂未读到，自动与实惠档仍可选。</p>}
   </div><button type="button" aria-label="新辅导" title="新开对话，原记录保留在学习记录中" disabled={busy||loading} onClick={newConversation}><Plus size={18}/></button></header>
   {resumeWorkflow&&<div className={styles.workflowSwitch}><button type="button" aria-pressed={guidedOpen} onClick={()=>setResumeGuided(true)}>简历修改</button><button type="button" aria-pressed={!guidedOpen} onClick={()=>setResumeGuided(false)}>其他辅导</button></div>}
-  {guidedOpen&&<div className={styles.guidedWorkflow}>{resumeWorkflow?.content}</div>}
+  {guidedOpen&&<div className={styles.guidedWorkflow}>
+    <ResumeComposerModel.Provider value={{mode:modelMode,control:<ModelPicker
+      value={modelMode} onChange={setModelMode} catalog={modelCatalog}
+      connected={modelAccess?.connected??false} disabled={busy||loading||!enabled}
+    />}}>{resumeWorkflow?.content}</ResumeComposerModel.Provider>
+  </div>}
   <div style={{display:guidedOpen?"none":"contents"}}>
   {resumeEntry&&!pending&&<div className={styles.returnEntry}><span>上次聊到：{companionVisibleText(turns.at(-1)?.question||"").slice(0,60)}</span><button type="button" onClick={()=>{setResumeEntry(false);if(!message)setMessage("接着上次继续，先帮我确认下一步。");input.current?.focus({preventScroll:true});}}>接着做</button></div>}
   <TaskRunTray enabled={enabled}/>

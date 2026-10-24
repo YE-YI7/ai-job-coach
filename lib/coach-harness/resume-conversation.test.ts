@@ -2,6 +2,8 @@ import {runResumeConversation} from './resume-conversation';
 import {beginResumeMessage,completeResumeMessage,failResumeMessage,readResumeTask} from './resume-task';
 import {observedResumeLLM} from './eval-observer';
 import {withMeteredAiRoute} from '@/lib/metered-ai-route';
+import {resolveChatModel} from './chat-models';
+jest.mock('./chat-models',()=>({resolveChatModel:jest.fn()}));
 jest.mock('./resume-task',()=>({beginResumeMessage:jest.fn(),completeResumeMessage:jest.fn(),failResumeMessage:jest.fn(),readResumeTask:jest.fn(),ResumeTaskError:class extends Error{status=409}}));
 jest.mock('./eval-observer',()=>({observedResumeLLM:jest.fn()}));
 jest.mock('./workspace-eval',()=>({recordWorkspaceResume:jest.fn((_user,request,execute)=>execute(request)),workspaceEvalEnabled:()=>true}));
@@ -10,6 +12,30 @@ const id='22222222-2222-4222-8222-222222222222';
 const req=()=>new Request('https://example.com/api/coach/resume-agent',{method:'POST'});
 const body={opportunityId:'opp',requestId:id,answer:'为什么要这样写，先别改？'};
 const task={id:'task',state:'ready',question:null,answers:[],updatedAt:'now',result:{changes:[]},conversation:[{id,message:body.answer,reply:'',status:'pending',savedAt:'now'}]};
+beforeEach(()=>{(resolveChatModel as jest.Mock).mockReset().mockResolvedValue({model:'deepseek-v4-flash',connected:true});});
+test('explicit resume mentor selection reaches the existing resolver and metered call',async()=>{
+ (observedResumeLLM as jest.Mock).mockResolvedValue(JSON.stringify({action:'discuss',reply:'先讨论交付事实，不修改简历。'}));
+ await runResumeConversation(req(),{id:'owner'},{...body,modelMode:'fast'},jest.fn());
+ expect(resolveChatModel).toHaveBeenCalledWith('owner','fast',body.answer);
+ expect(observedResumeLLM).toHaveBeenCalledWith(expect.any(Array),expect.objectContaining({model:'deepseek-v4-flash',maxRetries:0}));
+ expect(withMeteredAiRoute).toHaveBeenCalledWith(expect.any(Function),{operation:'resume_conversation',quotaType:'chat'});
+});
+test('auto keeps the dedicated resume default instead of silently upgrading its price',async()=>{
+ (observedResumeLLM as jest.Mock).mockResolvedValue(JSON.stringify({action:'discuss',reply:'先讨论交付事实，不修改简历。'}));
+ await runResumeConversation(req(),{id:'owner'},{...body,modelMode:'auto'},jest.fn());
+ expect(resolveChatModel).not.toHaveBeenCalled();
+ expect((observedResumeLLM as jest.Mock).mock.calls[0][1].model).toBeUndefined();
+});
+test('invalid selection does not write a message or reserve quota',async()=>{
+ await expect(runResumeConversation(req(),{id:'owner'},{...body,modelMode:'arbitrary-paid-model'},jest.fn())).rejects.toThrow('模型选项无效');
+ expect(beginResumeMessage).not.toHaveBeenCalled();expect(withMeteredAiRoute).not.toHaveBeenCalled();
+});
+test('unavailable explicit selection never falls back or starts an editor',async()=>{
+ (resolveChatModel as jest.Mock).mockRejectedValue(new Error('指定模型不可用'));
+ const revise=jest.fn();
+ expect((await runResumeConversation(req(),{id:'owner'},{...body,modelMode:'fast'},revise)).status).toBe(503);
+ expect(observedResumeLLM).not.toHaveBeenCalled();expect(revise).not.toHaveBeenCalled();
+});
 beforeEach(()=>{jest.clearAllMocks();(beginResumeMessage as jest.Mock).mockResolvedValue({task,source:{resume:'负责收集需求记录并交给产品经理审阅。',jd:'',changes:[],general:true},version:2,replayed:false});(completeResumeMessage as jest.Mock).mockResolvedValue(task);(readResumeTask as jest.Mock).mockResolvedValue(task);(failResumeMessage as jest.Mock).mockResolvedValue(undefined);(withMeteredAiRoute as jest.Mock).mockImplementation(fn=>fn);});
 test('a normal discussion saves a reply without invoking editor',async()=>{
  (observedResumeLLM as jest.Mock).mockResolvedValue(JSON.stringify({action:'discuss',reply:'这条描述能呈现具体交付，我们可以先比较写法。'}));

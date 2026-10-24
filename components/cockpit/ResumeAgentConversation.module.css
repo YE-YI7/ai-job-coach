@@ -49,7 +49,8 @@
 .conversation .form .composer textarea{display:block;box-sizing:border-box;font:inherit;font-size:15px;line-height:1.75;min-height:64px;max-height:180px;width:100%;resize:vertical;border:0;border-radius:0;background:transparent;padding:0;color:inherit;caret-color:currentColor}
 .conversation textarea::placeholder{color:var(--cockpit-studio-muted,#636861)}
 .conversation textarea:focus-visible{outline:none;box-shadow:none;background:transparent}
-.actions{display:flex;justify-content:flex-end;margin-top:4px}
+.actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:4px}
+.modelControl{flex:1;min-width:0;margin:0 auto 0 0;padding:0;border:0}
 .conversation .send{display:grid;place-items:center;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border-radius:50%;color:#fff;background:var(--cockpit-studio-ink,#272b27);transition:background-color 160ms ease}
 .conversation .send:hover:not(:disabled){background:#40463e}
 .conversation .send:disabled{color:#676e60;background:#edf0e8;cursor:default}

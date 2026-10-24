@@ -1,16 +1,23 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import { resumeMessageExpired } from '@/lib/coach-harness/resume-conversation-recovery';
 import styles from "./ResumeAgentConversation.module.css";
 import TutorMarkdown from './TutorMarkdown';
 import ResumeProcessingReceipt from './ResumeProcessingReceipt';
+import ResumeComposerModel from './ResumeComposerModel';
+import type {ChatMode} from '@/lib/coach-harness/chat-options';
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
-export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{task:ResumeAgentTask;busy:boolean;onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void)=>Promise<void>;onContinue:()=>Promise<void>;onSkip:()=>Promise<void>}){
+export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{
+  task:ResumeAgentTask;busy:boolean;
+  onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode)=>Promise<void>;
+  onContinue:()=>Promise<void>;onSkip:()=>Promise<void>;
+}){
   const key=`yizhi:resume-question:${task.id}:request`;
+  const modelControl=useContext(ResumeComposerModel);
   const legacyKey=useRef(`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`).current;
   const [answer,setAnswer]=useState(''),[error,setError]=useState('');
   const [errorId,setErrorId]=useState('');
@@ -47,7 +54,9 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
     if(wasDraft){answerRef.current='';setAnswer('');try{localStorage.removeItem(key);}catch{}}
     let preview='',receivedTurn:NonNullable<ResumeAgentTask['conversation']>[number]|undefined;
     try{
-      await onMessage(text,requestId,reply=>{preview=reply;if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);},receipt=>{receivedTurn=receipt.conversation?.find(turn=>turn.id===requestId);});
+      await onMessage(text,requestId,
+        reply=>{preview=reply;if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);},
+        receipt=>{receivedTurn=receipt.conversation?.find(turn=>turn.id===requestId);},modelControl?.mode);
       try{const receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');if(receipt?.id===requestId)localStorage.removeItem(`${key}:request`);}catch{}
     }catch(cause){
       if(scopeRef.current===key){
@@ -123,7 +132,17 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
       <label className={styles.srOnly} htmlFor={`resume-answer-${task.id}`}>给简历导师发消息</label>
       <div className={styles.composer}>
         <textarea id={`resume-answer-${task.id}`} rows={2} maxLength={2000} value={answer} placeholder={busy||running?'可以先写下一条，等导师完成后发送…':'和导师聊聊这份简历…'} onChange={event=>{answerRef.current=event.target.value;setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* The in-memory input remains editable. */}}} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
-        <div className={styles.actions}><button type="submit" className={styles.send} aria-label={busy||awaitingReply?'正在处理':'发送'} disabled={busy||running||awaitingReply||!answer.trim()}>{busy||awaitingReply?<span className={styles.reading} aria-hidden="true" />:<ArrowUp size={18} aria-hidden="true"/>}</button></div>
+        <div className={styles.actions}>
+          {modelControl&&<fieldset
+            className={styles.modelControl}
+            disabled={busy||running||awaitingReply}
+            title="选择简历讨论的模型；改稿和独立质检沿用原流程"
+          >{modelControl.control}</fieldset>}
+          <button type="submit" className={styles.send}
+            aria-label={busy||awaitingReply?'正在处理':'发送'}
+            disabled={busy||running||awaitingReply||!answer.trim()}
+          >{busy||awaitingReply?<span className={styles.reading} aria-hidden="true" />:<ArrowUp size={18} aria-hidden="true"/>}</button>
+        </div>
       </div>
       {error&&!conversation.some(turn=>turn.id===errorId&&turn.status==='failed')&&<p className={styles.error} role="alert">{error}</p>}
     </form>

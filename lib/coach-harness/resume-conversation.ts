@@ -10,10 +10,17 @@ import { resumeConversationLlmOptions } from './resume-conversation-model';
 import { parseResumeConversationDecision, resumeConversationMessages } from "./resume-conversation-decision";
 import type { ResumeAgentTask } from "./resume-task-types";
 import { resumeReplyPreview } from './resume-reply-stream';
+import {isChatMode} from './chat-options';
+import {resolveChatModel} from './chat-models';
 
 const reply=(body:unknown)=>Response.json(body,{headers:{'Cache-Control':'private, no-store'}});
 /** Sending invokes the mentor. Only its validated decision may invoke the editor. */
-export async function runResumeConversation(request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string},revise:(messageId:string)=>Promise<ResumeAgentTask>,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void){
+export async function runResumeConversation(
+  request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string;modelMode?:unknown},
+  revise:(messageId:string)=>Promise<ResumeAgentTask>,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,
+){
+  const mode=body.modelMode;
+  if(mode!==undefined&&!isChatMode(mode))throw new ResumeTaskError('模型选项无效',400);
   const opened=await beginResumeMessage(user.id,body.opportunityId,body.requestId,String(body.answer||''));
   onReceipt?.(opened.task);
   if(opened.replayed)return reply({ok:true,task:opened.needsRevision?await revise(body.requestId):opened.task,replayed:true});
@@ -27,6 +34,8 @@ export async function runResumeConversation(request:Request,user:{id:string},bod
       const start=Date.now(),{messages,knowledge}=resumeConversationMessages(opened.source,opened.task);
       captureEvalStage('context','resume_conversation_context',{input:{messageId:body.requestId,message:body.answer},output:{currentTask:opened.task,source:opened.source},knowledge:knowledge.map(k=>({id:k.id,title:k.title,included:true,kind:'knowledge'}))},start,Date.now()-start);
       const options=resumeConversationLlmOptions();
+      // 自动仍沿用原专用默认；只有明确选择才路由，不暗中升档或影响改稿/质检。
+      if(mode&&mode!=='auto')options.model=(await resolveChatModel(user.id,mode,body.answer)).model;
       // Discussion stays progressive. An editor promise is displayed only after
       // its target/evidence has been validated, so invalid placement cannot
       // stream a false "I'll add this experience" then retract the whole reply.

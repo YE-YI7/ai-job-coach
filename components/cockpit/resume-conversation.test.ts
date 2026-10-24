@@ -3,9 +3,9 @@ const view=readFileSync('components/cockpit/ResumeAgentConversation.tsx','utf8')
 const app=readFileSync('components/cockpit/CockpitApp.tsx','utf8');
 test('the résumé composer sends a message, never assumes that it is an answer or revision',()=>{
  expect(view).toContain('await sendMessage(answer,requestId)');
- expect(view).toContain('await onMessage(text,requestId,reply=>');
+ expect(view.replace(/\s+/g,'')).toContain('awaitonMessage(text,requestId,reply=>');
  expect(view).not.toContain('question?onAnswer');expect(view).not.toContain('onRequest(answer)');
- expect(app).toContain('runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt)');
+ expect(app).toContain('runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt,modelMode)');
  expect(app).toContain("if(action!=='message')await saveOpportunity.current");
  expect(app).toContain('resumeRequestBusy.current&&(!resumeMessageBusy||generatingResume)');
  expect(app).toContain('generatingResume, resumeMessageBusy, supplementingMaterial');

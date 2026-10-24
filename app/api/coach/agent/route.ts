@@ -41,6 +41,9 @@ import { LEARNING_OUTCOME_VERSION, extractOutcomeTag, outcomeFromModel } from "@
 import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
 import {withAgentRequest} from '@/lib/coach-harness/agent-request';
 import {recallLearningHistory,EVIDENCE_RETRIEVAL_VERSION} from '@/lib/coach-harness/evidence-retrieval';
+import { attachCompanionFeedback, companionContext } from "@/lib/coach-harness/companion-store";
+import { COMPANION_PROTOCOL_VERSION, COMPANION_SYSTEM, companionBinding, companionInstructions, companionMaterial, companionVisibleText, extractCompanionReview } from "@/lib/coach-harness/companion-protocol";
+import { recordCompanionEvent } from "@/lib/coach-harness/companion-events";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -58,8 +61,8 @@ function firstBlock(decisions: GuardDecision[]) {
 /** 精确输入仅供后台审计；不把大段重复的上下文回传给浏览器。 */
 function publicTrace(trace: Record<string, unknown> | null | undefined) {
   if (!trace) return trace;
-  const { compiledPrompt: privateSnapshot, ...rest } = trace;
-  void privateSnapshot;
+  const { compiledPrompt, compiledSystem, rawModelOutput, ...rest } = trace;
+  void compiledPrompt; void compiledSystem; void rawModelOutput;
   return rest;
 }
 async function history(userId: string, opportunityId: string | null, sessionId:string|null=null, limit=12) {
@@ -144,8 +147,17 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
       learning_trace:publicTrace(existing.learning_trace)}:{error:"请求已用于其他会话"},{status:same?200:409,headers});
   }
   if(sessionId){const session=await readLearningSession(user.id,sessionId);if(!session||session.status!=="active")return NextResponse.json({error:"这次辅导已结束或不可访问，请开始新辅导"},{status:409,headers});}
-  const groundedDraft=body.interactionMode!=="mock_interview"&&needsResumeGrounding(body.message);
-  const reference = await resolveSavedJobReference(user.id, body.message);
+  let companion: Awaited<ReturnType<typeof companionContext>> = null;
+  try { companion = await companionContext(user.id, body.message, id); }
+  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "安排无法读取" }, { status: 409, headers }); }
+  // A plan-submission envelope never grants a cheaper alternate résumé editor.
+  // Keep the saved input, but require the original factual/quota-controlled entry.
+  const companionText = companionVisibleText(body.message);
+  const explicitResumeEdit = /(?:请|帮我|替我|给我|重新|直接)[^，,。；;\n]{0,12}(?:改写|重写|生成|润色|修改|优化|写|改)[^，,。；;\n]{0,8}(?:简历|实习经历|工作经历|项目经历)/.test(companionText);
+  if (companion && explicitResumeEdit && needsResumeGrounding(companionText)) return NextResponse.json({ error: "内容已保存。这次涉及简历改写，请回到简历修改入口继续；陪伴提交不会启动或代替原来的改稿流程。", retryable: false }, { status: 422, headers });
+  const groundedDraft=!companion&&body.interactionMode!=="mock_interview"&&needsResumeGrounding(body.message);
+  const semanticMessage = companion ? companionText : body.message;
+  const reference = await resolveSavedJobReference(user.id, semanticMessage);
   const contextId = reference.ambiguous.length ? null : reference.job?.id ?? id;
   if(id){
     const scope=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();
@@ -157,20 +169,24 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     : reference.job ? `本轮用户指名的已保存岗位：${reference.job.company} · ${reference.job.role}。使用下方已保存 JD，不要重复索要已有内容。会话仍属于原工作区，不更改岗位状态。` : "";
   // 用户在对话里说出的公司层次意向必须被接住：落成待确认偏好并留住原话出处，
   // 确认前不拿它剔岗位。这一步坏了不能影响本轮回答，所以只记日志。
-  try { await recordTierIntentFromText({ userId: user.id, text: body.message, opportunityId: contextId }); }
+  try { await recordTierIntentFromText({ userId: user.id, text: semanticMessage, opportunityId: contextId }); }
   catch (error) { console.error("Tier intent capture failed", error); }
   const [{turns,context,selection},learningMemory,profileMemory] = await Promise.all([
-    history(user.id,id,sessionId).then(async turns=>{
-      const retrievalQuery=makeLearningQuery(body.message,turns.map(t=>t.question));
+    history(user.id,id,sessionId).then(async historyTurns=>{
+      const turns = companion
+        ? historyTurns.filter(t => companionBinding(t.question)?.planId === companion.binding.planId)
+          .map(t => ({ ...t, question: companionVisibleText(t.question) }))
+        : historyTurns;
+      const retrievalQuery=makeLearningQuery(semanticMessage,turns.map(t=>t.question));
       const [context,selection]=await Promise.all([
-        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:TUTOR_RETRIEVAL_CONFIG.task, currentInput:body.message, claimSelection:groundedDraft?"all_required":"relevant", retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:TUTOR_RETRIEVAL_CONFIG.routeClass, budget:{maxInputTokens:TUTOR_RETRIEVAL_CONFIG.maxInputTokens}, knowledgeLimit:TUTOR_RETRIEVAL_CONFIG.knowledgeLimit }),
+        getContextBundleForUser({ userId:user.id, opportunityId:contextId, task:TUTOR_RETRIEVAL_CONFIG.task, currentInput:semanticMessage, claimSelection:groundedDraft?"all_required":"relevant", retrievalQuery, retrievalTask:learningKnowledgeTask(retrievalQuery), routeClass:TUTOR_RETRIEVAL_CONFIG.routeClass, budget:{maxInputTokens:TUTOR_RETRIEVAL_CONFIG.maxInputTokens}, knowledgeLimit:TUTOR_RETRIEVAL_CONFIG.knowledgeLimit }),
         resolveChatModel(user.id,mode,retrievalQuery).catch(error=>({error})),
       ]);
       return {turns,context,selection};
     }),
     // Optional compaction/cache must not prevent a reply. The authoritative
     // context and session ownership checks above still fail closed.
-    sessionId&&!groundedDraft?readLearningMemory(user.id,contextId,body.message).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?readLearningMemory(user.id,contextId,semanticMessage).catch(()=>""):Promise.resolve(""),
     sessionId&&!groundedDraft?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
@@ -184,7 +200,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   // 再作为一条料交给模型：收不收口不取决于模型这一轮想不想继续讲。
   const scopedTurns=turns.filter(t=>!("opportunity_id" in t)||t.opportunity_id===id);
   const frame = teachingFrame({
-    message: body.message,
+    message: semanticMessage,
     turns: scopedTurns.map((t) => ({ id: t.id, question: t.question, answer: t.answer, proactive: t.learning_trace?.proactive === true, teaching: t.learning_trace?.teaching })),
   });
   // Only restore owner/job-bound successful research. A chat never starts a network fan-out.
@@ -195,14 +211,14 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   const formatTurn = (t: (typeof turns)[number]) => `历史轮次范围：${"opportunity_id" in t?t.opportunity_id||"通用辅导":"旧记录"}；当前岗位：${id||"通用辅导"}。跨岗位内容只用于衔接讨论，不可作为当前 JD、经历或能力证据。\n${t.learning_trace?.proactive?"辅导请求（系统事件，不是用户说过的话）":"用户"}：${t.question}\n导师（历史推断，非事实）：${t.answer}`;
   const pendingExchange = turns.length ? formatTurn(turns[turns.length - 1]) : "";
   const recent = turns.slice(-4, -1).map(formatTurn).join("\n");
-  const recalled=sessionId&&!groundedDraft?await recallLearningHistory(user.id,sessionId,body.message,turns.slice(-4).map(t=>t.id)).catch(()=>({text:'本轮旧原话检索暂不可用，不能假称已看过更早对话；仍可依据眼前材料回答。',ids:[]})):{text:'',ids:[]};
+  const recalled=sessionId&&!groundedDraft&&!companion?await recallLearningHistory(user.id,sessionId,body.message,turns.slice(-4).map(t=>t.id)).catch(()=>({text:'本轮旧原话检索暂不可用，不能假称已看过更早对话；仍可依据眼前材料回答。',ids:[]})):{text:'',ids:[]};
   // 界面实时上下文：仅描述用户此刻在哪个页面、刚做了什么动作，供导师主动追问；
   // 它是操作日志不是事实来源，涉及结论仍以已保存的档案与证据为准。
   const savedEvents = await readInboundEvents({ userId: user.id, opportunityId: contextId, limit: 6 }).catch(() => []);
   const pageContext = [renderInboundEventsForAgent(savedEvents), typeof body?.pageContext === "string" ? body.pageContext : ""].filter(Boolean).join("\n\n");
   const sources = resumeSources(context);
   const priorMode=scopedTurns.at(-1)?.learning_trace?.interactionMode;
-  const interviewer=!groundedDraft&&(body.interactionMode===undefined?interviewMode(body.message,priorMode):body.interactionMode==="mock_interview");
+  const interviewer=!companion&&!groundedDraft&&(body.interactionMode===undefined?interviewMode(body.message,priorMode):body.interactionMode==="mock_interview");
   const firstInterview=interviewer&&priorMode!=="mock_interview";
   // 每条料的预算与可信标注只在 TUTOR_MATERIALS 里声明一次，这里只负责供料。
   const materials: TutorMaterialInput[] = groundedDraft
@@ -212,6 +228,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         ...context.knowledge.map(k => ({ kind: "knowledge_reference" as const, refId: k.id, text: k.content || "" })),
       ]
     : [
+        companion ? { kind: "companion_context", refId: companion.binding.planId, text: companionMaterial(companion.binding, companion.task) } : null,
         referenceNote ? { kind: "job_reference_note", refId: contextId ?? undefined, text: referenceNote } : null,
         // 编译器已经决定过装什么，这里不许砍第二刀。
         { kind: "compiled_context", text: rendered },
@@ -227,9 +244,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
         interviewLedger ? { kind: "interview_ledger", refId: contextId ?? undefined, text: interviewLedger } : null,
         market ? { kind: "market_evidence", text: market } : null,
       ].filter((m): m is TutorMaterialInput => Boolean(m))
-       .filter(m=>!interviewer||!["teaching_frame","coaching_strategy"].includes(m.kind));
-  const actualSystem=(groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):LEARNING_SYSTEM)+"\n回复语言以本轮用户为准：中文提问用自然中文回答，专业术语可保留英文；只有用户明确要求英文练习或翻译时才切换语言。不要因换模型、换岗位或材料语言而切换回复语言。";
-  const compiled=compileTutorPrompt({system:actualSystem,question:body.message,materials});
+       .filter(m=>!(interviewer||companion)||!["teaching_frame","coaching_strategy"].includes(m.kind));
+  const actualSystem=(groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):companion?COMPANION_SYSTEM:LEARNING_SYSTEM)+"\n回复语言以本轮用户为准：中文提问用自然中文回答，专业术语可保留英文；只有用户明确要求英文练习或翻译时才切换语言。不要因换模型、换岗位或材料语言而切换回复语言。"+(companion ? companionInstructions(companion.binding) : "");
+  const compiled=compileTutorPrompt({system:actualSystem,question:semanticMessage,materials});
   // 槽1 装配后准入：一次跑完「该不该问 / 该不该拒」，主链路不再内联任何容量判断。
   // 顺序就是注册顺序（装配容量 → 材料缺口 → grounding 分型 → 提示词保护区），
   // 先挡下来的是最靠近「材料本身」的原因，模型档位问题留到材料合格之后再说。
@@ -250,8 +267,8 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   let modelCalls = 0;
   const fingerprint=createHash("sha256").update(user.id+":"+id+":"+actualSystem+actualPrompt).digest("hex");
   const contextReadyMs=Date.now()-startedAt;
-  const userEvidence=`${body.message}\n${scopedTurns.slice(-4).map(t=>t.question).join("\n")}`;
-  const streamText=createTutorStream(userEvidence,text=>{if(onReplace && frame.stage!=="closing"){visibleTextAt??=Date.now();onReplace(text);}});
+  const userEvidence=`${semanticMessage}\n${scopedTurns.slice(-4).map(t=>t.question).join("\n")}`;
+  const streamText=createTutorStream(userEvidence,text=>{if(onReplace && (companion||frame.stage!=="closing")){visibleTextAt??=Date.now();onReplace(text);}});
   const generate = async (model:string) => {
     modelCalls++;
     const budget=chatAttemptBudget(Date.now()-startedAt,mode==="auto",modelCalls);
@@ -289,7 +306,10 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   if (groundingFailed) return NextResponse.json({ error: chatFailureMessage(new Error(groundingFailed.reason.message)) }, { status: (groundingFailed.data?.status as number) ?? 422, headers });
   if (groundedDraft) rawAnswer = String((groundingChecks.find((d) => d.guardId === GROUNDING_VERIFICATION_GUARD_ID)!.data as { draft: string }).draft);
   // 成果草稿是正文之外的独立标签：先摘出来，正文与它各走各的核验，标签都不外露给用户。
-  const outcomeTag = groundedDraft ? { text: rawAnswer, draft: null as ReturnType<typeof extractOutcomeTag>["draft"], malformed: false } : extractOutcomeTag(rawAnswer);
+  const modelRawOutput = companion ? rawAnswer : undefined;
+  const companionOutput = companion ? extractCompanionReview(rawAnswer) : null;
+  if (companionOutput) rawAnswer = companionOutput.text;
+  const outcomeTag = groundedDraft || companion ? { text: rawAnswer, draft: null as ReturnType<typeof extractOutcomeTag>["draft"], malformed: false } : extractOutcomeTag(rawAnswer);
   const parsed=parseTutorReply(unwrapTutorAnswer(outcomeTag.text));
   // 槽3 落库前核验·第二道：信息不足分级——blocking 轮的超长“伪完整”回答收敛为一句
   // 澄清问句；无依据的“已确认/已掌握”类断言就地降级为待确认。纯字符串级，不触网。
@@ -310,7 +330,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   guardVerdicts.push(...replyChecks);
   const guarded = (replyChecks.find((d) => d.guardId === INSUFFICIENCY_GUARD_ID)!.data as unknown as { legacy: GuardResult }).legacy;
   // 模拟也必须经过反幻觉守卫，不能因使用专门协议绕过事实核验。
-  const {answer,suggestions}=interviewer?{answer:guarded.answer,suggestions:[]}:finalizeTeachingReply(frame, guarded);
+  const {answer,suggestions}=interviewer||companion?{answer:guarded.answer,suggestions:[]}:finalizeTeachingReply(frame, guarded);
   if (!answer.trim()) return NextResponse.json({error:"模型未返回内容"},{status:502,headers});
   if(onDelta){if(visibleTextAt!==null&&onReplace)onReplace(answer);else{visibleTextAt=Date.now();onDelta(answer);}onStatus?.("回答已核对，正在保存…");}
   // 成果草稿在这里定稿：本轮 turn id 由调用方先生成，标签里的尝试证据才指得回自己。
@@ -335,15 +355,28 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     : outcomeTag.malformed ? "本轮的成果草稿没有通过校验，本次未形成可保存成果；正文与原回答仍然保留。" : null;
   // 版本联合指纹：这一轮的「哪个版本」必须可拆成五个组件（FR-34）。
   // 台账里只存哈希，不存提示词正文与知识正文。
-  const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:interviewer?INTERVIEW_CONTRACT_VERSION:LEARNING_PROMPT_VERSION;
+  const promptVersion=groundedDraft?RESUME_GROUNDING_PROMPT_VERSION:interviewer?INTERVIEW_CONTRACT_VERSION:companion?COMPANION_PROTOCOL_VERSION:LEARNING_PROMPT_VERSION;
   const interactionMode=interviewer?"mock_interview":"coaching";
   const harness=harnessFingerprint({promptVersion,systemPrompt:actualSystem,retrieval:{...TUTOR_RETRIEVAL_CONFIG,materials:tutorMaterialFingerprintPayload()}});
   // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
   const trace={promptVersion,interactionMode,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
   Object.assign(trace,{historyRetrieval:{version:EVIDENCE_RETRIEVAL_VERSION,turnIds:recalled.ids},materialInventory:context.materialInventory});
+  if (companion) Object.assign(trace, { teaching: undefined, companion: { ...companion.binding, protocolVersion: COMPANION_PROTOCOL_VERSION, reviewValidation: companionOutput?.review ? "valid" : "missing_or_invalid", review: companionOutput?.review ?? null } });
   const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
-  const {data,error} = await db.from("coach_agent_turns").insert({id:turnId,user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:{...trace,...observation,compiledPrompt:actualPrompt}}).select("id").single();
+  const privateTrace = { ...trace, ...observation, compiledPrompt: actualPrompt, ...(companion ? { compiledSystem: actualSystem, rawModelOutput: modelRawOutput } : {}) };
+  const {data,error} = await db.from("coach_agent_turns").insert({id:turnId,user_id:user.id,opportunity_id:id,session_id:sessionId,request_id:body.requestId,question:body.message,answer,context_fingerprint:fingerprint,learning_trace:privateTrace}).select("id").single();
   if(error) return NextResponse.json({error:"回答生成了，但未确认保存，请检查历史后重试"},{status:503,headers});
+  // A downstream plan failure must never retract the already-saved chat reply.
+  let companionSave: "saved" | "pending" | undefined;
+  if (companion) {
+    try {
+      await attachCompanionFeedback(user.id, companion.binding.planId, companion.binding.version, companion.binding.submissionId || "", answer, body.requestId);
+      companionSave = "saved";
+    } catch {
+      companionSave = "pending";
+      await recordCompanionEvent(user.id, "companion_feedback_failed", { plan_id: companion.binding.planId, version: companion.binding.version, submission_id: companion.binding.submissionId, request_id: body.requestId, reason_code: "reply_saved_plan_pending" });
+    }
+  }
   // 用户在对话里说出的真实动作（"我投了""约到二面了"）→ 只生成"建议"，不直接改写阶段：
   // 正则识别无法区分陈述与假设，推进岗位状态必须由用户点头。
   // 槽4 落库后事件：守卫结构上没有推进能力（只读原话 + 阶段快照，裁决只有 no_advance）。
@@ -355,11 +388,11 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   if (stageSuggestion) {
     // 重放必须恢复同一确认条；建议落库失败时不发一条无法恢复的确认请求。
     const { error: suggestionError } = await db.from("coach_agent_turns").update({ learning_trace: {
-      ...trace, ...observation, compiledPrompt: actualPrompt, stageSuggestion, guards: [...trace.guards, ...guardLedgerRows(postChecks)],
+      ...privateTrace, stageSuggestion, guards: [...trace.guards, ...guardLedgerRows(postChecks)],
     } }).eq("id", data.id).eq("user_id", user.id);
     if (suggestionError) { stageSuggestion = null; console.error("Stage suggestion was not persisted"); }
   }
-  return NextResponse.json({ok:true,answer,id:data.id,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,outcome:outcome??null,outcomeNote:outcomeNote??null,learning_trace:trace},{headers});
+  return NextResponse.json({ok:true,answer,id:data.id,companionSave,contextFingerprint:fingerprint,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,stageSuggestion,outcome:outcome??null,outcomeNote:outcomeNote??null,learning_trace:trace},{headers});
 }
 
 async function currentStageOf(db: NonNullable<Awaited<ReturnType<typeof getDbClient>>>, userId: string, opportunityId: string): Promise<OpportunityStage> {

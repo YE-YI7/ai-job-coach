@@ -1,0 +1,26 @@
+.arrangement{display:flex;flex-direction:column;gap:24px;max-width:42rem;min-width:0;margin:0 0 28px;color:var(--ink,#2a2622);font-size:16px;overflow-wrap:anywhere}
+.arrangement h2,.arrangement h3{margin:0;font-weight:600;letter-spacing:0;text-wrap:balance}
+.arrangement h2{font-size:24px;line-height:1.4}
+.arrangement h3{font-size:19px;line-height:1.5}
+.arrangement p{margin:0;line-height:1.7}
+.arrangement label{display:flex;flex-direction:column;gap:8px;line-height:1.7}
+.arrangement textarea{box-sizing:border-box;width:100%;min-height:100px;border:0;border-radius:var(--radius-md);background:#fff;color:inherit;font:inherit;font-size:16px;line-height:1.7;padding:12px;resize:vertical;caret-color:currentColor}
+.arrangement textarea:focus{outline:none;box-shadow:0 8px 16px -12px rgba(42,38,34,.25)}
+.arrangement textarea::placeholder{color:var(--muted,#6b655f);opacity:1}
+.primary,.textButton{align-self:flex-start;min-height:44px;border:0;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer}
+.textButton{text-decoration:underline;text-underline-offset:4px}
+.primary{background:var(--ink,#2a2622);color:#fff;border-radius:var(--radius-md);padding:8px 18px}
+.primary:disabled,.textButton:disabled{opacity:.45;cursor:not-allowed}
+.primary:hover:not(:disabled){opacity:.85}
+.textButton:hover:not(:disabled){text-decoration-thickness:2px}
+.arrangement button:focus-visible,.arrangement summary:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+.note{font-size:14px;color:var(--muted,#6b655f)}
+.form,.step,.actions{display:flex;flex-direction:column;gap:12px;min-width:0}
+.arrangement dl{display:grid;gap:8px;margin:0}
+.arrangement dl>div{display:grid;grid-template-columns:5em minmax(0,1fr);gap:12px;line-height:1.7}
+.arrangement dt{color:var(--muted,#6b655f)}
+.arrangement dd{margin:0}
+.arrangement summary{min-height:44px;cursor:pointer;line-height:44px}
+.submission{padding-block:16px;display:flex;flex-direction:column;gap:12px;border-block-start:1px solid var(--line,#e5e1dc)}
+.userText{white-space:pre-wrap}
+@media(max-width:480px){.arrangement{gap:20px}.arrangement h2{font-size:22px}.arrangement dl>div{grid-template-columns:4em minmax(0,1fr)}}

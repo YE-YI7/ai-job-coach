@@ -6,10 +6,12 @@
 jest.mock("@/lib/db");
 
 import { getDbClient } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
 import {
   GOAL_TYPES,
   createStandaloneArtifact,
   getCurrentPlan,
+  getPlanHistory,
   getPlanById,
   saveOffer,
   seedTaskForEntry,
@@ -108,6 +110,26 @@ describe("getCurrentPlan", () => {
     const plan = await getCurrentPlan(USER);
     expect(plan).toBeNull();
   });
+});
+
+test("companion history sends an actual JSONB filter, not a PostgreSQL array literal", async () => {
+  let requested = "";
+  const fetcher = jest.fn(async (input: RequestInfo | URL) => {
+    requested = String(input);
+    return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  const client = createClient("https://synthetic.supabase.co", "synthetic-key", {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: fetcher as typeof fetch },
+  });
+  (getDbClient as jest.Mock).mockResolvedValue(client);
+  await expect(getPlanHistory(USER, 20, { opportunityId: null, companionOnly: true })).resolves.toEqual([]);
+  const params = new URL(requested).searchParams;
+  expect(params.get("user_id")).toBe(`eq.${USER}`);
+  expect(params.get("opportunity_id")).toBe("is.null");
+  expect(params.get("tasks")).toBe('cs.[{"companion":{}}]');
+  expect(JSON.parse(params.get("tasks")!.slice(3))).toEqual([{ companion: {} }]);
+  expect(params.get("limit")).toBe("20");
 });
 
 describe("getPlanById", () => {

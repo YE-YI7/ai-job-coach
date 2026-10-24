@@ -7,6 +7,8 @@ import {getContextBundleForUser,recordTierIntentFromText} from "@/lib/coach-harn
 import {readLearningMemory,refreshProfileMemory,readLearningSession,LEARNING_PROMPT_VERSION} from "@/lib/coach-harness/learning-memory";
 import {decide,registerGuard} from "@/lib/coach-harness/guard-slots";
 import {learningHandoff} from '@/lib/interview/learning-handoff';
+import * as companionStore from "@/lib/coach-harness/companion-store";
+import { companionPrompt } from "@/lib/coach-harness/companion-protocol";
 jest.mock("@/lib/coach-harness/learning-memory",()=>({...jest.requireActual("@/lib/coach-harness/learning-memory"),readLearningMemory:jest.fn(),refreshProfileMemory:jest.fn(),readLearningSession:jest.fn()}));
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
@@ -25,6 +27,43 @@ function setupGeneration(saveError=false){
  return q;
 }
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
+test("陪伴提交不能绕过原简历事实和收费入口，改整稿请求不调用模型", async () => {
+ jest.resetAllMocks(); const q = setupGeneration();
+ const binding = { planId: "22222222-2222-4222-8222-222222222222", version: 2, submissionId: null };
+ const context = jest.spyOn(companionStore, "companionContext").mockResolvedValue({ binding, task: {} as never });
+ try {
+  const response = await POST(new Request("https://example.com/api/coach/agent", { method: "POST", body: JSON.stringify({ message: companionPrompt(binding, "帮我重新生成整份简历"), requestId: "11111111-1111-4111-8111-111111111111" }) }));
+  expect(response.status).toBe(422); expect((await response.json()).retryable).toBe(false);
+  expect(callLLM).not.toHaveBeenCalled(); expect(q.insert).not.toHaveBeenCalled();
+ } finally { context.mockRestore(); }
+});
+test.each([false, true])("陪伴同一次调用保存正文和结构，安排写回失败也不撤回回复（failure=%s）", async failure => {
+ jest.resetAllMocks(); const q = setupGeneration();
+ const binding = { planId: "22222222-2222-4222-8222-222222222222", version: 2, submissionId: "33333333-3333-4333-8333-333333333333" };
+ const context = jest.spyOn(companionStore, "companionContext").mockResolvedValue({ binding, task: { goalTitle: "转数据产品经理", sourceText: "原问题", weeklyHours: null, deadline: null, step: null, submissions: [], goalKey: "test", action: "submitted", answer: "", question: null, route: "arrange", stages: [] } });
+ const attach = jest.spyOn(companionStore, "attachCompanionFeedback");
+ if (failure) attach.mockRejectedValue(Error("一次临时保存失败")); else attach.mockResolvedValue({} as never);
+ const review = { decision: "keep", reason: "只说明了问题，尚未交对照材料", step: null };
+ (callLLM as jest.Mock).mockImplementation(async (_messages, options) => {
+  options.onDelta?.("<answer>你写了字段不同。");
+  return `<answer>你写了字段不同。请先交一个原值和汇总值。</answer><companion-review>${JSON.stringify(review)}</companion-review>`;
+ });
+ try {
+  const response = await POST(new Request("https://example.com/api/coach/agent", { method: "POST", body: JSON.stringify({ message: companionPrompt(binding, "字段不同"), requestId: "11111111-1111-4111-8111-111111111111" }) }));
+  const body = await response.json();
+  expect(body).toMatchObject({ ok: true, companionSave: failure ? "pending" : "saved", learning_trace: { companion: { ...binding, review } } });
+  expect(body.answer).not.toContain("companion-review");
+  expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({ answer: body.answer, learning_trace: expect.objectContaining({ companion: expect.objectContaining(binding) }) }));
+  expect(attach).toHaveBeenCalledWith("owner", binding.planId, 2, binding.submissionId, body.answer, "11111111-1111-4111-8111-111111111111");
+  expect(callLLM).toHaveBeenCalledTimes(1);
+  const messages = (callLLM as jest.Mock).mock.calls[0][0] as Array<{ role: string; content: string }>;
+  expect(messages[0].content).toContain("不是概念课或能力考试");
+  expect(messages[0].content).not.toContain("在回复末尾附 <followups>");
+  expect(messages[1].content).not.toContain("<companion-request>");
+  expect(messages[1].content).not.toContain("本轮辅导目标与收口标准");
+  expect(getContextBundleForUser).toHaveBeenCalledWith(expect.objectContaining({ currentInput: "字段不同" }));
+ } finally { context.mockRestore(); attach.mockRestore(); }
+});
 test('请求编号和计费header不一致时在模型与写入前拒绝',async()=>{
  jest.resetAllMocks();const q=setupGeneration();
  const r=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',headers:{'x-idempotency-key':'22222222-2222-4222-8222-222222222222'},body:JSON.stringify({message:'原回答',requestId:'11111111-1111-4111-8111-111111111111'})}));
@@ -284,7 +323,7 @@ describe("agent boundary",()=>{
   const prompt=(callLLM as jest.Mock).mock.calls[0][0][1].content;
   expect(prompt).toContain("【当前界面与最近操作·派生·不可当事实】");
   expect(prompt).toContain("仅见部分内容");
-  expect(events.learning_trace.materials).toMatchObject({version:"materials-v4-recall",budgetTokens:8000});
+  expect(events.learning_trace.materials).toMatchObject({version:"materials-v5-companion",budgetTokens:8000});
   expect(events.learning_trace.materials.partialNotices).toEqual(["当前界面与最近操作仅见部分内容"]);
   const injected=events.learning_trace.materials.injected as Array<{kind:string;truncated:boolean;required:boolean}>;
   expect(injected.find((i)=>i.kind==="page_activity")).toMatchObject({truncated:true,required:false});

@@ -4,6 +4,18 @@
   font-weight: 100 900;
   font-display: swap;
 }
+.workspace{display:grid;grid-template-columns:180px minmax(0,1fr);min-height:100dvh}
+.side{display:flex;flex-direction:column;gap:8px;padding:28px 16px;border-right:1px solid var(--line)}
+.side button,.filters button,.table button{border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:6px 0;cursor:pointer}
+.sideOn{font-weight:600}
+.brand{margin:0 0 12px;font-size:13px;letter-spacing:.04em}
+.main{padding:28px 32px 64px}
+.filters{display:flex;flex-wrap:wrap;gap:16px;align-items:end;margin-bottom:20px}
+.filters input{display:block;margin-top:4px;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;font:inherit;padding:6px 0}
+.meta{color:var(--muted);font-size:13px}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;font-weight:400}
+@media(max-width:720px){.workspace{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid var(--line)}}
 .app {
   --bg: #fafaf9;
   --surface: #fff;

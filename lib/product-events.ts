@@ -63,6 +63,12 @@ export const PRODUCT_EVENT_NAMES = [
   "entry_submitted",
   "entry_result_presented",
   "entry_failed",
+  "companion_goal_saved",
+  "companion_submission_saved",
+  "companion_feedback_saved",
+  "companion_feedback_failed",
+  "companion_task_marked",
+  "companion_step_presented",
 ] as const;
 
 /** Route buckets only: never send URL queries, account IDs or material paths. */

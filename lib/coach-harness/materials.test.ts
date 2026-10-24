@@ -138,7 +138,7 @@ describe("导师料注册表与单一装配管线（M2 · FR-1/17/18/21）", () 
 
   test("保护区的归属是显式声明的，不靠调用方记忆", () => {
     const required = Object.values(TUTOR_MATERIALS).filter((s) => s.required).map((s) => s.kind);
-    expect(required.sort()).toEqual(["compiled_context", "job_reference_note", "pending_exchange", "resume_sources"]);
+    expect(required.sort()).toEqual(["companion_context", "compiled_context", "job_reference_note", "pending_exchange", "resume_sources"]);
     for (const spec of Object.values(TUTOR_MATERIALS)) {
       // 非保护区必须自带预算上限，否则「只有一个决策点」会变成没有决策点。
       if (!spec.required) expect(spec.maxTokens).not.toBeNull();

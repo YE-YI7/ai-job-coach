@@ -24,6 +24,7 @@ export interface PlanTask {
   entryType: GoalType;
   /** 任务完成时挂的产物 ID（PRD §4.2：完成态必须包含可找回的产物 ID） */
   artifactId?: string;
+  companion?: import("./companion-arrangement").CompanionTask;
 }
 
 export interface CoachPlan {
@@ -167,12 +168,18 @@ export async function getCurrentPlan(userId: string): Promise<CoachPlan | null> 
   return data ? mapPlan(data) : null;
 }
 
-export async function getPlanHistory(userId: string, limit = 10): Promise<CoachPlan[]> {
+export async function getPlanHistory(userId: string, limit = 10, scope?: { opportunityId: string | null; companionOnly: boolean }): Promise<CoachPlan[]> {
   assertUuid(userId, "userId");
   const client = await db();
-  const { data, error } = await client.from("coach_plans")
-    .select("*").eq("user_id", userId)
-    .order("updated_at", { ascending: false }).limit(limit);
+  let query = client.from("coach_plans").select("*").eq("user_id", userId);
+  // Filter before the limit: many other jobs must not hide this goal on refresh.
+  if (scope) {
+    query = scope.opportunityId ? query.eq("opportunity_id", scope.opportunityId) : query.is("opportunity_id", null);
+    // A JS array is encoded as a PostgreSQL array by postgrest-js. This column
+    // is JSONB, so send JSON text rather than the array-column literal syntax.
+    if (scope.companionOnly) query = query.contains("tasks", JSON.stringify([{ companion: {} }]));
+  }
+  const { data, error } = await query.order("updated_at", { ascending: false }).limit(limit);
   if (error) throw error;
   return (data ?? []).map(mapPlan);
 }

@@ -50,6 +50,33 @@ function Pager({ offset, total, next, onPage, label }: {
     onPage: (n: number) => void;
     label: string;
 }) { return <nav className={styles.pager} aria-label={label}><span>共 {total} 条 · 当前 {total ? offset + 1 : 0}–{Math.min(next === null ? total : next, total)}</span><button disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - 20))}>上一页</button><button disabled={next === null} onClick={() => next !== null && onPage(next)}>下一页</button></nav>; }
+function CompanionTrace({ userId, item }: { userId: string; item: Sessions["companionTraces"][number] }) {
+    const [trace, setTrace] = useState<Record<string, unknown> | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+    async function load() {
+        if (busy) return;
+        setBusy(true); setError("");
+        try {
+            const response = await fetch(`/api/admin/companion-traces?userId=${encodeURIComponent(userId)}&requestId=${encodeURIComponent(item.requestId)}`, { cache: "no-store" });
+            const body = await response.json();
+            if (!response.ok || !body.trace) throw Error(body.error || "这条记录暂未读回");
+            setTrace(body.trace);
+        } catch (e) { setError(e instanceof Error ? e.message : "读取失败，可重试"); }
+        finally { setBusy(false); }
+    }
+    return <article className={styles.record}>
+        <p>{at(item.createdAt)} · {item.submissionId ? "提交反馈" : "目标与安排"}</p>
+        <p className={styles.id}>导师请求 {item.requestId}<br />计划 {item.planId} · 版本 {item.version ?? "未留存"}<br />提交 {item.submissionId || "首次安排"}</p>
+        {!trace && <button type="button" disabled={busy} onClick={() => void load()}>{busy ? "正在读取…" : "查看本次完整处理记录"}</button>}
+        {error && <p role="alert">{error}</p>}
+        {trace && <>
+            <details open><summary>输入与最终回复</summary><Facts value={{ question: trace.input, answer: trace.output }}/></details>
+            <details><summary>模型实际输入输出与知识</summary><Facts value={{ system: trace.system, prompt: trace.prompt, modelOutput: trace.modelOutput, knowledge: trace.knowledge, materials: trace.materials }}/></details>
+            <details><summary>检查、保存关联与当前安排</summary><Facts value={{ binding: trace.binding, guards: trace.guards, currentPlan: trace.currentPlan }}/></details>
+            <details><summary>模型用量与耗时</summary><Facts value={{ model: trace.model, usage: trace.usage, timing: trace.timing }}/></details>
+            <p className={styles.muted}>{String(trace.evidenceBoundary)}</p>
+        </>}
+    </article>;
+}
 export default function BusinessWorkspace() {
     const search = useSyncExternalStore(callback => { window.addEventListener("popstate", callback); return () => window.removeEventListener("popstate", callback); }, readSearch, () => "");
     const params = new URLSearchParams(search), view = (Object.hasOwn(views, params.get("view") || "") ? params.get("view") : "daily") as keyof typeof views;
@@ -169,7 +196,7 @@ export default function BusinessWorkspace() {
             }).jd || "未留存 JD")}</TutorMarkdown></> : <><h3>模拟面试</h3><Facts value={materialState.data.mocks}/><h3>面试练习</h3><Facts value={materialState.data.practices}/><h3>真实面试复盘</h3><Facts value={materialState.data.reviews}/></>}</div>)}{tab === "resume" && <section className={styles.section}><h3>当前改稿任务与交付证据</h3>{detail.tasks.map(t => <div className={styles.record} key={t.id}><p className={styles.id}>{t.id}</p><p>任务状态 {t.state} · 建议数 {t.proposedChanges ?? "未知"} · {at(t.updatedAt)}</p>{t.summary && <TutorMarkdown>{t.summary}</TutorMarkdown>}{t.question && <p>待补一问：{t.question}</p>}{t.error && <p>{t.error}</p>}<p className={styles.muted}>{t.note}</p></div>)}</section>}</>}
         {tab === "stage" && <><h3>当前岗位阶段</h3>{detail.opportunities.map(j => <p key={j.id}>{j.company} · {j.role}：{STAGES[j.stage] || j.stage}（当前）</p>)}<h3>当时留存的导师判断</h3>{!detail.stages.length && <p>所选日期没有留存阶段判断，不根据当前状态倒推。</p>}{detail.stages.map(s => <article className={styles.record} key={s.id}><p>{at(s.createdAt)} · 会话 {s.sessionId || "未关联"}</p><Facts value={parsed(s.observation)}/><Facts value={parsed(s.suggestion)}/></article>)}</>}
         {tab === "events" && <><p className={styles.muted}>这是最后观察到的行为，不推断离开原因。模型／响应成功、建议留存、用户采纳、确认保存及实际 PDF 证据分别看待。</p><div className={styles.tableWrap}><table><thead><tr><th>时间</th><th>行为</th><th>留存结果／失败码</th><th>关联 ID</th></tr></thead><tbody>{detail.events.rows.map(e => <tr key={e.id}><td>{at(e.createdAt)}</td><td>{e.label}</td><td>{e.outcome || e.reason || "未记录"}</td><td className={styles.id}>{e.generationId || e.changeId || "—"}</td></tr>)}</tbody></table></div><Pager offset={Number(params.get("eventOffset") || 0)} total={detail.events.total} next={detail.events.nextOffset} label="行为分页" onPage={n => navigate({ eventOffset: String(n) })}/></>}
-        {tab === "trace" && <><p className={styles.muted}>按确切任务请求／Trace／运行编号关联；没有捕获的 I/O 保持缺失，不拿最新一条替代。</p>{!detail.traces.length && <p className={styles.empty}>所选日期未捕获 Eval／Trace。</p>}{detail.traces.map(t => <article className={styles.record} key={t.traceId}><p>{at(t.createdAt)} · 留存结果 {t.outcome || "未知"}</p><p className={styles.id}>Trace {t.traceId}<br />运行 {t.runId || "仅历史 Trace"}<br />任务 {t.taskId || "未关联具体任务"}<br />修改 {t.changeIds.join("、") || "未留存该次修改 ID"}</p><p>{t.io}</p><Link href={t.href}>打开这条完整 Eval／Trace</Link></article>)}</>}
+        {tab === "trace" && <><h3>求职陪伴处理记录</h3>{detail.companionTraces?.map(item => <CompanionTrace key={item.requestId} userId={detail.user.id} item={item}/>)}{!detail.companionTraces?.length && <p>所选范围未留存陪伴请求。</p>}<h3>简历 Eval／Trace</h3><p className={styles.muted}>按确切任务请求／Trace／运行编号关联；没有捕获的 I/O 保持缺失，不拿最新一条替代。</p>{!detail.traces.length && <p className={styles.empty}>所选日期未捕获 Eval／Trace。</p>}{detail.traces.map(t => <article className={styles.record} key={t.traceId}><p>{at(t.createdAt)} · 留存结果 {t.outcome || "未知"}</p><p className={styles.id}>Trace {t.traceId}<br />运行 {t.runId || "仅历史 Trace"}<br />任务 {t.taskId || "未关联具体任务"}<br />修改 {t.changeIds.join("、") || "未留存该次修改 ID"}</p><p>{t.io}</p><Link href={t.href}>打开这条完整 Eval／Trace</Link></article>)}</>}
       </section>}
     </>}</main></div></div>;
 }

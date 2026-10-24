@@ -12,7 +12,7 @@ const reply=(body:unknown,status=200)=>Response.json(body,{status,headers});
 export function agentInputFingerprint(input:AgentRequestInput){
  return createHash('sha256').update(JSON.stringify([input.message,input.sessionId??null,input.opportunityId??null,input.interactionMode??null,input.proactive===true])).digest('hex');
 }
-function visibleTrace(trace:Record<string,unknown>|null){const {compiledPrompt,...visible}=trace||{};void compiledPrompt;return visible;}
+function visibleTrace(trace:Record<string,unknown>|null){const {compiledPrompt,compiledSystem,rawModelOutput,...visible}=trace||{};void compiledPrompt;void compiledSystem;void rawModelOutput;return visible;}
 
 /** 必须在预扣之前运行；DB 主键而非进程 Map 保证跨实例只生成一次。 */
 export async function withAgentRequest(userId:string,input:AgentRequestInput,run:()=>Promise<Response>):Promise<Response>{

@@ -1,4 +1,7 @@
 # 2026-10-23 求职陪伴 v3：修后真实验收与发布
+
+状态：已正式上线同一已测构建CgN3，运行代码32ba8d4（7746592+32ba8d4），GitHub 40063445573两项作业均success。
+[正式发布补充记录](https://yizhioffer.com/admin/evals/records?record=2e68f64c-7116-479d-9ac4-55b8c2a1fb21)。下文候选段是发布前原记录，不能当成最新状态。
 ## 范围
 本人本轮授权最多再跑2次虚构模型。实际恰好2次、0重试，不使用真人简历或TokenDance，不发短信。
 从当前正式0e8b85e的生产代码（e768cb7仅多3份已提交文档）择取陪伴功能，不从旧9a7共享工作树整树发布。
@@ -42,3 +45,15 @@ free_chat_daily/last_free_reset/updated_at，不写付费额度。没有为凑�
 云构建通过，候选dpl_CgN3UhExdc6ELWPAz7CyDnUnfgho，唯一运行时覆盖COMPANION_LOOP=1；无QA管理员授权覆盖。
 候选错误日志扫描无error。原正式yizhioffer.com/www仍5N3，未promote。
 提交/推送、CI、同构建切流、正式只读复核与清理结果在后续发布补充中登记，不能把本节候选当已上线。
+
+## 正式切流与最终清理
+已提交推送codex/companion-v3-acceptance-1023，仅31个本任务文件（含两次提交）；没有夹带既有未跟踪打印截图。
+GitHub运行40063445573真实completed/success，类型/全量测试、isolated-schema-rebuild两项作业通过；没有关闭提醒或放宽收费。
+`vercel promote`已将验收同一份dpl_CgN3UhExdc6ELWPAz7CyDnUnfgho切到yizhioffer.com和www；未重建另一份冒充同构建。
+正式health为ok/database ok；正式管理员按QA userId/requestId读到真实input/output/system/prompt/rawOutput，普通QA无管理员权限。
+旧稳5N3保留。正式错误日志最后10分钟无error；真实Chrome1450px无横向溢出，390px手机无横向溢出，原模型偏好刷新已验。
+实际PDF从正式Eval后台下载后SHA256与Chrome原文件相同；前序验收与发布补充分别不可变留存，不改写此前失败。
+本轮QA 24个事件标内部、邀请码精确移除1个；对应隔离域IAB/Chrome Cookie清除，Chrome刷新已回登录页，两个QA页与打印页关闭。
+仅删除本轮3份临时登录/请求文件，虚构turn/材料与Eval证据保留；不撤销原账号、不轮换站点密钥、不修改旧作答/积分。
+原配额表的正常跨日免费额度重置已单列，不为得到相同hash回写旧值；最终旧作答、两类简历及积分三表摘要仍一致。
+本地共享旧9a树仍有他人在途，不可整树覆盖正式32ba/CgN3。Claude首页未纳入本次发布。

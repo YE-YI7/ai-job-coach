@@ -23,6 +23,7 @@ import {tutorInvitation} from "@/lib/interview/tutor-invitation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
 import {requestsTeaching,learningHandoff} from "@/lib/interview/learning-handoff";
 import ChatResizeHandle from "./ChatResizeHandle";
+import ExpandableText from "./ExpandableText";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -1589,7 +1590,7 @@ function OverviewTab({ opportunity, relatedJobs, onOpenEvidence, onSelectJob, on
     <div className={styles.overviewFlow}>
       <section className={styles.decisionSection}>
         <div className={styles.sectionHeading}><div><h2>当前判断</h2><p>基于 JD 和已确认经历；待确认内容不计作事实。</p></div><span className={styles.decisionLabel}>{opportunity.recommendationLabel}</span></div>
-        <p className={styles.decisionReason}>{opportunity.recommendationReason}</p>
+        <ExpandableText key={opportunity.id} text={opportunity.recommendationReason} label="完整判断" />
         {missingResume ? <ContextMaterialAction
           kind="resume"
           title="补一份简历，我来重新判断"
@@ -1645,8 +1646,16 @@ function EvidenceRow({ item, compact = false }: { item: RequirementEvidence; com
   const meta = strengthMeta[item.strength];
   return (
     <article className={`${styles.evidenceRow} ${compact ? styles.evidenceRowCompact : ""}`}>
-      <div className={styles.requirementCell}><span className={styles.importanceLabel}>{item.importance === "critical" ? "硬要求" : item.importance === "important" ? "重要" : "辅助"}</span><p>{item.requirement}</p></div>
-      <div className={styles.evidenceCell}><span className={`${styles.evidenceStatus} ${meta.className}`}>{meta.label}</span><p>{item.evidence}</p></div>
+      <div className={styles.requirementCell}>
+        <span className={styles.importanceLabel}>
+          {item.importance === "critical" ? "硬要求" : item.importance === "important" ? "重要" : "辅助"}
+        </span>
+        <ExpandableText key={item.id} text={item.requirement} previewLength={compact ? 100 : 240} label="岗位要求" />
+      </div>
+      <div className={styles.evidenceCell}>
+        <span className={`${styles.evidenceStatus} ${meta.className}`}>{meta.label}</span>
+        <ExpandableText key={item.id} text={item.evidence} previewLength={compact ? 100 : 240} label="证据原文" />
+      </div>
       {!compact && <div className={styles.sourceCell}>{item.source ?? "等待用户确认"}</div>}
     </article>
   );

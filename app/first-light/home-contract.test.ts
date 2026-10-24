@@ -12,6 +12,14 @@ const interactions = readFileSync(
 );
 
 describe("selected Claude to DeepSeek first-light homepage", () => {
+  it("never traps vertical page scrolling inside demo panes", () => {
+    expect(css).not.toMatch(/overscroll-behavior:\s*(contain|none)/);
+    expect(css).not.toContain("touch-action: none");
+    expect(css).not.toContain("left: -150px");
+    const mentorRule = css.slice(css.indexOf(".mentor {"), css.indexOf(".mentor img {"));
+    expect(mentorRule).toContain("position: relative");
+    expect(mentorRule).toContain("pointer-events: none");
+  });
   it("pins the actual selected v5 source, not the old four-door landing", () => {
     expect(FIRST_LIGHT_SOURCE_SHA).toBe(
       "1ef10ac1819d0f03dcb409cf547a951a38b96316108fc5b527c4ac2d6cc0efcf",

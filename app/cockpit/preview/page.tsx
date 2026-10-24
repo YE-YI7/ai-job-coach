@@ -26,7 +26,7 @@ const preparationPreview: Opportunity = {
 export default async function CockpitPreviewPage({ searchParams }: {
   searchParams: Promise<{
     empty?: string; preparation?: string; tab?: string; longResume?: string;
-    narrative?: string; changes?: string; studio?: string; entry?: string;
+    narrative?: string; changes?: string; studio?: string; entry?: string; longCopy?: string;
   }>;
 }) {
   if (process.env.NODE_ENV !== "development") notFound();
@@ -65,6 +65,16 @@ export default async function CockpitPreviewPage({ searchParams }: {
   const studioOpportunities:Opportunity[]=[{...demoOpportunities[0],id:"studio-ui-preview",company:"示例科技",role:"产品经理",location:"上海",resumeText:studioResume,applicationQuality:undefined,resumeOriginal:undefined,resumeChanges:[{...demoOpportunities[0].resumeChanges[0],id:"studio-expression",section:"工作经历",before:"从高频问题中整理 120 条测试用例，检查回答准确性和来源是否一致。",after:"整理 120 条高频问题测试用例，核对回答准确性与引用来源。",reason:"收紧重复表达，保留测试规模与检查内容。此为虚构交互样例。",status:"pending"}]}];
   const narrativeResume = ["测试求职者，探索人机协作。联系方式：test@example.com。我希望用真实项目展示判断、行动和结果；此为虚构验收材料，不代表用户经历。", "## 我提出的问题，和做出的产品", ...Array.from({length:4},(_,i)=>`### 协作项目 ${i+1} · 从判断到行动\n负责人 | 2024.01 起\n- **实际责任**：定义需求与验收边界，保留真实事实。\n- **验证结果**：完整性标记 NARRATIVE-${i+1}，仅为排版测试。\n[项目来源](https://example.com/project-${i+1})`), "<!-- PAGEBREAK -->", "## 在真实业务里检验判断", "### 示例公司 · 产品经理\n2024.01 - 至今\n- 推动需求评审和质量验收，不捏造业绩。", "## 教育背景\n示例大学 · 本科", "简历正文结束 · NARRATIVE-END"].join("\n\n");
 
+  if (params.longCopy === "1") {
+    // 仅开发环境，覆盖旧长 JD 被误当成大标题的布局坏例。
+    studioOpportunities[0] = {
+      ...studioOpportunities[0],
+      recommendationReason: "虚构布局验收材料：已有产品调研与迭代经历，评估岗位时还需核对本人职责和真实交付物。".repeat(8),
+      requirements: studioOpportunities[0].requirements.map((item, index) => index ? item : {
+        ...item, requirement: "负责需求调研、方案设计、评估标准与上线迭代；与研发协同验证问题，保留来源和真实职责。".repeat(8),
+      }),
+    };
+  }
   return (
     <CockpitApp
       initialOpportunities={params.studio==="1"?studioOpportunities:params.empty === "1" ? [] : params.narrative === "1" ? previewOpportunities.map(item=>({...item,resumeText:narrativeResume,resumeChanges:params.changes === "1" ? [{ ...demoOpportunities[0].resumeChanges[0], id: "narrative-edit", before: "完整性标记 NARRATIVE-1，仅为排版测试。", after: "完整性标记 NARRATIVE-1，已核对排版测试。", status: "pending" as const }] : []})) : params.longResume === "1" ? previewOpportunities.map(item=>({...item,resumeText:longResume})) : previewOpportunities}

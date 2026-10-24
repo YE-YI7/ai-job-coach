@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { printTemplates, resumePrintHtml } from "./resume-print";
 
 test("all six explicit layouts retain content and have preview descriptions", () => {
@@ -43,4 +44,20 @@ test("new layout preferences use the renderer registry rather than a three-name 
   const preference = readFileSync("lib/resume-template-preference.ts", "utf8");
   expect(preference).toContain("Object.hasOwn(printTemplates, raw)");
   expect(preference).toContain("resume-print-template");
+});
+test("pre-generated gallery images come from the current PDF renderer and cannot silently drift", () => {
+  const root = "public/resume-templates/v1";
+  const manifest = JSON.parse(readFileSync(`${root}/manifest.json`, "utf8"));
+  const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+  expect(manifest.rendererSha256).toBe(hash(readFileSync("lib/resume-print.ts")));
+  expect(manifest.fictional).toBe(true);
+  expect(manifest.templates).toEqual(Object.keys(printTemplates));
+  for (const key of manifest.templates) {
+    const image = readFileSync(`${root}/${key}.webp`);
+    expect(image.length).toBeLessThan(30_000);
+    expect(manifest.assets[key].sha256).toBe(hash(image));
+  }
+  const picker = readFileSync("components/cockpit/ResumeTemplatePicker.tsx", "utf8");
+  expect(picker).toContain("/resume-templates/v1/${key}.webp");
+  expect(picker).not.toContain("<em");
 });

@@ -1,0 +1,39 @@
+{
+  "rendererSha256": "4819dffbffc6ad75a94877bfe3d60093946fe0149e155421a16124f6ba36a57f",
+  "fixtureSha256": "cc670a683ccec380f223db101fcb063fb3029c923ce99186750ce19cc98cc0ed",
+  "templates": [
+    "classic",
+    "modern",
+    "warm",
+    "compact",
+    "editorial",
+    "rail"
+  ],
+  "fictional": true,
+  "assets": {
+    "classic": {
+      "bytes": 15496,
+      "sha256": "f56493b0129cec44932149ef9c8a8cc04e642fa1a6b7a826b05ff0256911d3a4"
+    },
+    "modern": {
+      "bytes": 19128,
+      "sha256": "c26fa9255bce11319c90bc0f8d02f0efeb68b167bf5803dac7747606f3c32753"
+    },
+    "warm": {
+      "bytes": 19676,
+      "sha256": "a4693073a2c9172d5958987427f531210a60a731e639d3312c632e4f347dbac9"
+    },
+    "compact": {
+      "bytes": 17256,
+      "sha256": "9c1bd977fce8f7e86b16cda36d56a73136c0a7adc3e5c34737eea00a49729d1e"
+    },
+    "editorial": {
+      "bytes": 16456,
+      "sha256": "206fd4f06cb8b0e54843abec7e3b268a96ba05376ee9fc2d66e49b1e7fa857ac"
+    },
+    "rail": {
+      "bytes": 19094,
+      "sha256": "193dc4682971fc76460a06d06f1c1b619bee62053f9b96b93b9d829190be6db2"
+    }
+  }
+}

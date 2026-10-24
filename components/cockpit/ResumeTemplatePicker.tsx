@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, PanelsTopLeft } from "lucide-react";
+import Image from "next/image";
+import { Check, ChevronDown, PanelsTopLeft, X } from "lucide-react";
 import { printTemplates, type PrintTemplate } from "@/lib/resume-print";
 import styles from "./ResumeTemplatePicker.module.css";
 
@@ -72,6 +73,12 @@ export default function ResumeTemplatePicker({
       <div className={styles.heading}>
         <strong>简历版式</strong>
         <span>选中即预览，PDF 同步使用</span>
+        {!inline && <button
+          type="button"
+          className={styles.close}
+          aria-label="关闭版式选择"
+          onClick={close}
+        ><X size={18} aria-hidden="true" /></button>}
       </div>
       <div
         className={styles.grid}
@@ -112,24 +119,15 @@ export default function ResumeTemplatePicker({
             onClick={() => choose(key)}
             disabled={disabled}
           >
-            <span
-              className={`${styles.paper} ${styles[key]}`}
-              aria-hidden="true"
-            >
-              <b>姓名</b>
-              <i />
-              <span className={styles.section}>
-                <small>教育背景</small>
-                <em />
-                <em />
-              </span>
-              <span className={styles.section}>
-                <small>工作经历</small>
-                <em />
-                <em />
-                <em />
-              </span>
-            </span>
+            <Image
+              className={styles.paper}
+              src={`/resume-templates/v1/${key}.webp`}
+              alt=""
+              width={420}
+              height={594}
+              unoptimized
+              sizes="(max-width: 480px) 145px, 170px"
+            />
             <span className={styles.label}>
               {printTemplates[key].label}
               {value === key && <Check size={14} aria-hidden="true" />}

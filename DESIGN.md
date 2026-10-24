@@ -69,6 +69,31 @@ colors:
   cockpit-studio-composer-focus: "#8d9a7c"
   resume-workspace: "#f5f6f2"
 typography:
+  first-light-display:
+    fontFamily: "FirstLightSerif, Songti SC, Noto Serif CJK SC, serif"
+    fontSize: "clamp(54px, 6.2vw, 92px)"
+    fontWeight: 600
+    lineHeight: 1.12
+  first-light-note:
+    fontFamily: "FirstLightSmiley, PingFang SC, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.75
+  first-light-meta:
+    fontFamily: "FirstLightKode, monospace"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.75
+  first-light-latin:
+    fontFamily: "FirstLightGrotesk, sans-serif"
+    fontSize: "12px"
+    fontWeight: 600
+    lineHeight: 1.75
+  first-light-editorial:
+    fontFamily: "FirstLightInstrument, serif"
+    fontSize: "24px"
+    fontWeight: 400
+    lineHeight: 1.4
   landing-display:
     fontFamily: "SmileySub, PingFang SC, sans-serif"
     fontSize: "clamp(58px, 6.6vw, 94px)"

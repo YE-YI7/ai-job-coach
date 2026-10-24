@@ -2,10 +2,35 @@
 version: 1
 slug: "app-page-tsx"
 primary_target: "app/page.tsx"
-related_targets: ["app/HomeClient.tsx","app/Home.module.css","components/resume/ResumePaper.tsx","components/resume/ResumePaper.module.css","lib/resume-print.ts"]
+related_targets: ["app/HomeLanding.tsx","app/first-light/FirstLightHome.tsx","app/first-light/content.ts","app/first-light/first-light.css","app/first-light/interactions.js"]
 ---
 
 Mode: Persuade for `/`. `/agent` keeps its independent execution manual unchanged.
+
+## Active authority: 2026-10-24 user-selected first-light v5
+
+This supersedes the four-door landing composition below. The user explicitly supplied
+`/Users/yi/me/益职作战盘/assets/2026-10-23-first-light-home/prototype.html`:
+Claude's first-light homepage, continued to v5 by DeepSeek inside Qoder.
+Source SHA-256: `1ef10ac1819d0f03dcb409cf547a951a38b96316108fc5b527c4ac2d6cc0efcf`.
+The warm photographic wall, sheer light, illustrated mentor, Songti title, translucent
+paper, chapter scroll and intentionally playful local demo are pinned visual authority,
+not permission to introduce those treatments into the operative cockpit.
+
+THESIS: “陪你，一直到找到工作。” Show concrete job / resume / interview collaboration.
+FIRST VIEW: morning light, readable serif heading, one local demonstration input,
+clearly fictional daily tasks, one persistent real workspace CTA.
+BOUNDARIES: prototype examples never call a model, spend points, save real answers,
+or schedule notifications. Future check-ins stay explicitly “设计中”. No invented founder
+history. Real material-door URLs, free tools, Agent and `/demo` remain reachable.
+ADAPTATION: selectors and fonts are homepage-scoped; mobile must fit without clipping.
+Remove prototype-only font debugging controls. Preserve source interaction choices,
+including recovery of the unresolved resume decision after scrolling past it.
+AUTHENTICATED UI: keep the already-integrated six-file `/tmp/yizhi-prod-ui-1024` polish;
+do not overwrite newer chat, model picker, payment, persistence or print code.
+EVIDENCE: local build, desktop/mobile real Chrome walkthrough and tests are separate
+from deployment. PDF is unchanged and the user's explicit deferred online check remains
+pending, not passed by this visual correction.
 
 ## 2026-10-14 selected surface: 成品主舞台
 

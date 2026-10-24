@@ -1,5 +1,28 @@
 # 2026-10-24 晨光 v5 首页版本纠偏
 
+## 最终发布状态
+
+正确晨光 v5 已发布。运行提交 `a800e2d13fc5bfad91b2735f91c71d95b95b5f69` 已推远端，
+GitHub [40095486342](https://github.com/YE-YI7/ai-job-coach/actions/runs/40095486342)
+的全量／类型和隔离结构重建两项均 completed/success。
+
+Production `dpl_6eqt1rcc9yR1bNdXBbnDDe9K85Gb`（`ai-job-coach-qy2eohoxd-velmavalienteqejimu22-jpgs-projects.vercel.app`）
+先 skip-domain 构建，项目 ID、目标 production、READY、Git SHA 回读相同，云端完成编译／类型／141 路由。
+实际 Chrome 候选页已挂载脚本、三条示例任务、图片无损坏，真实 CTA 到
+`/login?redirect=%2Fcockpit%3Fentry%3Done_sentence`，没有落旧 register 或自动发送模型。
+然后 promote **同一构建**；`vercel inspect https://yizhioffer.com` 确认仍是 6eq，
+正式 health 为 `ok=true / database=ok`，Chrome 正式页显示正确晨光标题和交互。
+
+正式实拍 `first-light-v5-released.png` 已保存；不是拿原型截图代替线上证据。
+候选和发布后有界 server error 查询均为空，这不是所有用户路径无错误的保证。
+浏览器中的两个扩展脚本异常不归为本站故障；没有为让控制台好看而删除埋点或隐藏错误。
+
+仅30个本任务文件提交；原共享未跟踪 `.impeccable/review/resume-delivery-20261022/` 既未提交也未上传。
+干净导出部署包只含 Git 提交内容及项目定位，预览上传清单无该目录或私有 env。
+0048/CXN、CgN3 和 5N3 回滚部署均保留。本地3362已停、临时viewport已复位。
+本轮没有操作业务数据库、旧作答／积分、付费模型、短信、兑换或凭据。
+PDF 状态仍是本人已允许的线上后测，不能据视觉上线称全产品PDF验收通过。
+
 ## 决定与真实来源
 
 本人指出 0048f35 / CXN 的四材料首页并非选定设计，随后给出原型文件。
@@ -55,7 +78,7 @@ Agent、免费工具和隐私入口仍可达。免费口径仍为同账号首次
 此前 0048 的独立 QA 云保存／刷新证据仍是历史证据，不伪称本轮重新跑过。
 本人明确允许的新 PDF 留线上复测继续 pending；本次未取得新 PDF，不用旧文件冒充。
 
-## 发布状态
+## 首稿时状态（已被顶部最终记录覆盖）
 
 本文件首稿时，代码待提交、候选尚未部署，正式仍 0048f35 / CXN。
 将从本任务提交导出干净部署包，排除共享未跟踪的旧验收目录；先 Production skip-domain，

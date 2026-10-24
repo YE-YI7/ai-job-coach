@@ -46,8 +46,9 @@ describe("selected Claude to DeepSeek first-light homepage", () => {
     );
     expect(FIRST_LIGHT_HTML).not.toMatch(/file:\/\/|\/Users\/|\.\.\//);
     expect(FIRST_LIGHT_HTML).toContain("真实页面 · 示例数据");
-    expect(FIRST_LIGHT_HTML).toContain("交互演示 · 不会发送");
-    expect(FIRST_LIGHT_HTML).toContain("不调用模型、不保存输入");
+    expect(FIRST_LIGHT_HTML).toContain('id="entry-reply"');
+    expect(FIRST_LIGHT_HTML).toContain("登录后接着聊");
+    expect(FIRST_LIGHT_HTML).not.toContain("交互演示 · 不会发送");
     expect(FIRST_LIGHT_HTML).not.toContain("后来找了机构，花了上万块");
   });
 
@@ -65,6 +66,7 @@ describe("selected Claude to DeepSeek first-light homepage", () => {
       expect(FIRST_LIGHT_HTML).toContain(`href="${route}"`);
     }
     expect(interactions).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket)\b/);
+    expect(interactions).toContain('if(options.onStart)');
     expect(interactions).not.toMatch(/window\.(hear|__t)\s*=/);
     expect(interactions).not.toContain("fontpick");
     expect(interactions).toContain("Re-open the unresolved choice");

@@ -5,6 +5,7 @@ import { Camera, Eye, EyeOff, FileText, MoreHorizontal, Redo2, Sparkles, Trash2,
 import type { PrintTemplate } from "@/lib/resume-print";
 import type { ResumePhoto } from "@/lib/resume-photo";
 import ResumeTemplatePicker from "./ResumeTemplatePicker";
+import ResumeGenerateConfirm from "./ResumeGenerateConfirm";
 import styles from "./ResumeToolbar.module.css";
 
 const subscribeReady = () => () => {};
@@ -29,6 +30,7 @@ export default function ResumeToolbar({
   const photoInput = useRef<HTMLInputElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [confirmGenerate,setConfirmGenerate]=useState(false);
   // The SSR paper can appear before React attaches actions. Native disabled
   // controls must not look actionable during that gap (including popovers).
   const ready = useSyncExternalStore(subscribeReady, clientReady, serverReady);
@@ -72,7 +74,8 @@ export default function ResumeToolbar({
         <span role="status">{busy ? "正在修改" : pendingCount ? `${pendingCount} 处待确认` : hasChanges ? "修改已处理" : "工作稿"}</span>
       </div>
       <fieldset className={styles.actions} disabled={!ready} aria-label="简历主要操作" aria-busy={!ready}>
-        <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy} disabled={busy || !canGenerate} onClick={onGenerate}>
+        <button type="button" className={styles.revise} aria-describedby={feeId} aria-busy={busy}
+          disabled={busy || !canGenerate} onClick={()=>needsDetail?onGenerate():setConfirmGenerate(true)}>
           {busy ? <span className={styles.readingLine} aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}{busy ? "正在修改…" : needsDetail ? "继续补充" : hasChanges ? "重新修改整份" : "修改整份"}
         </button>
         {deliveryAction}
@@ -103,5 +106,7 @@ export default function ResumeToolbar({
       {onPhotoRemove && photo && <button type="button" disabled={photoBusy} onClick={() => { onPhotoRemove(); close(true); }}><Trash2 size={16} aria-hidden="true" />移除照片</button>}
       <p>版式与照片只作用于文字工作稿和 PDF，上传的原文件保持原样。</p>
     </div>
+    {confirmGenerate&&<ResumeGenerateConfirm fee={fee} onClose={()=>setConfirmGenerate(false)}
+      onConfirm={()=>{if(!busy&&canGenerate)onGenerate();}}/>}
   </header>;
 }

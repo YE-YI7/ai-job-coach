@@ -1214,6 +1214,7 @@ function CockpitWorkspace({
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry}
             initialSourceText={newEntry === "resume" && active?.workspaceType === "preparation" && !active.resumeText ? active.profileText || "" : ""}
             onCreate={createOpportunity} onBusyChange={setIntakeBusy}
+            onSentence={()=>{setCreating(false);setEntryPanel('one_sentence');setMobileRail(null);}}
             onCancel={() => { setCreating(false); setSurface(createOrigin); clearEntryRoute(); }} /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
           {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onViewChange={setProfileView} editor={<ResumeTab onEditBlock={changeResumeBlock} onUndo={()=>travelResume("undo")} onRedo={()=>travelResume("redo")} onFocusMentor={focusResumeMentor} opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补充真实经历",prompt:"帮我把当前简历缺少具体动作与结果的一处讲清楚，一次问一个问题，不补编经历。"})} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => {void generateResumeDraft().catch(()=>{});}} onGenerateTrial={dataMode==='live'&&!localIds.includes(active.id)?(blockId,excerpt)=>generateResumeDraft(active,{blockId,excerpt}):undefined} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={() => {}} onPhotoChange={dataMode === "live" ? setResumePhoto : undefined}/>} arrangement={<CurrentArrangement
@@ -1403,7 +1404,12 @@ function RailCompanyMark({company}:{company:string}) {
   return logo&&!failed?<Image className={styles.railCompanyMark} src={logo} alt="" width={24} height={24} onError={()=>setFailed(true)}/>:null;
 }
 
-function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "resume", initialSourceText = "" }: { onCreate: (intake: OpportunityIntake, entry: "direction" | "resume" | "interview", progress: IntakeProgress) => Promise<{ opportunity: Opportunity; deferred: boolean }>; onCancel: () => void; onBusyChange: (busy: boolean) => void; initialEntry?: "direction" | "resume" | "interview"; initialSourceText?: string }) {
+function NewOpportunityForm({ onCreate, onCancel, onBusyChange,onSentence, initialEntry = "resume", initialSourceText = "" }: {
+  onCreate:(intake:OpportunityIntake,entry:"direction"|"resume"|"interview",progress:IntakeProgress)=>
+    Promise<{opportunity:Opportunity;deferred:boolean}>;
+  onCancel:()=>void;onBusyChange:(busy:boolean)=>void;onSentence:()=>void;
+  initialEntry?:"direction"|"resume"|"interview";initialSourceText?:string;
+}) {
   const [entry, setEntry] = useState(initialEntry);
   const inputRef = useRef<HTMLInputElement>(null);
   const [sourceText, setSourceText] = useState(initialSourceText);
@@ -1438,7 +1444,15 @@ function NewOpportunityForm({ onCreate, onCancel, onBusyChange, initialEntry = "
       <button type="button" disabled={submitting} className={styles.secondaryButton} onClick={onCancel}>← 返回工作区</button>
       <div className={styles.createIntro}>
         <h1>{entry === "direction" ? "从你的简历开始" : entry === "interview" ? "为这场面试做准备" : "把目标岗位带进来"}</h1>
-        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">{([ ["direction", "先给简历"], ["resume", "已有目标岗位"], ["interview", "准备面试"] ] as const).map(([value, label]) => <button type="button" disabled={submitting} key={value} aria-pressed={entry === value} onClick={() => {setEntry(value);setSaveFailed(false);}}>{label}</button>)}</div>
+        <div className={styles.intakeChoices} role="group" aria-label="选择求职起点">
+          {([['direction','先给简历'],['resume','已有目标岗位'],['interview','准备面试']] as const).map(([value,label])=>
+            <button type="button" disabled={submitting} key={value} aria-pressed={entry===value}
+              onClick={()=>{setEntry(value);setSaveFailed(false);}}>{label}</button>)}
+          <button type="button" disabled={submitting} onClick={()=>{
+            if((sourceText.trim()||file)&&!window.confirm('切换起点后，尚未保存的材料需要重新填写。确定切换吗？'))return;
+            onSentence();
+          }}>先说一句</button>
+        </div>
         <p>{entry === "direction" ? "先上传简历，或写下想做的方向。不要求先有 JD；这里先整理目标，尚不自动搜索招聘网站。" : entry === "interview" ? "粘贴这次面试的 JD 或招聘链接。已有简历也可以一起上传，建立档案后进入模拟面试。" : "先粘贴 JD 或招聘链接，也可以上传简历。缺的材料会在下一步提醒你补，不用一次填完。"}</p>
       </div>
       <form

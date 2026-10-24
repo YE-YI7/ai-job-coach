@@ -2782,6 +2782,24 @@
   opacity: 1;
   transform: none;
 }
+/* Entry controls are usable immediately; decorative dust never gates them. */
+[data-first-light-home] .hero .ask.fade,
+[data-first-light-home] .hero .scene.fade {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+[data-first-light-home] .entry-reply {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #ddd3c5);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+[data-first-light-home] .entry-reply p { margin: 0 0 10px; }
+[data-first-light-home] .entry-reply[hidden] { display: none; }
 [data-first-light-home] footer .wrap {
   flex-wrap: wrap;
   gap: 14px;

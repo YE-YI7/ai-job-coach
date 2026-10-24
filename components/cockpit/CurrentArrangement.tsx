@@ -11,9 +11,12 @@ type Saved = { id: string; version: number; companion: CompanionTask };
 type Action = "open" | "submit" | "start" | "stuck" | "skip" | "end" | "reopen";
 const draftKey = (id: string) => `companion-draft:${id}`;
 
-export default function CurrentArrangement({ fixture = false, opportunityId = null, onAskMentor, onOpenResume, onOpenInterview }: {
+export default function CurrentArrangement({ fixture = false, opportunityId = null, initialText='',onOpened,
+  onAskMentor, onOpenResume, onOpenInterview }: {
   fixture?: boolean;
   opportunityId?: string | null;
+  initialText?:string;
+  onOpened?:()=>void;
   onAskMentor?: (prompt: string, attemptId: string) => void;
   onOpenResume?: () => void;
   onOpenInterview?: () => void;
@@ -21,10 +24,10 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
   const demo = decideCompanion(fixtureText);
   const [saved, setSaved] = useState<Saved | null>(fixture ? { id: "fixture", version: 1, companion: { goalKey: "fixture", goalTitle: demo.goalTitle, sourceText: fixtureText, weeklyHours: null, deadline: null, answer: demo.answer, question: demo.question, step: demo.step, stages: demo.stages, route: "arrange", action: "not_started", submissions: [] } } : null);
   const current = useRef(saved); current.current = saved;
-  const [open, setOpen] = useState(fixture);
+  const [open, setOpen] = useState(fixture||Boolean(initialText));
   const [enabled, setEnabled] = useState(fixture);
   const [loading, setLoading] = useState(!fixture);
-  const [text, setText] = useState(fixture ? fixtureText : "");
+  const [text, setText] = useState(initialText||(fixture ? fixtureText : ""));
   const [draft, setDraft] = useState("");
   const [stuck, setStuck] = useState("");
   const [error, setError] = useState("");
@@ -32,8 +35,8 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
   const [busy, setBusy] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const lock = useRef(false);
-  const [adjusting, setAdjusting] = useState(false);
-  const [newGoal, setNewGoal] = useState(false);
+  const [adjusting, setAdjusting] = useState(Boolean(initialText));
+  const [newGoal, setNewGoal] = useState(Boolean(initialText));
   const [earlier, setEarlier] = useState<{ id: string; goalTitle: string }[]>([]);
   const pending = useRef<{ id: string; text: string } | null>(null);
   const opening = useRef<{ id: string; text: string } | null>(null);
@@ -133,6 +136,7 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
       if (next) {
         if (next.id !== origin?.id) { setDraft(""); pending.current = null; setReviewing(false); }
         setSaved(next); current.current = next;
+        if(action==='open')onOpened?.();
       }
       const route = body.decision?.route;
       if (route === "resume") onOpenResume?.();
@@ -191,7 +195,7 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
       <label>你现在最想解决哪件事？<textarea value={text} maxLength={3000} aria-label="你现在最想解决哪件事" onChange={e => setText(e.target.value)} placeholder="想转行，不知道从哪开始" /></label>
       <button type="button" className={styles.primary} disabled={busy || !text.trim()} onClick={() => void send("open")}>{adjusting ? "按这个继续讨论" : "从这句话开始"}</button>
     </div>}
-    {task && <>
+    {task && !newGoal && <>
       <header><h2>{task.goalTitle}</h2><p className={styles.note}>{task.weeklyHours || "投入时间待了解"}{task.deadline ? ` · ${task.deadline}` : ""}</p></header>
       {task.mentorFeedback ? <TutorMarkdown>{task.mentorFeedback}</TutorMarkdown> : <p>{task.answer} {fixture ? "" : "这是起点，具体安排等导师结合你的输入梳理。"}</p>}
       {task.reviewNote && <p className={styles.note}>{task.reviewNote}</p>}

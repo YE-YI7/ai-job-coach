@@ -5,6 +5,7 @@
 .identity>span{font-size:12px;line-height:1.5;color:var(--cockpit-studio-muted,#6b665e)}
 .actions{display:flex;align-items:center;gap:8px;min-width:0;margin:0;padding:0;border:0}
 .actions:disabled{opacity:.5;cursor:wait}
+.toolbar .revise{min-inline-size:10.75em}
 .toolbar button,.menu button{font-family:inherit;cursor:pointer;transition:background-color 160ms ease,color 160ms ease,box-shadow 160ms ease,transform 160ms cubic-bezier(.22,1,.36,1)}
 .toolbar .actions button{font-family:inherit;font-size:13px;font-weight:500;line-height:1.5;min-height:40px}
 /* The tool has a shallow ceramic edge; the document below remains plain paper. */

@@ -2,7 +2,8 @@
  * Queries, styles, timers and observers stay scoped to this marketing surface.
  * The walkthrough uses fictional data only; no account or model API is called.
  */
-export function mountFirstLight(root) {
+/** @param {HTMLElement} root @param {{onStart?:(text:string)=>void,onDraft?:(text:string)=>void}} [options] */
+export function mountFirstLight(root, options={}) {
   let disposed = false;
   const timers = new Set();
   const frames = new Set();
@@ -276,6 +277,11 @@ export function mountFirstLight(root) {
       $("#q").focus();
       return;
     }
+    if(options.onStart){
+      options.onDraft?.(v);
+      mentor("wave", "这句话已放到输入框，点「跟我说说」继续");
+      return;
+    }
     mentor("thinking", "在想…");
     $("#today").scrollIntoView({
       behavior: reduce ? "auto" : "smooth",
@@ -313,6 +319,7 @@ export function mountFirstLight(root) {
   }
   var typing;
   $("#q").addEventListener("input", function () {
+    options.onDraft?.(this.value);
     mentor("thinking", "在听…");
     clearTimeout(typing);
     typing = setTimeout(function () {
@@ -1504,7 +1511,8 @@ export function mountFirstLight(root) {
 
   const onSubmit = (event) => {
     event.preventDefault();
-    hear(byId("q").value);
+    if(options.onStart)options.onStart(byId("q").value);
+    else hear(byId("q").value);
   };
   byId("ask").addEventListener("submit", onSubmit, {
     signal: controller.signal,

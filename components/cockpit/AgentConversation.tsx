@@ -28,7 +28,7 @@ import { companionBinding, companionVisibleText, companionRetryText } from "@/li
 type Turn={id:string;question:string;answer:string;learning_trace?:{interactionMode?:"coaching"|"mock_interview";suggestions?:string[];model?:string;modelCalls?:number;proactive?:boolean;insufficiency?:InsufficiencyTrace|null;outcome?:LearningOutcome|null;outcomeNote?:string|null;modelUsage?:{model:string;inputTokens:number;outputTokens:number;averageTokensPerSecond:number|null}}};
 type ScopedTurn=Turn&{opportunity_id?:string|null};
 type Session={id:string;title:string;status:"active"|"archived";summary?:string;opportunity_id?:string|null};
-export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean};
+export type CoachingStart={id:string;title:string;prompt:string;opportunityId?:string;proactive?:boolean;newSession?:boolean};
 export type TutorInvitation={id:string;text:string;title:string;prompt:string};
 async function archiveRemote(sessionId:string){
  const r=await fetch("/api/coach/agent/archive",{method:"POST",headers:{"Content-Type":"application/json","x-idempotency-key":crypto.randomUUID()},body:JSON.stringify({sessionId})});
@@ -219,7 +219,13 @@ if(active){jumpToLatest.current=true;setSession(active);const r=await fetch(hist
   });}catch(e){if(token===generation.current){const binding=companionBinding(text);if(binding)window.dispatchEvent(new CustomEvent("yizhi-companion-updated",{detail:{...binding,failed:true}}));setError(e instanceof Error?e.message:"网络异常，请检查历史后重试");if(proactive)setFailedLesson({text,title});else setMessage(m=>m||companionVisibleText(text));}}
   finally{if(token===generation.current){setBusy(false);lock.current=false;}}
  },[enabled,loading,opportunityId,session,modelMode,interactionMode,chatContext,ackStore,setModelNotice,owner]);
- useEffect(()=>{if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&!seen.current.has(startRequest.id)&&!lock.current&&!confirmGate.current){seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});void send(startRequest.prompt,false,startRequest.title,startRequest.proactive===true);}},[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed,modelNotice]);
+ useEffect(()=>{
+  if(startRequest&&startRequest.opportunityId===opportunityId&&!loading&&enabled&&
+    !seen.current.has(startRequest.id)&&!lock.current&&!confirmGate.current){
+   seen.current.add(startRequest.id);onStartConsumed?.(startRequest.id);input.current?.focus({preventScroll:true});
+   void send(startRequest.prompt,startRequest.newSession===true,startRequest.title,startRequest.proactive===true);
+  }
+ },[startRequest,loading,enabled,send,opportunityId,busy,onStartConsumed,modelNotice]);
  async function archive(){
   if(!session||lock.current||!turns.length)return false;lock.current=true;setBusy(true);setError("");const token=generation.current;
   try{const b=await archiveRemote(session.id);if(token!==generation.current)return false;const closed={...session,status:"archived" as const,summary:b.summary};setSession(closed);setSessions(s=>s.map(x=>x.id===closed.id?closed:x));onArchived?.();return true;}

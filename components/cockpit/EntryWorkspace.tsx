@@ -45,7 +45,7 @@ export default function EntryWorkspace({ initialEntry, accountLabel, scope, live
       </div>
       {!selected && <p className={styles.note}>选择起点不会调用模型或消耗额度。</p>}
       {selected === "one_sentence" && <div className={styles.panel}>
-        <CompanionStart onResume={() => onMaterial("direction")} onInterview={() => onMaterial("interview")} />
+        <CompanionStart scope={scope} onResume={() => onMaterial("direction")} onInterview={() => onMaterial("interview")} />
       </div>}
       {selected === "find_jobs" && <FindJobsStart enabled={live} scope={scope} />}
       <Link className={styles.recovery} href="/account/phone?recover=1">以前用过益职？找回原来的工作区 →</Link>

@@ -23,13 +23,14 @@ export const FIRST_LIGHT_HTML = `<div class="grain" aria-hidden="true"></div>
         <h1 id="h1" class=""><span class="l">陪你，</span><span class="l warm"><span class="nw">一直到</span><span class="nw">找到工作。</span></span></h1>
         <p class="lede fade f2">投什么、简历怎么写、面试怎么答——<b>跟我说说你卡在哪儿</b>。一起读材料、补证据、改简历和练面试，把今天能做的一步走清楚。</p>
         <form class="ask fade f3" id="ask">
-          <label for="q">你现在卡在哪儿？<span>交互演示 · 不会发送</span></label>
+          <label for="q">你现在卡在哪儿？<span>没有方向，也能开始</span></label>
           <textarea maxlength="1000" id="q" placeholder="比如：投了 40 份，只有 2 个面试。"></textarea>
           <div class="ask-row">
             <span class="promise">没有 JD 也能开始 · 不编经历 · 不承诺 offer</span>
             <button class="btn btn-tomato" type="submit">跟我说说 →</button>
           </div>
-        <p class="demo-note">互动示例，不调用模型、不保存输入。<a href="/cockpit?entry=one_sentence">进入工作区 →</a></p></form>
+        <div class="entry-reply" id="entry-reply" role="log" aria-label="导师的第一句回应" hidden></div>
+        <p class="demo-note" id="handoff-status" role="status">先听导师回应一句，登录后接着聊。<a href="/cockpit?entry=one_sentence">进入工作区 →</a></p></form>
       </div>
 
       <div class="scene fade f4" id="scene">

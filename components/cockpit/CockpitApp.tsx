@@ -1137,6 +1137,7 @@ function CockpitWorkspace({
     accountLabel={compactAccountLabel(userEmail)}
     scope={userId || userEmail || dataMode}
     live={dataMode === "live"}
+    canReturn={Boolean(active)}
     onMaterial={entry => {
       setEntryPanel(null);
       setNewEntry(entry);

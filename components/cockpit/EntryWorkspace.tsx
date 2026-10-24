@@ -10,11 +10,12 @@ import CompanionStart from "./CompanionStart";
 import WorkspaceAccount from "./WorkspaceAccount";
 import styles from "./EntryWorkspace.module.css";
 
-export default function EntryWorkspace({ initialEntry, accountLabel, scope, live, onMaterial, onBack, onLogout }: {
+export default function EntryWorkspace({ initialEntry, accountLabel, scope, live, canReturn, onMaterial, onBack, onLogout }: {
   initialEntry?: EntryKind;
   accountLabel: string;
   scope: string;
   live: boolean;
+  canReturn: boolean;
   onMaterial: (entry: IntakeEntry) => void;
   onBack: () => void;
   onLogout: () => void;
@@ -31,9 +32,9 @@ export default function EntryWorkspace({ initialEntry, accountLabel, scope, live
       <WorkspaceAccount label={accountLabel} live={live} onLogout={onLogout} />
     </header>
     <section className={styles.content} aria-label="选择起点">
-      <button type="button" className={styles.back} onClick={() => { setSelected(null); onBack(); }}>
+      {(selected || canReturn) && <button type="button" className={styles.back} onClick={() => { setSelected(null); onBack(); }}>
         <ArrowLeft size={16} />{selected ? "换一个起点" : "返回工作区"}
-      </button>
+      </button>}
       <h1>从你手里有的开始</h1>
       <p className={styles.lead}>简历、岗位，或只有一句困惑都可以。选一个起点，不需要把所有材料准备齐。</p>
       <div className={styles.choices} role="group" aria-label="四种起点">

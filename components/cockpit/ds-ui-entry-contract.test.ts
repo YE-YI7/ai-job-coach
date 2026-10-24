@@ -19,6 +19,7 @@ test("choosing a material door only opens the existing intake; models stay behin
   expect(entry).toContain("startRequest={request}");
   expect(entry).toContain("onStartConsumed={() => setRequest(null)}");
   expect(entry).toContain('restoredStarted === "1"');
+  expect(entry).toContain("(selected || canReturn) && <button");
   expect(read("components/cockpit/CockpitApp.tsx")).toContain("withoutEntryParam(window.location.href)");
 });
 

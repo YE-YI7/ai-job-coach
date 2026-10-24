@@ -41,4 +41,6 @@ test("old interactive demo and print renderer remain reachable without replacing
   const css = read("app/HomeLanding.module.css");
   expect(css).toContain("prefers-reduced-motion:reduce");
   expect(css).not.toContain("infinite");
+  expect(css).toContain("font-size:clamp(30px,10vw,48px)");
+  expect(css).toContain("white-space:nowrap");
 });

@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_INDEX_PATHS.some((path) => pathname === path)) return NextResponse.next();
 
   // Privacy notice contains no account data and must be readable before sign-in.
-  if (pathname === "/privacy") return NextResponse.next();
+  if (pathname === "/privacy" || pathname === "/demo") return NextResponse.next();
 
   if (pathname === "/" || pathname === "/agent" || pathname.startsWith("/agent/")) {
     return NextResponse.next();

@@ -9,6 +9,14 @@ Mode: Persuade for `/`. `/agent` keeps its independent execution manual unchange
 
 ## 2026-10-14 selected surface: 成品主舞台
 
+### 2026-10-24 DS material-entry candidate
+
+The current candidate `/` uses `app/HomeLanding.tsx` and its scoped CSS: four real material doors (resume, JD, find jobs, one sentence) precede a clearly fictional evidence example. The 2026-10-14 interactive paper/interview composition below is preserved without renderer changes at `/demo`; it is not deleted or reimplemented. This is a user-requested DS UI acceptance iteration, not a claim of new image-comp approval.
+
+The new landing's four licensed self-hosted fonts have distinct, homepage-only roles: SmileySub for Chinese display headings, InstrumentSerif for the short English line and arrows, SpaceGrotesk for compact Latin labels, KodeMono for specimen metadata. Main Chinese prose remains the system sans stack, metadata is at least 12px. None of these font choices propagates to chat, authenticated controls, user résumé text or PDF. OFL licenses accompany the provided font assets. `DESIGN.md` records these roles rather than silently treating intentional type as an unknown font.
+
+Four doors carry only a strict enum through the login return URL. Existing intake, model menu, billing and persistence own execution; choosing a door alone cannot launch a model. The guide is skippable/replayable, account-scoped, reduced-motion aware, and must not interrupt active typing. Browser save/refresh and actual PDF are release gates; any incomplete gate remains explicitly pending in the acceptance report.
+
 Approval: user explicitly selected the second displayed image: `/Users/yi/.codex/generated_images/019ff5a3-9056-7d43-8699-0111f7f80204/exec-43431c3b-8bef-4cfc-bf91-8ac04cd40a32.png` (977 × 1610). Seed 14328570, dealt candidates 3/5/6; selected display position 2, candidate 5, 成品主舞台. This replaces the previous homepage runtime chooser, not the Agent guide or the cockpit's other workflows. Git retains the superseded contract; it is not a current homepage requirement.
 
 THESIS: Show a complete, readable résumé and one concrete mentor-assisted revision before asking the visitor to register.

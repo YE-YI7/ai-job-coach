@@ -1,0 +1,45 @@
+{
+  "baseline": "3cefa06aabdaecd556760ecd909ded63dc798dc2",
+  "branch": "codex/ds-ui-integration-1024",
+  "productionDeployment": "dpl_CgN3UhExdc6ELWPAz7CyDnUnfgho",
+  "productionChanged": false,
+  "releaseGate": "pending_authenticated_browser_refresh_and_new_pdf",
+  "tests": {
+    "totalSuites": 295,
+    "passedSuites": 290,
+    "failedSuites": 0,
+    "passedTests": 2859,
+    "skippedTests": 10,
+    "failedTests": 0,
+    "typecheck": "passed",
+    "newComponentsLint": "passed",
+    "productionEnvironmentBuild": "passed"
+  },
+  "design": {
+    "manualDetect": true,
+    "repairRechecks": 1,
+    "primary": 3,
+    "newPrimary": 0,
+    "advisory": 305,
+    "hooksEnabled": false
+  },
+  "dataProtection": {
+    "method": "ordered_full_table_sha256_before_after",
+    "equal": true,
+    "interview_answers": { "count": 41, "sha256": "2243d81ebe9bd7f746f0b09d8071b1c5fc67ab5364ab104f2c62e6f934cd3fb6" },
+    "resumes": { "count": 16, "sha256": "448201ce790ec37c59ebe026e1adc92de3cd9d37423dcf9c291512018c17e073" },
+    "user_resumes": { "count": 16, "sha256": "53cd7680417fae867ec85a9e7f5ba451a2d312a00f97e732de47fce290848b64" },
+    "user_quotas": { "count": 142, "sha256": "b07d8f62135d62f07df26eecb26db2388f2b1a854a65c6ddb8a0918961fe7d74" },
+    "watcha_point_wallets": { "count": 1, "sha256": "f453f80b5b76beebbb8da67e212e52c8a331cca85c093f2c7ad791431c854a83" },
+    "watcha_point_transfers": { "count": 1, "sha256": "b5e0293bf61fe8487aa72c5b8b3a34500d6b6bd7fb2d5d5e14bb9069bf3ecb45" },
+    "watcha_point_reservations": { "count": 6, "sha256": "1b4ccdbdff0e1c67b37646fc3625f2a354b3e89d87926c081f6db753cf32fa7f" }
+  },
+  "modelCalls": 0,
+  "smsRequests": 0,
+  "paymentOrRedemptionOperations": 0,
+  "qaAccountsCreated": 0,
+  "modelTraceId": null,
+  "resumeChangeId": null,
+  "actualNewPdf": null,
+  "evidenceDirectory": "/private/tmp/yizhi-ds-ui-review-1024.bY6RGu"
+}

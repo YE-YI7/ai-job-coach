@@ -1,0 +1,126 @@
+@font-face{font-family:"SmileySub";src:url("/fonts/smiley-sans-sub.woff2") format("woff2");font-display:swap}
+@font-face{font-family:"InstrumentSerif";src:url("/fonts/instrument-serif.woff2") format("woff2");font-display:swap}
+@font-face{font-family:"SpaceGrotesk";src:url("/fonts/space-grotesk-var.woff2") format("woff2");font-weight:300 700;font-display:swap}
+@font-face{font-family:"KodeMono";src:url("/fonts/kode-mono.woff2") format("woff2");font-display:swap}
+
+.page{--paper:#fcfaf6;--ink:#2a251f;--ink2:#48423a;--muted:#7b7266;--line:#e8e1d6;--clay:#ad4b29;--green:#5d6b52;--amber:#a8722f;background:var(--paper);color:var(--ink);font-family:"PingFang SC","Noto Sans SC",system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100dvh;position:relative;overflow-x:hidden}
+.page:before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(1100px 620px at 50% -18%,rgba(244,226,206,.55),rgba(252,250,246,0) 68%),radial-gradient(760px 460px at 100% 0%,rgba(228,236,222,.22),rgba(252,250,246,0) 70%)}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 40px}
+.header{display:flex;align-items:center;justify-content:space-between;height:78px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;color:inherit;text-decoration:none}
+.nav{display:flex;align-items:center;gap:26px;font-size:13px;color:var(--ink2)}
+.nav a{color:inherit;text-decoration:none}
+.nav a:hover{color:var(--clay)}
+.topCta{background:var(--ink);color:#fff!important;padding:9px 15px;border-radius:8px;font-size:12.5px;transition:transform .18s cubic-bezier(.16,1,.3,1),background .18s}
+.topCta:hover{transform:translateY(-1px);background:#3b352d}
+.hero{text-align:center;padding:58px 0 0}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font:500 10px/1 "SpaceGrotesk";letter-spacing:.22em;text-transform:uppercase;color:var(--clay);margin-bottom:24px;opacity:0;animation:rise .6s .02s cubic-bezier(.16,1,.3,1) forwards}
+.eyebrow i{width:5px;height:5px;border-radius:50%;background:var(--clay)}
+.hero h1{margin:0;font-family:"SmileySub","PingFang SC",sans-serif;font-weight:400;font-size:clamp(58px,6.6vw,94px);line-height:1.06;letter-spacing:-.015em}
+.line{display:block;overflow:hidden}
+.line>span{display:block;opacity:0;animation:line .8s cubic-bezier(.16,1,.3,1) forwards}
+.line:first-child>span{animation-delay:.08s}
+.line:last-child>span{animation-delay:.18s}
+.hero h1 em{font-style:normal;color:var(--clay);position:relative}
+.hero h1 em:after{content:"";position:absolute;left:-1%;right:-1%;bottom:.02em;height:.06em;background:rgba(173,75,41,.18);border-radius:2px}
+.subEn{font-family:"InstrumentSerif",serif;font-size:clamp(21px,2.3vw,30px);color:#3d372e;margin:20px 0 0;opacity:0;animation:rise .7s .28s cubic-bezier(.16,1,.3,1) forwards}
+.lead{margin:14px auto 0;max-width:31em;font-size:15.5px;line-height:1.9;color:var(--ink2);opacity:0;animation:rise .7s .36s cubic-bezier(.16,1,.3,1) forwards}
+.lead b{color:var(--ink);font-weight:600}
+.index{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:22px;font:400 10px/1 "KodeMono",monospace;color:#9a8f80;letter-spacing:.12em;text-transform:uppercase;opacity:0;animation:rise .7s .42s cubic-bezier(.16,1,.3,1) forwards}
+.index i{width:3px;height:3px;border-radius:50%;background:#cbb8a3;display:inline-block}
+.doors{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:40px;text-align:left}
+.door{position:relative;border:1px solid var(--line);border-radius:15px;background:#fff;padding:22px 21px 19px;min-height:228px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 2px rgba(43,38,32,.03),0 16px 34px -34px rgba(43,38,32,.25);transition:transform .22s cubic-bezier(.16,1,.3,1),box-shadow .22s,border-color .22s;color:inherit;text-decoration:none;overflow:hidden;opacity:0;animation:rise .7s cubic-bezier(.16,1,.3,1) forwards}
+.door:nth-child(1){animation-delay:.46s}.door:nth-child(2){animation-delay:.54s}.door:nth-child(3){animation-delay:.62s}.door:nth-child(4){animation-delay:.70s}
+.door:before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,var(--clay),rgba(173,75,41,.05))}
+.door:hover{transform:translateY(-4px);border-color:#d8c4b0;box-shadow:0 2px 4px rgba(43,38,32,.04),0 26px 46px -34px rgba(43,38,32,.32)}
+.meta{display:flex;justify-content:space-between;align-items:center;font:400 9px/1 "KodeMono",monospace;color:#a19584;letter-spacing:.1em;text-transform:uppercase}
+.meta span:first-child{color:#b08a68}
+.door h2{margin:0;font-family:"SmileySub","PingFang SC";font-weight:400;font-size:23px;letter-spacing:.01em;line-height:1.2}
+.door p{margin:0;font-size:12.5px;line-height:1.78;color:var(--ink2)}
+.out{margin-top:auto;border-top:1px solid #f1ebe1;padding-top:11px;font-size:11px;line-height:1.7;color:var(--muted)}
+.out b{color:var(--ink);font-weight:600}
+.go{font-size:12px;color:var(--clay);font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.go span{font-family:"InstrumentSerif",serif;font-size:18px;transition:transform .2s cubic-bezier(.16,1,.3,1)}
+.door:hover .go span{transform:translateX(4px)}
+.preview{max-width:780px;margin:26px auto 0;text-align:left;border:1px solid #e9e0d2;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(43,38,32,.03),0 28px 60px -52px rgba(43,38,32,.35);overflow:hidden;animation:rise .8s .68s cubic-bezier(.16,1,.3,1) forwards;opacity:0}
+.chrome{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;background:#fbf7f0;border-bottom:1px solid #eee6da}
+.dots{display:flex;gap:5px}.dots i{width:7px;height:7px;border-radius:50%;background:#e6d7c5}.dots i:nth-child(1){background:#e8b7a2}.dots i:nth-child(2){background:#ead6a8}.dots i:nth-child(3){background:#c9d3b8}
+.windowTitle{font:500 10px/1 "KodeMono",monospace;letter-spacing:.08em;color:#8a7d6c}
+.tag{font:500 9px/1 "KodeMono",monospace;letter-spacing:.13em;color:#a0968a;text-transform:uppercase}
+.tabs{display:flex;gap:18px;padding:12px 16px 0;border-bottom:1px solid #f0eae0;font-size:10.5px;color:#9a9083}
+.tabs .on{color:var(--ink);font-weight:600;border-bottom:1.5px solid var(--clay);padding-bottom:8px}
+.previewBody{padding:13px 16px 15px}
+.verdict{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.pill{font:500 9px/1 "SpaceGrotesk";letter-spacing:.08em;color:#7a4a2e;background:#f6e3d4;padding:5px 8px;border-radius:4px}
+.notScore{font:400 8.5px/1 "KodeMono",monospace;color:#b0a598;letter-spacing:.1em}
+.previewBody h3{margin:0 0 10px;font-family:"SmileySub","PingFang SC";font-weight:400;font-size:21px;letter-spacing:.01em}
+.evidence{display:grid;gap:6px}
+.evidence>div{display:grid;grid-template-columns:13px 1fr auto;gap:8px;align-items:start;border:1px solid #f0eae0;border-radius:7px;padding:8px 10px;font-size:11.5px;line-height:1.65;background:#fdfbf7}
+.evidence p{margin:0}.evidence b{font-weight:600}
+.evidence>div>span:last-child{font:400 9px/1.5 "KodeMono",monospace;color:#9a9083;letter-spacing:.03em;white-space:nowrap}
+.ok{color:var(--green)}.warn{color:var(--amber)}
+.next{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:11px;padding-top:10px;border-top:1px solid #f0eae0}
+.next>div{display:grid;gap:2px}.next span:first-child{font:400 9px/1 "KodeMono",monospace;color:#9a9083;letter-spacing:.08em}.next b{font-size:12px}
+.nextBtn{background:#2a251f;color:#fff;border-radius:6px;padding:6px 10px;font-size:10.5px;white-space:nowrap}
+.heroFoot{display:flex;justify-content:space-between;gap:20px;margin-top:18px;font:400 9.5px/1.8 "KodeMono",monospace;color:#9a9083;letter-spacing:.03em;opacity:0;animation:rise .7s .76s cubic-bezier(.16,1,.3,1) forwards}
+.section{padding:86px 0 0;scroll-margin-top:30px}
+.kicker{font:500 10px/1 "SpaceGrotesk";letter-spacing:.2em;text-transform:uppercase;color:var(--clay);margin-bottom:14px}
+.section h2{margin:0 0 20px;font-family:"SmileySub","PingFang SC";font-weight:400;font-size:clamp(34px,4vw,52px);line-height:1.16;letter-spacing:.01em}
+.prose{max-width:64em;font-size:15.5px;line-height:1.92;color:var(--ink2)}
+.prose p{margin:0 0 14px}.prose b{color:var(--ink);font-weight:600}
+.compare{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}
+.compare>div{border-top:1px solid var(--line);padding-top:14px}
+.compareLabel{font:600 13px/1.4 "PingFang SC";color:var(--ink)}
+.compare p{margin:8px 0 0;font-size:13px;line-height:1.8;color:var(--ink2)}
+.steps{list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:0;margin:26px 0 0}
+.steps li{border:1px solid var(--line);border-radius:12px;padding:16px 15px;background:#fff}
+.steps span{font:400 10px/1 "KodeMono",monospace;color:#b08a68;letter-spacing:.08em}
+.steps b{display:block;margin:10px 0 6px;font-size:15px}
+.steps p{margin:0;font-size:12.5px;line-height:1.75;color:var(--ink2)}
+.fit{margin:22px 0 0;max-width:64em;font-size:14px;line-height:1.85;color:var(--ink2)}
+.fit b{color:var(--ink)}
+.faq{border-top:1px solid var(--line);max-width:70em}
+.faq details{border-bottom:1px solid var(--line);padding:16px 0}
+.faq summary{font-size:15px;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:20px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:after{content:"+";color:var(--clay);font-weight:400}
+.faq details[open] summary:after{content:"−"}
+.faq p{margin:12px 0 0;font-size:14px;line-height:1.9;color:var(--ink2);max-width:64em}
+.footer{margin-top:84px;border-top:1px solid var(--line);padding:30px 0 50px;display:flex;justify-content:space-between;gap:20px;font-size:11px;color:var(--muted)}
+.footerLinks{display:flex;gap:18px;flex-wrap:wrap}
+.footerLinks a{color:inherit;text-decoration:none}
+.footerLinks a:hover{color:var(--clay)}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes line{from{opacity:0;transform:translateY(110%)}to{opacity:1;transform:none}}
+@media(max-width:1120px){
+ .doors{grid-template-columns:repeat(2,1fr)}
+ .door{min-height:0}
+}
+@media(max-width:900px){
+ .wrap{padding:0 22px}
+ .nav{gap:10px;font-size:12px;flex-wrap:nowrap;min-width:0}
+ .nav a:not(.topCta){display:none}
+ .topCta{padding:8px 12px;font-size:12px}
+ .hero{padding-top:38px}
+ .hero h1{font-size:48px;line-height:1.1}
+ .doors{grid-template-columns:1fr}
+ .door{min-height:0}
+ .index{flex-wrap:wrap;gap:8px 10px;font-size:9px;padding:0 6px}
+ .compare{grid-template-columns:1fr}
+ .steps{grid-template-columns:1fr 1fr}
+ .heroFoot{flex-direction:column;gap:6px;font-size:9px}
+ .evidence>div>span:last-child{display:none}
+ .section{padding-top:64px}
+ .preview{max-width:100%}
+ .footer{flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){.page *{animation:none!important;transition:none!important}.eyebrow,.line>span,.subEn,.lead,.index,.door,.preview,.heroFoot{opacity:1!important;transform:none!important}}
+
+/* Small operational copy remains readable; the display lettering is unchanged. */
+.page{--muted:#6c6256;caret-color:var(--ink)}
+.index,.heroFoot,.meta,.windowTitle,.tag,.tabs,.pill,.notScore,.evidence>div>span:last-child,.next span:first-child,.steps span,.footer{font-size:12px;color:#6c6256;line-height:1.7}
+.evidence>div,.nextBtn{font-size:13px}
+.heroFoot{font-family:"PingFang SC","Noto Sans SC",sans-serif}
+.page a:focus-visible,.page summary:focus-visible{outline:2px solid var(--clay);outline-offset:4px}
+.page ::selection{background:#ead6c4;color:var(--ink)}
+.footerLinks{row-gap:12px}

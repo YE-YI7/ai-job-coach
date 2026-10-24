@@ -69,6 +69,26 @@ colors:
   cockpit-studio-composer-focus: "#8d9a7c"
   resume-workspace: "#f5f6f2"
 typography:
+  landing-display:
+    fontFamily: "SmileySub, PingFang SC, sans-serif"
+    fontSize: "clamp(58px, 6.6vw, 94px)"
+    fontWeight: 400
+    lineHeight: 1.06
+  landing-english:
+    fontFamily: "InstrumentSerif, serif"
+    fontSize: "clamp(21px, 2.3vw, 30px)"
+    fontWeight: 400
+    lineHeight: 1.4
+  landing-label:
+    fontFamily: "SpaceGrotesk, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
+    lineHeight: 1.7
+  landing-meta:
+    fontFamily: "KodeMono, monospace"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.7
   studio-heading:
     fontFamily: "Outfit, PingFang SC, Noto Sans SC, Microsoft YaHei, sans-serif"
     fontSize: "26px"

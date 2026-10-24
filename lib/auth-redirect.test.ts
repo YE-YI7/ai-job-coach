@@ -1,6 +1,9 @@
 import { normalizeRedirectPath, postLoginTarget, readCookieValue } from "./auth-redirect";
 
 describe("OAuth redirect helpers", () => {
+  it.each(["resume", "jd", "find_jobs", "one_sentence"])("keeps the chosen material door through login: %s", entry => {
+    expect(postLoginTarget(`/cockpit?entry=${entry}`)).toBe(`/cockpit?entry=${entry}`);
+  });
   it("takes new and returning users to the current workspace", () => {
     expect(postLoginTarget()).toBe('/cockpit');
     expect(postLoginTarget('/onboarding')).toBe('/cockpit');

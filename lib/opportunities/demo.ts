@@ -17,7 +17,7 @@ export const demoOpportunities: Opportunity[] = [
     recommendation: "prepare_then_apply",
     recommendationLabel: "补充后投递",
     recommendationReason: "产品落地和跨团队协作证据充分，但商业化结果仍缺一个可核实指标。",
-    evidenceCoverage: { strong: 4, weak: 2, missing: 1, unverified: 1 },
+    evidenceCoverage: { strong: 3, weak: 1, missing: 0, unverified: 1 },
     requirements: [
       {
         id: "req-1",

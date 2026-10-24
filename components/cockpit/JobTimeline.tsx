@@ -10,16 +10,19 @@ import {ArrowLeft} from "lucide-react";
  */
 export default function JobTimeline({opportunity,selected,onSelect}:{opportunity:Opportunity;selected:string;onSelect:(stage:JourneyStage)=>void}){
  const current=currentJourneyStage(opportunity),frozen=resumeGate(opportunity).frozen;
+ const currentLabel=journeyStages.find(s=>s.id===current)?.label;
  const verified=opportunity.requirements.filter(r=>r.verified&&r.strength==="strong").length;
  const saved:Record<string,string>={overview:verified?`${verified} 条已核验依据`:"",resume:frozen?`版本 V${frozen.version}`:"",interview:opportunity.interviewPractices?.length?`${opportunity.interviewPractices.length} 次已存反馈`:"",review:opportunity.reviewReports?.length?`${opportunity.reviewReports.length} 份已存复盘`:""};
- if(selected==='resume')return <div className={`${styles.timeline} ${styles.resumeContext}`}>
+ if(selected==='resume')return <div className={`${styles.timeline} ${styles.resumeContext}`} data-tour="stages">
   <div className={styles.resumeIdentity}><span>{opportunity.company}</span><span aria-hidden="true">/</span><h1>{opportunity.role}</h1></div>
   <nav className={styles.stageLine} aria-label="切换准备阶段"><ol>{journeyStages.map(stage=><li key={stage.id}><button type="button" onClick={()=>onSelect(stage.id)} title={saved[stage.id]?`${stage.label} · ${saved[stage.id]}`:stage.label} aria-current={selected===stage.id?"step":undefined}>{stage.label}</button></li>)}</ol></nav>
   {selected!==current&&<button className={styles.returnButton} onClick={()=>onSelect(current)}>回到当前阶段<ArrowLeft size={13}/></button>}
  </div>;
- return <div className={`${styles.timeline} ${selected === "resume" ? styles.compact : ""}`}>
-  <header className={styles.identity}><h1>{opportunity.role}</h1><div><span>{opportunity.company}</span><span className={styles.stageLabel}>{journeyStages.find(s=>s.id===current)?.label}中</span>{opportunity.location&&<span>{opportunity.location}</span>}</div></header>
+ return <div className={styles.timeline} data-tour="stages">
+  <div className={styles.timelineHead}>
+   <header className={styles.identity}><h1>{opportunity.role}</h1><div><span>{opportunity.company}</span><span className={styles.stageLabel}>{currentLabel}中</span>{opportunity.location&&<span>{opportunity.location}</span>}</div></header>
+   {selected!==current&&<button className={styles.returnButton} onClick={()=>onSelect(current)}><ArrowLeft size={13}/>回到当前：{currentLabel}</button>}
+  </div>
   <ol aria-label="岗位时间线">{journeyStages.map(s=><li key={s.id}><button onClick={()=>onSelect(s.id)} title={saved[s.id]?`${s.label} · ${saved[s.id]}`:s.label} aria-current={selected===s.id?"step":undefined}><strong>{s.label}</strong><span className="sr-only">{saved[s.id]}</span></button></li>)}</ol>
-  {selected!==current&&<div className={styles.current}><button className={styles.returnButton} onClick={()=>onSelect(current)}><ArrowLeft size={13}/>回到当前：{journeyStages.find(s=>s.id===current)?.label}</button></div>}
  </div>;
 }

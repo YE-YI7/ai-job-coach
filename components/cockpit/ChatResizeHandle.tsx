@@ -11,7 +11,7 @@ export default function ChatResizeHandle(){
   try{localStorage.setItem("yi-zhi.chat-width",String(next));}catch{}
  }
  useEffect(()=>{try{const n=Number(localStorage.getItem("yi-zhi.chat-width"));if(n>=320)resize(n);}catch{}},[]);
- return <div ref={ref} className={styles.chatResize} role="separator" tabIndex={0} aria-label="调整对话栏宽度，左右方向键调整" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={760} aria-valuenow={480}
+ return <div ref={ref} className={styles.chatResize} role="separator" tabIndex={0} aria-label="调整对话栏宽度，左右方向键调整，双击恢复默认宽度" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={760} aria-valuenow={384}
   onPointerDown={e=>{e.preventDefault();e.currentTarget.focus();e.currentTarget.setPointerCapture(e.pointerId);}}
   onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId)){const box=e.currentTarget.parentElement!.getBoundingClientRect();resize(box.right-e.clientX);}}}
   onPointerUp={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}

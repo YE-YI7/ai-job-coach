@@ -1436,3 +1436,88 @@
 .primaryButton,.secondaryButton,.emptyCopy .intakeChoices button{transition:transform 160ms cubic-bezier(.23,1,.32,1),background-color 150ms ease,border-color 150ms ease}
 .primaryButton:active:not(:disabled),.secondaryButton:active:not(:disabled),.emptyCopy .intakeChoices button:active{transform:scale(.97)}
 @media(prefers-reduced-motion:reduce){.primaryButton:active:not(:disabled),.secondaryButton:active:not(:disabled),.emptyCopy .intakeChoices button:active{transform:none}}
+
+/* —— 生产版 UI/UX 打磨（2026-10-24）：只改呈现、动效与操作可达性 —— */
+/* 切阶段时内容轻轻落位，不重做页面结构；尊重系统减少动态偏好。 */
+@media(prefers-reduced-motion:no-preference){
+  .documentBody>*{animation:stage-enter 240ms cubic-bezier(.22,1,.36,1) both}
+}
+@keyframes stage-enter{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* 证据覆盖：一条总量条里同时看四种证据，不再只画强证据。 */
+.coverageBar{display:flex;gap:2px}
+.coverageBar>span{flex:1 1 0;min-width:0;border-radius:2px;background:#b0822f}
+.coverageBar>span[data-kind="strong"]{background:var(--green)}
+.coverageBar>span[data-kind="weak"]{background:#b0822f}
+.coverageBar>span[data-kind="unverified"]{background:#8b857a}
+.coverageBar>span[data-kind="missing"]{background:var(--accent)}
+
+/* 证据页先给一张分布，再进入逐条表格。 */
+.evidenceSummary{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 0 15px;border-bottom:1px solid var(--line)}
+.evidenceSummaryLabel{color:#4f473b;font-size:12px;font-weight:500}
+.evidenceSummaryCounts{display:flex;flex-wrap:wrap;gap:8px 16px}
+.evidenceSummaryCounts span{display:inline-flex;align-items:center;gap:6px;color:#5f5a52;font-size:12px;line-height:1.5}
+.evidenceSummaryCounts i{width:7px;height:7px;border-radius:50%;background:#8b857a;flex:none}
+.evidenceSummaryCounts span[data-kind="strong"] i{background:var(--green)}
+.evidenceSummaryCounts span[data-kind="weak"] i{background:#b0822f}
+.evidenceSummaryCounts span[data-kind="missing"] i{background:var(--accent)}
+.evidenceSummaryCounts b{font-weight:600;font-variant-numeric:tabular-nums;color:#37322b}
+@media(max-width:700px){.evidenceSummary{gap:8px 14px}}
+
+/* 谈薪页：两个入口各说清一件事，下面补一条只读核对线。 */
+.salaryOverview{max-width:880px;padding:6px 0 72px}
+.salaryIntro{padding:18px 0 22px}
+.salaryIntro h2{margin:0 0 8px;font-size:30px;font-weight:600;letter-spacing:-.02em}
+.salaryIntro p{margin:0;color:#6b665e;font-size:14px;line-height:1.7}
+.salaryCards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.salaryCard{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;width:100%;padding:20px;border:1px solid #e6e1d9;border-radius:12px;background:#fdfcfa;color:#2f2a23;text-align:left;cursor:pointer;transition:background-color .16s ease,border-color .16s ease,transform .16s cubic-bezier(.22,1,.36,1),box-shadow .16s ease}
+.salaryCard:hover{background:#fff;border-color:#d9c4b4;transform:translateY(-1px);box-shadow:0 8px 22px rgb(61 51 37 / .06)}
+.salaryCard:active{transform:translateY(0) scale(.995)}
+.salaryCard:focus-visible{outline:2px solid var(--accent-deep);outline-offset:3px}
+.salaryCardIcon{width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:#f2ebe3;color:#8d4a2e}
+.salaryCardCopy{display:grid;gap:5px;min-width:0}
+.salaryCardCopy strong{font-size:15px;font-weight:600;line-height:1.4}
+.salaryCardCopy small{color:#6b665e;font-size:12px;line-height:1.6}
+.salaryCard>svg{color:#9b8e7c;transition:transform .16s ease,color .16s ease}
+.salaryCard:hover>svg{color:#8d4a2e;transform:translateX(2px)}
+.salaryChecklist{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:22px;padding-top:18px;border-top:1px solid #e6e1d9;color:#6b665e;font-size:12px}
+.salaryChecklist>span{color:#4f473b;font-weight:500}
+.salaryChecklist ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.salaryChecklist li{padding:4px 9px;border:1px solid #e4ddd4;border-radius:999px;background:#faf8f4;font-size:11px;line-height:1.5}
+.salaryChecklist small{margin-left:auto;color:#7a746c;font-size:11px}
+@media(max-width:760px){.salaryCards{grid-template-columns:1fr}.salaryIntro h2{font-size:26px}.salaryChecklist small{width:100%;margin-left:0}}
+@media(prefers-reduced-motion:reduce){.salaryCard,.salaryCard>svg{transition:none}}
+
+/* 复盘轮次：快选项只留选中态，蓝色「记为」不再和选项抢焦点。 */
+.roundPickerRow{align-items:center;gap:8px 10px;margin-bottom:24px}
+.roundPicker button{min-height:34px;font-size:12px;font-weight:500;border-color:#ded9d1;border-radius:7px;background:#fdfcfa;color:#5f5a52;transition:background-color .15s ease,border-color .15s ease,color .15s ease}
+.roundPicker button:hover{border-color:#c9b7a7;background:#fff;color:#3f3a33}
+.roundPicker button[aria-pressed="true"]{border-color:#c98f73;background:#f5e8df;color:#8c3f22;box-shadow:inset 0 0 0 1px #c98f73}
+.roundCurrentChip{min-height:30px;padding:0 9px;border-radius:6px;background:#efeae3;color:#5c5448;font-size:11px;font-weight:500}
+.roundCurrentChip[hidden]{display:none}
+.roundCustomInput{gap:6px;color:#6b665e;font-size:12px}
+.roundCustomInput input{min-height:36px;width:118px;border-color:#ded9d1;border-radius:7px;background:#fdfcfa;font-size:12px}
+.roundCustomInput input:focus{border-color:#8b857c}
+.roundPickerRow>.secondaryButton{min-height:36px;padding:7px 12px;font-size:12px}
+@media(max-width:700px){
+  .reviewNotesHeader{flex-wrap:wrap;row-gap:8px}
+  .reviewNotesHeader>label{flex:none;white-space:nowrap}
+  .roundPickerRow{align-items:stretch}
+  .roundCustomInput{display:flex;width:100%}
+  .roundCustomInput input{flex:1;width:auto;min-width:0}
+  .roundPickerRow>.secondaryButton{width:100%;justify-content:center;min-height:44px}
+  .roundPickerRow>.inlineError{width:100%}
+}
+
+/* 重点题进度：给一个明确序号，不再只靠三根小线。 */
+.focusDots{align-items:center}
+.focusCount{margin-left:7px;color:#7a746c;font-size:11px;font-weight:500;letter-spacing:.02em;line-height:1}
+
+/* 导师栏拖拽：命中区加宽，悬停/聚焦才露出握把，双击复位。 */
+.chatResize{width:12px;transform:translateX(6px);background:transparent}
+.chatResize:hover,.chatResize:focus-visible{background:transparent;outline:none}
+.chatResize::after{content:"";position:absolute;top:50%;left:50%;width:3px;height:38px;border-radius:999px;background:#c8c2b8;opacity:0;transform:translate(-50%,-50%);transition:opacity .15s ease,background-color .15s ease}
+.chatResize:hover::after,.chatResize:focus-visible::after{opacity:1}
+.chatResize:focus-visible{outline:2px solid #a64317;outline-offset:-2px;border-radius:4px}
+.chatResize:active::after{height:52px;background:#a99f90}
+@media(prefers-reduced-motion:reduce){.chatResize::after{transition:none}}

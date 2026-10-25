@@ -22,9 +22,16 @@ beforeAll(()=>{oldEmails=process.env.ADMIN_EMAILS;});
 afterAll(()=>{if(oldEmails===undefined)delete process.env.ADMIN_EMAILS;else process.env.ADMIN_EMAILS=oldEmails;});
 beforeEach(()=>{
   jest.clearAllMocks();process.env.ADMIN_EMAILS='owner@example.invalid';
+  jest.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-25T11:00:00Z'));
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id:'admin',email:'owner@example.invalid'});
   (hasActiveTokenPayConnection as jest.Mock).mockResolvedValue(true);
   (retainedResumeEvalInput as jest.Mock).mockReturnValue({original:before,preview:change.after,jd:'',facts:'s1',plan,changes:[change]});
+});
+afterEach(()=>jest.restoreAllMocks());
+test('the support window expires without retaining a permanent model billing path',async()=>{
+  jest.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-26T00:00:00Z'));
+  expect((await POST(make(body))).status).toBe(410);
+  expect(getDbClient).not.toHaveBeenCalled();expect(observedResumeLLM).not.toHaveBeenCalled();
 });
 test('authentication, CSRF and arbitrary text injection stop before database or billing',async()=>{
   expect((await POST(make(body,'https://evil.invalid'))).status).toBe(403);

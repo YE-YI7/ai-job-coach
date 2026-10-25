@@ -7,6 +7,8 @@ import {resumeMessageExpired} from "@/lib/coach-harness/resume-conversation-reco
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
 import ProfileWorkspace from "./ProfileWorkspace";
 import CurrentArrangement from "./CurrentArrangement";
+import TodayWorkspace from "./TodayWorkspace";
+import { useTodayCompanion } from "./useTodayCompanion";
 import EntryWorkspace from "./EntryWorkspace";
 import WorkspaceGuide from "./WorkspaceGuide";
 import SalaryOverview from "./SalaryOverview";
@@ -65,6 +67,7 @@ import JobTimeline from "./JobTimeline";
 import ResumeExport from "./ResumeExport";
 import ResumeToolbar from "./ResumeToolbar";
 import {getTodayMentorPlan} from "@/lib/coach-harness/next-action";
+import type { TodayTab, TodayTask } from "@/lib/coach-harness/today-view";
 import { applyResumeChanges } from "@/lib/coach-harness/application-quality";
 import ResumeBlockBoard from "./ResumeInlineReview";
 import { ResumeDraftSession } from "./ResumeDraftSession";
@@ -190,7 +193,7 @@ function CockpitWorkspace({
   const [opportunities, setOpportunities] = useState(() => shareBaseResumeAcrossOpportunities(initialOpportunities));
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<CockpitTab>(initialTab || (initialOpportunities[0] ? currentJourneyStage(initialOpportunities[0]) : "overview"));
-  const [, setSurface] = useState<"today" | "opportunity">(initialTab ? "opportunity" : "today");
+  const [surface, setSurface] = useState<"today" | "opportunity">(initialTab || initialEntry ? "opportunity" : "today");
   const [coachingStart,setCoachingStart]=useState<CoachingStart|null>(null);
   const gapCoachingFired = useRef<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -200,6 +203,13 @@ function CockpitWorkspace({
   const [entryPanel, setEntryPanel] = useState<EntryKind | null>(
     initialEntry && !intakeEntryFor(initialEntry) ? initialEntry : null,
   );
+  // 「添加材料」回到四门选择；不把用户直接塞进某一个表单。
+  const [entryChooserOpen, setEntryChooserOpen] = useState(false);
+  // 没有岗位档案时先确认云端是否已有一段真实陪伴目标，再决定 Today 还是四门空态。
+  const [emptyTodayRevision, setEmptyTodayRevision] = useState(0);
+  // undefined follows the job; null explicitly selects the unscoped goal.
+  const [todayMentorScope, setTodayMentorScope] = useState<string | null | undefined>(undefined);
+  const recoveryChecked = useRef(false);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeFormSequence, setIntakeFormSequence] = useState(0);
   const intakeCache = useRef(createIntakeCache<AnalyzeIntakeResult>());
@@ -344,6 +354,14 @@ function CockpitWorkspace({
   }, [dataMode, localIds, localLoaded, opportunities, generatingResume, resumeMessageBusy, supplementingMaterial, syncRetry]);
 
   const active = opportunities.find((item) => item.id === activeId) ?? opportunities[0];
+  const emptyTodayResult = useTodayCompanion({
+    scope: "none", revision: emptyTodayRevision,
+    enabled: dataMode === "live" && !active && !creating && !entryPanel &&
+      !entryChooserOpen && !initialTab && !initialEntry,
+  });
+  const emptyToday = emptyTodayResult.status;
+  const emptyTodayError = emptyTodayResult.error;
+  const emptyCompanion = emptyTodayResult.companion;
   const nextAction = active ? getTodayMentorPlan([active]).focus : undefined;
   const relatedJobs = opportunities.filter((item) => item.id !== active?.id && item.workspaceType !== "preparation" && item.jdText?.trim());
   const orderedOpportunities = useMemo(
@@ -372,6 +390,8 @@ function CockpitWorkspace({
     overview: "岗位概览", evidence: "证据补充", resume: "简历修改",
     interview: "模拟面试", review: "面试复盘", salary: "谈薪",
   };
+  const todayPlan = getTodayMentorPlan(opportunities);
+  const todayTop = todayPlan.actions.find((action) => action.actionType !== "onboarding");
   // 发给导师的实时上下文：当前岗位 + 正在看的页面 + 工作台现状 + 最近完成的动作（最多 6 条）。
   // 现状一行让导师不用猜「用户做到哪了」：简历进度、面试与复盘的真实数量都在这里。
   const chatContext = active
@@ -391,13 +411,102 @@ function CockpitWorkspace({
         }
         return [
           `当前岗位：${active.company} · ${active.role}（阶段：${stageStatusWord(active)}）`,
-          `用户此刻在「${TAB_PAGE_LABELS[activeTab]}」页面`,
+          `用户此刻在「${surface === "today" ? "今天工作台" : TAB_PAGE_LABELS[activeTab]}」页面`,
+          surface === "today" ? `今天页面建议：${todayTop ? `先做「${todayTop.title}」` : "不新增任务"}。` : "",
           `工作台现状：${material}；${resumeState}`,
           `面试训练：重点题 ${active.interviewFocus?.length || 0} 道、单题速练 ${practiceCount} 次、已完成整轮 ${doneRounds} 轮${(active.snapshots || []).some((s) => s.snapshotType === "interview_feedback") ? "，有已保存的复盘素材" : ""}`,
           recentActions.length ? `最近操作：${recentActions.map((a) => a.text).join("；")}` : "",
         ].filter(Boolean).join("\n");
       })()
     : "";
+
+  const todayChatContext = active
+    ? chatContext
+    : surface === "today"
+      ? [
+          "用户此刻在「今天」工作台，还没有岗位档案；不要假设用户已有简历或 JD。",
+          emptyCompanion ? `用户已保存的目标：${emptyCompanion.goalTitle}；下一步：${emptyCompanion.stepTitle || "待定"}。` : "",
+          todayTop ? `系统建议先做：${todayTop.title}。` : "今天没有新增任务，不要为了活跃度硬派任务。",
+          recentActions.length ? `最近操作：${recentActions.map((item) => item.text).join("；")}` : "",
+        ].filter(Boolean).join("\n")
+      : chatContext;
+
+  const openTodayTab = (tab: TodayTab, opportunityId?: string | null) => {
+    const target = opportunityId ? opportunities.find((item) => item.id === opportunityId) : active;
+    if (!target) {
+      setEntryChooserOpen(true);
+      return;
+    }
+    setCreating(false);
+    setEntryPanel(null);
+    setActiveId(target.id);
+    setActiveTab(tab);
+    setSurface("opportunity");
+    setMobileRail(null);
+  };
+
+  const openTodayResume = (opportunityId?: string | null) => {
+    const target = opportunityId ? opportunities.find((item) => item.id === opportunityId) : active;
+    if (!target) {
+      setEntryChooserOpen(true);
+      return;
+    }
+    setCreating(false);
+    setEntryPanel(null);
+    setActiveId(target.id);
+    setSurface("opportunity");
+    setMobileRail(null);
+    if (target.workspaceType === "preparation") {
+      setProfileView("profile");
+      setActiveTab("overview");
+    } else {
+      setActiveTab("resume");
+    }
+  };
+
+  const openTodayInterview = (opportunityId?: string | null) => {
+    const target = opportunityId ? opportunities.find((item) => item.id === opportunityId) : active;
+    if (!target) {
+      setEntryChooserOpen(true);
+      return;
+    }
+    setCreating(false);
+    setEntryPanel(null);
+    setActiveId(target.id);
+    setActiveTab("interview");
+    setSurface("opportunity");
+    setMobileRail(null);
+  };
+
+  const completeTodayTask = (task: TodayTask) => {
+    const targetId = task.opportunityId || active?.id;
+    const target = opportunities.find((item) => item.id === targetId);
+    if (!target || !task.sourceActionId) return;
+    setOpportunities((current) => current.map((item) => item.id === target.id
+      ? { ...item, actions: item.actions.map((action) => action.id === task.sourceActionId ? { ...action, status: "done" as const } : action) }
+      : item));
+    if (dataMode === "live") trackProductEvent("today_action_completed", { opportunity_id: target.id, action_id: task.sourceActionId });
+    logAction(`把「${task.title}」标记为做过（自报，未验证）`);
+    // 自报完成只改变任务状态，不点亮能力；能力仍由保存的产物确认。
+    announce("已标记做过（自报）；能力确认仍以你保存的材料为准");
+  };
+
+  const snoozeTodayTask = (task: TodayTask) => {
+    const targetId = task.opportunityId || active?.id;
+    const target = opportunities.find((item) => item.id === targetId);
+    if (!target) return;
+    const until = new Date(Date.now() + 86_400_000).toISOString();
+    setOpportunities((current) => current.map((item) => item.id === target.id
+      ? {
+          ...item,
+          mentorSnoozes: [
+            ...(item.mentorSnoozes || []).filter((entry) => entry.actionId !== task.id),
+            { actionId: task.id, until },
+          ],
+        }
+      : item));
+    announce("已放到明天再看；任务没有删除，也没有改变岗位状态");
+  };
 
   const removeOpportunityLocally = (id: string) => {
     setOpportunities((current) => {
@@ -468,6 +577,7 @@ function CockpitWorkspace({
       const updated = await supplementOpportunity({kind:"resume",sourceText:intake.sourceText,file:intake.file,saveOnly:true},baseProfile);
       if (!updated) throw Error("简历仍在保存，请稍后重试");
       setActiveId(updated.id); setActiveTab("overview");
+      setSurface("opportunity");
       clearEntryRoute();
       return {opportunity:updated,deferred:false};
     }
@@ -554,6 +664,7 @@ function CockpitWorkspace({
     setOpportunities((current) => shareBaseResumeAcrossOpportunities([opportunity, ...current]));
     setActiveId(opportunity.id);
     setActiveTab(entry === "interview" ? "interview" : entry === "resume" && opportunity.resumeText && opportunity.jdText ? "resume" : "overview");
+    setSurface("opportunity");
     if (dataMode === "live") trackProductEvent("material_intake_completed", { request_id:requestId, analysis_deferred:Boolean(result.analysisDeferred), opportunity_id: opportunity.id, workspace_type: opportunity.workspaceType || "job", synced: opportunity.id !== localId });
     announce(result.savedOnly ? "简历已保存，可开始修改" : analysis ? "材料已同步并完成初步分析" : "原文已同步，分析暂未完成");
     return { opportunity, deferred: Boolean(result.analysisDeferred || (!result.savedOnly && !result.analysis)) };
@@ -763,6 +874,44 @@ function CockpitWorkspace({
     void read();return()=>{stopped=true;if(timer)clearTimeout(timer);};
   // 读取任务不调用模型；任务切换、替换或运行状态变化后恢复轮询。
   },[activeId,active?.resumeRevision,dataMode,generatingResume,resumeMessageBusy,localIds]);
+
+  // 默认今天不能吞掉进行中的上下文：只在这两种有真实服务端状态时回到原处，
+  // 且只在没有显式深链接/入口、用户还没离开今天时触发一次。
+  useEffect(() => {
+    if (recoveryChecked.current) return;
+    if (!active || dataMode !== "live") { recoveryChecked.current = true; return; }
+    if (viewStorageKey && viewReadyKey !== viewStorageKey) return;
+    if (creating || initialTab || initialEntry || entryPanel || entryChooserOpen) { recoveryChecked.current = true; return; }
+    if (surface !== "today") { recoveryChecked.current = true; return; }
+    const runningInterview = (active.mockInterviews || []).find((item) => {
+      if (item.status !== "running") return false;
+      const startedAt = new Date(item.createdAt).getTime();
+      return Number.isFinite(startedAt) && Date.now() - startedAt < 86_400_000;
+    });
+    if (runningInterview) {
+      recoveryChecked.current = true;
+      setActiveTab("interview");
+      setSurface("opportunity");
+      announce("上次的模拟面试还没结束，已回到面试台；回答仍保留。");
+      return;
+    }
+    if (localIds.includes(active.id)) { recoveryChecked.current = true; return; }
+    const resumeTask = resumeAgentTasks[active.id];
+    if (resumeTask === undefined) return;
+    if (resumeTask && !["idle", "stale", "ready", "failed"].includes(resumeTask.state)) {
+      recoveryChecked.current = true;
+      if (active.workspaceType === "preparation") {
+        setProfileView("profile");
+        setActiveTab("overview");
+      } else {
+        setActiveTab("resume");
+      }
+      setSurface("opportunity");
+      announce("上次的简历修改还没结束，已回到原处；已保存的问答仍保留。");
+      return;
+    }
+    recoveryChecked.current = true;
+  }, [active, dataMode, viewStorageKey, viewReadyKey, creating, initialTab, initialEntry, entryPanel, entryChooserOpen, surface, localIds, resumeAgentTasks]);
 
   const runResumeAgent = async (
     action:string,answer?:string,target=active,requestId?:string,onReply?:(text:string)=>void,
@@ -1113,6 +1262,11 @@ function CockpitWorkspace({
   const documentSaveState = active && savedPayloads.current.get(active.id) === JSON.stringify(active)
     ? "saved" : active && saveReceipts[active.id]?.payload === JSON.stringify(active) && saveReceipts[active.id]?.status === "failed"
       ? "failed" : "saving";
+  // Today 的操作可能落在别的岗位；失败提示必须覆盖当前页面改过的全部岗位。
+  const todaySaveState = opportunities.some((item) =>
+    saveReceipts[item.id]?.status === "failed" && saveReceipts[item.id]?.payload === JSON.stringify(item))
+    ? "failed"
+    : opportunities.some((item) => saveReceipts[item.id]?.status === "saving") ? "saving" : "saved";
 
   // 四类入口弹层（PRD §3.1）：首访自动弹出；「我的计划」按钮随时可找回。
   // 抽成共享节点，今日视图和岗位工作台两个渲染路径都能挂载。
@@ -1140,23 +1294,47 @@ function CockpitWorkspace({
     </div>
   ) : null;
 
-  if ((entryPanel || !active) && !creating) return <EntryWorkspace
-    key={entryPanel || "empty"}
-    initialEntry={entryPanel ?? undefined}
+  const todayProbePending = !active && dataMode === "live" && emptyToday === "loading";
+  const todayProbeFailed = !active && dataMode === "live" && emptyToday === "error";
+  const todayWithoutJob = !active && dataMode === "live" && emptyToday === "present";
+  const entryWorkspace = (key: string, initial: EntryKind | undefined, canReturn: boolean) => <EntryWorkspace
+    key={key}
+    initialEntry={initial}
     accountLabel={compactAccountLabel(userEmail)}
     scope={userId || userEmail || dataMode}
     live={dataMode === "live"}
-    canReturn={Boolean(active)}
+    canReturn={canReturn}
     onMaterial={entry => {
       setEntryPanel(null);
+      setEntryChooserOpen(false);
+      clearEntryRoute();
       setNewEntry(entry);
-      setCreateOrigin("opportunity");
+      setCreateOrigin("today");
       setIntakeFormSequence(value => value + 1);
       setCreating(true);
     }}
-    onBack={() => { setEntryPanel(null); clearEntryRoute(); }}
+    onBack={() => { setEntryPanel(null); setEntryChooserOpen(false); clearEntryRoute(); }}
     onLogout={logout}
   />;
+  if (!creating && (entryPanel || entryChooserOpen)) {
+    return entryWorkspace(entryPanel || "chooser", entryPanel ?? undefined, Boolean(active) || todayWithoutJob);
+  }
+  if (!active && !creating && !todayWithoutJob) {
+    if (todayProbePending) {
+      return <main className={styles.probePage} aria-busy="true"><p>正在找回今天的安排…</p></main>;
+    }
+    if (todayProbeFailed) {
+      return <main className={styles.probePage} role="alert">
+        <h1>今天的安排暂时没读回来</h1>
+        <p>{emptyTodayError || "服务暂时没响应，安排没有丢。"}可以先重试；也可以先从一份材料开始。</p>
+        <div className={styles.probeActions}>
+          <button type="button" onClick={() => setEmptyTodayRevision(value => value + 1)}>重试</button>
+          <button type="button" onClick={() => setEntryChooserOpen(true)}>先选一份材料</button>
+        </div>
+      </main>;
+    }
+    return entryWorkspace("empty", undefined, false);
+  }
 
   return (
     <main className={styles.shell}>
@@ -1169,7 +1347,7 @@ function CockpitWorkspace({
             {creating ? "添加求职材料" : active && localIds.includes(active.id) ? "浏览器数据" : dataMode === "demo" ? "示例工作区" : "个人工作区"}
           </span>
           {creating && <button disabled={intakeBusy} type="button" className={styles.textButton}
-            onClick={() => { setCreating(false); clearEntryRoute(); }}>返回工作区</button>}
+            onClick={() => { setCreating(false); setSurface("today"); clearEntryRoute(); }}>返回工作区</button>}
           <WorkspaceGuide scope={userId || userEmail || "preview"} enabled={!creating && !intakeBusy} />
           <WorkspaceAccount label={compactAccountLabel(userEmail)} live={dataMode === "live"} disabled={intakeBusy} onLogout={logout} />
         </div>
@@ -1181,18 +1359,16 @@ function CockpitWorkspace({
 
       <div className={styles.workspace} data-chat-layout="workspace"><ChatResizeHandle/>
         <OpportunityRail
-          profileActive={!creating && active?.workspaceType === "preparation"}
+          todayActive={!creating && surface === "today"}
+          profileActive={!creating && surface === "opportunity" && active?.workspaceType === "preparation"}
           notesEnabled={dataMode === "live"}
           onOpenNotes={() => setNotesOpen(true)}
           onOpenWorkspace={() => {
             if (intakeBusy) { announce("材料仍在整理，请保留此页面"); return; }
-            setCreating(false); setMobileRail(null);
-            if (active?.workspaceType === "preparation") {
-              const job = opportunities.find(item => item.workspaceType !== "preparation");
-              if (job) { setActiveId(job.id); setActiveTab(currentJourneyStage(job)); }
-            }
+            setCreating(false); setEntryPanel(null); setEntryChooserOpen(false);
+            setSurface("today"); setMobileRail(null); clearEntryRoute();
           }}
-          onOpenProfile={() => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
+          onOpenProfile={() => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} const profile = opportunities.find(item=>item.workspaceType==="preparation"); setMobileRail(null); if(profile){setActiveId(profile.id);setActiveTab("overview");setSurface("opportunity");setCreating(false);}else{setNewEntry("direction");setCreating(true);} }}
           activeId={active?.id ?? ""}
           opportunities={filtered}
           query={query}
@@ -1200,7 +1376,7 @@ function CockpitWorkspace({
           onQueryChange={setQuery}
           pinnedIds={railPins}
           canReorder={!query.trim()}
-          onSelect={(id) => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} setCreating(false); setActiveId(id); setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!)); setMobileRail(null); }}
+          onSelect={(id) => { if(intakeBusy){announce("材料仍在整理，请保留此页面");return;} setCreating(false); setSurface("opportunity"); setActiveId(id); setActiveTab(currentJourneyStage(opportunities.find(o=>o.id===id)!)); setMobileRail(null); }}
           onTogglePin={toggleOpportunityPin}
           onReorder={reorderOpportunities}
           onDelete={deleteOpportunity}
@@ -1208,14 +1384,37 @@ function CockpitWorkspace({
           onClose={() => setMobileRail(null)}
         />
 
-        <section className={`${styles.document} ${!creating && (activeTab === "resume" || (active?.workspaceType === "preparation" && profileView === "profile")) ? styles.resumeDocument : ""}`} aria-label={creating ? "新建岗位" : `${active?.company} ${active?.role}作战档案`}>
-          {!creating && activeTab === "overview" && nextAction?.tab === "resume" && nextAction.cost === "free" && <section className={styles.nextFocus} aria-label="建议下一步"><span>下一步</span><h2>{nextAction.title}</h2><p>{nextAction.reason}</p><button type="button" className={styles.secondaryButton} onClick={() => setActiveTab("resume")}>去核对 · 免费<ArrowRight size={16}/></button></section>}
-          {!creating && active && (activeTab === "resume" || active.workspaceType === "preparation") && dataMode === "live" && <div className={styles.saveReceipt} role="status"><span key={`${active.id}:${documentSaveState}`} data-state={documentSaveState}>{documentSaveState === "saved" ? "已保存到工作区" : documentSaveState === "failed" ? <>云端保存失败，当前草稿仍在页面中。<button type="button" onClick={() => setSyncRetry(value => value + 1)}>重试保存</button></> : "正在保存草稿…"}</span></div>}
+        <section className={`${styles.document} ${!creating && surface === "opportunity" && (activeTab === "resume" || (active?.workspaceType === "preparation" && profileView === "profile")) ? styles.resumeDocument : ""}`} aria-label={creating ? "新建岗位" : surface === "today" ? "今天工作台" : `${active?.company} ${active?.role}作战档案`}>
+          {!creating && surface === "opportunity" && activeTab === "overview" && nextAction?.tab === "resume" && nextAction.cost === "free" && <section className={styles.nextFocus} aria-label="建议下一步"><span>下一步</span><h2>{nextAction.title}</h2><p>{nextAction.reason}</p><button type="button" className={styles.secondaryButton} onClick={() => setActiveTab("resume")}>去核对 · 免费<ArrowRight size={16}/></button></section>}
+          {!creating && surface === "opportunity" && active && (activeTab === "resume" || active.workspaceType === "preparation") && dataMode === "live" && <div className={styles.saveReceipt} role="status"><span key={`${active.id}:${documentSaveState}`} data-state={documentSaveState}>{documentSaveState === "saved" ? "已保存到工作区" : documentSaveState === "failed" ? <>云端保存失败，当前草稿仍在页面中。<button type="button" onClick={() => setSyncRetry(value => value + 1)}>重试保存</button></> : "正在保存草稿…"}</span></div>}
           {creating ? <NewOpportunityForm key={intakeFormSequence} initialEntry={newEntry}
             initialSourceText={newEntry === "resume" && active?.workspaceType === "preparation" && !active.resumeText ? active.profileText || "" : ""}
             onCreate={createOpportunity} onBusyChange={setIntakeBusy}
             onSentence={()=>{setCreating(false);setEntryPanel('one_sentence');setMobileRail(null);}}
-            onCancel={() => { setCreating(false); setSurface(createOrigin); clearEntryRoute(); }} /> : active && <>
+            onCancel={() => { setCreating(false); setSurface(createOrigin); clearEntryRoute(); }} /> : surface === "today" ? <TodayWorkspace
+              opportunities={opportunities}
+              activeId={active?.id ?? ""}
+              live={dataMode === "live"}
+              demo={dataMode === "demo"}
+              saveState={todaySaveState}
+              initialCompanion={active ? null : emptyCompanion}
+              onOpenTab={openTodayTab}
+              onOpenResume={openTodayResume}
+              onOpenInterview={openTodayInterview}
+              onAddMaterial={() => {
+                if (intakeBusy) { announce("材料仍在整理，请保留此页面"); return; }
+                setEntryChooserOpen(true);
+                setMobileRail(null);
+              }}
+              onSnoozeTask={snoozeTodayTask}
+              onCompleteTask={completeTodayTask}
+              onRetrySave={() => setSyncRetry(value => value + 1)}
+              onAskMentor={(prompt, attemptId, opportunityId) => {
+                setTodayMentorScope(opportunityId);
+                setCoachingStart({ id: attemptId, opportunityId: opportunityId ?? undefined, title: "当前安排", prompt });
+                setMobileRail("actions");
+              }}
+            /> : active && <>
           {dataMode === "demo" && !localIds.includes(active.id) && <DemoNotice onCreate={() => { setCreateOrigin("opportunity"); setCreating(true); }} />}
           {active.workspaceType === "preparation" ? <ProfileWorkspace key={active.id} onViewChange={setProfileView} editor={<ResumeTab onEditBlock={changeResumeBlock} onUndo={()=>travelResume("undo")} onRedo={()=>travelResume("redo")} onFocusMentor={focusResumeMentor} opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setCoachingStart({id:crypto.randomUUID(),opportunityId:active.id,title:"补充真实经历",prompt:"帮我把当前简历缺少具体动作与结果的一处讲清楚，一次问一个问题，不补编经历。"})} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => {void generateResumeDraft().catch(()=>{});}} onGenerateTrial={dataMode==='live'&&!localIds.includes(active.id)?(blockId,excerpt)=>generateResumeDraft(active,{blockId,excerpt}):undefined} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={() => {}} onPhotoChange={dataMode === "live" ? setResumePhoto : undefined}/>} arrangement={<CurrentArrangement
               opportunityId={active.id}
@@ -1269,10 +1468,10 @@ function CockpitWorkspace({
         </section>
 
         {creating && <CreationRail />}
-        {active && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
-          resumeContext={active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume"}
+        {(active || todayWithoutJob) && <ActionRail hidden={creating} jobLabels={Object.fromEntries(opportunities.map(o=>[o.id,`${o.company} · ${o.role}`]))}
+          resumeContext={surface === "opportunity" && Boolean(active) && (active!.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")}
           resumeWorkflow={
-            (active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&
+            surface === "opportunity" && active && (active.workspaceType==="preparation"?profileView==="profile":activeTab==="resume")&&resumeAgentTasks[active.id]&&
             !["idle","stale"].includes(resumeAgentTasks[active.id]!.state)?{
               key:active.id+":"+resumeAgentTasks[active.id]!.question?.id+":"+resumeAgentTasks[active.id]!.state+":"+
                 resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,
@@ -1284,11 +1483,12 @@ function CockpitWorkspace({
               />,
             } : undefined
           }
-          opportunity={active}
+          opportunity={surface === "today" && todayMentorScope !== undefined
+            ? opportunities.find(item => item.id === todayMentorScope) ?? null : active ?? null}
           mobileOpen={mobileRail === "actions"}
           startRequest={coachingStart}
           onStartConsumed={()=>setCoachingStart(null)}
-          onStageAdvanced={async (stage,targetId)=>{
+          onStageAdvanced={active ? async (stage,targetId)=>{
             const target=opportunities.find(o=>o.id===(targetId||active.id));if(!target)return false;
             const stageLabel=STAGE_STATUS_WORDS[stage]||target.stageLabel;
             const result=await commitStage({
@@ -1303,9 +1503,9 @@ function CockpitWorkspace({
             if(result.saved){logAction(`把岗位状态更新为「${stageLabel}」`);return true;}
             announce(`状态没有保存：${result.error}——岗位仍是「${STAGE_STATUS_WORDS[target.stage]||target.stageLabel}」，确认条还在，请稍后重试`);
             return false;
-          }}
-          chatContext={chatContext}
-          storageMode={localIds.includes(active.id) ? "local" : dataMode === "live" ? "cloud" : "demo"}
+          } : undefined}
+          chatContext={surface === "today" ? todayChatContext : chatContext}
+          storageMode={active ? (localIds.includes(active.id) ? "local" : dataMode === "live" ? "cloud" : "demo") : dataMode === "live" ? "cloud" : "demo"}
           onClose={() => setMobileRail(null)}
         />}
       </div>
@@ -1328,8 +1528,8 @@ function DemoNotice({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSelect, onCreate, onOpenProfile, onOpenWorkspace, onOpenNotes, profileActive, notesEnabled, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
-  profileActive: boolean; notesEnabled: boolean; onOpenWorkspace: () => void; onOpenNotes: () => void;
+function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSelect, onCreate, onOpenProfile, onOpenWorkspace, onOpenNotes, profileActive, todayActive, notesEnabled, mobileOpen, onClose, pinnedIds, canReorder, onTogglePin, onReorder, onDelete }: {
+  profileActive: boolean; todayActive: boolean; notesEnabled: boolean; onOpenWorkspace: () => void; onOpenNotes: () => void;
   onOpenProfile: () => void;
   activeId: string; opportunities: Opportunity[]; query: string;
   onQueryChange: (value: string) => void; onSelect: (id: string) => void; onCreate: () => void;
@@ -1346,7 +1546,7 @@ function OpportunityRail({ activeId, opportunities, query, onQueryChange, onSele
     <aside className={`${styles.opportunityRail} ${mobileOpen ? styles.mobileRailOpen : ""}`}
       aria-label="岗位机会" data-tour="opportunities">
       <nav className={styles.workspaceNav} aria-label="工作区导航">
-        <button type="button" aria-current={!profileActive ? "page" : undefined} onClick={onOpenWorkspace}><House size={18} aria-hidden="true" />工作台</button>
+        <button type="button" aria-current={todayActive ? "page" : undefined} onClick={onOpenWorkspace}><House size={18} aria-hidden="true" />今天</button>
         <button type="button" aria-current={profileActive ? "page" : undefined} onClick={onOpenProfile}><FileText size={18} aria-hidden="true" />我的简历</button>
         <button type="button" disabled={!notesEnabled} title={notesEnabled ? "查看、新建和编辑笔记" : "登录后可以使用我的笔记"} onClick={onOpenNotes}><NotebookPen size={18} aria-hidden="true" />我的笔记</button>
       </nav>
@@ -2296,7 +2496,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         <textarea aria-label="单题练习回答" value={answer} onChange={event=>setAnswer(event.target.value)} rows={7} placeholder="先说出你的真实回答。不确定的数字可以明确写“待核实”。" />
         {practiceFeedback && feedbackFor===currentQuestion.question && <article className={styles.practiceResult} data-verdict={practiceFeedback.verdict}>
           <header><span>{practiceFeedback.verdict}</span><time>{new Date(practiceFeedback.createdAt).toLocaleDateString("zh-CN")}</time></header><strong>{practiceFeedback.summary}</strong>
-          <div><section><b>保留</b>{practiceFeedback.strengths.length?<ul className={styles.dotListGood}>{practiceFeedback.strengths.map(item=><li key={item}>{item}</li>)}</ul>:<p>暂未识别到稳定优势</p>}</section><section><b>重答先补</b><ul className={styles.dotListWarn}>{practiceFeedback.gaps.map(item=><li key={item}>{item}</li>)}</ul></section></div>
+          <div><section><b>保留（回答里已经成立的）</b>{practiceFeedback.strengths.length?<ul className={styles.dotListGood}>{practiceFeedback.strengths.slice(0,2).map(item=><li key={item}>{item}</li>)}</ul>:<p>暂未识别到稳定优势</p>}</section><section><b>下一遍只改这一处</b>{practiceFeedback.gaps.length?<p>{practiceFeedback.gaps[0]}</p>:<p>暂时没发现需要补的关键缺口，保持同一结构再答一遍。</p>}</section></div>
+          {practiceFeedback.improvedOutline.length>0&&<section className={styles.practiceOutline}><b>重答骨架（用自己的真实事实填空）</b><ol>{practiceFeedback.improvedOutline.slice(0,4).map((item,index)=><li key={`${index}-${item}`}>{item}</li>)}</ol></section>}
           <footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer>
         </article>}
         {practiceError&&<p className={styles.inlineError}>{practiceError}</p>}
@@ -2424,7 +2625,7 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
 
 function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startRequest, onStartConsumed, onStageAdvanced, chatContext, hidden, jobLabels, resumeWorkflow, resumeContext }: {
   resumeContext?:boolean;resumeWorkflow?:{key:string;content:React.ReactNode};
-  opportunity: Opportunity; hidden?: boolean; jobLabels:Record<string,string>;
+  opportunity: Opportunity | null; hidden?: boolean; jobLabels:Record<string,string>;
   startRequest?: CoachingStart|null; onStartConsumed?: (id:string)=>void;
   onStageAdvanced?: (stage: OpportunityStage,targetId?:string)=>void|Promise<boolean>;
   chatContext?: string;
@@ -2437,7 +2638,14 @@ function ActionRail({ opportunity, storageMode, mobileOpen, onClose, startReques
     <aside className={`${styles.actionRail} ${mobileOpen ? styles.mobileRailOpen : ""}`}
       aria-label="导师对话" data-tour="mentor" style={hidden ? { display: "none" } : undefined}>
       <button className={styles.mobileClose} onClick={onClose} aria-label="关闭导师对话"><X size={19}/></button>
-      <AgentConversation resumeContext={resumeContext} resumeWorkflow={resumeWorkflow} jobLabels={jobLabels} invitation={tutorInvitation(opportunity.interviewPractices?.[0])} opening={resumeContext?{text:"点击“开始修改”，我会先整理已有经历。需要补充时，我们一次只聊一个具体问题。",prompts:[]}:mentorOpening(opportunity)} startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext} opportunityId={opportunity.id} label={`${opportunity.company} · ${opportunity.role}`} enabled={storageMode === "cloud"} />
+      <AgentConversation resumeContext={resumeContext} resumeWorkflow={resumeWorkflow} jobLabels={jobLabels}
+        invitation={opportunity ? tutorInvitation(opportunity.interviewPractices?.[0]) : undefined}
+        opening={resumeContext
+          ? {text:"点击“开始修改”，我会先整理已有经历。需要补充时，我们一次只聊一个具体问题。",prompts:[]}
+          : opportunity ? mentorOpening(opportunity) : {text:"先说说你现在最想解决的一件事。我会结合你已经保存的目标和材料，不替你编造经历。",prompts:[]}}
+        startRequest={startRequest} onStartConsumed={onStartConsumed} onStageAdvanced={onStageAdvanced} chatContext={chatContext}
+        opportunityId={opportunity?.id} label={opportunity ? `${opportunity.company} · ${opportunity.role}` : "当前目标"}
+        enabled={storageMode === "cloud"} />
     </aside>
   );
 }

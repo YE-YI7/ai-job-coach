@@ -40,8 +40,12 @@ describe("quiet text-entry focus", () => {
 
   it("removes both legacy login halos but leaves the atmosphere intact", () => {
     const login = source("app/login/LoginClient.tsx");
+    const css = source("app/login/LoginClient.module.css");
     expect(login).not.toMatch(/box-shadow: 0 0 0 [34]px rgba\(249, 115, 22/);
-    expect(login).toContain(".input-field input:focus { outline: none; box-shadow: none; }");
-    expect(login).toContain("background: linear-gradient(135deg, #f97316 0%, #ea580c 100%)");
+    expect(login).not.toContain(".input-field input:focus");
+    expect(login).not.toContain("linear-gradient(135deg, #f97316");
+    expect(css).toContain("box-shadow: 0 0 0 3px rgba(224, 85, 44, 0.12)");
+    expect(css).toMatch(/\.input \{[^}]*outline: none/);
+    expect(css).toContain(".atmosphere");
   });
 });

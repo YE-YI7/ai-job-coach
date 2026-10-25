@@ -11,13 +11,15 @@ type Saved = { id: string; version: number; companion: CompanionTask };
 type Action = "open" | "submit" | "start" | "stuck" | "skip" | "end" | "reopen";
 const draftKey = (id: string) => `companion-draft:${id}`;
 
-export default function CurrentArrangement({ fixture = false, opportunityId = null, initialText='',startNewGoal=false,onOpened,
+export default function CurrentArrangement({ fixture = false, opportunityId = null, initialText='',startNewGoal=false,onOpened,hideWhenEmpty=false,
   onAskMentor, onOpenResume, onOpenInterview }: {
   fixture?: boolean;
   opportunityId?: string | null;
   initialText?:string;
   startNewGoal?:boolean;
   onOpened?:()=>void;
+  /** Today only mounts the card when a plan exists; never show a second creation form there. */
+  hideWhenEmpty?:boolean;
   onAskMentor?: (prompt: string, attemptId: string) => void;
   onOpenResume?: () => void;
   onOpenInterview?: () => void;
@@ -198,6 +200,7 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
     finally { lock.current = false; setBusy(false); }
   }
 
+  if (hideWhenEmpty && !fixture && !task && !error) return null;
   if (loading) return <p role="status">正在找回安排…</p>;
   if (!fixture && !enabled && !task && !error) return null;
   if (!open && !task && !error) return <button type="button" className={styles.textButton} onClick={() => setOpen(true)}>想一起梳理接下来怎么做</button>;

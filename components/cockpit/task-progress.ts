@@ -80,3 +80,27 @@ export function nextPollDelayMs(runs: TaskRun[]): number {
 export function cancelRunRequest(runId: string): { method: "POST"; path: string; body: { action: "cancel" } } {
   return { method: "POST", path: `/api/coach/runs/${runId}`, body: { action: "cancel" } };
 }
+
+export type CancelOutcome =
+  | { kind: "cancelled" | "partial"; message: string }
+  | { kind: "unconfirmed"; message: string };
+
+/**
+ * 只有服务端回写了取消结果才算停止。
+ * 网络成功、HTTP 2xx 或浏览器中断都不等于取消成功；
+ * 回写发生在保存窗口时服务端会收口为 partial，不能说成「已取消、没有产出」。
+ */
+export function parseCancelResponse(ok: boolean, raw: unknown): CancelOutcome {
+  const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  if (!ok || body.ok !== true) {
+    return { kind: "unconfirmed", message: "取消没有保存到云端；已重新读取任务状态，请以当前显示为准。" };
+  }
+  const status = readString(body.status);
+  if (status === "cancelled") {
+    return { kind: "cancelled", message: "已取消；已保存的内容不会消失。" };
+  }
+  if (status === "partial") {
+    return { kind: "partial", message: "取消发生在保存阶段：已完成的步骤保留，未完成的不再继续。" };
+  }
+  return { kind: "unconfirmed", message: "取消结果没有确认；已重新读取任务状态，请以当前显示为准。" };
+}

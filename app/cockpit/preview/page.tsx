@@ -81,7 +81,7 @@ export default async function CockpitPreviewPage({ searchParams }: {
   }
   return (
     <CockpitApp
-      initialOpportunities={params.studio==="1"?studioOpportunities:params.empty === "1" ? [] : params.narrative === "1" ? previewOpportunities.map(item=>({...item,resumeText:narrativeResume,resumeChanges:params.changes === "1" ? [{ ...demoOpportunities[0].resumeChanges[0], id: "narrative-edit", before: "完整性标记 NARRATIVE-1，仅为排版测试。", after: "完整性标记 NARRATIVE-1，已核对排版测试。", status: "pending" as const }] : []})) : params.longResume === "1" ? previewOpportunities.map(item=>({...item,resumeText:longResume})) : previewOpportunities}
+      initialOpportunities={params.studio==="1"?studioOpportunities:params.empty === "1" ? [] : params.narrative === "1" ? previewOpportunities.map(item=>({...item,resumeText:narrativeResume,resumeChanges:params.changes === "1" ? [{ ...demoOpportunities[0].resumeChanges[0], id: "narrative-edit", before: "完整性标记 NARRATIVE-1，仅为排版测试。", after: "完整性标记 NARRATIVE-1，已核对排版测试。", status: "pending" as const }] : []})) : params.longResume === "1" ? previewOpportunities.map(item=>({...item,resumeText:longResume,resumeChanges:[]})) : previewOpportunities}
       userEmail="cockpit-preview@example.com"
       dataMode="demo"
       initialTab={params.tab === "interview" ? "interview" : params.tab === "resume" ? "resume" : params.tab === "salary" ? "salary" : undefined}

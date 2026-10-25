@@ -1,4 +1,4 @@
-import {cancelRunRequest, nextPollDelayMs, RUN_STATUS_WORDS, runStatusView, taskRunsFromRows} from "./task-progress";
+import {cancelRunRequest, nextPollDelayMs, parseCancelResponse, RUN_STATUS_WORDS, runStatusView, taskRunsFromRows} from "./task-progress";
 
 describe("runStatusView", () => {
   test("coach_runs 状态词映射到六档视图", () => {
@@ -55,5 +55,30 @@ describe("订阅节奏与取消", () => {
   });
   test("状态词全覆盖，界面不会渲染出 undefined", () => {
     expect(Object.keys(RUN_STATUS_WORDS).sort()).toEqual(["cancelled", "done", "failed", "partial", "pending", "running"].sort());
+  });
+});
+
+describe("parseCancelResponse", () => {
+  test("只有服务端回写 cancelled 才算已取消", () => {
+    const outcome = parseCancelResponse(true, {ok: true, runId: "r1", status: "cancelled"});
+    expect(outcome.kind).toBe("cancelled");
+    expect(outcome.message).toContain("已保存的内容");
+    expect(outcome.message).not.toContain("不收费");
+  });
+  test("保存窗口回写 partial 时不能说成已取消，必须保留已完成步骤", () => {
+    const outcome = parseCancelResponse(true, {ok: true, runId: "r1", status: "partial"});
+    expect(outcome.kind).toBe("partial");
+    expect(outcome.message).toContain("已完成的步骤保留");
+  });
+  test("HTTP 2xx 但响应体没确认、或状态不认识，都按未确认处理", () => {
+    expect(parseCancelResponse(true, {ok: false, error: "任务不存在"}).kind).toBe("unconfirmed");
+    expect(parseCancelResponse(true, {ok: true, status: "failed"}).kind).toBe("unconfirmed");
+    expect(parseCancelResponse(true, null).kind).toBe("unconfirmed");
+    expect(parseCancelResponse(false, {ok: true, status: "cancelled"}).kind).toBe("unconfirmed");
+  });
+  test("失败文案不回显 runId 或原始错误", () => {
+    const outcome = parseCancelResponse(false, {ok: false, error: "runId 无效：9f8e7d6c"});
+    expect(outcome.message).not.toContain("9f8e7d6c");
+    expect(outcome.message).toContain("没有保存到云端");
   });
 });

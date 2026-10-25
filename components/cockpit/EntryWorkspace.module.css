@@ -1,29 +1,29 @@
-.page{min-height:100dvh;background:#fcfaf6;color:#2c2720;font:16px/1.7 "Noto Sans SC","PingFang SC",sans-serif}
-.header{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:72px;padding:12px clamp(20px,5vw,64px);border-bottom:1px solid #e5dfd5}
+.page{min-height:100dvh;background:#fbf6ee;color:#2a2620;font:16px/1.7 "Noto Sans SC","PingFang SC",sans-serif}
+.header{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:72px;padding:12px clamp(20px,5vw,64px);border-bottom:1px solid #e8ddcc}
 .brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:inherit;font-weight:600}
 .brand img{border-radius:9px}
 .content{max-width:960px;margin:auto;padding:36px 28px 64px}
-.content h1{margin:18px 0 12px;font-size:clamp(28px,4vw,42px);line-height:1.4;font-weight:500;letter-spacing:0;text-wrap:balance}
-.lead{max-width:42em;margin:0 0 28px;color:#655e55}
+.content h1{margin:18px 0 12px;font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:clamp(28px,4vw,42px);line-height:1.4;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:42em;margin:0 0 28px;color:#72675a}
 .back,.suggestions button{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;min-height:44px;padding:8px 0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
 .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.choices>button{display:grid;gap:8px;min-height:108px;padding:18px 20px;border:1px solid #dfd7cc;border-radius:12px;background:#fff;color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color 160ms ease,background-color 160ms ease}
-.choices>button:hover{border-color:#ad4b29}
-.choices>button[aria-pressed=true]{border-color:#ad4b29;background:#f8ece3}
+.choices>button{display:grid;gap:8px;min-height:108px;padding:18px 20px;border:1px solid #e8ddcc;border-radius:12px;background:#fffdf8;color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color 160ms ease,background-color 160ms ease}
+.choices>button:hover{border-color:#d8b79a;background:#fffaf1}
+.choices>button[aria-pressed=true]{border-color:#b3411d;background:#fff1e4}
 .choices strong{font-size:18px;font-weight:500}
-.choices span{font-size:14px;color:#655e55;line-height:1.7}
+.choices span{font-size:14px;color:#72675a;line-height:1.7}
 .panel{margin-top:32px;max-width:44rem;min-width:0}
 .panel form>label{display:block;margin-bottom:10px}
-.panel form>textarea{display:block;box-sizing:border-box;width:100%;padding:14px 16px;min-height:120px;border:1px solid #d7cfc4;border-radius:12px;color:inherit;background:#fff;font:inherit;line-height:1.7;resize:vertical;caret-color:#984320}
-.panel form>textarea::placeholder{color:#6d655b;opacity:1}
-.panel form>textarea:focus{outline:none;border-color:#ad4b29;box-shadow:0 6px 12px -10px #655e55}
-.submit{display:inline-flex;align-items:center;justify-content:center;gap:16px;min-height:44px;padding:10px 18px;border:0;border-radius:9px;background:#2c2720;color:#fff;font:inherit;cursor:pointer}
+.panel form>textarea{display:block;box-sizing:border-box;width:100%;padding:14px 16px;min-height:120px;border:1px solid #d8cbb7;border-radius:12px;color:inherit;background:#fffdf8;font:inherit;line-height:1.7;resize:vertical;caret-color:#b3411d}
+.panel form>textarea::placeholder{color:#857a6c;opacity:1}
+.panel form>textarea:focus{outline:none;border-color:#b3411d;box-shadow:0 0 0 3px rgba(224,85,44,.10)}
+.submit{display:inline-flex;align-items:center;justify-content:center;gap:16px;min-height:44px;padding:10px 18px;border:0;border-radius:9px;background:#2a2620;color:#fffdf8;font:inherit;cursor:pointer}
 .submit:disabled{opacity:.45;cursor:not-allowed}
 .suggestions{display:flex;flex-wrap:wrap;gap:12px}
-.suggestions button{font-size:14px;color:#655e55}
-.note{font-size:14px;color:#655e55;line-height:1.7;margin:14px 0}
-.recovery{display:inline-flex;align-items:center;min-height:44px;margin-top:28px;color:#655e55;font-size:14px;text-underline-offset:4px}
-.page button:focus-visible,.page a:focus-visible{outline:2px solid #984320;outline-offset:4px}
-.page ::selection{background:#ead6c4;color:#2c2720}
+.suggestions button{font-size:14px;color:#72675a}
+.note{font-size:14px;color:#72675a;line-height:1.7;margin:14px 0}
+.recovery{display:inline-flex;align-items:center;min-height:44px;margin-top:28px;color:#72675a;font-size:14px;text-underline-offset:4px}
+.page button:focus-visible,.page a:focus-visible{outline:2px solid #b3411d;outline-offset:4px}
+.page ::selection{background:#f3d6a6;color:#2a2620}
 @media(max-width:600px){.content{padding:24px 20px 48px}.choices{grid-template-columns:1fr}.choices>button{min-height:96px}.content h1{font-size:28px}.header{padding:12px 20px}}
 @media(prefers-reduced-motion:reduce){.choices>button{transition:none}}

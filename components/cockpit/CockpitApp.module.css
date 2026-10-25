@@ -25,12 +25,12 @@
 }
 
 .shell button, .shell input, .shell textarea { font: inherit; }
-.shell button:focus-visible { outline: 2px solid #807b74; outline-offset: 2px; }
+.shell button:focus-visible { outline: 2px solid #b3411d; outline-offset: 2px; }
 /* No inner rectangular focus frame. Text inputs use an underline; grouped
    composers keep focus on their existing rounded outer container. */
 .shell input:focus-visible, .shell textarea:focus-visible { outline: none; box-shadow: var(--field-active-shadow); }
 .shell .searchBox input:focus-visible, .shell .intakeComposer textarea:focus-visible { box-shadow: none; }
-.searchBox:focus-within { border-color: #807b74; }
+.searchBox:focus-within { border-color: #b3411d; }
 .profileEntry{display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:18px 4px;color:var(--ink);width:100%}
 .profileEntry span{display:grid;gap:4px}.profileEntry small{color:var(--muted);font-size:12px}
 .profileEntry{cursor:pointer;background:#fff;border:1px solid #d9d4ca;border-radius:12px;padding:16px 12px;transition:background .16s,transform .16s}
@@ -267,6 +267,9 @@
 .practiceResult section p { margin: 7px 0 0; color: var(--ink); font-size: 10px; }
 .practiceResult footer { margin-top: 15px; padding: 12px 13px; border-radius: 9px; background: var(--paper); }
 .practiceResult footer p { margin: 5px 0 0; color: var(--ink); }
+.practiceOutline { margin-top: 15px; padding-top: 11px; border-top: 1px solid var(--line); }
+.practiceOutline ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink); font-size: 10px; line-height: 1.65; }
+.practiceOutline li::marker { color: var(--accent-deep); font-weight: 800; }
 .inlineError { margin: 12px 0 0 !important; color: var(--accent-deep) !important; font-size: 10px !important; line-height: 1.6; }
 .savedPractice { width: 100%; margin-top: 18px; padding: 13px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--ink); cursor: pointer; text-align: left; }
 .savedPractice > span { display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 9px; font-weight: 780; }
@@ -1324,7 +1327,7 @@
 @media(prefers-reduced-motion:reduce){.shell button,.rowActions{transition:none}}
 
 /* Shared operating surface. Resume paper and export typography stay separate. */
-.shell{--ink:#2f2a23;--muted:#6b665e;--paper:#ede8e1;--surface:#fdfdfb;--line:#e9e4dd;--line-strong:#d8d3cc;--accent:#aa4f2e;--accent-deep:#944429;--accent-soft:#f3e6de;background:var(--paper)}
+.shell{--ink:#2a2620;--muted:#72675a;--paper:#fbf6ee;--surface:#fffdf8;--line:#e8ddcc;--line-strong:#d8cbb7;--accent:#e0552c;--accent-deep:#b3411d;--accent-soft:#fff1e4;--green:#5b7a4e;--green-soft:#eef2e7;--blue:#7d6a55;--blue-soft:#f7efe3;background:var(--paper)}
 .topbar{height:60px;min-height:60px;padding-inline:24px;background:var(--paper);border:0;gap:20px}
 .brand{font-size:18px;gap:10px;white-space:nowrap;letter-spacing:0}.brandLogo{width:32px;height:32px;border-radius:10px}
 .topbarContext{gap:20px;font-size:12px}.topbarContext>.liveState,.topbarContext>.demoState{background:none;color:var(--muted);padding:0;font-weight:400}
@@ -1332,22 +1335,22 @@
 .opportunityRail{padding:14px 8px 20px 14px;background:transparent;gap:0}
 .workspaceNav{display:grid;gap:2px;margin-bottom:28px}
 .workspaceNav button{display:flex;align-items:center;gap:11px;min-height:42px;padding:9px 11px;background:none;border:0;border-radius:7px;color:#58534c;text-align:left;cursor:pointer;font-size:14px;font-weight:400}
-.workspaceNav button:hover:not(:disabled){background:#e1dcd5;color:#2f2a23}
+.workspaceNav button:hover:not(:disabled){background:#f2e7d7;color:#2a2620}
 .workspaceNav button[aria-current]{color:var(--ink);font-weight:600}.workspaceNav button[aria-current] svg{color:var(--accent-deep)}
 .workspaceNav button:disabled{color:#726d66;opacity:1}.workspaceNav button:focus-visible{outline:2px solid var(--accent-deep);outline-offset:2px}
 .railHeading{padding:0 10px 10px;gap:8px}.railHeading h2{font-size:12px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:7px}.railHeading h2 span{font-size:11px;color:#79756e;font-weight:400}
-.railAdd{display:grid;place-items:center;flex:none;margin-left:auto;width:32px;height:32px;padding:0;background:none;border:0;color:#645f57;border-radius:6px;cursor:pointer}.railAdd:hover{background:#e1ddd8}
-.searchBox{height:34px;margin:0 5px 14px;padding:0 7px;border:1px solid transparent;background:transparent;border-radius:6px}.searchBox input{font-size:12px}.searchBox:focus-within{background:#f8f8f4;border-color:#969087}
-.opportunityList{padding:0}.opportunityRow{margin:2px 0 5px;border-radius:8px;box-shadow:none}.opportunityActive{background:#dfdbd6;box-shadow:none}
-.opportunityItem{min-height:88px;padding:11px 10px;border-radius:8px}.opportunityItem:hover,.opportunityActive .opportunityItem:hover{background:#e0dcd7}
+.railAdd{display:grid;place-items:center;flex:none;margin-left:auto;width:32px;height:32px;padding:0;background:none;border:0;color:#645f57;border-radius:6px;cursor:pointer}.railAdd:hover{background:#f2e7d7}
+.searchBox{height:34px;margin:0 5px 14px;padding:0 7px;border:1px solid transparent;background:transparent;border-radius:6px}.searchBox input{font-size:12px}.searchBox:focus-within{background:#fffaf0;border-color:#b3411d}
+.opportunityList{padding:0}.opportunityRow{margin:2px 0 5px;border-radius:8px;box-shadow:none}.opportunityActive{background:#f4e7d6;box-shadow:none}
+.opportunityItem{min-height:88px;padding:11px 10px;border-radius:8px}.opportunityItem:hover,.opportunityActive .opportunityItem:hover{background:#f6ecdd}
 .opportunityCompany{font-size:11px;gap:7px;margin-bottom:5px;color:#68635c}.railCompanyMark{width:18px;height:18px;border-radius:4px}
 .opportunityItem strong{font-size:13px;line-height:1.5;font-weight:500}.opportunityMeta{display:inline;margin-top:5px;font-size:10px}.matchEvidence{display:inline;margin-left:7px;font-size:10px;line-height:1.6;color:#68635c}
-.document{margin:0;min-width:0;border:0;border-radius:14px;background:var(--surface);scrollbar-color:#dad5ce transparent;scrollbar-gutter:stable}
+.document{margin:0;min-width:0;border:0;border-radius:14px;background:var(--surface);scrollbar-color:#ddd0bc transparent;scrollbar-gutter:stable}
 .documentBody{padding:24px 32px 48px;max-width:1120px}.profileWorkspace{padding:28px 32px 48px;max-width:1120px}
 .actionRail:has(>section[aria-label="对话辅导"]){padding:24px 22px 12px 10px;border:0;background:transparent;min-width:0}
 .primaryButton,.secondaryButton{font-size:13px;min-height:38px;padding:8px 13px;border-radius:7px;font-weight:500}
 .primaryButton{background:var(--accent);color:#fff;border-color:transparent}.primaryButton:hover:not(:disabled){background:var(--accent-deep)}
-.secondaryButton{background:transparent;border-color:var(--line-strong);color:#4d473d}.secondaryButton:hover:not(:disabled){background:#f0ebe4}
+.secondaryButton{background:transparent;border-color:var(--line-strong);color:#4d473d}.secondaryButton:hover:not(:disabled){background:#f7efe3}
 .pageIntro h2,.roundtableHeader h2{font-size:22px;font-weight:600;line-height:1.45}.pageIntro p{font-size:13px;line-height:1.7}
 .roundtableHeader{padding-bottom:16px;border:0}.roundtableProgress{background:transparent;color:var(--muted);padding:0;font-size:12px}
 .roundtableQuestion h3{font-family:inherit;font-size:23px;line-height:1.5;letter-spacing:0;font-weight:600}
@@ -1361,11 +1364,11 @@
 .demoNotice{border:0;background:none;border-radius:0;padding:0 0 18px;margin:0 32px;font-size:11px;color:var(--muted)}
 .demoNotice p{font-size:11px;margin:2px 0 0;line-height:1.5}.demoNotice strong{font-size:11px;font-weight:500}.demoNotice button{font-size:11px}
 .nextFocus{background:none;border:0;border-radius:0;padding:24px 32px 4px}.nextFocus>span{display:none}
-.chatResize{right:var(--chat-width,min(372px,29vw))}.chatResize:hover,.chatResize:focus-visible{background:#d5d1ca}
+.chatResize{right:var(--chat-width,min(372px,29vw))}.chatResize:hover,.chatResize:focus-visible{background:#d8cbb7}
 @media(min-width:981px) and (max-width:1180px){.workspace{grid-template-columns:170px minmax(0,1fr) var(--chat-width,320px);gap:8px}.documentBody,.profileWorkspace{padding-inline:24px}.actionRail:has(>section[aria-label="对话辅导"]){padding:22px 16px 12px 8px}}
-@media(max-width:980px){.workspace{display:block;height:calc(100dvh - 60px);padding:0 12px 12px}.document{height:100%;min-height:0;border-radius:12px}.workspaceNav{margin-bottom:24px}.opportunityRail{padding:24px 14px}.actionRail:has(>section[aria-label="对话辅导"]){background:#f3eee6;padding:24px;max-width:440px}.railHeading{padding-top:0}}
+@media(max-width:980px){.workspace{display:block;height:calc(100dvh - 60px);padding:0 12px 12px}.document{height:100%;min-height:0;border-radius:12px}.workspaceNav{margin-bottom:24px}.opportunityRail{padding:24px 14px}.actionRail:has(>section[aria-label="对话辅导"]){background:#f8f0e4;padding:24px;max-width:440px}.railHeading{padding-top:0}}
 @media(max-width:700px){.topbar{padding-inline:16px;gap:8px}.topbarContext{gap:12px}.topbarContext>.liveState,.topbarContext>.demoState{display:none}.workspace{padding:0 6px 6px}.document{border-radius:10px}.documentBody,.profileWorkspace{padding:22px 20px 36px}.workspaceNav button,.railAdd{min-height:44px}.primaryButton,.secondaryButton{min-height:44px}.railAdd{width:44px}.roundtableQuestion h3{font-size:21px}.demoNotice{margin-inline:20px}.nextFocus{padding-inline:20px}}
-.opportunityActive .opportunityItem{background:transparent;box-shadow:none}.opportunityRow.opportunityActive{background:#dfdbd6;box-shadow:none}
+.opportunityActive .opportunityItem{background:transparent;box-shadow:none}.opportunityRow.opportunityActive{background:#f4e7d6;box-shadow:none}
 .demoNotice{display:block;min-height:0;margin:0;padding:12px 32px 0;font-size:11px}.demoNotice summary{width:fit-content;cursor:pointer;color:#746a5c;line-height:1.5}.demoNotice details>p{margin:8px 0;max-width:54ch}.demoNotice details>button{margin-top:4px}
 .interviewIntro{display:block;border:0;padding-bottom:20px}.interviewIntro h2{margin:0 0 8px}.interviewIntro p{max-width:60ch}.interviewIntro .interviewActions{margin-top:20px}
 .focusStepper{border:0!important;padding-top:16px;margin-top:10px;font-size:12px;color:var(--muted)}
@@ -1382,9 +1385,9 @@
 .resumeGenerationFee{flex-basis:100%;font-size:11px;line-height:1.6;color:var(--muted)}
 .resumeEditorActions>.primaryButton{white-space:nowrap;flex:none}
 @media(max-width:700px){.demoNotice{padding-inline:20px}.interviewIntro .interviewActions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}.interviewIntro .interviewActions button{width:auto}.practicePanel h3{font-size:21px}.practicePanel textarea{font-size:16px}}
-.resumeExportConfirmation{position:fixed;inset:0;margin:auto;max-height:calc(100dvh - 32px);max-width:min(460px,calc(100vw - 32px));padding:24px;border:0;border-radius:14px;background:var(--cockpit-studio-surface,#fdfdfb);color:var(--cockpit-studio-ink,#2f2a23);box-shadow:0 12px 40px rgb(47 42 35 / .2);font:15px/1.7 "Outfit","PingFang SC",sans-serif}.resumeExportConfirmation::backdrop{background:rgb(47 42 35 / .25)}
-.resumeExportConfirmation p{margin:0 0 14px}.resumeExportConfirmation p+p{font-size:13px;color:var(--cockpit-studio-muted,#6b665e)}.resumeExportConfirmation>div{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}.resumeExportConfirmation button{border:0;background:transparent;color:inherit;font:inherit;min-height:40px;padding:8px 10px;cursor:pointer}.resumeExportConfirmation button:last-child{background:var(--cockpit-studio-action,#aa4f2e);color:white;border-radius:8px}.resumeExportConfirmation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
-.resumeExportConfirmation h2{font-size:18px;font-weight:600;line-height:1.5;margin:0 0 12px}.resumeExportConfirmation p{font-size:14px}.resumeExportConfirmation>div{margin-top:22px;gap:8px}.resumeExportConfirmation button{font-size:13px;border-radius:7px;transition:background-color 160ms ease}.resumeExportConfirmation button:hover{background:var(--cockpit-studio-selected,#dfdbd6)}.resumeExportConfirmation button:last-child:hover{background:var(--cockpit-studio-action-deep,#944429)}.resumeExportConfirmation button:active{opacity:.85}
+.resumeExportConfirmation{position:fixed;inset:0;margin:auto;max-height:calc(100dvh - 32px);max-width:min(460px,calc(100vw - 32px));padding:24px;border:0;border-radius:14px;background:var(--cockpit-studio-surface,#fffdf8);color:var(--cockpit-studio-ink,#2a2620);box-shadow:0 12px 40px rgb(47 42 35 / .2);font:15px/1.7 "Outfit","PingFang SC",sans-serif}.resumeExportConfirmation::backdrop{background:rgb(47 42 35 / .25)}
+.resumeExportConfirmation p{margin:0 0 14px}.resumeExportConfirmation p+p{font-size:13px;color:var(--cockpit-studio-muted,#72675a)}.resumeExportConfirmation>div{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}.resumeExportConfirmation button{border:0;background:transparent;color:inherit;font:inherit;min-height:40px;padding:8px 10px;cursor:pointer}.resumeExportConfirmation button:last-child{background:var(--cockpit-studio-action,#e0552c);color:white;border-radius:8px}.resumeExportConfirmation button:focus-visible{outline:2px solid var(--cockpit-studio-action,#e0552c);outline-offset:3px}
+.resumeExportConfirmation h2{font-size:18px;font-weight:600;line-height:1.5;margin:0 0 12px}.resumeExportConfirmation p{font-size:14px}.resumeExportConfirmation>div{margin-top:22px;gap:8px}.resumeExportConfirmation button{font-size:13px;border-radius:7px;transition:background-color 160ms ease}.resumeExportConfirmation button:hover{background:var(--cockpit-studio-selected,#f4e7d6)}.resumeExportConfirmation button:last-child:hover{background:var(--cockpit-studio-action-deep,#b3411d)}.resumeExportConfirmation button:active{opacity:.85}
 
 /* Résumé-only density: leave the approved navigation intact. */
 .profileWorkspace .profileViewTabs{margin-bottom:12px}.profileWorkspace .profileHeading{margin-bottom:4px}
@@ -1394,25 +1397,25 @@
 @media(max-width:700px){.resumeContinueLink,.resumeExportConfirmation button{min-height:44px}}
 
 /* 编辑区按文档组织，低频工具由 ResumeToolbar 的原生浮层承载。 */
-.resumeDocument{background:linear-gradient(150deg,#f8f5f0 0%,#f3eee7 100%);border-radius:12px}
+.resumeDocument{background:linear-gradient(150deg,#fdf9f2 0%,#f8f0e3 100%);border-radius:12px}
 .resumeDocument .documentBody{padding:22px 32px 48px}
 .resumeDocument .demoNotice{padding-top:10px;padding-bottom:0}
 .resumeDocument .profileWorkspace{padding-top:22px;padding-inline:28px}
 .resumeDocument .profileHeading{margin-bottom:6px}
-.resumeDocument .saveReceipt{padding-top:8px;min-height:23px;color:var(--cockpit-studio-muted,#6b665e)}
+.resumeDocument .saveReceipt{padding-top:8px;min-height:23px;color:var(--cockpit-studio-muted,#72675a)}
 .resumeDocument .saveReceipt{padding:12px 28px 0;text-align:right;font-size:12px;line-height:1.5}
 .resumeDocument .saveReceipt button{margin-left:8px}
-.recoverWorkspace{display:inline-flex;align-items:center;gap:12px;margin-top:28px;padding:8px 0;color:var(--cockpit-studio-muted,#6b665e);font-size:13px;text-decoration:none;text-underline-offset:5px}.recoverWorkspace:hover{text-decoration:underline}.recoverWorkspace:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+.recoverWorkspace{display:inline-flex;align-items:center;gap:12px;margin-top:28px;padding:8px 0;color:var(--cockpit-studio-muted,#72675a);font-size:13px;text-decoration:none;text-underline-offset:5px}.recoverWorkspace:hover{text-decoration:underline}.recoverWorkspace:focus-visible{outline:2px solid currentColor;outline-offset:4px}
 .resumeDocument .saveReceipt>span[data-state=saved]{display:inline-block;animation:save-receipt 180ms ease-out}
 @keyframes save-receipt{from{opacity:.55}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.resumeDocument .saveReceipt>span{animation:none}}
-.workspace:has(>.resumeDocument)>.actionRail{padding:28px 22px 16px;background:#fafbf8;border-radius:12px 0 0 12px}
+.workspace:has(>.resumeDocument)>.actionRail{padding:28px 22px 16px;background:#fdf8f0;border-radius:12px 0 0 12px}
 .resumeCanvas{min-width:0;padding:0}
 .resumeStudio .exportControls.exportCompact{position:relative;max-width:270px;justify-content:flex-end}
 .resumeStudio .exportControls .exportAction{min-height:40px;padding:8px 14px;font-size:13px;border:0;border-radius:9px;white-space:nowrap;background:linear-gradient(180deg,#423e39 0%,#312c24 100%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .16),inset 0 -1px 0 rgb(0 0 0 / .22),0 1px 2px rgb(41 36 29 / .18),0 3px 6px rgb(41 36 29 / .07);transition:background-color 160ms ease,box-shadow 160ms ease,transform 160ms cubic-bezier(.22,1,.36,1)}
 .resumeStudio .exportControls .exportAction:hover:not(:disabled){background:linear-gradient(180deg,#504c45 0%,#3c3832 100%);box-shadow:inset 0 1px 0 rgb(255 255 255 / .18),inset 0 -1px 0 rgb(0 0 0 / .2),0 2px 3px rgb(41 36 29 / .16),0 5px 10px rgb(41 36 29 / .1)}
 .resumeStudio .exportControls .exportAction:active:not(:disabled){transform:translateY(1px);background:#312c24;box-shadow:inset 0 1px 2px rgb(0 0 0 / .2),0 1px 1px rgb(41 36 29 / .08)}
-.resumeStudio .exportControls .exportAction:focus-visible{outline:2px solid var(--cockpit-studio-action,#aa4f2e);outline-offset:3px}
+.resumeStudio .exportControls .exportAction:focus-visible{outline:2px solid var(--cockpit-studio-action,#e0552c);outline-offset:3px}
 .resumeStudio .exportControls small{font-size:11px;max-width:29ch;text-align:right;line-height:1.5}
 .resumeReplacement{margin:0 0 22px;padding:0 0 16px;border-bottom:1px solid var(--line)}
 .resumeReplacement>div:first-child{display:flex;align-items:center;justify-content:space-between;font-size:14px}
@@ -1421,8 +1424,8 @@
 @media(prefers-reduced-motion:reduce){.resumeStudio .exportControls .exportAction{transition:none}.resumeStudio .exportControls .exportAction:active:not(:disabled){transform:none}}
 .emptyCopy h1{letter-spacing:0;line-height:1.25}
 .emptyCopy .intakeChoices{display:grid;grid-template-columns:1fr;gap:10px;margin:18px 0 0}
-.emptyCopy .intakeChoices button{display:flex;align-items:center;min-height:52px;padding:14px 16px;border:1px solid #e4ddd4;border-radius:14px;background:#fff;text-align:left;font-size:15px}
-.emptyCopy .intakeChoices button:hover{border-color:#c4a48f;background:#fbf8f4}
+.emptyCopy .intakeChoices button{display:flex;align-items:center;min-height:52px;padding:14px 16px;border:1px solid #e8ddcc;border-radius:14px;background:#fffdf8;text-align:left;font-size:15px}
+.emptyCopy .intakeChoices button:hover{border-color:#d8b79a;background:#fffaf1}
 .emptyCopy .primaryButton{margin-top:4px}
 .emptyCopy .recoverWorkspace{display:flex;width:100%;margin-top:16px}
 .rightTool .focusStepper{margin-top:28px;border:0;padding:0}
@@ -1521,3 +1524,38 @@
 .chatResize:focus-visible{outline:2px solid #a64317;outline-offset:-2px;border-radius:4px}
 .chatResize:active::after{height:52px;background:#a99f90}
 @media(prefers-reduced-motion:reduce){.chatResize::after{transition:none}}
+
+/* Today 的云端探测：加载与读取失败都必须和「真的没有数据」分开。 */
+.probePage {
+  min-height: 100dvh;
+  padding: 32px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Outfit", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  text-align: center;
+}
+.probePage h1 {
+  margin: 0;
+  font-family: "Songti SC", "Noto Serif SC", Georgia, serif;
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 500;
+  letter-spacing: -.02em;
+}
+.probePage p { max-width: 52ch; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.probeActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.probeActions button {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.probeActions button:first-child { border-color: var(--accent); background: var(--accent); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .probeActions button { transition: none; } }

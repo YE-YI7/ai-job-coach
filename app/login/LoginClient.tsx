@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { normalizeRedirectPath, postLoginTarget } from "@/lib/auth-redirect";
 import PhoneAuthForm from "@/components/auth/PhoneAuthForm";
+import styles from "./LoginClient.module.css";
 
 type Step = 'email' | 'code';
 
@@ -241,257 +242,27 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
 
   return (
     <>
-      <style jsx global>{`
-        body {
-          font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
-          background-color: #fffbeb;
-          overflow-x: hidden;
-        }
+      <div className={styles.page}>
+        <div className={styles.atmosphere} aria-hidden="true" />
 
-        .gradient-bg-container {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-          background: linear-gradient(40deg, #fffbeb, #fff7ed);
-          z-index: 0;
-        }
-
-        .svg-filter {
-          position: absolute;
-          width: 0;
-          height: 0;
-        }
-
-        .gradients-container {
-          width: 100%;
-          height: 100%;
-          filter: url(#goo) blur(40px);
-        }
-
-        .g-blob {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: var(--size);
-          height: var(--size);
-          background: radial-gradient(circle at center, var(--color) 0%, rgba(255,255,255,0) 50%);
-          mix-blend-mode: var(--blending);
-          transform-origin: center center;
-          opacity: 1;
-          will-change: transform, opacity;
-        }
-
-        :root {
-          --size: 800px;
-          --blending: hard-light;
-          --color1: 255, 107, 74;
-          --color2: 251, 146, 60;
-          --color3: 251, 113, 133;
-          --color4: 244, 114, 182;
-          --color5: 254, 202, 202;
-        }
-
-        @keyframes moveVertical {
-          0% { transform: translateY(-50%) translateX(-50%); }
-          50% { transform: translateY(-40%) translateX(-50%); }
-          100% { transform: translateY(-50%) translateX(-50%); }
-        }
-
-        @keyframes moveInCircle {
-          0% { transform: rotate(0deg) translateX(100px) rotate(0deg); }
-          100% { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
-        }
-
-        @keyframes moveHorizontal {
-          0% { transform: translateX(-50%) translateY(-10%); }
-          50% { transform: translateX(50%) translateY(10%); }
-          100% { transform: translateX(-50%) translateY(-10%); }
-        }
-
-        .g1 {
-          --color: rgba(var(--color1), 0.8);
-          top: calc(50% - var(--size)/2);
-          left: calc(50% - var(--size)/2);
-          animation: moveVertical 18s ease infinite;
-        }
-
-        .g2 {
-          --color: rgba(var(--color2), 0.8);
-          top: calc(50% - var(--size)/2);
-          left: calc(50% - var(--size)/2);
-          transform-origin: calc(50% - 400px);
-          animation: moveInCircle 12s reverse infinite;
-        }
-
-        .g3 {
-          --color: rgba(var(--color3), 0.8);
-          top: calc(50% - var(--size)/2 + 200px);
-          left: calc(50% - var(--size)/2 - 500px);
-          transform-origin: calc(50% + 400px);
-          animation: moveInCircle 24s linear infinite;
-        }
-
-        .g4 {
-          --color: rgba(var(--color4), 0.8);
-          top: calc(50% - var(--size)/2);
-          left: calc(50% - var(--size)/2);
-          transform-origin: calc(50% - 200px);
-          animation: moveHorizontal 24s ease infinite;
-          opacity: 0.7;
-        }
-
-        .g5 {
-          --color: rgba(var(--color5), 0.8);
-          width: calc(var(--size) * 2);
-          height: calc(var(--size) * 2);
-          top: calc(50% - var(--size));
-          left: calc(50% - var(--size));
-          transform-origin: calc(50% - 800px) calc(50% + 800px);
-          animation: moveInCircle 12s ease infinite;
-        }
-
-        .glass-card {
-          background: rgba(255, 255, 255, 0.25);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          border: 1px solid rgba(255, 255, 255, 0.6);
-          box-shadow:
-            0 20px 50px -12px rgba(0, 0, 0, 0.1),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-        }
-
-        .input-field {
-          background: rgba(255, 255, 255, 0.6);
-          border: 1px solid transparent;
-          box-shadow: var(--field-rest-shadow);
-          transition: background-color .16s ease, box-shadow .18s ease;
-        }
-
-        .input-field:focus-within {
-          border-color: transparent;
-          background: rgba(255, 255, 255, 0.9);
-          box-shadow: var(--field-active-shadow);
-        }
-
-        .input-field input:focus { outline: none; box-shadow: none; }
-
-        .glow-button {
-          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-          box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
-          transition: all 0.3s ease;
-        }
-
-        .glow-button:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 25px rgba(249, 115, 22, 0.4);
-          filter: brightness(1.05);
-        }
-
-        .glow-button:active:not(:disabled) {
-          transform: translateY(1px);
-          box-shadow: 0 2px 10px rgba(249, 115, 22, 0.2);
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-fade-in {
-          animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .animate-slide-up {
-          animation: slideUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-        }
-
-        .code-input {
-          background: rgba(255, 255, 255, 0.7);
-          border: 1.5px solid transparent;
-          transition: all 0.2s ease;
-          caret-color: #f97316;
-        }
-
-        .code-input:focus {
-          border-color: transparent;
-          background: rgba(255, 255, 255, 0.95);
-          box-shadow: var(--field-active-shadow);
-        }
-
-        .loading-spinner {
-          width: 20px;
-          height: 20px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-radius: 50%;
-          border-top-color: #fff;
-          animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .login-methods { display: flex; gap: 22px; margin-bottom: 24px; }
-        .login-methods button { min-height: 44px; background: none; border: 0; padding: 6px 0; color: #5c6257; font-size: 14px; cursor: pointer; }
-        .login-methods button[aria-pressed=true] { color: #292823; text-decoration: underline; text-underline-offset: 8px; font-weight: 600; }
-        .login-methods button:focus-visible { outline: 2px solid #984320; outline-offset: 3px; }
-        @media (prefers-reduced-motion: reduce) {
-          .g-blob, .animate-fade-in, .animate-slide-up { animation: none; }
-        }
-      `}</style>
-
-      <div className="min-h-screen w-full flex flex-col items-center justify-center text-slate-800 relative px-5 py-12">
-        {/* Dynamic Gradient Background */}
-        <div className="gradient-bg-container">
-          <svg className="svg-filter">
-            <defs>
-              <filter id="goo">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
-                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
-                <feBlend in="SourceGraphic" in2="goo" />
-              </filter>
-            </defs>
-          </svg>
-          <div className="gradients-container">
-            <div className="g-blob g1"></div>
-            <div className="g-blob g2"></div>
-            <div className="g-blob g3"></div>
-            <div className="g-blob g4"></div>
-            <div className="g-blob g5"></div>
-          </div>
-        </div>
-
-        {/* Login Card */}
-        <div
-          ref={cardRef}
-          className="w-full max-w-[420px] p-7 sm:p-9 rounded-3xl glass-card animate-fade-in z-10 relative"
-        >
-          {/* Logo & Title */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 mb-3">
-              <img src="/logo.png" alt="益职 AI Logo" className="w-full h-full object-contain rounded-2xl" />
+        <div ref={cardRef} className={styles.card}>
+          <div className={styles.brand}>
+            <div className={styles.logo}>
+              <img src="/logo.png" alt="益职 AI Logo" />
             </div>
-            <h1 className="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">益职 AI</h1>
-            <p className="text-slate-500 text-sm font-medium">
+            <h1 className={styles.title}>益职 AI</h1>
+            <p className={styles.subtitle}>
               {method === 'phone' ? '登录，继续你的求职准备' : step === 'email' ? '邮箱登录或使用邀请码' : '验证码已发送至您的邮箱'}
             </p>
           </div>
 
-          {/* Step: Email Input */}
-          {phoneEnabled && step === 'email' && <div className="login-methods" aria-label="登录方式">
+          {phoneEnabled && step === 'email' && <div className={styles.methods} aria-label="登录方式">
             <button type="button" disabled={!hydrated} aria-pressed={method === 'phone'} onClick={() => { setMethod('phone'); setError(''); }}>手机号登录</button>
             <button type="button" disabled={!hydrated} aria-pressed={method === 'email'} onClick={() => { setMethod('email'); setError(''); }}>邮箱 / 邀请码</button>
           </div>}
 
           {method === 'phone' && <>
-            {error && <p role="alert" className="text-sm text-red-700 mb-4">{error}</p>}
+            {error && <p role="alert" className={styles.error} style={{ marginBottom: 16 }}>{error}</p>}
             <PhoneAuthForm purpose="login" onSuccess={(data) => {
               localStorage.setItem('sessionId', data.userId);
               localStorage.removeItem('userEmail');
@@ -502,51 +273,38 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
           </>}
 
           {method === 'email' && step === 'email' && (
-            <form onSubmit={handleSendCode} className="space-y-5 animate-slide-up">
-              <div className="group">
-                <div className="input-field rounded-xl flex items-center px-4 py-4">
-                  {isEmail(email) || !email ? (
-                    <svg className="w-4 h-4 text-slate-400 mr-3 shrink-0 group-focus-within:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-slate-400 mr-3 shrink-0 group-focus-within:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                  )}
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-transparent border-none outline-none text-slate-800 text-base w-full font-medium placeholder:text-slate-400"
-                    placeholder="邮箱地址或邀请码"
-                    autoComplete="email"
-                    disabled={isLoading}
-                    autoFocus
-                  />
-                </div>
+            <form onSubmit={handleSendCode} className={styles.stack}>
+              <div className={styles.field}>
+                {isEmail(email) || !email ? (
+                  <svg className={styles.fieldIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                ) : (
+                  <svg className={styles.fieldIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                )}
+                <input
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={styles.input}
+                  placeholder="邮箱地址或邀请码"
+                  autoComplete="email"
+                  disabled={isLoading}
+                  autoFocus
+                />
               </div>
 
-              {error && (
-                <div className="p-3 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-xl">
-                  <p className="text-sm text-red-600 font-medium">{error}</p>
-                </div>
-              )}
+              {error && <p className={styles.error}>{error}</p>}
 
-              <button
-                type="submit"
-                disabled={isLoading || !email.trim()}
-                className="w-full glow-button text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 group relative overflow-hidden text-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={isLoading || !email.trim()} className={styles.primary}>
                 {isLoading ? (
-                  <div className="loading-spinner"></div>
+                  <span className={styles.spinner} aria-hidden="true" />
                 ) : (
                   <>
-                    <span className="tracking-wide">{isEmail(email.trim()) ? '获取验证码' : '登录'}</span>
-                    <svg
-                      className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300"
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    >
+                    <span>{isEmail(email.trim()) ? '获取验证码' : '登录'}</span>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
                   </>
@@ -555,49 +313,24 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
             </form>
           )}
 
-          {/* OAuth 第三方登录 */}
           {step === 'email' && (
-            <div className="mt-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              {/* 分割线 */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px bg-slate-300/40"></div>
-                <span className="text-xs text-slate-400 font-medium">或</span>
-                <div className="flex-1 h-px bg-slate-300/40"></div>
-              </div>
-
-              {/* 观猹登录按钮 */}
-              <a
-                href={watchaAuthorizeHref}
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl border border-slate-200/60 bg-white/50 hover:bg-white/80 hover:border-slate-300/60 transition-all duration-200 group"
-              >
-                <img
-                  src="https://watcha.tos-cn-beijing.volces.com/products/logo/1752064513_guan-cha-insights.png"
-                  alt="观猹"
-                  className="w-5 h-5 rounded object-contain"
-                />
-                <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-800 transition-colors">
-                  观猹账号登录
-                </span>
+            <div>
+              <div className={styles.dividerRow}><span className={styles.divider} /><span className={styles.dividerText}>或</span><span className={styles.divider} /></div>
+              <a href={watchaAuthorizeHref} className={styles.oauth}>
+                <img src="https://watcha.tos-cn-beijing.volces.com/products/logo/1752064513_guan-cha-insights.png" alt="" />
+                <span>观猹账号登录</span>
               </a>
             </div>
           )}
 
-          {/* Step: Code Input */}
           {step === 'code' && (
-            <div className="space-y-5 animate-slide-up">
-              {/* Email display */}
-              <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+            <div className={styles.stack}>
+              <div className={styles.emailLine}>
                 <span>{email}</span>
-                <button
-                  onClick={() => { setStep('email'); setError(''); setCode(["","","","","",""]); }}
-                  className="text-orange-500 hover:text-orange-600 font-medium transition-colors"
-                >
-                  修改
-                </button>
+                <button type="button" onClick={() => { setStep('email'); setError(''); setCode(["","","","","",""]); }} className={styles.edit}>修改</button>
               </div>
 
-              {/* 6-digit code input */}
-              <div className="flex justify-center gap-2.5">
+              <div className={styles.codeRow}>
                 {code.map((digit, index) => (
                   <input
                     key={index}
@@ -608,37 +341,21 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
                     value={digit}
                     onChange={(e) => handleCodeInput(index, e.target.value)}
                     onKeyDown={(e) => handleCodeKeyDown(index, e)}
-                    className="code-input w-12 h-14 text-center text-xl font-bold text-slate-800 rounded-xl outline-none"
+                    className={styles.code}
+                    aria-label={`验证码第 ${index + 1} 位`}
                     disabled={isLoading}
                   />
                 ))}
               </div>
 
-              {error && (
-                <div className="p-3 bg-red-50/80 backdrop-blur-sm border border-red-200/50 rounded-xl">
-                  <p className="text-sm text-red-600 font-medium text-center">{error}</p>
-                </div>
-              )}
+              {error && <p className={styles.error} style={{ textAlign: 'center' }}>{error}</p>}
 
-              {/* Resend & Submit */}
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleVerifyCode()}
-                  disabled={isLoading || code.some(d => d === '')}
-                  className="w-full glow-button text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 text-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoading ? (
-                    <div className="loading-spinner"></div>
-                  ) : (
-                    <span className="tracking-wide">验证并登录</span>
-                  )}
+              <div className={styles.stack}>
+                <button type="button" onClick={() => handleVerifyCode()} disabled={isLoading || code.some(d => d === '')} className={styles.primary}>
+                  {isLoading ? <span className={styles.spinner} aria-hidden="true" /> : <span>验证并登录</span>}
                 </button>
 
-                <button
-                  onClick={() => handleSendCode()}
-                  disabled={countdown > 0 || isLoading}
-                  className="w-full text-sm font-medium text-slate-500 hover:text-orange-500 transition-colors py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button type="button" onClick={() => handleSendCode()} disabled={countdown > 0 || isLoading} className={styles.quiet}>
                   {countdown > 0 ? `${countdown}秒后可重新发送` : '重新发送验证码'}
                 </button>
               </div>
@@ -646,10 +363,7 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-slate-600 text-xs font-medium z-10">
-          &copy; 2026 益职AI. 版权所有.
-        </div>
+        <div className={styles.footer}>&copy; 2026 益职AI. 版权所有.</div>
       </div>
     </>
   );

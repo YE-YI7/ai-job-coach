@@ -1,21 +1,21 @@
 .panel{display:flex;flex-direction:column;min-height:560px;height:calc(100dvh - 64px);max-height:960px;font-size:16px;color:#312c25}
 .returnEntry{display:flex;align-items:center;gap:8px;padding:8px 0;flex-shrink:0;border-bottom:1px solid #e0dad1;color:#605c55;font-size:13px}
 .historyDisclosure{position:relative;flex-shrink:0;font-size:12px;color:#605c55}.historyDisclosure summary{cursor:pointer;min-height:36px;display:flex;align-items:center;padding:6px 0}.metadata .historyDisclosure .history{position:absolute;right:0;top:100%;z-index:10;display:flex;min-width:240px;max-width:320px;margin:0;padding:12px;background:#fff;border:1px solid #d9d5ce;border-radius:8px;font-size:12px;box-shadow:none}
-.historyDisclosure summary:focus-visible{outline:2px solid #a64317;outline-offset:3px}
+.historyDisclosure summary:focus-visible{outline:2px solid #b3411d;outline-offset:3px}
 .returnEntry span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.returnEntry button{min-height:44px;white-space:nowrap;color:#8d3a17;font-weight:600}
+.returnEntry button{min-height:44px;white-space:nowrap;color:#b3411d;font-weight:600}
 .turnScope{margin:14px 0 5px;color:#605c55;font-size:12px;line-height:1.5}
 .panel header{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel header strong{font-size:20px;letter-spacing:-.3px}
 .mentorIdentity{display:flex;align-items:center;gap:9px}.mentorIdentity img{border-radius:10px;flex-shrink:0}
 .teachingInvite{padding:14px 0;border-bottom:1px solid #d9d5ce;flex-shrink:0}
 .teachingInvite p{margin:0 0 10px;line-height:1.65;font-size:14px}
-.teachingInvite div{display:flex;gap:8px}.teachingInvite div button:first-child{background:#8d3a17;color:#fff;padding:8px 12px;border-radius:8px}
+.teachingInvite div{display:flex;gap:8px}.teachingInvite div button:first-child{background:#b3411d;color:#fff;padding:8px 12px;border-radius:8px}
 .teachingInvite small{display:block;color:#605c55;margin-top:8px}
 /* 输入区只有一个框：聚焦环由 form 承担，textarea 自己不再浮一层，否则像大框套小框。 */
 .panel.panel textarea:focus-visible{outline:none;box-shadow:none;background:transparent}
 .panel button{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;color:inherit;padding:8px;border-radius:8px;cursor:pointer;font:inherit;font-size:12px;min-height:36px}
-.panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #a64317;outline-offset:3px}
+.panel button:hover{background:#e9e5de}.panel button:focus-visible,.panel select:focus-visible{outline:2px solid #b3411d;outline-offset:3px}
 .panel button:disabled{opacity:.45;cursor:not-allowed}
 .context{margin:8px 0 16px;font-size:12px;color:#605c55;line-height:1.6;overflow-wrap:anywhere}
 .history{display:flex;align-items:center;gap:8px;font-size:12px;color:#605c55;margin-bottom:12px}
@@ -27,20 +27,20 @@
 .proactiveNote{margin:16px 0 8px;display:flex;align-items:center;gap:7px;color:#8a857c;font-size:11px;letter-spacing:.02em}
 .proactiveNote::before{content:"";width:6px;height:6px;border-radius:50%;background:#c96f4a;flex:0 0 auto}
 .answer{margin:0 0 24px}.answer p,.summary p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.answer button{color:#605c55;font-size:11px}
-.quickStarts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0}.quickStarts button{border:1px solid #d9d5ce;background:#fff;font-size:12px}
+.quickStarts{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0}.quickStarts button{border:1px solid #e0d4c2;background:#fffdf8;font-size:12px}
 .stageConfirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid #d9d5ce;border-radius:10px;background:#fbf9f4;font-size:12px;line-height:1.6}
 .stageConfirm span{flex:1;min-width:180px}
-.stageConfirm button{border:1px solid #d9d5ce;background:#fff;text-align:left;white-space:normal;line-height:1.5;font-weight:600}
-.panel form{background:white;border:1px solid #a7a198;border-radius:12px;padding:12px}
+.stageConfirm button{border:1px solid #e0d4c2;background:#fffdf8;text-align:left;white-space:normal;line-height:1.5;font-weight:600}
+.panel form{background:#fffdf8;border:1px solid #d8cbb7;border-radius:12px;padding:12px}
 .panel textarea{resize:vertical;min-height:70px;max-height:180px;border:0;outline:none;background:none;font:inherit;width:100%;color:#312c25}.panel textarea::placeholder{color:#686159}
-.panel footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.panel footer [type="submit"]{background:#a64317;color:#fff;min-width:40px;min-height:40px;border:0;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.panel footer{display:flex;align-items:center;justify-content:space-between;gap:8px}.panel footer [type="submit"]{background:#b3411d;color:#fff;min-width:40px;min-height:40px;border:0;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .panel small{font-size:11px;color:#605c55}.archive{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}.archive button{font-size:12px;text-decoration:underline;text-underline-offset:4px}
 .summary{padding:14px 0;border-top:1px solid #d9d5ce}.summary summary{cursor:pointer;font-weight:650;margin-bottom:10px}.error{font-size:12px;color:#9b3013;line-height:1.6}
 .memoryDownload{font-size:12px;color:#605c55;text-underline-offset:4px;padding:8px 0}
 .disclaimer{flex-shrink:0;margin:8px 0 0;text-align:center;font-size:11px;line-height:1.6;color:#6d6a61}
-.usage{font-size:11px;line-height:1.6;color:#605c55;margin:0 0 8px}.usage summary{cursor:pointer}.usage a{color:#8d3a17;text-underline-offset:3px}.usage p{margin-top:5px}
+.usage{font-size:11px;line-height:1.6;color:#605c55;margin:0 0 8px}.usage summary{cursor:pointer}.usage a{color:#b3411d;text-underline-offset:3px}.usage p{margin-top:5px}
 .quickStarts button{text-align:left;white-space:normal;line-height:1.5;max-width:100%}
-.markdown{overflow-wrap:anywhere}.markdown p{white-space:normal;margin:0 0 .8em}.markdown h1,.markdown h2,.markdown h3{font-size:1.08em;margin:1.2em 0 .5em}.markdown ul,.markdown ol{padding-left:1.5em;margin:.6em 0}.markdown li{margin:.3em 0}.markdown pre{overflow:auto;background:#f2ede5;padding:12px;border-radius:8px;white-space:pre}.markdown code{font-size:.9em}.markdown table{display:block;overflow:auto;border-collapse:collapse;max-width:100%}.markdown td,.markdown th{border:1px solid #d9d5ce;padding:6px 10px;text-align:left}.markdown blockquote{border-left:3px solid #cfbca5;margin:12px 0;padding-left:12px;color:#605c55}.markdown a{color:#a64317;text-decoration:underline}.summary textarea{border:1px solid #d9d5ce;background:#fff;padding:8px;min-height:150px}
+.markdown{overflow-wrap:anywhere}.markdown p{white-space:normal;margin:0 0 .8em}.markdown h1,.markdown h2,.markdown h3{font-size:1.08em;margin:1.2em 0 .5em}.markdown ul,.markdown ol{padding-left:1.5em;margin:.6em 0}.markdown li{margin:.3em 0}.markdown pre{overflow:auto;background:#f2ede5;padding:12px;border-radius:8px;white-space:pre}.markdown code{font-size:.9em}.markdown table{display:block;overflow:auto;border-collapse:collapse;max-width:100%}.markdown td,.markdown th{border:1px solid #d9d5ce;padding:6px 10px;text-align:left}.markdown blockquote{border-left:3px solid #cfbca5;margin:12px 0;padding-left:12px;color:#605c55}.markdown a{color:#b3411d;text-decoration:underline}.summary textarea{border:1px solid #d9d5ce;background:#fff;padding:8px;min-height:150px}
 @media(max-width:700px){.panel{height:80dvh;min-height:520px}.panel button{min-height:44px}.history select{min-height:44px}}
 .panel{height:calc(100dvh - 112px);min-height:460px;max-height:none}
 .panel header{padding-bottom:12px;border-bottom:1px solid #e9e5dc}.panel header strong{font-size:17px;font-weight:650;letter-spacing:-.015em}.panel header button{border:1px solid #e4ded4;padding:6px 9px;border-radius:7px;background:transparent}
@@ -48,8 +48,8 @@
 .welcome{display:flex;flex-direction:column;align-items:flex-start;min-height:0;padding:24px 8px}.welcome>svg{width:28px;height:28px;stroke-width:1.3;color:#96755f}.welcome h3{font-family:"Songti SC","Noto Serif SC",serif;font-weight:500;font-size:24px;line-height:1.4;letter-spacing:-.02em;margin:16px 0 10px}.welcome p{font-size:16px;color:#605c55;line-height:1.8;max-width:100%}
 .messages{scrollbar-width:thin;scrollbar-color:#d5d1c8 transparent;padding:0 6px 16px;line-height:1.85}
 .question{background:#dfb993;color:#3b291d;margin:18px 0 18px 32px;padding:12px 15px;border-radius:12px 12px 3px 12px}
-.panel form{border-color:#d3cbc0;padding:14px;border-radius:14px;background:#fff;box-shadow:none;transition:border-color .16s ease}.panel textarea{min-height:82px;font-size:14px;line-height:1.7}.panel footer{border-top:1px solid #f0ece5;padding-top:6px}.panel footer [type="submit"]{border-radius:8px;background:#a7441a}.panel button:disabled{opacity:1;color:#6b655c;background:#f1eee7}
-.panel form:focus-within{border-color:#7c7873;box-shadow:none}
+.panel form{border-color:#d3cbc0;padding:14px;border-radius:14px;background:#fff;box-shadow:none;transition:border-color .16s ease}.panel textarea{min-height:82px;font-size:14px;line-height:1.7}.panel footer{border-top:1px solid #f0ece5;padding-top:6px}.panel footer [type="submit"]{border-radius:8px;background:#b3411d}.panel button:disabled{opacity:1;color:#6b655c;background:#f1eee7}
+.panel form:focus-within{border-color:#b3411d;box-shadow:0 0 0 3px rgba(224,85,44,.10)}
 @media(max-width:700px){.panel{height:calc(100dvh - 110px);min-height:440px}.welcome{min-height:180px}.panel textarea{font-size:16px}}
 .panel textarea{font-size:16px}.quickStarts button,.answer button{font-size:14px}.history,.context,.error{font-size:13px}.welcome p{font-size:16px}
 .answer .markdown p{margin:0 0 1em;line-height:1.85;white-space:normal}.answer .markdown h2,.answer .markdown h3{margin:1.5em 0 .7em;font-weight:700}.answer .markdown li{margin:.65em 0}.answer .markdown strong{font-weight:700;color:#2f2b24}
@@ -70,7 +70,7 @@
 .answer .markdown h2,.answer .markdown h3{font-size:18px;line-height:1.5;padding-bottom:6px;border-bottom:1px solid #e5e0d7}
 .answer .markdown pre{font-size:13px;line-height:1.7;padding:14px 16px}
 .question{font-size:16px;line-height:1.75}
-.panel textarea{caret-color:#8d3a17}
+.panel textarea{caret-color:#b3411d}
 .panel form{flex-shrink:0;padding:8px 10px;margin:0}
 .panel textarea{display:block;resize:none;min-height:48px;max-height:112px;line-height:1.5;padding:2px 0}
 .panel footer{padding-top:4px;gap:4px}
@@ -82,7 +82,7 @@
 /* W6-② 换档确认：一条发丝线托住一行平实说明 + 文字按钮，不是告警面板。 */
 .modelConfirm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 8px;padding:10px 2px 0;border-top:1px solid #e9e5dc;font-size:12px;line-height:1.7;color:#605c55}
 .modelConfirm span{flex:1;min-width:200px}
-.modelConfirm button{font-size:12px;color:#8d3a17;text-decoration:underline;text-underline-offset:4px;min-height:32px;padding:6px 4px}
+.modelConfirm button{font-size:12px;color:#b3411d;text-decoration:underline;text-underline-offset:4px;min-height:32px;padding:6px 4px}
 /* W6-④ 后台任务托盘：每行一个点 + 目标 + 状态词，颜色只给点。 */
 .runTray{flex-shrink:0;padding:2px 4px 6px;border-bottom:1px solid #f0ece5;margin-bottom:4px}
 .runRow{display:flex;align-items:baseline;gap:8px;margin:0;padding:5px 0;font-size:12px;color:#605c55;line-height:1.6}

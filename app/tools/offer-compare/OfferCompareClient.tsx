@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   compareOffers,
   round2,
@@ -182,30 +181,25 @@ export default function OfferCompareClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8f4] text-stone-800">
+    <div className="min-h-screen bg-[#fbf6ee] text-[#2a2620]">
       <div className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-14">
         {/* ===== 首屏：H1 + 工具即见 ===== */}
-        <motion.header
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="mb-8"
-        >
-          <p className="mb-2 text-xs font-semibold tracking-wide text-orange-600">
+        <header className="mb-8">
+          <p className="mb-2 text-xs font-semibold tracking-wide text-[#b3411d]">
             益职AI · 免费工具 · 无需登录
           </p>
-          <h1 className="text-2xl font-bold leading-snug md:text-[28px]">
+          <h1 className="font-serif text-2xl font-bold leading-snug md:text-[28px]">
             别只比月薪。把每个 offer 换成「税后到手 + 时薪 + 首年净得」再决定。
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-stone-500">
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[#6f6558]">
             贴进 2–3 个 offer 的月薪、发放月数、年终奖、五险一金基数、签字费和期权，
             实时换算成可比口径。我们比别家多做一步：差异归因 + 岗位决策提醒——
             钱算清之后，成长和团队还是要你自己比。
           </p>
-          <p className="mt-2 text-xs text-stone-400">
+          <p className="mt-2 text-xs text-[#7b7062]">
             所有数字均为 {ESTIMATE_NOTE}。当前预填的是示例数字，可改。
           </p>
-        </motion.header>
+        </header>
 
         {/* ===== 输入列 ===== */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -220,7 +214,7 @@ export default function OfferCompareClient() {
           {offers.length < 3 && (
             <button
               onClick={addThird}
-              className="flex min-h-[120px] items-center justify-center rounded-xl border-2 border-dashed border-stone-300 text-sm font-medium text-stone-500 transition-colors hover:border-orange-400 hover:text-orange-600"
+              className="flex min-h-[120px] items-center justify-center rounded-xl border-2 border-dashed border-[#d8cbb7] text-sm font-medium text-[#6f6558] transition-colors hover:border-[#efae84] hover:text-[#b3411d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b3411d]"
             >
               + 添加第 3 个 offer
             </button>
@@ -228,12 +222,7 @@ export default function OfferCompareClient() {
         </div>
 
         {/* ===== 结果区：先证据，后结论 ===== */}
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.1 }}
-          className="mt-10 space-y-6"
-        >
+        <section className="mt-10 space-y-6">
           {/* 三块核心指标卡 */}
           <div className="grid gap-4 md:grid-cols-3">
             {result.perOffer.map((m, idx) => (
@@ -250,19 +239,19 @@ export default function OfferCompareClient() {
           {/* 一句话倾向结论 */}
           <ConclusionPanel metrics={result.perOffer} best={result.best} />
 
-          <p className="text-xs leading-relaxed text-stone-400">
+          <p className="text-xs leading-relaxed text-[#7b7062]">
             口径假设（都可改）：个税按「月度累计预扣」简化近似，未计专项附加扣除与年度汇算；
             年终奖按全年一次性奖金单独计税近似；五险一金 = 缴纳基数 ×（养老 8% + 医疗 2% + 失业 0.5% + 公积金个人比例），
             当地基数上下限未内置，请自行对照填基数；期权按你填的年化额并入，不计税不折现不模拟归属；
             时薪按 年税后到手 ÷（周工时 × 52）。大小周请折算进周工时。
             以上全部是 {ESTIMATE_NOTE}。
           </p>
-        </motion.section>
+        </section>
 
         {/* ===== 软引导 ===== */}
-        <section className="mt-12 rounded-2xl border border-orange-200 bg-orange-50/60 p-6 md:p-8">
-          <h2 className="text-base font-bold text-stone-800">算清了钱，然后呢？</h2>
-          <p className="mt-2 text-sm leading-relaxed text-stone-600">
+        <section className="mt-12 rounded-2xl border border-[#eed4b7] bg-[#fff7e8]/70 p-6 md:p-8">
+          <h2 className="text-base font-bold text-[#2a2620]">算清了钱，然后呢？</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[#4f473d]">
             计算器看不见的东西，往往才是决定性因素：岗位职责、直属 leader、晋升节奏、业务风险。
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -270,7 +259,7 @@ export default function OfferCompareClient() {
               type="button"
               onClick={saveToCockpit}
               disabled={saveStatus === 'saving'}
-              className="inline-block rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-block rounded-lg border border-[#b3411d] bg-[#e0552c] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#b3411d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b3411d] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {authenticated === false
                 ? '登录后，把这几份 offer 存进我的求职作战盘 →'
@@ -283,22 +272,22 @@ export default function OfferCompareClient() {
             {saveStatus === 'saved' && savedId && (
               <a
                 href="/cockpit"
-                className="text-sm font-medium text-orange-700 underline-offset-2 hover:underline"
+                className="text-sm font-medium text-[#b3411d] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b3411d]"
               >
                 去作战盘查看这条 Offer 决策 →
               </a>
             )}
             <button
               onClick={() => window.print()}
-              className="rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:border-orange-400 hover:text-orange-700"
+              className="rounded-lg border border-[#d8cbb7] bg-[#fffdf8] px-4 py-2.5 text-sm font-medium text-[#4f473d] transition-colors hover:border-[#efae84] hover:text-[#b3411d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b3411d]"
             >
               打印 / 导出对比结果
             </button>
           </div>
           {saveStatus === 'error' && (
-            <p className="mt-2 text-xs text-red-600">{saveError}</p>
+            <p className="mt-2 text-xs text-[#a93622]">{saveError}</p>
           )}
-          <p className="mt-3 text-xs text-stone-400">
+          <p className="mt-3 text-xs text-[#7b7062]">
             （存作战盘需登录，保存的是这份对比的输入与结论；本页计算本身免费、免登录、不上传数据。）
           </p>
         </section>
@@ -306,7 +295,7 @@ export default function OfferCompareClient() {
         {/* ===== FAQ ===== */}
         <FaqSection />
 
-        <footer className="mt-12 border-t border-stone-200 pt-6 text-center text-xs text-stone-400">
+        <footer className="mt-12 border-t border-[#e6dccd] pt-6 text-center text-xs text-[#7b7062]">
           © 2026 益职AI · 你的私人求职导师 · 本页数字均为{ESTIMATE_NOTE}
         </footer>
       </div>
@@ -341,18 +330,18 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-medium text-stone-500">
+      <span className="mb-1 block text-[11px] font-medium text-[#6f6558]">
         {label}
-        {suffix && <span className="ml-1 text-stone-400">（{suffix}）</span>}
+        {suffix && <span className="ml-1 text-[#7b7062]">（{suffix}）</span>}
       </span>
       <input
         type="number"
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm text-stone-800 transition-colors focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-200"
+        className="w-full rounded-lg border border-[#d8cbb7] bg-[#fffdf8] px-2.5 py-1.5 text-sm text-[#2a2620] transition-colors focus:border-[#e0552c] focus:outline-none focus:ring-1 focus:ring-[#f3d6a6]"
       />
-      {hint && <span className="mt-0.5 block text-[10px] leading-tight text-stone-400">{hint}</span>}
+      {hint && <span className="mt-0.5 block text-[10px] leading-tight text-[#7b7062]">{hint}</span>}
     </label>
   );
 }
@@ -367,26 +356,26 @@ function OfferColumn({
   onChange: (patch: Partial<OfferForm>) => void;
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-[#e6dccd] bg-[#fffdf8] p-4 shadow-sm">
       <input
         value={offer.name}
         onChange={(e) => onChange({ name: e.target.value })}
-        className="mb-1 w-full border-none bg-transparent text-sm font-bold text-stone-800 focus:outline-none"
+        className="mb-1 w-full border-none bg-transparent text-sm font-bold text-[#2a2620] focus:outline-none"
         placeholder="offer 名称"
       />
       <input
         value={offer.cityLabel}
         onChange={(e) => onChange({ cityLabel: e.target.value })}
-        className="mb-3 w-full border-none bg-transparent text-xs text-stone-400 focus:outline-none"
+        className="mb-3 w-full border-none bg-transparent text-xs text-[#7b7062] focus:outline-none"
         placeholder="城市（仅展示用）"
       />
       <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
         <Field label="税前月薪" suffix="元" value={offer.monthlySalary} onChange={(v) => onChange({ monthlySalary: v })} />
         <Field label="发放月数" suffix="如 12/13/16" value={offer.monthsPaid} onChange={(v) => onChange({ monthsPaid: v })} />
         <label className="col-span-2 block">
-          <span className="mb-1 flex items-center gap-2 text-[11px] font-medium text-stone-500">
+          <span className="mb-1 flex items-center gap-2 text-[11px] font-medium text-[#6f6558]">
             年终奖
-            <span className="inline-flex overflow-hidden rounded-md border border-stone-300">
+            <span className="inline-flex overflow-hidden rounded-md border border-[#d8cbb7]">
               {(['months', 'amount'] as const).map((mode) => (
                 <button
                   key={mode}
@@ -394,8 +383,8 @@ function OfferColumn({
                   onClick={() => onChange({ yearEndBonusMode: mode })}
                   className={`px-2 py-0.5 text-[11px] ${
                     offer.yearEndBonusMode === mode
-                      ? 'bg-orange-600 text-white'
-                      : 'bg-white text-stone-500 hover:bg-stone-50'
+                      ? 'bg-[#e0552c] text-white'
+                      : 'bg-[#fffdf8] text-[#6f6558] hover:bg-[#f6eddf]'
                   }`}
                 >
                   {mode === 'months' ? '按月薪倍数' : '固定元额'}
@@ -423,7 +412,7 @@ function OfferColumn({
         <Field label="每周工作小时" suffix="h" value={offer.weeklyHours} onChange={(v) => onChange({ weeklyHours: v })} hint="大小周折算进这里" />
       </div>
       {metrics && (
-        <p className="mt-3 border-t border-stone-100 pt-2 text-[11px] text-stone-400">
+        <p className="mt-3 border-t border-[#efe6d8] pt-2 text-[11px] text-[#7b7062]">
           持续年包 {fmt(metrics.grossAnnualPackage)} 元 · 年到手 {fmt(metrics.annualNet)} 元
         </p>
       )}
@@ -448,20 +437,20 @@ function MetricCard({
     { label: '税后时薪', value: fmt(metrics.hourlyNet, 2), unit: '元/小时', best: isBest.hourly },
   ];
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[#e6dccd] bg-[#fffdf8] p-5 shadow-sm">
       <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h3 className="truncate text-sm font-bold text-stone-800">{metrics.name || '未命名 offer'}</h3>
-        {metrics.cityLabel && <span className="shrink-0 text-xs text-stone-400">{metrics.cityLabel}</span>}
+        <h3 className="truncate text-sm font-bold text-[#2a2620]">{metrics.name || '未命名 offer'}</h3>
+        {metrics.cityLabel && <span className="shrink-0 text-xs text-[#7b7062]">{metrics.cityLabel}</span>}
       </div>
       <div className="space-y-2.5">
         {rows.map((r) => (
           <div key={r.label} className="flex items-baseline justify-between gap-2">
-            <span className="text-xs text-stone-500">{r.label}</span>
+            <span className="text-xs text-[#6f6558]">{r.label}</span>
             <span className="text-right">
-              <span className="text-base font-bold tabular-nums text-stone-800">{r.value}</span>
-              <span className="ml-1 text-[10px] text-stone-400">{r.unit}</span>
+              <span className="text-base font-bold tabular-nums text-[#2a2620]">{r.value}</span>
+              <span className="ml-1 text-[10px] text-[#7b7062]">{r.unit}</span>
               {r.best && (
-                <span className="ml-1.5 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
+                <span className="ml-1.5 rounded bg-[#f6dfc0] px-1.5 py-0.5 text-[10px] font-semibold text-[#b3411d]">
                   最高
                 </span>
               )}
@@ -469,7 +458,7 @@ function MetricCard({
           </div>
         ))}
       </div>
-      <p className="mt-3 border-t border-stone-100 pt-2 text-[10px] text-stone-400">
+      <p className="mt-3 border-t border-[#efe6d8] pt-2 text-[10px] text-[#7b7062]">
         首年净得（含签字费）{fmt(metrics.firstYearTotalNet)} 元 · {ESTIMATE_NOTE}
       </p>
     </div>
@@ -482,13 +471,13 @@ function MetricCard({
 
 function EvidencePanel({ metrics }: { metrics: OfferMetrics[] }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-1 text-sm font-bold text-stone-800">这些数字怎么来的（公式与明细）</h3>
-      <p className="mb-3 text-xs text-stone-400">先看证据，再看结论。逐月口径为摊到 12 个月的近似预扣。</p>
+    <div className="rounded-xl border border-[#e6dccd] bg-[#fffdf8] p-5 shadow-sm">
+      <h3 className="mb-1 text-sm font-bold text-[#2a2620]">这些数字怎么来的（公式与明细）</h3>
+      <p className="mb-3 text-xs text-[#7b7062]">先看证据，再看结论。逐月口径为摊到 12 个月的近似预扣。</p>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {metrics.map((m, idx) => (
-          <details key={idx} open={idx === 0} className="group rounded-lg border border-stone-100 bg-stone-50/60 p-3">
-            <summary className="cursor-pointer select-none text-xs font-semibold text-stone-700">
+          <details key={idx} open={idx === 0} className="group rounded-lg border border-[#efe6d8] bg-[#f6eddf]/70 p-3">
+            <summary className="cursor-pointer select-none text-xs font-semibold text-[#3b352d]">
               {m.name || `Offer ${idx + 1}`} · 明细
             </summary>
             <dl className="mt-2 space-y-1.5 text-[11px] leading-relaxed">
@@ -514,8 +503,8 @@ function EvidencePanel({ metrics }: { metrics: OfferMetrics[] }) {
 function Row({ k, v }: { k: string; v?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <dt className="text-stone-500">{k}</dt>
-      {v && <dd className="shrink-0 font-medium tabular-nums text-stone-700">{v}</dd>}
+      <dt className="text-[#6f6558]">{k}</dt>
+      {v && <dd className="shrink-0 font-medium tabular-nums text-[#3b352d]">{v}</dd>}
     </div>
   );
 }
@@ -528,15 +517,15 @@ function DeltasPanel({ offers, deltas }: { offers: OfferMetrics[]; deltas: Pairw
   if (deltas.length === 0) return null;
   const money = (n: number) => `${n >= 0 ? '+' : '−'}${fmt(Math.abs(n))} 元`;
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-3 text-sm font-bold text-stone-800">两两对比：首年净差与差异归因</h3>
+    <div className="rounded-xl border border-[#e6dccd] bg-[#fffdf8] p-5 shadow-sm">
+      <h3 className="mb-3 text-sm font-bold text-[#2a2620]">两两对比：首年净差与差异归因</h3>
       <div className="space-y-5">
         {deltas.map((d, idx) => {
           const from = offers[d.from];
           const to = offers[d.to];
           return (
-            <div key={idx} className="rounded-lg border border-stone-100 bg-stone-50/60 p-3.5">
-              <p className="text-xs font-semibold text-stone-700">
+            <div key={idx} className="rounded-lg border border-[#efe6d8] bg-[#f6eddf]/70 p-3.5">
+              <p className="text-xs font-semibold text-[#3b352d]">
                 以「{from.name}」为基准，「{to.name}」：
               </p>
               <div className="mt-2 grid gap-2 text-xs sm:grid-cols-3">
@@ -549,19 +538,19 @@ function DeltasPanel({ offers, deltas }: { offers: OfferMetrics[]; deltas: Pairw
               </div>
               {d.topDrivers.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-[11px] font-medium text-stone-500">差异主要来自（按贡献绝对值排序）：</p>
+                  <p className="text-[11px] font-medium text-[#6f6558]">差异主要来自（按贡献绝对值排序）：</p>
                   <ul className="mt-1 space-y-0.5">
                     {d.topDrivers.slice(0, 4).map((t, i) => (
-                      <li key={i} className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
+                      <li key={i} className="flex items-baseline justify-between gap-3 text-[11px] text-[#4f473d]">
                         <span>{t.component}</span>
-                        <span className="shrink-0 font-semibold tabular-nums text-stone-800">{money(t.amount)}</span>
+                        <span className="shrink-0 font-semibold tabular-nums text-[#2a2620]">{money(t.amount)}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
               {d.topDrivers.length === 0 && (
-                <p className="mt-2 text-[11px] text-stone-400">两项口径下没有差异。</p>
+                <p className="mt-2 text-[11px] text-[#7b7062]">两项口径下没有差异。</p>
               )}
             </div>
           );
@@ -573,9 +562,9 @@ function DeltasPanel({ offers, deltas }: { offers: OfferMetrics[]; deltas: Pairw
 
 function DeltaStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-stone-200 bg-white px-2.5 py-2">
-      <div className="text-[10px] text-stone-400">{label}</div>
-      <div className="font-bold tabular-nums text-stone-800">{value}</div>
+    <div className="rounded-md border border-[#e6dccd] bg-[#fffdf8] px-2.5 py-2">
+      <div className="text-[10px] text-[#7b7062]">{label}</div>
+      <div className="font-bold tabular-nums text-[#2a2620]">{value}</div>
     </div>
   );
 }
@@ -604,17 +593,17 @@ function ConclusionPanel({
   const hourlySame = best.byNet === best.byHourly;
 
   return (
-    <div className="rounded-xl border border-orange-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-2 text-sm font-bold text-stone-800">一句话倾向（只看钱）</h3>
-      <p className="text-sm leading-relaxed text-stone-700">
-        若只比「税后到手」，<span className="font-semibold text-orange-700">{netWinner.name}</span> 领先
+    <div className="rounded-xl border border-[#eed4b7] bg-[#fffdf8] p-5 shadow-sm">
+      <h3 className="mb-2 text-sm font-bold text-[#2a2620]">一句话倾向（只看钱）</h3>
+      <p className="text-sm leading-relaxed text-[#3b352d]">
+        若只比「税后到手」，<span className="font-semibold text-[#b3411d]">{netWinner.name}</span> 领先
         {netGap > 0 && <>（每年约多 {fmt(netGap)} 元）</>}
         {hourlySame
           ? '，按时薪算也是它占优'
-          : <>；但按「税后时薪」则是 <span className="font-semibold text-orange-700">{hourlyWinner.name}</span> 更高——多出来的钱可能是在用时长换</>}
+          : <>；但按「税后时薪」则是 <span className="font-semibold text-[#b3411d]">{hourlyWinner.name}</span> 更高——多出来的钱可能是在用时长换</>}
         。这个结论完全依赖上方假设：基数按你填的来、期权未计税未折现、签字费只算首年、时薪不含通勤。
       </p>
-      <p className="mt-2 text-xs leading-relaxed text-stone-500">
+      <p className="mt-2 text-xs leading-relaxed text-[#6f6558]">
         假设不对？直接改上面的输入，所有数字实时重算。别忘了：总包接近时，决定权在岗位内容、leader 与晋升节奏——
         那些才是该存进作战盘一起比的东西。以上均为{ESTIMATE_NOTE}，不构成任何「稳了」的判断。
       </p>
@@ -652,14 +641,14 @@ const FAQS: Array<{ q: string; a: string }> = [
 function FaqSection() {
   return (
     <section className="mt-12">
-      <h2 className="mb-4 text-base font-bold text-stone-800">常见问题</h2>
+      <h2 className="mb-4 text-base font-bold text-[#2a2620]">常见问题</h2>
       <div className="space-y-2.5">
         {FAQS.map((f) => (
-          <details key={f.q} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-            <summary className="cursor-pointer select-none text-sm font-semibold text-stone-700">
+          <details key={f.q} className="rounded-xl border border-[#e6dccd] bg-[#fffdf8] p-4 shadow-sm">
+            <summary className="cursor-pointer select-none text-sm font-semibold text-[#3b352d]">
               {f.q}
             </summary>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">{f.a}</p>
+            <p className="mt-2 text-sm leading-relaxed text-[#4f473d]">{f.a}</p>
           </details>
         ))}
       </div>

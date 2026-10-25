@@ -300,6 +300,33 @@ describe("resume draft source mapping", () => {
     expect(callLLM).toHaveBeenCalledTimes(2);expect(reserveQuota).not.toHaveBeenCalled();
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain('主线');
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('contentDeltas');
+    const reviewMessages = (callLLM as jest.Mock).mock.calls[1][0] as Array<{ content: string }>;
+    const schema = JSON.parse(reviewMessages.at(-1)!.content.split('JSON Schema：')[1].trim());
+    expect(schema.required).toContain('narrativeReview');
+    expect(schema.properties.narrativeReview.required).toContain('goals');
+    expect(reviewMessages.at(-1)!.content).toContain('只有warning');
+  });
+
+  test('an unsupported narrative is refunded after bounded author repair, never saved as complete', async () => {
+    (compileContextBundle as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/context').compileContextBundle);
+    const before='- **需求记录。** 收集反馈形成清单，清单交给同事讨论。';
+    const plan={mainline:'清单证明独立完成产品研发上线闭环',claims:[{point:'收集反馈整理为清单交给同事讨论',sourceIds:['resume-line-1']}],
+      priorities:[{id:'p1',anchorId:'a1',goal:'删除重复清单措辞，突出已有交付和用途'}]};
+    const draft={editorialPlan:plan,changes:[{section:'经历',anchorId:'a1',after:'- **需求记录。** 收集反馈形成清单交给同事讨论。',
+      reason:'删重复清单措辞，突出真实交付',sourceIds:['resume-line-1']}]};
+    const review={status:'passed',summary:'单处精简可用但主线不能证明研发上线',findings:[],document:passedDocument,
+      valueChecks:[{index:0,useful:true,kind:'concision',impact:'content',reason:'删去重复清单字样保留交付用途'}],
+      narrativeReview:{status:'failed',mainlineSupported:false,summary:'反馈清单不能证明独立研发上线',
+        goals:[{id:'p1',status:'addressed',reason:'删去重复清单字样，但主线仍无依据'}]}};
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify(draft)).mockResolvedValueOnce(JSON.stringify(review))
+      .mockResolvedValueOnce(JSON.stringify(draft)).mockResolvedValueOnce(JSON.stringify(review));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:draft.changes[0].after,findings:[]});
+    const user={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
+    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({resumeText:before,mode:'general_resume'})}),
+      user,{isolated:true,editorialMode:'narrative',maxModelCalls:4});
+    expect(response.status).toBe(422);expect(await response.json()).toMatchObject({reasonCode:'resume_mainline_unverified'});
+    expect(callLLM).toHaveBeenCalledTimes(4);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(finalizeQuota).not.toHaveBeenCalledWith(expect.anything(),true);expect(createArtifactWithClaims).not.toHaveBeenCalled();
   });
 
   test('model call ceiling blocks before an extra billable call instead of bypassing review', async () => {

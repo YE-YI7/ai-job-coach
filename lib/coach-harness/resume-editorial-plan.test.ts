@@ -1,6 +1,6 @@
 import {
   readResumeEditorialPlan, readResumeNarrativeReview, resumeContentDelta, unresolvedResumeEditorialGoals,
-  type ResumeEditorialPlan,
+  resumeEditorialAnchors, bindResumeEditorialAnchors, type ResumeEditorialPlan,
 } from './resume-editorial-plan';
 import { resumeEditorialCoreMethod } from '@/lib/knowledge/resume-methods';
 
@@ -16,6 +16,19 @@ test('plans bind source IDs and exact original spans, never become career claims
   expect(readResumeEditorialPlan({ ...plan, priorities: [{ ...plan.priorities[0], before: '原文没有这段，因此不得作为实际范围' }] }, before, new Set(['s1']))).toBeNull();
   expect(readResumeEditorialPlan({ ...plan, priorities: [plan.priorities[0], plan.priorities[0]] }, before, new Set(['s1']))).toBeNull();
   expect(readResumeEditorialPlan({ ...plan, after: '越权内容' }, before, new Set(['s1']))).toBeNull();
+});
+test('immutable source anchors preserve Markdown and never fuzzy-match changed facts', () => {
+  const anchors = resumeEditorialAnchors(before);
+  expect(anchors).toEqual([{ anchorId: 'a1', before }]);
+  const bound = bindResumeEditorialAnchors({ editorialPlan: { ...plan,
+    priorities: [{ id: 'p1', anchorId: 'a1', goal: plan.priorities[0].goal }] },
+    changes: [{ anchorId: 'a1', after: '候选文字' }],
+  }, before);
+  expect(bound.anchorsValid).toBe(true);
+  expect(readResumeEditorialPlan(bound.output.editorialPlan, before, new Set(['s1']))).toEqual(plan);
+  expect(bound.output.changes).toEqual([{ before, after: '候选文字' }]);
+  expect(bindResumeEditorialAnchors({ changes: [{ anchorId: 'not-provided', after: '正文' }] }, before).anchorsValid).toBe(false);
+  expect(bindResumeEditorialAnchors({ changes: [{ anchorId: 'a1', before: '篡改原文', after: '正文' }] }, before).anchorsValid).toBe(false);
 });
 test('renaming a bold lead or swapping particles is not a substantive body delta', () => {
   expect(resumeContentDelta(before, before.replace('**检查交付。**', '**验收交付。**'))).toBe('lead_or_surface_only');

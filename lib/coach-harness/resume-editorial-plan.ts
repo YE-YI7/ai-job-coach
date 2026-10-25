@@ -18,6 +18,34 @@ const text = (value: unknown, min: number, max: number): value is string =>
 const keys = (value: Record<string, unknown>, allowed: string[]) =>
   Object.keys(value).every(key => allowed.includes(key));
 
+/** The model selects immutable source spans; it does not have to retype Markdown. */
+export function resumeEditorialAnchors(resume: string) {
+  return resume.split('\n').map(line => line.trim()).filter(line => line.length >= 8)
+    .map((before, index) => ({ anchorId: `a${index + 1}`, before }));
+}
+
+export function bindResumeEditorialAnchors(raw: Record<string, unknown>, resume: string) {
+  const anchors = new Map(resumeEditorialAnchors(resume).map(anchor => [anchor.anchorId, anchor.before]));
+  let invalid = false;
+  const bind = (item: unknown) => {
+    if (!object(item) || item.anchorId === undefined) return item;
+    const before = typeof item.anchorId === 'string' ? anchors.get(item.anchorId) : undefined;
+    if (!before || (item.before !== undefined && item.before !== before)) invalid = true;
+    const { anchorId, ...rest } = item;
+    void anchorId;
+    return { ...rest, before: before || '' };
+  };
+  const plan = object(raw.editorialPlan) ? raw.editorialPlan : null;
+  const output = {
+    ...raw,
+    ...(plan ? { editorialPlan: { ...plan,
+      priorities: Array.isArray(plan.priorities) ? plan.priorities.map(bind) : plan.priorities,
+    } } : {}),
+    changes: Array.isArray(raw.changes) ? raw.changes.map(bind) : raw.changes,
+  };
+  return { anchorsValid: !invalid, output };
+}
+
 /** A plan organizes evidence. Its prose never becomes citable career facts. */
 export function readResumeEditorialPlan(raw: unknown, resume: string, sourceIds: Set<string>): ResumeEditorialPlan | null {
   if (!object(raw) || !keys(raw, ['mainline', 'claims', 'priorities']) || !text(raw.mainline, 8, 180)
@@ -83,7 +111,7 @@ export function unresolvedResumeEditorialGoals(plan: ResumeEditorialPlan, review
 }
 
 export const RESUME_NARRATIVE_REVIEW_PROMPT = `还要独立核对 editorialPlan。计划是编辑判断，不是事实来源：
-1. 依据原简历、已确认指令和JD判断mainline是否成立，不因编辑写了主线就同意；不能把团队/提案/原型变成个人上线成果。
+1. mainlineSupported只判断主线命题是否有事实支持，不判断编辑是否把目标做好；后者由goals判断。不能照抄JD要求当成经历，不把团队/提案/原型变成个人上线成果。
 2. 每条priority逐项判断：addressed=最终保留稿已改善真实贡献、内容取舍、主次或可读结构；keep_original=原文已达目标且有具体理由；not_addressed=还没做到。不能靠改段首标题、把换将、同义词、标点或多写解释来凑addressed。
 3. 对比前后信息：真正删了什么冗余、把哪个决策/交付从什么位置提出来、吸收了哪条本人补充？理由不能只是“更专业/突出能力/贴合定位”。不强求数字或编造事实。
 4. contentDelta=surface_only/lead_or_surface_only时impact不能是content；若确实纠正了错误概括，可按correction检查，但不算本轮内容主线已完成。

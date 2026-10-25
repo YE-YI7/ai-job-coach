@@ -25,6 +25,7 @@ export function useTodayCompanion({
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     let current = true;
     const read = async (target: string) => {
       const response = await fetch(`/api/coach/companion?opportunityId=${encodeURIComponent(target)}`, {
@@ -58,9 +59,9 @@ export function useTodayCompanion({
           companion: previous.requestScope === scope ? previous.companion : null,
           error: error instanceof Error ? error.message : "网络暂时不可用，安排没有丢。",
         }));
-      }
+      } finally { clearTimeout(timeout); }
     })();
-    return () => { current = false; controller.abort(); };
+    return () => { current = false; clearTimeout(timeout); controller.abort(); };
   }, [enabled, scope, revision, fallback]);
   // Do not display A's data while B's deferred read is still pending (or failed).
   return result.requestScope === scope ? result : {

@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, useEffect } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { useTodayCompanion } from "./useTodayCompanion";
 import { readFileSync } from "node:fs";
@@ -20,7 +20,11 @@ describe("Today companion: actual mounted effects with deferred HTTP", () => {
   let root: ReactTestRenderer;
   let snapshot: Snapshot;
   const originalFetch = global.fetch;
-  function Harness(props: Props) { snapshot = useTodayCompanion(props); return null; }
+  function Harness(props: Props) {
+    const value = useTodayCompanion(props);
+    useEffect(() => { snapshot = value; }, [value]);
+    return null;
+  }
   async function mount(props: Props) {
     await act(async () => { root = create(createElement(Harness, props)); });
   }

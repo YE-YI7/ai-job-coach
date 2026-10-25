@@ -3,7 +3,8 @@
   "git": { "deploymentEnabled": {
     "codex/production-release": false,
     "codex/analytics-business-repair-1022": false,
-    "codex/experience-safety-1024": false
+    "codex/experience-safety-1024": false,
+    "codex/qoder-today-experience-1024": false
   } },
   "crons": [{ "path": "/api/cron/job-market", "schedule": "0 1 * * *" }]
 }

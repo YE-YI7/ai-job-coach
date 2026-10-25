@@ -675,7 +675,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ||discardedReviewFindings.length||!coversSupplement(finalChanges)||requestIncomplete);
     const partialFields=partial?{partial:true,...(correctionOnly?{reasonCode:'resume_correction_only'}
       :partialRecoveryReason?{reasonCode:partialRecoveryReason}:requestIncomplete?{reasonCode:'resume_request_incomplete'}:{})}:{};
-    const deliverySummary=resumeDeliverySummary(finalChanges,[...unresolvedGrounding.values(),...(requestCoverage?.unaddressed||[])]);
+    const newSuggestions=finalChanges.filter(change=>!generationSource?.changes.some(previous=>
+      previous.id===change.id&&previous.before===change.before&&previous.after===change.after));
+    const deliverySummary=resumeDeliverySummary(newSuggestions,[...unresolvedGrounding.values(),...(requestCoverage?.unaddressed||[])]);
     const explanation=correctionOnly?'本轮只完成文字校对，尚未完成内容优化。':partialRecoveryReason?'部分返修暂未完成，对应原文仍保留。'
       :!coversSupplement(finalChanges)?'刚才补充的那段暂未形成可靠改写，仍保留原文。':partial?'这是部分交付，不代表本轮要求已全部完成。':'';
     const summary=deliverySummary+explanation;

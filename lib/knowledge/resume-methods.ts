@@ -8,6 +8,15 @@ export const RESUME_METHOD_IDS = [
   "resume.layout-and-export.v1",
 ] as const;
 
+/** Bounded core excerpt is reserved separately, not falsely reported as a full
+ * retrieved document. Required user material still fails loudly if it cannot fit. */
+export function resumeEditorialCoreMethod() {
+  const document = reviewedResumeMethods(['resume.factual-rewriting.v1'])[0];
+  const content = document?.content.match(/## 主线与取舍契约\n([\s\S]*?)(?=\n## |$)/)?.[1].trim();
+  if (!content || content.length > 1800) throw Error('RESUME_EDITORIAL_METHOD_UNAVAILABLE');
+  return { id: 'resume.factual-rewriting.v1#editorial-core', parentId: document.id, content };
+}
+
 /** Select candidates, not admitted context. The caller must run the context
  * compiler afterwards; user facts/answers outrank every optional reference. */
 export function selectResumeDraftKnowledge(resume: string, target: string, existing: ContextBundle["knowledge"] = []) {

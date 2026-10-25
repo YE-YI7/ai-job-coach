@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-10-20",
+  "updated_at": "2026-10-25",
   "description": "益职面向求职 Agent 的领域知识库。数据库保存来源证据，Markdown 文档保存经过提炼且带使用边界的知识。",
   "goal": "让 Agent 在岗位判断、简历、模拟面试和复盘中调用稳定、可追溯、不会覆盖用户事实的求职知识。",
   "policy_path": "policies/agent-usage.md",
@@ -8,13 +8,13 @@
     {
       "id": "resume.factual-rewriting.v1", "title": "简历改写：用已有事实写清贡献",
       "path": "domains/shared/resume-factual-rewriting.md",
-      "description": "改写冗长、空泛的简历 bullet，已有事实先改，不虚构数字，不把提案写成落地。",
+      "description": "先用已有材料确定有来源的主线与取舍，再改贡献和结构；不只换词，不虚构数字，不把提案写成落地。",
       "goal": "让每次改稿带来可读性或信息取舍的实际改善，而非只换动词和标签。",
       "scope": "有原简历或本人自述即可；无 JD 可以优化表达；公共写法不是用户事实或录用证据。",
       "roles": [], "companies": [], "stages": ["简历"], "tasks": ["resume_tailoring"],
       "use_when": ["简历写得空泛或 bullet 太长", "没有 JD 只想改简历", "缺数字但已有具体动作", "改写只是换动词加标签", "提案被改成上线成果"],
       "do_not_use_when": ["要求编造经历或结果", "把教学例句和外部样例写成用户事实", "用通用写法替代当前材料"],
-      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-16",
+      "confidence": "medium", "status": "active", "reviewed_at": "2026-10-25",
       "evidence_urls": [
         "https://github.com/Dannyvice/evidence-first-resume-skill/blob/de5407f266c16adf8873625a7ae38b06cbd71b2b/SKILL.md",
         "https://careerservices.fas.harvard.edu/resources/create-a-strong-resume/",

@@ -2,9 +2,13 @@ import { GET, POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { POST as rewrite } from "@/app/api/coach/resume-draft/route";
+import { runResumeDraft } from '@/lib/coach-harness/resume-execution';
+import { hasActiveTokenPayConnection } from '@/lib/tokenpay';
 jest.mock("@/lib/auth", () => ({ getCurrentUserFromRequest: jest.fn() }));
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
 jest.mock("@/app/api/coach/resume-draft/route", () => ({ POST: jest.fn() }));
+jest.mock('@/lib/coach-harness/resume-execution', () => ({ runResumeDraft: jest.fn() }));
+jest.mock('@/lib/tokenpay', () => ({ hasActiveTokenPayConnection: jest.fn() }));
 jest.mock("@/lib/coach-harness/eval-observer", () => ({
   withEvalObserver: (_o: unknown, fn: () => unknown) => fn(),
   redactEval: (x: unknown) => x,
@@ -37,6 +41,30 @@ beforeEach(() => {
   jest.clearAllMocks();
   process.env.ADMIN_EMAILS = "owner@example.invalid";
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(admin);
+  (hasActiveTokenPayConnection as jest.Mock).mockResolvedValue(false);
+});
+test('comparison rejects unbounded calls, injected users and silent hosted fallback before execution', async () => {
+  for (const comparison of [{ mode: 'narrative', callLimit: 9 }, { mode: 'narrative', callLimit: 0 },
+    { mode: 'narrative', callLimit: 4, userId: 'other' }, { mode: 'legacy', callLimit: 2 }]) {
+    expect((await POST(make({ ...body, comparison }))).status).toBe(400);
+  }
+  expect((await POST(make({ ...body, comparison: { mode: 'narrative', callLimit: 4 } }))).status).toBe(409);
+  expect(runResumeDraft).not.toHaveBeenCalled(); expect(rewrite).not.toHaveBeenCalled();
+});
+test('authorized comparison has immutable actor billing, no old-data IDs and a server-side call ceiling', async () => {
+  (hasActiveTokenPayConnection as jest.Mock).mockResolvedValue(true);
+  const update = { eq: jest.fn().mockReturnThis(), then: (resolve: (x: unknown) => unknown) => resolve({ error: null }) };
+  const query = { eq: jest.fn().mockReturnThis(), maybeSingle: async () => ({ data: null, error: null }) };
+  (getDbClient as jest.Mock).mockResolvedValue({ from: (table: string) => table === 'coach_eval_runs'
+    ? { insert: async () => ({ error: null }), update: () => update } : { select: () => query } });
+  (runResumeDraft as jest.Mock).mockResolvedValue(Response.json({ ok: true, changes: [] }));
+  const response = await POST(make({ ...body, comparison: { mode: 'narrative', callLimit: 4 } }));
+  expect(response.status).toBe(200);
+  expect(runResumeDraft).toHaveBeenCalledWith(expect.any(Request), admin,
+    { isolated: true, actorModel: true, editorialMode: 'narrative', maxModelCalls: 4 });
+  expect(rewrite).not.toHaveBeenCalled();
+  const input = await (runResumeDraft as jest.Mock).mock.calls[0][0].json();
+  expect(input).not.toHaveProperty('opportunityId'); expect(input).not.toHaveProperty('resumeTaskId');
 });
 test("both read and model execution reject anonymous/non-admin users before database access", async () => {
   for (const user of [

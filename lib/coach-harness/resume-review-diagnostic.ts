@@ -2,14 +2,17 @@ import type {ResumeChange} from '@/lib/opportunities/types';
 import {readDocumentReview} from './resume-document-review';
 import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
+import {readResumeNarrativeReview,type ResumeEditorialPlan} from './resume-editorial-plan';
 
 /** An invalid review is not an editing instruction. Keep the grounded draft
  * fixed while obtaining one corrected verdict, never ask the editor to guess. */
-export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
+export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[],plan:ResumeEditorialPlan|null=null) {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return 'review_not_object';
  const r=raw as Record<string,unknown>;
  if(r.status!=='passed'&&r.status!=='failed')return 'review_status_invalid';
- if(Object.keys(r).some(k=>!['status','summary','findings','valueChecks','document','recovery','requestCoverage'].includes(k)))return 'review_unexpected_fields';
+ const allowed=['status','summary','findings','valueChecks','document','recovery','requestCoverage',...(plan?['narrativeReview']:[])];
+ if(Object.keys(r).some(k=>!allowed.includes(k)))return 'review_unexpected_fields';
+ if(plan&&!readResumeNarrativeReview(r.narrativeReview,plan))return 'review_narrative_invalid';
  if('requestCoverage' in r&&readResumeRequestCoverage(r.requestCoverage).status==='unverified')return 'review_request_coverage_invalid';
  if((r.summary!==undefined&&(typeof r.summary!=='string'||!r.summary.trim()))||!Array.isArray(r.findings)||r.findings.length>20)return 'review_fields_invalid';
  const ids=new Set(changes.map(c=>c.id));
@@ -41,6 +44,7 @@ export function resumeReviewDiagnostic(raw:unknown, changeIds:string[], useful:n
 }
 export function resumeReviewRepairHint(issue:string){
  const hints:Record<string,string>={
+  review_narrative_invalid:'narrativeReview必须逐项核对所有priority id，各一次；mainlineSupported为布尔值，status/summary/goals完整。只改标题和同义词不能填addressed，原文已好则具体说明keep_original。',
   review_request_coverage_invalid:'requestCoverage必须含status、unaddressed与具体summary；complete时未完成列表为空，否则必须列出尚未完成的目标。',
   document_missing:'必须同时返回document对象，不能只给逐条结论。',
   document_unexpected_fields:'document仅含status、summary、findings；不要加入source、score、recovery或正文。',

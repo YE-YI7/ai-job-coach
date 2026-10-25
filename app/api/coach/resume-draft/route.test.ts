@@ -279,6 +279,43 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test('narrative mode reserves a grounded core, delivers a sourced plan and independently checks its goals', async () => {
+    (compileContextBundle as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/context').compileContextBundle);
+    const before='- **需求记录。** 平时做需求，收集了30条反馈，收集后整理成问题清单，交给同事每周讨论。';
+    const after='- **需求整理。** 整理30条反馈形成问题清单，交给同事每周讨论。';
+    const plan={mainline:'以反馈清单和每周讨论证明真实需求整理与交付能力',
+      claims:[{point:'将反馈整理成清单支持每周讨论',sourceIds:['resume-line-1']}],
+      priorities:[{id:'p1',before,goal:'删除重复过程和空泛职责，突出清单交付与用途'}]};
+    (callLLM as jest.Mock)
+      .mockResolvedValueOnce(JSON.stringify({editorialPlan:plan,changes:[{section:'经历',before,after,reason:'删掉重复收集过程，突出已有清单及用途',sourceIds:['resume-line-1']}]}))
+      .mockResolvedValueOnce(JSON.stringify({status:'passed',summary:'实际删除重复职责和过程',findings:[],
+        valueChecks:[{index:0,useful:true,kind:'concision',impact:'content',reason:'删去平时做需求与重复收集过程，突出原有清单用途'}],document:passedDocument,
+        narrativeReview:{status:'passed',mainlineSupported:true,summary:'清单支持讨论的主线可由原文支持',
+          goals:[{id:'p1',status:'addressed',reason:'已删重复过程，清单和讨论用途成为主要信息'}]}}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
+    const user={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
+    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({resumeText:before,mode:'general_resume'})}),
+      user,{isolated:true,editorialMode:'narrative',maxModelCalls:4});
+    const data=await response.json();expect({status:response.status,data}).toMatchObject({status:200,data:{editorialPlan:plan,narrativeReview:{status:'passed'}}});
+    expect(callLLM).toHaveBeenCalledTimes(2);expect(reserveQuota).not.toHaveBeenCalled();
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain('主线');
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('contentDeltas');
+  });
+
+  test('model call ceiling blocks before an extra billable call instead of bypassing review', async () => {
+    (compileContextBundle as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/context').compileContextBundle);
+    const before='- **需求记录。** 整理反馈，整理后形成问题清单交给同事。';
+    const plan={mainline:'通过问题清单交付证明真实需求整理能力',claims:[{point:'整理反馈清单交给同事使用',sourceIds:['resume-line-1']}],
+      priorities:[{id:'p1',before,goal:'删去重复整理过程，突出已有交付清单'}]};
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({editorialPlan:plan,changes:[{section:'经历',before,
+      after:'- **需求记录。** 整理反馈形成问题清单，交给同事。',reason:'删除重复过程，突出真实交付',sourceIds:['resume-line-1']}]}));
+    const user={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
+    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({resumeText:before,mode:'general_resume'})}),
+      user,{isolated:true,editorialMode:'narrative',maxModelCalls:1});
+    expect(response.status).toBe(422);expect(await response.json()).toMatchObject({ok:false,reasonCode:'eval_model_call_limit'});
+    expect(callLLM).toHaveBeenCalledTimes(1);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
+
   test.each([true,false])('recorded unchanged-plus-punctuation response requires original review (%s)',async accepted=>{
     const before='大学英语四级，可阅读英文业务资料。掌握 Excel 筛选和透视表。';
     const resumeText=`林研\n虚构验收材料\n## 技能\n${before}\n## 教育背景\n示例大学 · 信息管理 · 本科在读｜2023.09–2027.06`;

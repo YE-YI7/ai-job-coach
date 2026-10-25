@@ -11,6 +11,8 @@ import {
   type EvalSpan,
 } from "@/lib/coach-harness/eval-observer";
 import { POST as rewriteResume } from "@/app/api/coach/resume-draft/route";
+import { runResumeDraft } from '@/lib/coach-harness/resume-execution';
+import { hasActiveTokenPayConnection } from '@/lib/tokenpay';
 import { applyResumeChanges } from "@/lib/coach-harness";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import {
@@ -167,6 +169,7 @@ export async function POST(request: Request) {
           "jobDescription",
           "selfEvaluate",
           "label",
+          "comparison",
         ].includes(k),
     )
   )
@@ -174,6 +177,22 @@ export async function POST(request: Request) {
       { error: "请提供有效材料并确认正常模型计费；不支持传入用户或旧岗位ID。" },
       400,
     );
+  const comparison = body.comparison as { mode?: unknown; callLimit?: unknown } | undefined;
+  if (comparison !== undefined && (!comparison || typeof comparison !== 'object' || Array.isArray(comparison)
+    || Object.keys(comparison).some(key => !['mode', 'callLimit'].includes(key))
+    || comparison.mode !== 'narrative' || !Number.isInteger(comparison.callLimit)
+    || Number(comparison.callLimit) < 1 || Number(comparison.callLimit) > 8 || body.selfEvaluate === true)) {
+    return json({ error: '对比评测仅接受主线方案与明确调用上限；不附加收费自评。' }, 400);
+  }
+  if (comparison) {
+    try {
+      if (!await hasActiveTokenPayConnection(user.id)) {
+        return json({ error: '对比要求当前管理员已有模型连接；未调用站点模型或益职额度。' }, 409);
+      }
+    } catch {
+      return json({ error: '当前模型连接未确认，未调用模型。' }, 503);
+    }
+  }
   const db = await getDbClient();
   if (!db) return json({ error: "评测存储不可用，未调用模型" }, 503);
   const id = body.requestId,
@@ -187,7 +206,9 @@ export async function POST(request: Request) {
         : body.jobDescription
           ? "岗位定制实测"
           : "无 JD 改稿实测",
-    provenance: "production",
+    provenance: comparison ? 'real_model_deidentified_comparison' : 'production',
+    ...(comparison ? { comparison: { mode: comparison.mode, maxModelCalls: comparison.callLimit,
+      billing: 'current_actor_connection', liveDataTargets: false } } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
     input: {
@@ -224,9 +245,7 @@ export async function POST(request: Request) {
     if (error) throw Error("EVAL_SAVE_FAILED");
   };
   try {
-    const response = await withEvalObserver({ spans, save }, () =>
-      rewriteResume(
-        new Request(new URL("/api/coach/resume-draft", request.url), {
+    const comparisonRequest = new Request(new URL("/api/coach/resume-draft", request.url), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -235,9 +254,11 @@ export async function POST(request: Request) {
             mode: body.jobDescription ? "target_resume" : "general_resume",
             requestId: id,
           }),
-        }),
-      ),
-    );
+        });
+    const response = await withEvalObserver({ spans, save }, () => comparison
+      ? runResumeDraft(comparisonRequest, user, {
+        isolated: true, actorModel: true, editorialMode: 'narrative', maxModelCalls: Number(comparison.callLimit),
+      }) : rewriteResume(comparisonRequest));
     const output = await response.json();
     const old = await db
       .from("product_events")

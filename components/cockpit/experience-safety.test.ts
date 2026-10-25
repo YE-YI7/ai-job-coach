@@ -18,7 +18,16 @@ test('new entry has its own goal, confirmed save clears only its handoff, old go
   const arrangement=readFileSync('components/cockpit/CurrentArrangement.tsx','utf8');
   expect(entry).toContain('claimLandingHandoff(sessionStorage,handoff.id,scope)');
   expect(entry).toContain('initialText={handoff?.text}');
-  expect(arrangement).toContain('[newGoal, setNewGoal] = useState(Boolean(initialText))');
+  expect(arrangement).toContain('[newGoal, setNewGoal] = useState(Boolean(initialText)||startNewGoal)');
   expect(arrangement).toContain("if(action==='open')onOpened?.()");
   expect(arrangement).toContain('task && !newGoal');
+});
+test('missing handoff has visible recovery and cannot silently open an old goal',()=>{
+  const entry=readFileSync('components/cockpit/CompanionStart.tsx','utf8');
+  expect(entry).toContain('首页那句话没带过来。再说一次，我们从这里继续。');
+  expect(entry).toContain('startNewGoal={handoffRequested}');
+  expect(entry).toContain('newSession:handoffRequested');
+  expect(entry).toContain('withoutLandingHandoff(location.href)');
+  expect(entry).not.toContain('TutorMarkdown');
+  expect(readFileSync('components/cockpit/CurrentArrangement.tsx','utf8')).toContain('!fixture && saved && !newGoal');
 });

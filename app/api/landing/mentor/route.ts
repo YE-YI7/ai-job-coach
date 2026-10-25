@@ -1,5 +1,4 @@
-import {getDbClient} from '@/lib/db';
-import {consumePublicRateLimit} from '@/lib/public-rate-limit';
+import {consumeLandingPreviewBudget} from '@/lib/landing-preview-budget';
 import {parseLandingHandoffId} from '@/lib/landing-handoff';
 import {generateLandingPreview,landingFallback} from '@/lib/landing-mentor';
 
@@ -36,14 +35,8 @@ export async function POST(request:Request) {
   if(process.env.LANDING_MENTOR_PREVIEW_ENABLED!=='1')return fallback();
   try {
     // This route must fail closed if durable budget enforcement is unavailable.
-    if(!await getDbClient())return fallback();
-    const ip=await consumePublicRateLimit({request,scope:'landing-mentor-ip',limit:3,windowSeconds:86400});
-    if(!ip.allowed)return fallback();
-    const globalRequest=new Request(request.url,{headers:{'x-real-ip':'0.0.0.0'}});
-    const budget=await consumePublicRateLimit({request:globalRequest,scope:'landing-mentor-global',limit:20,windowSeconds:86400});
+    const budget=await consumeLandingPreviewBudget(request,requestId);
     if(!budget.allowed)return fallback();
-    const once=await consumePublicRateLimit({request,scope:'landing-mentor-once',subject:requestId,limit:1,windowSeconds:86400});
-    if(!once.allowed)return fallback();
     const preview=await generateLandingPreview(message,requestId,{
       onUsage:usage=>console.info('landing-preview-usage',JSON.stringify({requestId,...usage})),
     });

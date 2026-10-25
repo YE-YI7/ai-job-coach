@@ -1,8 +1,14 @@
 export const LANDING_HANDOFF_KEY='yizhi:landing-sentence:v1';
+export const LANDING_PREVIEW_POLICY='landing-mentor/2026-10-24-v2';
 const lifetime=24*60*60*1000;
 type Store=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 export type LandingHandoff={id:string;text:string;createdAt:number;owner?:string};
-export type LandingPreview={understanding:string;nextStep:string;source:'model'|'fallback'};
+export type LandingPreview={
+  understanding:string;
+  nextStep:string;
+  source:'model'|'fallback';
+  policyVersion?:typeof LANDING_PREVIEW_POLICY;
+};
 export type LandingHandoffWithPreview=LandingHandoff&{preview?:LandingPreview};
 
 export function parseLandingHandoffId(value:unknown):string|null {
@@ -18,6 +24,9 @@ export function readLandingHandoff(store:Pick<Storage,'getItem'>,id:string|null,
     const preview=(raw as LandingHandoffWithPreview).preview;
     if(preview&&(!['model','fallback'].includes(preview.source)||typeof preview.understanding!=='string'||
       typeof preview.nextStep!=='string'||preview.understanding.length>1200||preview.nextStep.length>200))return null;
+    // Retain the original sentence, but never re-display an obsolete model reply.
+    if(preview?.source==='model'&&preview.policyVersion!==LANDING_PREVIEW_POLICY)
+      return {...raw,preview:undefined};
     return raw;
   } catch { return null; }
 }
@@ -46,4 +55,10 @@ export function completeLandingHandoff(store:Store,id:string,owner:string) {
 }
 export function landingHandoffHref() {
   return '/cockpit?entry=one_sentence&handoff=1';
+}
+
+export function withoutLandingHandoff(href:string) {
+  const url=new URL(href,'https://handoff.invalid');
+  url.searchParams.delete('handoff');
+  return url.pathname+url.search+url.hash;
 }

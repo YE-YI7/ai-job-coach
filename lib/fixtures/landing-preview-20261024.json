@@ -1,0 +1,26 @@
+{
+  "source": "Previously retained HTTP API output, not raw provider bytes. Replayed without any new model call.",
+  "cases": [
+    {
+      "input": "我是会计专业应届生，想转做运营，但简历上全是财务实习。",
+      "requestId": "23cd82ca-12d4-4319-aeaa-292b1f07af06",
+      "generationEventId": "8b4e790f-a32a-429d-ae90-bb7ecac2d806",
+      "understanding": "会计专业应届生，目标转运营，卡点是简历仅有财务实习，缺乏运营相关经验展示。",
+      "nextStep": "找一份初级运营岗JD，圈出3个核心要求，对照你的一段财务实习经历，用运营语言重写其中1个bullet point，突出数据敏感度或用户视角。"
+    },
+    {
+      "input": "留学回国三个月了，错过了秋招批次，不知道现在还能从哪里开始投。",
+      "requestId": "919ff062-1259-429b-ac80-91839176048c",
+      "generationEventId": "2a4a24a5-613d-4a5e-bea3-1a80b1975f6c",
+      "understanding": "留学回国三个月，错过秋招，不清楚当前可投递的求职渠道和岗位方向。",
+      "nextStep": "打开一个常用招聘APP，筛选应届生或校招标签，记录3个符合专业的在招岗位。"
+    },
+    {
+      "input": "我做了两年运营，最近三次都挂在第二轮面试，不知道该先练哪一块。",
+      "requestId": "94664a1f-3561-4063-a5ad-f9fa9874cf6d",
+      "generationEventId": "3252b592-0cdb-4559-b2a9-3fc3af91e62c",
+      "understanding": "用户有两年运营经验，最近三次面试均止步第二轮，不确定应优先提升哪方面面试能力。",
+      "nextStep": "回顾最近三次第二轮面试中被追问最多的问题类型，整理出3个高频问题并写出自己的回答框架。"
+    }
+  ]
+}

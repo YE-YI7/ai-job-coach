@@ -5,7 +5,7 @@ import { FIRST_LIGHT_HTML } from "./content";
 import { mountFirstLight } from "./interactions";
 import { trackProductEvent } from "@/lib/product-events";
 import { parseEntryKind } from "@/lib/entry-doors";
-import {LANDING_HANDOFF_KEY,landingHandoffHref,readLandingHandoff,saveLandingHandoff,saveLandingPreview,
+import {LANDING_HANDOFF_KEY,LANDING_PREVIEW_POLICY,landingHandoffHref,readLandingHandoff,saveLandingHandoff,saveLandingPreview,
   type LandingPreview} from '@/lib/landing-handoff';
 import "./first-light.css";
 
@@ -29,7 +29,7 @@ export default function FirstLightHome() {
       reply.hidden=false;
       const summary=document.createElement('p'),step=document.createElement('p');
       summary.textContent=preview.understanding;
-      step.textContent=preview.source==='model'?`今天先做：${preview.nextStep}`:preview.nextStep;
+      step.textContent=preview.nextStep;
       reply.replaceChildren(summary,step);
       if(submit)submit.textContent='继续和导师聊 →';
     };
@@ -50,15 +50,17 @@ export default function FirstLightHome() {
       const deadline=window.setTimeout(()=>request?.abort(),25_000);
       if(submit){submit.disabled=true;submit.textContent='导师正在看这句话…';}
       let preview:LandingPreview={source:'fallback',understanding:`你刚才说：「${handoff.text}」`,
-        nextStep:'这句话已保留。登录后，导师会从这里接着聊。'};
+        nextStep:'我先记下了。登录后，我们就从这句话接着聊。'};
       try {
         const response=await fetch('/api/landing/mentor',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({message:handoff.text,requestId:handoff.id}),signal:request.signal});
         const result=await response.json();
         if(response.ok&&result.ok&&['model','fallback'].includes(result.source)&&
           typeof result.understanding==='string'&&typeof result.nextStep==='string'&&
-          result.understanding.length<=1200&&result.nextStep.length<=200)
-          preview={source:result.source,understanding:result.understanding,nextStep:result.nextStep};
+          result.understanding.length<=1200&&result.nextStep.length<=200&&
+          (result.source==='fallback'||result.policyVersion===LANDING_PREVIEW_POLICY))
+          preview={source:result.source,understanding:result.understanding,nextStep:result.nextStep,
+            ...(result.source==='model'?{policyVersion:LANDING_PREVIEW_POLICY}:{})};
       } catch { /* The exact input remains available without retrying a paid call. */ }
       finally {
         window.clearTimeout(deadline);busy=false;

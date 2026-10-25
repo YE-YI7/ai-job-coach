@@ -22,6 +22,14 @@ describe("DeepSeek completion request", () => {
     });
   });
 
+  test("landing Step budget includes bounded reasoning and does not claim thinking disabled",()=>{
+    const request=buildChatCompletionRequest(messages,"stepfun","step-3.7-flash",{
+      maxTokens:350,reasoningBudgetTokens:512,responseFormat:'json_object',maxRetries:0,
+    });
+    expect(request).toMatchObject({max_tokens:862,reasoning_effort:'low',response_format:{type:'json_object'}});
+    expect(request).not.toHaveProperty('thinking');
+  });
+
   test("Kimi requests do not inherit incompatible fixed sampling or thinking fields",()=>{
     const request=buildChatCompletionRequest(messages,"tokendance","kimi-k3",{temperature:0.4});
     expect(request.temperature).toBeUndefined();expect(request.thinking).toBeUndefined();

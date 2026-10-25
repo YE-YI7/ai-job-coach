@@ -11,11 +11,12 @@ type Saved = { id: string; version: number; companion: CompanionTask };
 type Action = "open" | "submit" | "start" | "stuck" | "skip" | "end" | "reopen";
 const draftKey = (id: string) => `companion-draft:${id}`;
 
-export default function CurrentArrangement({ fixture = false, opportunityId = null, initialText='',onOpened,
+export default function CurrentArrangement({ fixture = false, opportunityId = null, initialText='',startNewGoal=false,onOpened,
   onAskMentor, onOpenResume, onOpenInterview }: {
   fixture?: boolean;
   opportunityId?: string | null;
   initialText?:string;
+  startNewGoal?:boolean;
   onOpened?:()=>void;
   onAskMentor?: (prompt: string, attemptId: string) => void;
   onOpenResume?: () => void;
@@ -24,10 +25,10 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
   const demo = decideCompanion(fixtureText);
   const [saved, setSaved] = useState<Saved | null>(fixture ? { id: "fixture", version: 1, companion: { goalKey: "fixture", goalTitle: demo.goalTitle, sourceText: fixtureText, weeklyHours: null, deadline: null, answer: demo.answer, question: demo.question, step: demo.step, stages: demo.stages, route: "arrange", action: "not_started", submissions: [] } } : null);
   const current = useRef(saved); current.current = saved;
-  const [open, setOpen] = useState(fixture||Boolean(initialText));
+  const [open, setOpen] = useState(fixture||Boolean(initialText)||startNewGoal);
   const [enabled, setEnabled] = useState(fixture);
   const [loading, setLoading] = useState(!fixture);
-  const [text, setText] = useState(initialText||(fixture ? fixtureText : ""));
+  const [text, setText] = useState(initialText||(fixture&&!startNewGoal ? fixtureText : ""));
   const [draft, setDraft] = useState("");
   const [stuck, setStuck] = useState("");
   const [error, setError] = useState("");
@@ -35,8 +36,8 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
   const [busy, setBusy] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const lock = useRef(false);
-  const [adjusting, setAdjusting] = useState(Boolean(initialText));
-  const [newGoal, setNewGoal] = useState(Boolean(initialText));
+  const [adjusting, setAdjusting] = useState(Boolean(initialText)||startNewGoal);
+  const [newGoal, setNewGoal] = useState(Boolean(initialText)||startNewGoal);
   const [earlier, setEarlier] = useState<{ id: string; goalTitle: string }[]>([]);
   const pending = useRef<{ id: string; text: string } | null>(null);
   const opening = useRef<{ id: string; text: string } | null>(null);
@@ -100,8 +101,15 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
   }, []);
 
   useEffect(() => {
-    if (!fixture && saved) void fetch("/api/coach/companion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "presented", planId: saved.id, expectedVersion: saved.version, opportunityId }) }).catch(() => undefined);
-  }, [fixture, saved, opportunityId]);
+    if (!fixture && saved && !newGoal) {
+      void fetch('/api/coach/companion',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'presented',planId:saved.id,
+          expectedVersion:saved.version,opportunityId}),
+      }).catch(()=>undefined);
+    }
+  }, [fixture, saved, opportunityId, newGoal]);
 
   function keepDraft(value: string) {
     setDraft(value);
@@ -118,6 +126,11 @@ export default function CurrentArrangement({ fixture = false, opportunityId = nu
       const c = origin.companion;
       setSaved({ ...origin, version: origin.version + 1, companion: action === "open" ? { ...c, ...decision } : { ...c, action: action === "submit" ? "submitted" : action === "start" || action === "reopen" ? "in_progress" : action === "stuck" ? "paused" : action === "skip" ? "skipped" : "ended", step: action === "stuck" && c.step ? shrinkStep(c.step, stuck) : c.step, submissions: action === "submit" ? [...c.submissions, { id: crypto.randomUUID(), text: draft, savedAt: new Date().toISOString(), feedback: null, review: "none" }] : c.submissions } });
       setStatus(action === "submit" ? "内容已保存，反馈还没完成（预览不调用模型）" : "预览状态已更新");
+      if(action==='open'){
+        setAdjusting(false);
+        setNewGoal(false);
+        onOpened?.();
+      }
       return;
     }
     lock.current = true; setBusy(true); setError(""); setStatus("正在保存…");

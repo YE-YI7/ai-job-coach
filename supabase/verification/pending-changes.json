@@ -1,0 +1,17 @@
+{
+  "base": "production-20261023.json",
+  "productionApplied": false,
+  "migrations": [
+    {
+      "file": "20261025033557_landing_preview_atomic_budget.sql",
+      "sha256": "6de3ff332148078a1ac185e1f1b8dfab9ccbfc626918685720d09d309da8c357"
+    }
+  ],
+  "addedFunctions": [
+    {
+      "name": "consume_landing_mentor_budget",
+      "args": "p_ip_key_hash text, p_global_key_hash text, p_intent_key_hash text",
+      "executeRoles": ["postgres", "service_role"]
+    }
+  ]
+}

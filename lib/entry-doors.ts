@@ -58,7 +58,7 @@ export const ENTRY_DOORS: readonly EntryDoor[] = [
     meta: "SAY IT FIRST",
     title: "我先说一句",
     desc: "写下现在的困惑，也可以点下面的例子，选中后还能改。",
-    out: "导师的一个具体问题 · 一个能做的下一步",
+    out: "一个小行动，或一句关键追问",
     cta: "和导师说",
     placeholder: "例如：投了几十份没有面试，不知道卡在哪。",
     chips: ["不知道自己适合什么", "想转行，不知道从哪开始", "有目标岗位，想看看差距", "快面试了，想先练一练"],

@@ -279,6 +279,27 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
+  test.each([true,false])('recorded unchanged-plus-punctuation response requires original review (%s)',async accepted=>{
+    const before='大学英语四级，可阅读英文业务资料。掌握 Excel 筛选和透视表。';
+    const resumeText=`林研\n虚构验收材料\n## 技能\n${before}\n## 教育背景\n示例大学 · 信息管理 · 本科在读｜2023.09–2027.06`;
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:resumeText,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready',result:{changes:[],unchanged:true}});
+    // Exact wording and contradictory status from the paid fictional case.
+    const cosmetic=(after:string)=>JSON.stringify({status:'unchanged',changes:[{section:'技能',before,after,reason:'原句已清晰，仅调整标点，无实质改善，故保留原文。',sourceIds:['claim-1']}]});
+    (callLLM as jest.Mock)
+      .mockResolvedValueOnce(cosmetic('大学英语四级，可阅读英文业务资料；掌握 Excel 筛选和透视表。'))
+      .mockResolvedValueOnce(cosmetic('大学英语四级，可阅读英文业务资料；掌握 Excel 筛选与透视表。'))
+      .mockResolvedValueOnce(JSON.stringify({status:accepted?'passed':'failed',unchanged:accepted,summary:accepted?'现有技能和教育已准确清楚，仅更换标点没有信息价值。':'原文仍有值得处理的内容，不能认定无需修改。'}));
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease'})}));
+    expect(response.status).toBe(accepted?200:422);
+    const data=await response.json();
+    if(accepted){expect(data).toMatchObject({unchanged:true,changes:[]});expect(data.summary).toContain('原因：现有技能和教育已准确清楚');}
+    else {expect(data.unchanged).not.toBe(true);expect(finishResumeTask).not.toHaveBeenCalled();}
+    expect(callLLM).toHaveBeenCalledTimes(3);expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+  });
+
   test('removing a disclaimer cannot hide a blocked contribution rewrite',async()=>{
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[
       {before:'协助编写接口说明。',after:'主导平台上线。',sourceIds:['claim-1']},

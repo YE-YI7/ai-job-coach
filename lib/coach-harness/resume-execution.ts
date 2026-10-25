@@ -439,7 +439,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         trace.step('grounding','one_bounded_repair',rejected.length);continue;
       }
       const onlyCosmetic=rejected.length>0&&rejected.every(item=>item.reasons.length>0&&item.reasons.every(reason=>/仅改标签|技能列表|仅同义换词|与原文相同或仅调整空白/.test(reason)));
-      if(agentTask&&!changes.length&&onlyCosmetic){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}
+      // The editor can return status:unchanged together with punctuation-only
+      // proposals. None of those rejected proposals may be applied, but the
+      // explicit no-op verdict still deserves independent ORIGINAL review.
+      // That reviewer (and the answer/gap gates) decides, never the editor.
+      if(agentTask&&!changes.length&&(onlyCosmetic||parsed.status==='unchanged')){const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;}
       outcome = "blocked"; trace.step("grounding", "no_grounded_change", rejected.length, {input:rawChanges,output:{changes,rejected,verdicts:citationVerdicts}});
       await finalizeQuota(reservation, false);
       reservation = null;

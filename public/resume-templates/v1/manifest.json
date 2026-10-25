@@ -1,5 +1,10 @@
 {
-  "rendererSha256": "d909fe50584e8d48ebdb73d3fda3fb1e4391f9303095fddc10e1b093ace2fa78",
+  "rendererSha256": "d28e83262626aff2390c264e82cc46377c38cdfbac3730346339c273c96edf1f",
+  "rendererDependencies": {
+    "fontLoader": "eeb5b0b9ad290dbcee67d438267fd8a02b5b30dde9e93d73d947d3108142203f",
+    "regular": "2abc4680a0f28708977377f02ea55090f86158f2cf9de766f9f967cd1ccad318",
+    "semibold": "e8e51614f466f309d70321a4f6bf811b6cd52265c1dca3b8770e25108a3591c7"
+  },
   "fixtureSha256": "cc670a683ccec380f223db101fcb063fb3029c923ce99186750ce19cc98cc0ed",
   "templates": [
     "classic",
@@ -12,8 +17,8 @@
   "fictional": true,
   "assets": {
     "classic": {
-      "bytes": 8736,
-      "sha256": "2e8096346f8b29313015488571a883ad28072b9c99bd1ff5c9d7d02365e6b009"
+      "bytes": 7976,
+      "sha256": "38b54f9f7491f91efc7638d6bde1ad1552584ea0b6777048ddc3ad69ca5ee6cd"
     },
     "modern": {
       "bytes": 9926,
@@ -28,8 +33,8 @@
       "sha256": "fcae012552533c4c4514fdec56a016eea95e112f325990a66dc95b30b362f88e"
     },
     "editorial": {
-      "bytes": 9196,
-      "sha256": "6e61589d11071a443588728ea916f8fbca930b0937e2697a9a5ae7cf5ba5799d"
+      "bytes": 8578,
+      "sha256": "89a4ba4a7eb6fa27a4d300c0506ae90d3afe292b9c03cb0fd1cd9eff463368ce"
     },
     "rail": {
       "bytes": 9804,

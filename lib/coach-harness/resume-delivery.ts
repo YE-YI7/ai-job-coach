@@ -46,6 +46,7 @@ export const RESUME_REASON_CODES = [
   "resume_no_deliverable_change",
   "resume_mapping_conflict",
   "resume_review_unavailable",
+  "eval_model_call_limit",
   "resume_correction_only",
   "context_budget_exceeded",
   "quota_denied",

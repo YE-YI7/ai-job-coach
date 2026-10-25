@@ -1,13 +1,14 @@
 /** Reuse the bundled, OFL-licensed face. OS Songti aliases 口 to a Kangxi
  * radical glyph, which Chrome may reverse-map incorrectly in PDF ToUnicode. */
 export const RESUME_SERIF_FAMILY = 'YiZhi Resume Serif';
-export const RESUME_SERIF_PATH = '/fonts/source-han-serif-home.woff2';
+export const RESUME_SERIF_PATH = '/fonts/noto-serif-sc-print-regular.woff2';
+export const RESUME_SERIF_SEMIBOLD_PATH = '/fonts/noto-serif-sc-print-semibold.woff2';
 
 export async function readyResumePrintFonts(document: Document, serif: boolean) {
   if (!document.fonts) throw new Error('font_loading_unavailable');
   if (serif) {
-    const faces = await document.fonts.load(`10.5pt "${RESUME_SERIF_FAMILY}"`);
-    if (!faces.length) throw new Error('resume_font_unavailable');
+    const faces = await Promise.all([400,600].map(weight => document.fonts.load(`${weight} 10.5pt "${RESUME_SERIF_FAMILY}"`)));
+    if (faces.some(group => !group.length)) throw new Error('resume_font_unavailable');
   }
   await document.fonts.ready;
 }

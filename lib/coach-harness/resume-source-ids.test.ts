@@ -1,4 +1,13 @@
-import {resolveResumeSourceIds} from './resume-source-ids';
+import {resolveResumeSourceIds,resumeEditCitationSources} from './resume-source-ids';
+import {citationGroundingDecision} from './guard-slots/verification.guards';
+test('an unrelated project cannot silently provide a new action to the current edit',()=>{
+ const before='参与校园项目，整理用户需求清单。';
+ const all=[{id:'base-resume',text:before+'另一个项目独立完成了模型评测与迭代。'},{id:'current',text:before},{id:'other',text:'另一个项目独立完成了模型评测与迭代。'}];
+ const scoped=resumeEditCitationSources(before,['current'],all);
+ expect(scoped.map(source=>source.id)).toEqual(['original-edit-span','current']);
+ expect(citationGroundingDecision({citation:{candidateText:'独立完成模型评测与迭代。',sources:scoped}})?.outcome).toBe('block');
+ expect(resumeEditCitationSources(before,['current','other'],all).map(source=>source.id)).toContain('other');
+});
 const first='a5b0e202-981a-4396-bb04-aca2be5bceaf',second='3f98b7f7-07f6-4265-9ac1-22a42b2fa354';
 test('replays the real repair UUID abbreviations against only request-scoped facts',()=>{
  expect(resolveResumeSourceIds(['a5b0e202','3f98b7f7'],new Set([first,second]))).toEqual({ids:[first,second],resolved:[{from:'a5b0e202',to:first},{from:'3f98b7f7',to:second}]});

@@ -13,3 +13,9 @@ export function resolveResumeSourceIds(raw: unknown, allowed: Set<string>) {
   }
   return {ids:[...new Set(ids)],resolved};
 }
+
+/** Unselected text elsewhere cannot silently license an action in this edit. */
+export function resumeEditCitationSources(before: string, sourceIds: string[], sources: Array<{id:string;text:string}>) {
+  const ids = new Set(sourceIds);
+  return [{ id: 'original-edit-span', text: before }, ...sources.filter(source => ids.has(source.id))];
+}

@@ -54,6 +54,11 @@ for (const key of Object.keys(printTemplates)) {
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 writeFileSync(path.join(output, "manifest.json"), JSON.stringify({
   rendererSha256: hash(readFileSync("lib/resume-print.ts")),
+  rendererDependencies: {
+    fontLoader: hash(readFileSync('lib/resume-print-fonts.ts')),
+    regular: hash(readFileSync('public/fonts/noto-serif-sc-print-regular.woff2')),
+    semibold: hash(readFileSync('public/fonts/noto-serif-sc-print-semibold.woff2')),
+  },
   fixtureSha256: hash(fixture),
   templates: Object.keys(printTemplates),
   fictional: true,

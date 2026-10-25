@@ -50,6 +50,11 @@ test("pre-generated gallery images come from the current PDF renderer and cannot
   const manifest = JSON.parse(readFileSync(`${root}/manifest.json`, "utf8"));
   const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
   expect(manifest.rendererSha256).toBe(hash(readFileSync("lib/resume-print.ts")));
+  expect(manifest.rendererDependencies).toEqual({
+    fontLoader: hash(readFileSync('lib/resume-print-fonts.ts')),
+    regular: hash(readFileSync('public/fonts/noto-serif-sc-print-regular.woff2')),
+    semibold: hash(readFileSync('public/fonts/noto-serif-sc-print-semibold.woff2')),
+  });
   expect(manifest.fictional).toBe(true);
   expect(manifest.templates).toEqual(Object.keys(printTemplates));
   for (const key of manifest.templates) {

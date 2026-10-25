@@ -2,7 +2,7 @@ import { splitResumeBlocks } from "./opportunities/resume-blocks";
 import { isResumePageBreak, markdownSegments } from "./opportunities/resume-markdown";
 import { stripResumeMarkdown, isResumeIdentityLine } from "./opportunities/resume-blocks";
 import type { ResumeInk } from "./opportunities/resume-inline";
-import { bindResumePrintAction, RESUME_SERIF_FAMILY, RESUME_SERIF_PATH } from './resume-print-fonts';
+import { bindResumePrintAction, RESUME_SERIF_FAMILY, RESUME_SERIF_PATH, RESUME_SERIF_SEMIBOLD_PATH } from './resume-print-fonts';
 export const printTemplates={
  classic:{label:"经典黑白",accent:"#242424",font:"serif",description:"居中姓名 · 传统分节"},
  modern:{label:"简洁蓝灰",accent:"#365571",font:"sans-serif",description:"单列全宽 · 清晰分节"},
@@ -17,8 +17,8 @@ const DATE_RANGE = /\d{4}(?:[.\/年-]\d{1,2}月?)?\s*(?:[-–—~～至]\s*)(?:�
 const isDateLine=(line:string)=>{const plain=stripResumeMarkdown(line);return plain.match(DATE_RANGE)?.[0]===plain;};
 export function resumePrintHtml(text:string,template:PrintTemplate,title:string,options:{toolbar?:boolean;highlight?:string;ink?:ResumeInk[];interactive?:boolean;reading?:boolean;photo?:string;assetOrigin?:string}={}){
  const t=printTemplates[template];
- const fontUrl = options.assetOrigin && /^https?:\/\/[^/]+$/.test(options.assetOrigin)
-  ? options.assetOrigin + RESUME_SERIF_PATH : RESUME_SERIF_PATH;
+ const fontUrl = (path:string) => options.assetOrigin && /^https?:\/\/[^/]+$/.test(options.assetOrigin)
+  ? options.assetOrigin + path : path;
  // 只接受我们自己生成的图片 data URI：src 落在纸面上，任何别的 scheme（javascript:、http:）一律忽略。
  const photoSrc=/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(options.photo||"")?options.photo!:"";
  const photoHtml=photoSrc?`<img class="resume-photo" src="${escapeResumeHtml(photoSrc)}" alt="证件照">`:"";
@@ -85,7 +85,9 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  });
  const content=photoHtml?`<div class="resume-header">${photoInserted?"":photoHtml}${rendered.slice(0,headerCount).join("")}</div>${rendered.slice(headerCount).join("")}`:rendered.join("");
  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeResumeHtml(title)}</title><style>
- ${t.font === 'serif' ? `@font-face{font-family:"${RESUME_SERIF_FAMILY}";src:url("${escapeResumeHtml(fontUrl)}") format("woff2");font-style:normal;font-weight:400;font-display:block}` : ''}
+ ${t.font === 'serif' ? [
+   [400,RESUME_SERIF_PATH],[600,RESUME_SERIF_SEMIBOLD_PATH],
+ ].map(([weight,path])=>`@font-face{font-family:"${RESUME_SERIF_FAMILY}";src:url("${escapeResumeHtml(fontUrl(String(path)))}") format("woff2");font-style:normal;font-weight:${weight};font-display:block}`).join('')+'strong{font-weight:600}' : ''}
  @page{size:A4;margin:12mm}*{box-sizing:border-box}html{background:#fff}body{width:210mm;min-height:297mm;padding:12mm;margin:0 auto;color:#292823;font:10.5pt/1.48 ${t.font === "serif" ? '"YiZhi Resume Serif","Noto Serif SC","PingFang SC",serif' : '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'};overflow-wrap:anywhere}
  section{padding:6px 0;border-bottom:0;text-align:left}h2,h3{color:${t.accent};margin:0 0 7px;break-after:avoid;word-break:normal}h2{font-size:11.5pt;font-weight:600;border-bottom:1px solid #dcded7;padding-bottom:7px;margin-top:6px}h3{font-size:10.5pt;font-weight:600}p{white-space:pre-wrap;margin:0 0 5px;orphans:2;widows:2}.resume-name{font-size:22pt;line-height:1.35;font-weight:600;color:${t.accent};margin-bottom:7px}.resume-bullet{padding-left:1em;position:relative}.resume-bullet:before{content:"•";position:absolute;left:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px}.page-break{break-before:page;page-break-before:always}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
  .classic section[data-kind="header"]{border-bottom:2px solid #242424}.classic section[data-kind="header"] .resume-name{text-align:center}

@@ -1,0 +1,20 @@
+{
+  "sourceCommit": "8b0a1d0f5983c89bc2b93f1b5fb55f9e252744b5",
+  "sourceSha256": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+  "build": "fonttools 4.67.0 / brotli 1.2.1; static 400/600, ZHS and default layout",
+  "scope": "GB2312 encodable characters, Latin, punctuation, currency, arrows and fullwidth; uncommon names use existing device fallbacks",
+  "assets": [
+    {
+      "file": "noto-serif-sc-print-regular.woff2",
+      "characters": 8061,
+      "bytes": 1391032,
+      "sha256": "2abc4680a0f28708977377f02ea55090f86158f2cf9de766f9f967cd1ccad318"
+    },
+    {
+      "file": "noto-serif-sc-print-semibold.woff2",
+      "characters": 8061,
+      "bytes": 1409408,
+      "sha256": "e8e51614f466f309d70321a4f6bf811b6cd52265c1dca3b8770e25108a3591c7"
+    }
+  ]
+}

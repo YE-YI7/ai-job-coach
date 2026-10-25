@@ -4,6 +4,20 @@ import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
 import {readResumeNarrativeReview,type ResumeEditorialPlan} from './resume-editorial-plan';
 
+/** Only tighten a contradictory passed -> failed. Raw output stays in Eval;
+ * never invent missing fields or turn a negative verdict into a pass. */
+export function tightenResumeNarrativeVerdict(raw: unknown, plan: ResumeEditorialPlan | null) {
+ if (!plan || !raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+ const review = raw as Record<string, unknown>;
+ const narrative = review.narrativeReview;
+ if (!narrative || typeof narrative !== 'object' || Array.isArray(narrative)) return raw;
+ const verdict = narrative as Record<string, unknown>;
+ if (verdict.status !== 'passed') return raw;
+ const tightened = { ...verdict, status: 'failed' };
+ if (!readResumeNarrativeReview(tightened, plan)) return raw;
+ return { ...review, narrativeReview: tightened };
+}
+
 /** An invalid review is not an editing instruction. Keep the grounded draft
  * fixed while obtaining one corrected verdict, never ask the editor to guess. */
 export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[],plan:ResumeEditorialPlan|null=null) {
@@ -19,7 +33,8 @@ export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[],pla
  if(r.findings.some(f=>!f||typeof f!=='object'||Array.isArray(f)||!ids.has(f.changeId)||!['error','warning'].includes(f.severity)||typeof f.message!=='string'||!f.message.trim()))return 'review_finding_unmapped';
  const document=readDocumentReview(r.document,changes,'independent');
  if(document.contractError)return document.contractError;
- if(r.status==='failed'&&!r.findings.length&&document.status!=='failed')return 'review_failure_unattributed';
+ if(r.status==='failed'&&!r.findings.length&&document.status!=='failed'
+   && !(plan && readResumeNarrativeReview(r.narrativeReview,plan)?.status==='failed'))return 'review_failure_unattributed';
  const checks=readResumeValueChecks(r.valueChecks,changes.length);
  if(checks.length!==changes.length||new Set(checks.map(c=>c.index)).size!==changes.length)return 'review_value_checks_invalid';
  return null;

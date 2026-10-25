@@ -33,7 +33,7 @@ import {
 import { startResumeTrace, type ResumeTraceOutcome } from "@/lib/coach-harness/resume-trace";
 import { classifyGenerationFailure } from "@/lib/llm-telemetry";
 import { resumeSourceProtection } from "@/lib/coach-harness/resume-source-protection";
-import {resolveResumeSourceIds} from './resume-source-ids';
+import {resolveResumeSourceIds,resumeEditCitationSources} from './resume-source-ids';
 import { resumeTaskInput, persistResumeAnswerClaims, persistResumeTrialClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
@@ -47,7 +47,7 @@ import {
   type Slot3Input,
 } from "@/lib/coach-harness/guard-slots";
 import { ACTION_VOCAB, type GroundingSource } from "@/lib/coach-harness/citation-verifier";
-import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint} from './resume-review-diagnostic';
+import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint,tightenResumeNarrativeVerdict} from './resume-review-diagnostic';
 import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired, resumeTransportCanKeepCheckpoint, type ResumeModelPhase } from './resume-execution-policy';
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
@@ -469,7 +469,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       // 不该花一次模型调用去发现一句没有出处的话。拦哪些类别由守卫裁定
       // （残缺/扩大动作/丢限定 = block，换措辞 = annotate 记账），本模块只认 outcome，
       // 不复算任何一条正则或词表。
-      const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { citation: { candidateText: after, sources: citationSources } }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
+      const editCitationSources = narrativeEnabled ? resumeEditCitationSources(before, sourceIds, citationSources) : citationSources;
+      const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { citation: { candidateText: after, sources: editCitationSources } }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
       if (citationVerdict) citationVerdicts.push({ index, outcome: citationVerdict.outcome, code: citationVerdict.reason.code, message: citationVerdict.reason.message });
       if (citationVerdict?.outcome === "block") mappingIssues.push(citationVerdict.reason.message);
       if ((!after && !disclaimerDeletion) || !before || !report.ok || mappingIssues.length) {
@@ -575,6 +576,11 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
       }
     }
     if(strategy==='independent') {
+      const tightened = tightenResumeNarrativeVerdict(reviewer, editorialPlan);
+      if (tightened !== reviewer) {
+        reviewer = tightened as typeof reviewer;
+        trace.step('review','negative_goal_verdict_preserved',1,{input:{verdictSource:'independent_review'},output:{direction:'passed_to_failed_only',additionalModelCalls:0}});
+      }
       let issue:ReturnType<typeof resumeReviewProtocolIssue>=resumeReviewProtocolIssue(reviewer,changes,editorialPlan);
       if(issue&&!reviewContractRepairUsed){
         trace.data.reviewDiagnostics=[...(trace.data.reviewDiagnostics||[]),{attempt,...resumeReviewDiagnostic(reviewer,changes.map(c=>c.id),null),protocolIssue:issue}];
@@ -582,7 +588,7 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
         reviewContractRepairUsed=true;
         try{reviewerOutput=await requestIndependentReview(issue);}
         catch(error){if(restoreCheckpoint(attempt,error))break;throw error;}
-        try{reviewer=parseJson(reviewerOutput);}catch{reviewer={};}
+        try{reviewer=tightenResumeNarrativeVerdict(parseJson(reviewerOutput),editorialPlan) as typeof reviewer;}catch{reviewer={};}
         issue=resumeReviewProtocolIssue(reviewer,changes,editorialPlan);
       }
       if(issue){
@@ -826,7 +832,8 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
       quota,
     });
   } catch (error) {
-    trace?.step("failure", error instanceof ContextBudgetExceededError ? "context_budget_exceeded" : classifyGenerationFailure(error), undefined, {input:{requestHash:trace?.data.requestHash},output:{errorType:error instanceof Error?error.name:'UnknownError',message:error instanceof Error?error.message.slice(0,2000):String(error).slice(0,2000)}});
+    trace?.step("failure", error instanceof Error && error.message === 'RESUME_MODEL_CALL_LIMIT' ? 'eval_model_call_limit'
+      : error instanceof ContextBudgetExceededError ? "context_budget_exceeded" : classifyGenerationFailure(error), undefined, {input:{requestHash:trace?.data.requestHash},output:{errorType:error instanceof Error?error.name:'UnknownError',message:error instanceof Error?error.message.slice(0,2000):String(error).slice(0,2000)}});
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Resume quota refund failed", refundError));
     console.error("Resume draft failed", error);
     if (error instanceof Error && error.message === 'RESUME_MODEL_CALL_LIMIT') {

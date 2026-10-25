@@ -117,4 +117,5 @@ export const RESUME_NARRATIVE_REVIEW_PROMPT = `还要独立核对 editorialPlan�
 4. contentDelta=surface_only/lead_or_surface_only时impact不能是content；若确实纠正了错误概括，可按correction检查，但不算本轮内容主线已完成。
 5. 内容优化不等于新增事实。压缩重复职责、删除冗长愿景以突出原有角色/交付、将埋在过程中的主要判断前置，都可有concision/structure价值；必须说清实际删减或主次变化，不能仅因“这些事实原来就有”否定，也不能把只删一个连接词当成精简成功。
 6. 目标若原文已达到，具体说明keep_original，而不是因为没有改它就填not_addressed。发现原文已清楚是独立判断，不要求编辑为凑计划硬改；但真实未完成的目标不能这样豁免。
-额外返回 narrativeReview:{status:"passed|failed",mainlineSupported:true或false,summary:"实际依据",goals:[{id:"逐字复制priority id",status:"addressed|keep_original|not_addressed",reason:"具体判断"}]}，每个priority恰好一次。你只诊断不写替换稿，原编辑负责返修。`;
+7. 精简需指出实际消除的重复或改变的信息主次，不能把删一个修饰词包装为content；实验结果中的显著性、稳定性和因果限定不是为了简洁随意删除的赘词。不同项目的阶段、动作不能汇总成每个项目都独立完成闭环。
+额外返回 narrativeReview:{status:"passed|failed",mainlineSupported:true或false,summary:"实际依据",goals:[{id:"逐字复制priority id",status:"addressed|keep_original|not_addressed",reason:"具体判断"}]}，每个priority恰好一次。mainlineSupported=false或任一goal=not_addressed时，narrativeReview.status必须failed，不可同时声称通过。你只诊断不写替换稿，原编辑负责返修。`;

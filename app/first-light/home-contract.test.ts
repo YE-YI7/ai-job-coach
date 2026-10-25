@@ -20,6 +20,32 @@ describe("selected Claude to DeepSeek first-light homepage", () => {
     expect(mentorRule).toContain("position: relative");
     expect(mentorRule).toContain("pointer-events: none");
   });
+
+  it("keeps walkthrough notes and keyboard focus in the active chapter", () => {
+    expect(interactions).toContain("createWalkthroughNotes(railFeed())");
+    expect(interactions).toContain("switchNotes(t)");
+    expect(interactions).toContain('p.toggleAttribute("inert", !active)');
+    expect(interactions).toContain('if (curTab === "interview") closeIV()');
+    for (const chapter of ["resume", "interview"]) {
+      expect(FIRST_LIGHT_HTML).toContain(`data-pane="${chapter}" aria-hidden="true" inert`);
+    }
+  });
+
+  it("anchors the interview hotspot to the shipped image and reserves navigation space", () => {
+    const declarations = (selector: string) => {
+      const result: Record<string, string> = {};
+      postcss.parse(css).walkRules((rule) => {
+        if (rule.selector !== selector || rule.parent?.type === "atrule") return;
+        rule.walkDecls((decl) => { result[decl.prop] = decl.value; });
+      });
+      return result;
+    };
+    const box = declarations("[data-first-light-home] .hot");
+    expect(box).toMatchObject({ left: "0", top: "29.16%", width: "14.46%", height: "6.3%" });
+    expect(declarations("[data-first-light-home] #ivShot .shot-inner")["aspect-ratio"])
+      .toBe("1556 / 1382");
+    expect(declarations("[data-first-light-home] .walk-sticky").padding).toBe("90px 0 18px");
+  });
   it("pins the actual selected v5 source, not the old four-door landing", () => {
     expect(FIRST_LIGHT_SOURCE_SHA).toBe(
       "1ef10ac1819d0f03dcb409cf547a951a38b96316108fc5b527c4ac2d6cc0efcf",

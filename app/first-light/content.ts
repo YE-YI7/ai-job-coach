@@ -97,7 +97,7 @@ export const FIRST_LIGHT_HTML = `<div class="grain" aria-hidden="true"></div>
 
             <div class="panes">
               <!-- JOB -->
-              <article class="pane on" data-pane="job">
+              <article class="pane on" data-pane="job" aria-hidden="false">
                 <div class="job-sheet">
                   <header class="doc-h"><div><small class="mono">JD · 示例科技 · 上海 · 3–5 年</small><h3 class="disp">AI 应用产品经理</h3></div><span class="verdict-badge" id="verdictBadge">判断：<b>值得投</b><br><span id="verdictNote">先补 1 条</span></span></header>
                   <div class="doc-sec">岗位职责</div>
@@ -115,7 +115,7 @@ export const FIRST_LIGHT_HTML = `<div class="grain" aria-hidden="true"></div>
               </article>
 
               <!-- RESUME -->
-              <article class="pane" data-pane="resume">
+              <article class="pane" data-pane="resume" aria-hidden="true" inert>
                 <div class="shot-wrap" id="cvShotWrap">
                   <div class="shot" id="cvShot">
                     <div class="shot-inner">
@@ -136,7 +136,7 @@ export const FIRST_LIGHT_HTML = `<div class="grain" aria-hidden="true"></div>
               </article>
 
               <!-- INTERVIEW -->
-              <article class="pane" data-pane="interview">
+              <article class="pane" data-pane="interview" aria-hidden="true" inert>
                 <div class="shot-wrap">
                   <div class="shot" id="ivShot">
                     <div class="shot-inner">

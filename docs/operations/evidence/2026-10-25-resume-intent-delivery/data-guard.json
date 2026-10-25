@@ -1,0 +1,79 @@
+{
+  "unchanged": true,
+  "before": {
+    "resumes": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "user_resumes": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "coach_opportunities": {
+      "count": 9,
+      "hash": "53b6b80aae76d72d4677667fec6d6cc65d4d78d60342302679ae34042a3b192e"
+    },
+    "coach_resume_tasks": {
+      "count": 4,
+      "hash": "6553a1f5e8bbee40fec754791a9230160b658c1eb90bf0fe15906987a07e6527"
+    },
+    "user_quotas": {
+      "count": 1,
+      "hash": "13eab14479f8aabe370275589c4638c2eed2c9f5dca2023603cdd8202f3cb183"
+    },
+    "watcha_point_wallets": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "watcha_point_transfers": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "watcha_point_reservations": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "interview_answers": {
+      "count": 16,
+      "hash": "6c98de227514508f4e729b4956f9a942693535639816d28e7510a134e9902f11"
+    }
+  },
+  "after": {
+    "resumes": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "user_resumes": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "coach_opportunities": {
+      "count": 9,
+      "hash": "53b6b80aae76d72d4677667fec6d6cc65d4d78d60342302679ae34042a3b192e"
+    },
+    "coach_resume_tasks": {
+      "count": 4,
+      "hash": "6553a1f5e8bbee40fec754791a9230160b658c1eb90bf0fe15906987a07e6527"
+    },
+    "user_quotas": {
+      "count": 1,
+      "hash": "13eab14479f8aabe370275589c4638c2eed2c9f5dca2023603cdd8202f3cb183"
+    },
+    "watcha_point_wallets": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "watcha_point_transfers": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "watcha_point_reservations": {
+      "count": 0,
+      "hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "interview_answers": {
+      "count": 16,
+      "hash": "6c98de227514508f4e729b4956f9a942693535639816d28e7510a134e9902f11"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "synthetic": true,
+  "runtimeBeforeNoopRepair": "cb65970bd6ae4a0d4baaa290d859fa63e55e7867",
+  "noopFix": "eebb7361526cc3c919268db07c7cb99715814c1f",
+  "approvedWorkflows": 2,
+  "executedWorkflows": 2,
+  "upstreamModelCalls": 5,
+  "automaticTransportRetries": 0,
+  "cases": [
+    {
+      "case": "editing-request-delivery",
+      "evalId": "81be4889-4aaf-4cb2-bc23-b7fdd473b189",
+      "traceId": "2aa95d61-9e1d-42af-9e73-8d053d9598ae",
+      "generationId": "9beb9b03-41ae-4836-b467-a3878f705273:4",
+      "elapsedMs": 59773,
+      "changes": 4,
+      "sections": ["开头段", "项目经历 · 工具甲 · 协作原型", "项目经历 · 工具乙 · 查询原型"],
+      "changeIds": ["ai-change-1792921976334-0", "ai-change-1792921976337-1", "ai-change-1792921976338-2", "ai-change-1792921976340-3"],
+      "actualBrowserAdoptionAndRefresh": "passed",
+      "actualPdf": "益职简历交付验收-20261025.pdf",
+      "pdfPages": 1,
+      "pdfSize": "A4",
+      "identityAnchorsUnchanged": true
+    },
+    {
+      "case": "explicit-unchanged-with-cosmetic-proposals",
+      "evalId": "6244dbbe-c643-4513-8996-eadf33482846",
+      "traceId": "a273dbf7-7047-45c2-8529-687bd57fbcb0",
+      "elapsedMs": 32013,
+      "actualResult": "failed",
+      "reasonCode": "resume_draft_unverified",
+      "rootCause": "Cosmetic value rejection did not enter independent original-document review despite explicit unchanged status.",
+      "sourceFixCommitted": true,
+      "zeroCostReplay": "2 passed: independent reviewer accepts or rejects no-op",
+      "fixedRealModelRetest": "not authorized or executed yet"
+    }
+  ],
+  "dataGuard": "existing owner resume/opportunity/task/answer/quota and point rows unchanged; only newly created synthetic workspaces excluded",
+  "release": "not promoted; original production retained"
+}

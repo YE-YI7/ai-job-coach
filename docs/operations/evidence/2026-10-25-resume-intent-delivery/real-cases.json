@@ -2,9 +2,9 @@
   "synthetic": true,
   "runtimeBeforeNoopRepair": "cb65970bd6ae4a0d4baaa290d859fa63e55e7867",
   "noopFix": "eebb7361526cc3c919268db07c7cb99715814c1f",
-  "approvedWorkflows": 2,
-  "executedWorkflows": 2,
-  "upstreamModelCalls": 5,
+  "approvedWorkflows": 3,
+  "executedWorkflows": 3,
+  "upstreamModelCalls": 8,
   "automaticTransportRetries": 0,
   "cases": [
     {
@@ -32,9 +32,23 @@
       "rootCause": "Cosmetic value rejection did not enter independent original-document review despite explicit unchanged status.",
       "sourceFixCommitted": true,
       "zeroCostReplay": "2 passed: independent reviewer accepts or rejects no-op",
-      "fixedRealModelRetest": "not authorized or executed yet"
+      "fixedRealModelRetest": "passed in separately approved third workflow; original failure retained"
+    },
+    {
+      "case": "fixed-independent-unchanged",
+      "runtimeCommit": "eebb7361526cc3c919268db07c7cb99715814c1f",
+      "evalId": "381d7c6e-7d31-481a-a692-8711a86b8060",
+      "traceId": "d1cceeca-a16c-4600-bd86-f52c6a39225d",
+      "generationId": "bea72c67-9c80-4496-a52f-3f4b4e2c1e14:5",
+      "elapsedMs": 44028,
+      "actualResult": "unchanged",
+      "proposals": 0,
+      "independentOriginalReviewExecuted": true,
+      "specificReasonDisplayed": true,
+      "browserRefreshAndFormalReadback": "passed"
     }
   ],
   "dataGuard": "existing owner resume/opportunity/task/answer/quota and point rows unchanged; only newly created synthetic workspaces excluded",
-  "release": "not promoted; original production retained"
+  "release": "same tested eebb736 / dpl_Hfrj8mqsaJFysicbJXALzfrhTKuJ promoted to yizhioffer.com; Eefm and A1Y retained",
+  "finalEvalRecord": "ff1cb39c-53b0-4ef1-860e-c5823f74eb69"
 }

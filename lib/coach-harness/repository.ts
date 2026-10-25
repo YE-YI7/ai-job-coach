@@ -286,6 +286,8 @@ export async function getContextBundleForUser(input: {
   budget?: Partial<ContextBudget>;
   knowledgeLimit?: number;
   claimSelection?: "all_required" | "relevant";
+  /** Internal QA can restrict evidence to the newly created disposable target. */
+  evidenceScope?: 'opportunity_only';
 }): Promise<ContextBundle> {
   const db = requireDb(await getDbClient());
   let opportunity: OpportunityContext | null = null;
@@ -320,7 +322,8 @@ export async function getContextBundleForUser(input: {
   const routeClass: RouteClass = input.routeClass || "bounded_orchestration";
 
   let claimQuery = db.from("coach_claims").select(CLAIM_COLUMNS).eq("user_id", input.userId);
-  claimQuery = scopeToUserAndOpportunity(
+  claimQuery = input.evidenceScope === 'opportunity_only' && opportunity
+    ? claimQuery.eq('opportunity_id', opportunity.id) : scopeToUserAndOpportunity(
     claimQuery, opportunity?.id ?? null,
     (q, expression) => q.or(expression),
     (q) => q.is("opportunity_id", null),
@@ -329,7 +332,8 @@ export async function getContextBundleForUser(input: {
   let artifactQuery = db.from("coach_artifacts")
     .select("id, opportunity_id, artifact_type, version, title, status, content, created_by, created_at")
     .eq("user_id", input.userId);
-  artifactQuery = scopeToUserAndOpportunity(
+  artifactQuery = input.evidenceScope === 'opportunity_only' && opportunity
+    ? artifactQuery.eq('opportunity_id', opportunity.id) : scopeToUserAndOpportunity(
     artifactQuery, opportunity?.id ?? null,
     (q, expression) => q.or(expression),
     (q) => q.is("opportunity_id", null),

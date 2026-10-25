@@ -18,3 +18,11 @@ test("resume beyond former 6000-character boundary remains intact in selected co
  expect(context.attachments.find(item=>item.id==="resume-text")?.text).toBe(resume);
  expect(context.selection.included).toEqual(expect.arrayContaining([expect.objectContaining({kind:"attachment",refId:"resume-text"})]));
 });
+test('internal QA cannot pull global claims or original artifacts into the same-material test', async () => {
+ const job = chain({id:jobId,company:'内部 QA',role:'验收',stage:'captured',jd_text:'测试 JD',jd_version:1,metadata:{resumeText:'虚构验收原文'}});
+ const empty = chain([]);
+ (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==='coach_opportunities'?job:empty});
+ await getContextBundleForUser({userId:'owner',opportunityId:jobId,task:'resume_workshop',knowledgeLimit:0,evidenceScope:'opportunity_only'});
+ expect(empty.eq).toHaveBeenCalledWith('opportunity_id',jobId);
+ expect(empty.or).not.toHaveBeenCalled();
+});

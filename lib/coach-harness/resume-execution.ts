@@ -76,6 +76,8 @@ export type ResumeExecutionOptions = {
   editorialMode?: 'legacy' | 'narrative';
   actorModel?: true;
   maxModelCalls?: number;
+  /** Only the admin-created disposable QA task may skip hosted quota writes. */
+  qaQuotaIsolation?: true;
 };
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
@@ -128,7 +130,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
     if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
     const editSource = trialScope?.excerpt || resumeText;
-    reservation = options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
+    reservation = options.isolated || options.qaQuotaIsolation ? { id: "offline-isolated-eval",
+      source: options.actorModel || options.qaQuotaIsolation ? 'isolated_actor_model' : 'isolated_site_model', remaining: null }
       : trialScope ? await reserveResumeTrial(user.id,`resume-draft:${requestId}`) : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
     if (!reservation) { outcome = "quota_denied"; return NextResponse.json({ ok: false, error: trialScope ? "本账号的一次经历体验已使用或正在处理。整份及后续修改需付费。" : "整份简历修改需付费，请先补充额度；免费体验仅限一段经历。", needUpgrade: true }, { status: 403 }); }
 
@@ -148,6 +151,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         userId: user.id,
         task: "resume_workshop",
         opportunityId,
+        ...(options.qaQuotaIsolation ? { evidenceScope: 'opportunity_only' as const } : {}),
         // 岗位本身已经携带 JD；这里把另一份不可缺的原文槽位留给简历，
         // 避免把 JD 计入预算两次、简历却完全没进预算。
         questionSource: { id: "base-resume", text: resumeText },

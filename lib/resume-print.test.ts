@@ -75,12 +75,13 @@ test("page breaks sit outside layout cells without dropping either side", () => 
  expect(html).toContain("分页后</p>");
  expect(html).toContain("align-self:start");
 });
-test("preview creation does not imply print or PDF saved",()=>{
+test("preview creation does not imply print or PDF saved",async()=>{
  let click:()=>void=()=>{};
  const onPrint=jest.fn(),print=jest.fn();
- const target={document:{open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>({addEventListener:(_event:string,listener:()=>void)=>{click=listener;}})},print} as unknown as Window;
+ const target={document:{fonts:{load:async()=>[{}],ready:Promise.resolve()},open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>({addEventListener:(_event:string,listener:()=>void)=>{click=listener;}})},print} as unknown as Window;
  renderResumePrintWindow(target,"测试原文","classic","简历",onPrint);
  expect(onPrint).not.toHaveBeenCalled();
+ await new Promise(resolve=>setTimeout(resolve,0));
  click();expect(print).toHaveBeenCalledTimes(1);expect(onPrint).toHaveBeenCalledTimes(1);
 });
 test("print freezes revision ink at full opacity even during its screen entrance",()=>{

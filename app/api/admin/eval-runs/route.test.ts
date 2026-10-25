@@ -4,6 +4,8 @@ import { getDbClient } from "@/lib/db";
 import { POST as rewrite } from "@/app/api/coach/resume-draft/route";
 import { runResumeDraft } from '@/lib/coach-harness/resume-execution';
 import { hasActiveTokenPayConnection } from '@/lib/tokenpay';
+import { runNewResumeQaWorkflow } from '@/lib/coach-harness/resume-qa-workflow';
+jest.mock('@/lib/coach-harness/resume-qa-workflow', () => ({ runNewResumeQaWorkflow: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ getCurrentUserFromRequest: jest.fn() }));
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
 jest.mock("@/app/api/coach/resume-draft/route", () => ({ POST: jest.fn() }));
@@ -65,6 +67,30 @@ test('authorized comparison has immutable actor billing, no old-data IDs and a s
   expect(rewrite).not.toHaveBeenCalled();
   const input = await (runResumeDraft as jest.Mock).mock.calls[0][0].json();
   expect(input).not.toHaveProperty('opportunityId'); expect(input).not.toHaveProperty('resumeTaskId');
+});
+test('persisted QA requires a JD, linked account and no supplied target IDs', async () => {
+  const comparison = { mode: 'narrative', callLimit: 4, persistNewQa: true };
+  expect((await POST(make({ ...body, comparison }))).status).toBe(400);
+  expect((await POST(make({ ...body, jobDescription: '测试 JD', comparison }))).status).toBe(409);
+  expect((await POST(make({ ...body, jobDescription: '测试 JD', comparison, opportunityId: id }))).status).toBe(400);
+  expect(runNewResumeQaWorkflow).not.toHaveBeenCalled();
+});
+test('full QA runs the bounded normal save workflow and persists recovery coordinates before billing', async () => {
+  (hasActiveTokenPayConnection as jest.Mock).mockResolvedValue(true);
+  const update = { eq: jest.fn().mockReturnThis(), then: (resolve: (x: unknown) => unknown) => resolve({ error: null }) };
+  const query = { eq: jest.fn().mockReturnThis(), maybeSingle: async () => ({ data: null, error: null }) };
+  (getDbClient as jest.Mock).mockResolvedValue({ from: (table: string) => table === 'coach_eval_runs'
+    ? { insert: async () => ({ error: null }), update: () => update } : { select: () => query } });
+  (runNewResumeQaWorkflow as jest.Mock).mockImplementation(async (_request, _user, _material, _limit, save) => {
+    await save({ opportunityId: id, taskId: id, generationId: id + ':1', requestId: 'resume-task:test:1' });
+    return Response.json({ ok: true, changes: [] });
+  });
+  const response = await POST(make({ ...body, jobDescription: '测试 JD', comparison: { mode: 'narrative', callLimit: 4, persistNewQa: true } }));
+  expect(response.status).toBe(200);
+  expect(runNewResumeQaWorkflow).toHaveBeenCalledWith(expect.any(Request), admin,
+    { resumeText: body.resumeText, jobDescription: '测试 JD' }, 4, expect.any(Function));
+  expect(query.eq).toHaveBeenCalledWith('properties->>requestHash', expect.any(String));
+  expect(runResumeDraft).not.toHaveBeenCalled(); expect(rewrite).not.toHaveBeenCalled();
 });
 test("both read and model execution reject anonymous/non-admin users before database access", async () => {
   for (const user of [

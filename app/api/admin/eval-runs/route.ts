@@ -12,6 +12,7 @@ import {
 } from "@/lib/coach-harness/eval-observer";
 import { POST as rewriteResume } from "@/app/api/coach/resume-draft/route";
 import { runResumeDraft } from '@/lib/coach-harness/resume-execution';
+import { runNewResumeQaWorkflow } from '@/lib/coach-harness/resume-qa-workflow';
 import { hasActiveTokenPayConnection } from '@/lib/tokenpay';
 import { applyResumeChanges } from "@/lib/coach-harness";
 import { runWithGenerationContext } from "@/lib/generation-context";
@@ -177,9 +178,11 @@ export async function POST(request: Request) {
       { error: "请提供有效材料并确认正常模型计费；不支持传入用户或旧岗位ID。" },
       400,
     );
-  const comparison = body.comparison as { mode?: unknown; callLimit?: unknown } | undefined;
+  const comparison = body.comparison as { mode?: unknown; callLimit?: unknown; persistNewQa?: unknown } | undefined;
   if (comparison !== undefined && (!comparison || typeof comparison !== 'object' || Array.isArray(comparison)
-    || Object.keys(comparison).some(key => !['mode', 'callLimit'].includes(key))
+    || Object.keys(comparison).some(key => !['mode', 'callLimit', 'persistNewQa'].includes(key))
+    || (comparison.persistNewQa !== undefined && comparison.persistNewQa !== true)
+    || (comparison.persistNewQa === true && !String(body.jobDescription || '').trim())
     || comparison.mode !== 'narrative' || !Number.isInteger(comparison.callLimit)
     || Number(comparison.callLimit) < 1 || Number(comparison.callLimit) > 8 || body.selfEvaluate === true)) {
     return json({ error: '对比评测仅接受主线方案与明确调用上限；不附加收费自评。' }, 400);
@@ -208,7 +211,8 @@ export async function POST(request: Request) {
           : "无 JD 改稿实测",
     provenance: comparison ? 'real_model_deidentified_comparison' : 'production',
     ...(comparison ? { comparison: { mode: comparison.mode, maxModelCalls: comparison.callLimit,
-      billing: 'current_actor_connection', liveDataTargets: false } } : {}),
+      billing: 'current_actor_connection', liveDataTargets: false,
+      newQaPersistence: comparison.persistNewQa === true } } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
     input: {
@@ -255,8 +259,11 @@ export async function POST(request: Request) {
             requestId: id,
           }),
         });
-    const response = await withEvalObserver({ spans, save }, () => comparison
-      ? runResumeDraft(comparisonRequest, user, {
+    const response = await withEvalObserver({ spans, save }, () => comparison?.persistNewQa === true
+      ? runNewResumeQaWorkflow(comparisonRequest, user, {
+        resumeText: String(body.resumeText), jobDescription: String(body.jobDescription),
+      }, Number(comparison.callLimit), async coordinates => { run.qa = coordinates; await save(); })
+      : comparison ? runResumeDraft(comparisonRequest, user, {
         isolated: true, actorModel: true, editorialMode: 'narrative', maxModelCalls: Number(comparison.callLimit),
       }) : rewriteResume(comparisonRequest));
     const output = await response.json();
@@ -265,7 +272,7 @@ export async function POST(request: Request) {
       .select("properties")
       .eq("event_name", RESUME_TRACE_EVENT)
       .eq("user_id", user.id)
-      .eq("properties->>requestHash", resumeRequestHash(id))
+      .eq("properties->>requestHash", resumeRequestHash((run.qa as { requestId: string } | undefined)?.requestId || id))
       .maybeSingle();
     if (old.error) run.traceReadError = "元数据 Trace 读取失败";
     const trace = old.data?.properties;

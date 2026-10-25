@@ -2,6 +2,7 @@ import { splitResumeBlocks } from "./opportunities/resume-blocks";
 import { isResumePageBreak, markdownSegments } from "./opportunities/resume-markdown";
 import { stripResumeMarkdown, isResumeIdentityLine } from "./opportunities/resume-blocks";
 import type { ResumeInk } from "./opportunities/resume-inline";
+import { bindResumePrintAction, RESUME_SERIF_FAMILY, RESUME_SERIF_PATH } from './resume-print-fonts';
 export const printTemplates={
  classic:{label:"经典黑白",accent:"#242424",font:"serif",description:"居中姓名 · 传统分节"},
  modern:{label:"简洁蓝灰",accent:"#365571",font:"sans-serif",description:"单列全宽 · 清晰分节"},
@@ -14,8 +15,10 @@ export type PrintTemplate=keyof typeof printTemplates;
 export function escapeResumeHtml(value:string){return value.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));}
 const DATE_RANGE = /\d{4}(?:[.\/年-]\d{1,2}月?)?\s*(?:[-–—~～至]\s*)(?:至今|现在|present|\d{4}(?:[.\/年-]\d{1,2}月?)?)/i;
 const isDateLine=(line:string)=>{const plain=stripResumeMarkdown(line);return plain.match(DATE_RANGE)?.[0]===plain;};
-export function resumePrintHtml(text:string,template:PrintTemplate,title:string,options:{toolbar?:boolean;highlight?:string;ink?:ResumeInk[];interactive?:boolean;reading?:boolean;photo?:string}={}){
+export function resumePrintHtml(text:string,template:PrintTemplate,title:string,options:{toolbar?:boolean;highlight?:string;ink?:ResumeInk[];interactive?:boolean;reading?:boolean;photo?:string;assetOrigin?:string}={}){
  const t=printTemplates[template];
+ const fontUrl = options.assetOrigin && /^https?:\/\/[^/]+$/.test(options.assetOrigin)
+  ? options.assetOrigin + RESUME_SERIF_PATH : RESUME_SERIF_PATH;
  // 只接受我们自己生成的图片 data URI：src 落在纸面上，任何别的 scheme（javascript:、http:）一律忽略。
  const photoSrc=/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(options.photo||"")?options.photo!:"";
  const photoHtml=photoSrc?`<img class="resume-photo" src="${escapeResumeHtml(photoSrc)}" alt="证件照">`:"";
@@ -82,7 +85,8 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  });
  const content=photoHtml?`<div class="resume-header">${photoInserted?"":photoHtml}${rendered.slice(0,headerCount).join("")}</div>${rendered.slice(headerCount).join("")}`:rendered.join("");
  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeResumeHtml(title)}</title><style>
- @page{size:A4;margin:12mm}*{box-sizing:border-box}html{background:#fff}body{width:210mm;min-height:297mm;padding:12mm;margin:0 auto;color:#292823;font:10.5pt/1.48 ${t.font === "serif" ? '"Songti SC","Noto Serif SC",serif' : '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'};overflow-wrap:anywhere}
+ ${t.font === 'serif' ? `@font-face{font-family:"${RESUME_SERIF_FAMILY}";src:url("${escapeResumeHtml(fontUrl)}") format("woff2");font-style:normal;font-weight:400;font-display:block}` : ''}
+ @page{size:A4;margin:12mm}*{box-sizing:border-box}html{background:#fff}body{width:210mm;min-height:297mm;padding:12mm;margin:0 auto;color:#292823;font:10.5pt/1.48 ${t.font === "serif" ? '"YiZhi Resume Serif","Noto Serif SC","PingFang SC",serif' : '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif'};overflow-wrap:anywhere}
  section{padding:6px 0;border-bottom:0;text-align:left}h2,h3{color:${t.accent};margin:0 0 7px;break-after:avoid;word-break:normal}h2{font-size:11.5pt;font-weight:600;border-bottom:1px solid #dcded7;padding-bottom:7px;margin-top:6px}h3{font-size:10.5pt;font-weight:600}p{white-space:pre-wrap;margin:0 0 5px;orphans:2;widows:2}.resume-name{font-size:22pt;line-height:1.35;font-weight:600;color:${t.accent};margin-bottom:7px}.resume-bullet{padding-left:1em;position:relative}.resume-bullet:before{content:"•";position:absolute;left:0}a{color:inherit;text-decoration:underline;text-underline-offset:3px}.page-break{break-before:page;page-break-before:always}button{padding:10px 16px;cursor:pointer}.toolbar{margin-bottom:24px;font:14px sans-serif;color:#555}
  .classic section[data-kind="header"]{border-bottom:2px solid #242424}.classic section[data-kind="header"] .resume-name{text-align:center}
  .resume-photo-label{float:right;min-width:22mm;min-height:28mm;text-align:center;color:#777;font-size:8pt}section[data-kind=header]:after{content:"";display:block;clear:both}
@@ -98,9 +102,10 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  .resume-edit{position:absolute;right:0;top:0;border:0;background:#fff;color:#536044;border-radius:4px;padding:5px 8px;font:12px/1.5 sans-serif;opacity:0;cursor:pointer;box-shadow:0 1px 8px #0001}section[data-resume-block]:hover>.resume-edit,section[data-resume-block]:focus-within>.resume-edit{opacity:1}.resume-edit:focus-visible{outline:2px solid #536a40}@media(hover:none){.resume-edit{opacity:0;pointer-events:none;min-height:44px;min-width:44px}section[data-resume-block]:hover>.resume-edit{opacity:0}section[data-resume-block][data-editing-active=true]>.resume-edit,section[data-resume-block]:focus-within>.resume-edit{opacity:1;pointer-events:auto}}@media print{.resume-edit,.resume-grip{display:none}}
  @media screen{body{box-shadow:0 8px 28px rgba(41,40,35,.06)}${options.reading?'body{width:100%;min-height:0;margin:0;padding:24px 20px;font-size:16px;line-height:1.75}h1{font-size:24px}h2{font-size:18px}.resume-role{font-size:17px}.resume-contact,.resume-entry time{font-size:14px}.resume-entry{flex-wrap:wrap;gap:2px 10px}.resume-grip{right:calc(100% + 1px)}':''}}
  @media print{.toolbar{display:none}body{margin:0;padding:0;width:auto;min-height:0;max-width:none;box-shadow:none}h2,h3{break-after:avoid}section{break-inside:auto}*{print-color-adjust:exact;animation:none!important;transition:none!important}mark{opacity:1;filter:none}}
- </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
+ </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。<span id="print-status" role="status">正文可选中、搜索。</span><br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
 }
 export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void,photo?:string){
- target.document.open();target.document.write(resumePrintHtml(text,template,title,{photo}));target.document.close();
- target.document.getElementById("print")?.addEventListener("click",()=>{target.print();onPrintRequested?.();});
+ const assetOrigin = typeof window === 'undefined' ? undefined : window.location.origin;
+ target.document.open();target.document.write(resumePrintHtml(text,template,title,{photo,assetOrigin}));target.document.close();
+ bindResumePrintAction(target, printTemplates[template].font === 'serif', onPrintRequested);
 }

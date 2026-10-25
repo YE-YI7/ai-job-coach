@@ -4,6 +4,8 @@ const changes=[{id:'c-1'} as ResumeChange];
 const valid={status:'passed',summary:'检查已有事实和表述',findings:[],valueChecks:[{index:0,useful:true,kind:'clarity',reason:'将事实动作和交付清晰对应'}],document:{status:'passed',summary:'整稿结构和事实一致',findings:[]}};
 test('separates protocol errors from actionable manuscript findings',()=>{
  expect(resumeReviewProtocolIssue(valid,changes)).toBeNull();
+ expect(resumeReviewProtocolIssue({...valid,requestCoverage:{status:'complete',unaddressed:[],summary:'本轮修改要求已经体现在候选中'}},changes)).toBeNull();
+ expect(resumeReviewProtocolIssue({...valid,requestCoverage:{status:'complete',unaddressed:['开头'],summary:'开头尚未完成却声明完成'}},changes)).toBe('review_request_coverage_invalid');
  expect(resumeReviewProtocolIssue({...valid,status:'failed'},changes)).toBe('review_failure_unattributed');
  expect(resumeReviewProtocolIssue({...valid,status:undefined},changes)).toBe('review_status_invalid');
  expect(resumeReviewProtocolIssue({...valid,document:undefined},changes)).toBe('document_missing');

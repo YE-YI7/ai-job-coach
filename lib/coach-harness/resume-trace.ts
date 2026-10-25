@@ -5,7 +5,7 @@ import {resumeProcessingSummary} from './resume-processing';
 import type {ResumeReviewDiagnostic} from './resume-review-diagnostic';
 
 export const RESUME_TRACE_EVENT = "resume_agent_trace";
-export type ResumeTraceOutcome = "running" | "completed" | "unchanged" | "needs_detail" | "blocked" | "failed" | "quota_denied";
+export type ResumeTraceOutcome = "running" | "completed" | "partial" | "unchanged" | "needs_detail" | "blocked" | "failed" | "quota_denied";
 export interface ResumeTrace {
   version: 1; traceId: string; requestHash: string; mode: "general_resume" | "target_resume";
   outcome: ResumeTraceOutcome; elapsedMs: number;

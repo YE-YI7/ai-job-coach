@@ -1,3 +1,18 @@
+/** A collapsed first paragraph can contain both identity and editable prose.
+ * Allow editing that prose only while every identity anchor stays byte-exact. */
+function preservesMixedHeader(before:string,after:string,firstLine:string){
+  if(before.replace(/^#+\s*/, '').trim()!==firstLine)return false;
+  const name=firstLine.match(/^(?:姓名\s*[:：]\s*)?([\p{Script=Han}·]{2,5})(?=[，,。\s|｜])/u)?.[1];
+  if(!name||!new RegExp(`^(?:姓名\\s*[:：]\\s*)?${name}(?=[，,。·\\s|｜])`,'u').test(after.trim()))return false;
+  const anchors=(text:string)=>text.match(
+    /[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?<!\d)1[3-9]\d{9}(?!\d)|https?:\/\/[^\s)）]+|GitHub\s*[:：/]\s*[\w-]+/gi,
+  )||[];
+  const original=anchors(before),next=anchors(after);
+  if(!original.length||JSON.stringify(original)!==JSON.stringify(next))return false;
+  const prose=original.reduce((text,anchor)=>text.replace(anchor,''),before).replace(name,'').replace(/[\s\p{P}\p{S}]/gu,'');
+  return prose.length>=20;
+}
+
 /** Automated editing must not rewrite identity/contact or upgrade an example to a real project. */
 export function resumeSourceProtection(before: string, after: string, section: string, resume = ""): string[] {
   const identitySection = /^(?:姓名(?:栏)?|基本信息|个人信息|个人资料|联系方式|联系信息|简历抬头)(?:$|[\s：:、/（(])/;
@@ -5,7 +20,7 @@ export function resumeSourceProtection(before: string, after: string, section: s
   const firstLine = resume.split(/\n/).map(line => line.replace(/^#+\s*/, "").trim()).find(Boolean) || "";
   const nameLine = /^(?:姓名\s*[:：]|name\s*:)/i.test(firstLine)
     || /^[\p{Script=Han}·]{2,5}(?:[（(][^）)]{0,40}[）)])?$/u.test(firstLine);
-  if (identitySection.test(section.trim()) || contact.test(before)
+  if (identitySection.test(section.trim()) || (contact.test(before)&&!preservesMixedHeader(before,after,firstLine))
     || (nameLine && before.replace(/^#+\s*/, "").trim() === firstLine)) return ["姓名与联系方式保留原文，不由自动改稿更改；需要时可手动编辑"];
   const educationStatus = ["在读", "预计", "肄业", "结业", "未毕业", "未获得学位", "未取得学位"];
   const markers = ["虚构", "示例", "练习", "模拟", "教学", "个人项目", "课程项目", ...educationStatus];

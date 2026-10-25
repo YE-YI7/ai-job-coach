@@ -1,10 +1,11 @@
 import type { ResumeAgentAnswer } from './resume-task-types';
 import type { ResumeChange } from '@/lib/opportunities/types';
 import {omitStandaloneDisclaimers} from './resume-edit-value';
+import {resumeAnswersForCurrentRequest} from './resume-edit-request';
 
 /** The action we're completing is the most recent answer, not any historical citation. */
 export function currentResumeAnswer(answers:ResumeAgentAnswer[]){
-  const answer=answers.filter(item=>item.kind!=="instruction").at(-1);
+  const answer=resumeAnswersForCurrentRequest(answers).filter(item=>item.kind!=="instruction").at(-1);
   return answer&&!answer.skipped&&answer.answer.trim()&&!/^(我)?(不知道|忘了|不记得|不清楚)[。！!\s]*$/.test(answer.answer.trim())
     &&omitStandaloneDisclaimers(answer.answer.replace(/[。！!]\s*/g,'\n'))?answer:null;
 }

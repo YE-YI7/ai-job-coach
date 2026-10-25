@@ -394,6 +394,65 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(200);expect((await response.json()).changes[0].before).toBe(before);
   });
 
+  test('a newer editorial request edits the mixed header without re-forcing an old metric',async()=>{
+    const header='林研，探索协作方式。13800138000 · qa@example.invalid · GitHub / demo。负责工具产品定义、取舍与验收，与团队协作实现。';
+    const before='- 整理需求清单，整理后交给负责人每周核对。';
+    const resume=header+'\n'+before;
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[
+      {id:'old',sourceExcerpt:'旧经历',answer:'正向信号是点击率',claimId:'old-fact'},
+      {id:'new',kind:'instruction',answer:'改开头和项目表述，保留现有顺序，不新增事实。'},
+    ]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[
+      {section:'开头定位',before:header,after:'林研 · 13800138000 · qa@example.invalid · GitHub / demo。负责工具产品定义与验收，与团队协作实现。',sourceIds:['claim-1']},
+      {section:'项目经历',before,after:'- 整理需求清单，供负责人每周核对。',sourceIds:['claim-1']},
+    ]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',valueChecks:usefulValueChecks,findings:[],
+      requestCoverage:{status:'complete',unaddressed:[],summary:'开头和项目表达均已调整，身份与已有贡献未变。'}}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:resume,findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({
+      opportunityId:'opp-1',resumeText:resume,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease',
+    })}));
+    const body=await response.json();
+    expect(body.error).toBeUndefined();
+    expect(response.status).toBe(200);expect(body.changes).toHaveLength(2);expect(body.partial).toBeUndefined();
+    expect(body.summary).toContain('2 处待确认建议');expect(callLLM).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[1][0])).toContain('editingRequest');
+  });
+
+  test('a repair preserves source-checked edits and reports a still-blocked header',async()=>{
+    const header='姓名：虚构同学';
+    const project='- 整理需求清单，整理后交给负责人每周核对。';
+    const gap='- 参与需求讨论并整理材料，交给负责人。';
+    const resume=[header,project,gap].join('\n');
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[
+      {id:'new',sourceExcerpt:gap,answer:'我整理了讨论清单',claimId:'claim-1'},
+    ]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume,jd:'',revision:'r',changes:[]});
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[
+      {section:'姓名栏',before:header,after:'姓名：其他人',sourceIds:['claim-1']},
+      {section:'项目经历',before:project,after:'- 整理需求清单，供负责人每周核对。',sourceIds:['claim-1']},
+    ]})).mockResolvedValueOnce(JSON.stringify({changes:[
+      {section:'工作经历',before:gap,after:'- 整理需求讨论清单，交给负责人。',sourceIds:['claim-1']},
+    ]})).mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed',valueChecks:usefulValueChecks,findings:[]}));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:resume,findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art',version:1});
+    (recordArtifactReview as jest.Mock).mockResolvedValue({});
+    const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({
+      opportunityId:'opp-1',resumeText:resume,mode:'general_resume',resumeTaskId:'task',resumeTaskLease:'lease',
+    })}));
+    const body=await response.json();
+    expect(response.status).toBe(200);expect(body.changes).toHaveLength(2);expect(body.partial).toBe(true);
+    expect(body.summary).toContain('姓名栏尚未完成');
+    expect((startResumeTrace as jest.Mock).mock.results[0].value).resolves.toMatchObject({finish:expect.any(Function)});
+    expect(callLLM).toHaveBeenCalledTimes(3);
+  });
+
   test('a skill-only change cannot masquerade as completion of saved experience supplements',async()=>{
     const before='参与校园项目,负责需求工作,个人交付未梳理。';
     (resumeTaskInput as jest.Mock).mockResolvedValueOnce({opportunity_id:'opp-1',answers:[{sourceExcerpt:before,answer:'我整理了需求清单。',claimId:'claim-1'}]});

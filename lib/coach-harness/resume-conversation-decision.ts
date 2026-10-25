@@ -11,6 +11,7 @@ import {
   skipsResumeFact,
 } from "./resume-single-question";
 import { splitResumeBlocks } from "@/lib/opportunities/resume-blocks";
+import {isResumeEditingDirection} from './resume-edit-request';
 
 export interface ResumeConversationFact {
   turnId: string;
@@ -165,6 +166,8 @@ export function parseResumeConversationDecision(
         )
       )
         throw Error("这条补充还不能可靠对应到原文，尚未执行改稿，请继续说明。");
+      // Permissions and writing preferences never become experience claims.
+      if(isResumeEditingDirection(quote))continue;
       // A valid self-report with unknown placement is a normal conversation,
       // not a failed send and not permission to invent a new employment entry.
       if (!excerpt)

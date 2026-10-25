@@ -1,6 +1,7 @@
 import type {ResumeChange} from '@/lib/opportunities/types';
 import {readDocumentReview} from './resume-document-review';
 import {readResumeValueChecks} from './resume-edit-value';
+import {readResumeRequestCoverage} from './resume-edit-request';
 
 /** An invalid review is not an editing instruction. Keep the grounded draft
  * fixed while obtaining one corrected verdict, never ask the editor to guess. */
@@ -8,7 +9,8 @@ export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return 'review_not_object';
  const r=raw as Record<string,unknown>;
  if(r.status!=='passed'&&r.status!=='failed')return 'review_status_invalid';
- if(Object.keys(r).some(k=>!['status','summary','findings','valueChecks','document','recovery'].includes(k)))return 'review_unexpected_fields';
+ if(Object.keys(r).some(k=>!['status','summary','findings','valueChecks','document','recovery','requestCoverage'].includes(k)))return 'review_unexpected_fields';
+ if('requestCoverage' in r&&readResumeRequestCoverage(r.requestCoverage).status==='unverified')return 'review_request_coverage_invalid';
  if((r.summary!==undefined&&(typeof r.summary!=='string'||!r.summary.trim()))||!Array.isArray(r.findings)||r.findings.length>20)return 'review_fields_invalid';
  const ids=new Set(changes.map(c=>c.id));
  if(r.findings.some(f=>!f||typeof f!=='object'||Array.isArray(f)||!ids.has(f.changeId)||!['error','warning'].includes(f.severity)||typeof f.message!=='string'||!f.message.trim()))return 'review_finding_unmapped';
@@ -39,6 +41,7 @@ export function resumeReviewDiagnostic(raw:unknown, changeIds:string[], useful:n
 }
 export function resumeReviewRepairHint(issue:string){
  const hints:Record<string,string>={
+  review_request_coverage_invalid:'requestCoverage必须含status、unaddressed与具体summary；complete时未完成列表为空，否则必须列出尚未完成的目标。',
   document_missing:'必须同时返回document对象，不能只给逐条结论。',
   document_unexpected_fields:'document仅含status、summary、findings；不要加入source、score、recovery或正文。',
   document_finding_fields_invalid:'document.findings条目仅含changeId、category、severity、message。需要补问的原句和问题放顶层recovery，不放findings条目内。',

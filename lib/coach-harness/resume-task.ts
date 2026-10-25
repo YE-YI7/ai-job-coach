@@ -13,6 +13,7 @@ import { resolveResumeTrialScope, type ResumeTrialScope } from '@/lib/resume-exp
 import {readResumeProcessing} from './resume-trace';
 import {readResumeDelivery} from './resume-delivery-record';
 import {skipsResumeFact} from './resume-single-question';
+import {isResumeEditingDirection} from './resume-edit-request';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
@@ -198,7 +199,8 @@ export async function resumeTaskInput(userId: string, taskId: string, lease: str
 
 export async function persistResumeAnswerClaims(row: Row): Promise<CareerClaim[]> {
   const db = requireDb(await getDbClient());
-  const answers = row.answers.filter(answer => answer.kind !== 'instruction' && !answer.skipped && answer.claimId && answer.answer.trim());
+  const answers = row.answers.filter(answer => answer.kind !== 'instruction' && !answer.skipped && answer.claimId
+    && answer.answer.trim()&&!isResumeEditingDirection(answer.answer));
   if (!answers.length) return [];
   const rows = answers.map(answer => ({ id: answer.claimId!, user_id: row.user_id, opportunity_id: row.opportunity_id,
     entity_type: "experience", entity_key: `resume-task-${row.id}-${createHash("sha256").update(answer.id).digest("hex").slice(0,16)}`,

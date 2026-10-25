@@ -110,7 +110,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
           </div>
         </div>}
         {task.state==='ready'&&showOutcome&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
-          <p role="status">{task.result?.unchanged?'已检查，这一轮可以保留原文。':task.result?.partial?'已保存可靠的修改，部分调整还未完成。':'修改稿已保存，可以在简历上核对。'}</p>
+          <p role="status">{task.result?.unchanged?'本轮未新增修改，原文保留。':task.result?.partial?'本轮只完成了部分修改建议。':'本轮修改建议已保存，等待你确认。'}</p>
           {task.result?.summary&&<TutorMarkdown className={styles.reply}>{task.result.summary}</TutorMarkdown>}
         </div>}
         {question&&!incoming&&(!latest||latest.status!=='completed'||latest.decision==='revise')&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">

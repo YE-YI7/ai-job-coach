@@ -2,7 +2,9 @@ import type {ResumeProcessingSummary} from '@/lib/coach-harness/resume-processin
 import styles from './ResumeAgentConversation.module.css';
 
 export default function ResumeProcessingReceipt({processing}:{processing:ResumeProcessingSummary}){
-  const status=processing.saved?'已保存':processing.outcome==='running'?'处理中':processing.outcome==='needs_detail'?'等一条补充':processing.outcome==='quota_denied'?'尚未开始修改':'本次未完成';
+  const status=processing.outcome==='unchanged'?'未新增修改':processing.outcome==='partial'?'部分建议已保存'
+    :processing.saved?'建议已保存':processing.outcome==='running'?'处理中':processing.outcome==='needs_detail'?'等一条补充'
+      :processing.outcome==='quota_denied'?'尚未开始修改':'本次未完成';
   const checkLabel={passed:'通过',failed:'未通过',performed:'已执行'};
   return <details className={styles.receipt} aria-label="本次简历处理记录">
     <summary>本次改稿 · {status}{processing.changedCount!==null&&processing.changedCount>0?` · ${processing.changedCount} 处可用修改`:''}</summary>

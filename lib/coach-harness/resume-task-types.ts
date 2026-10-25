@@ -1,4 +1,5 @@
 import type { ResumeChange, Opportunity } from "@/lib/opportunities/types";
+import {isResumeEditingDirection} from './resume-edit-request';
 
 export type ResumeQuestionField = "context" | "action" | "deliverable" | "outcome" | "scope";
 export interface ResumeAgentQuestion {
@@ -41,7 +42,7 @@ export interface ResumeConversationTurn {
 
 /** 不把待回答、模型推断或“暂不补充”变成经历事实。 */
 export function factualResumeAnswers(answers: ResumeAgentAnswer[]) {
-  return answers.filter(item => item.kind !== "instruction" && !item.skipped && item.answer.trim());
+  return answers.filter(item => item.kind !== "instruction" && !item.skipped && item.answer.trim()&&!isResumeEditingDirection(item.answer));
 }
 
 export function anchoredResumeExcerpt(source:string,excerpt:string){

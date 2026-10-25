@@ -29,7 +29,7 @@ export function resumeNarrativeMessages(input: {
     ...(input.knowledge ? [{ role: 'user' as const, content: input.knowledge }] : []),
     { role: 'system', content: `输出合法JSON，不输出思考过程、Markdown围栏或长篇解释：
 {"editorialPlan":{"mainline":"本版简历的具体主线","claims":[{"point":"要证明的有依据命题","sourceIds":["实际事实ID"]}],"priorities":[{"id":"p1","anchorId":"实际段落编号","goal":"这段要消除的具体信息问题"}]},"changes":[{"section":"位置","anchorId":"实际段落编号","after":"可直接使用的正文","reason":"具体信息变化，80字内","sourceIds":["实际事实ID"]}]}
-priorities的id用p1至p3，每条对应sourceAnchors里的一个位置，不能写“优化整份”。after包含该位置需要保留的原有格式、姓名联系方式等信息，不借改开头删除身份。不要编造因果关系、把推进改为已完成全流程。
+mainline不超过160字，point和goal各不超过120字，不能用长段分析填字段。priorities的id用p1至p3，每条对应sourceAnchors里的一个位置，不能写“优化整份”。after保留该位置原有格式和身份信息。不要编造因果关系、把推进改为已完成全流程。原文等于改后文的条目不要放进changes，原样保留即可。
 如果lockedPlan存在，沿用它，针对反馈返修，不能通过降低目标假装通过。若无lockedPlan且质检指出主线不受支持，先修主线再改稿。
 原文确实无需改时返回status:"unchanged",changes:[]，仍由独立复核决定；有缺失事实只附recovery:{sourceExcerpt:"12–260字原文",field:"context|action|deliverable|outcome|scope",question:"一个能改变改写的关键事实问题"}，同时交付能改的内容，不重复问已确认方向或已回答事实。
 ${input.trialScope ? `本轮仅有一次单段体验：所有before和追问必须在此原文内，最多3处，主线也只限该段，不改简介或别段：${input.trialScope}` : ''}` },

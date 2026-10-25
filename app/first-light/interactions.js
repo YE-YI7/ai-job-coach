@@ -1,3 +1,5 @@
+import { createWalkthroughNotes } from "./walkthrough-notes";
+
 /** Port of the user-selected Claude → DeepSeek v5 prototype. Source SHA-256: 1ef10ac1819d0f03dcb409cf547a951a38b96316108fc5b527c4ac2d6cc0efcf.
  * Queries, styles, timers and observers stay scoped to this marketing surface.
  * The walkthrough uses fictional data only; no account or model API is called.
@@ -874,11 +876,17 @@ export function mountFirstLight(root, options={}) {
       h = f.parentNode.querySelector(".rail-h span:last-child");
     if (h) h.textContent = t;
   }
+  var switchNotes = createWalkthroughNotes(railFeed());
   function setTab(t) {
     if (curTab === t) return;
+    if (curTab === "interview") closeIV();
+    switchNotes(t);
     curTab = t;
     root.querySelectorAll(".pane").forEach(function (p) {
-      p.classList.toggle("on", p.dataset.pane === t);
+      var active = p.dataset.pane === t;
+      p.classList.toggle("on", active);
+      p.toggleAttribute("inert", !active);
+      p.setAttribute("aria-hidden", String(!active));
     });
     root.querySelectorAll(".side span").forEach(function (s) {
       s.classList.toggle("on", s.dataset.tab === t);
@@ -892,10 +900,6 @@ export function mountFirstLight(root, options={}) {
     walk.classList.toggle("dusk", t === "interview");
     $("#winTitle").textContent = TITLES[t];
     railHead({ job: "看岗位", resume: "改简历", interview: "练面试" }[t]);
-    rail.querySelectorAll(".cm").forEach(function (c) {
-      c.classList.add("old");
-      c.classList.remove("cm-ask");
-    });
     setTimeout(fitShots, 60);
     if (typeof say === "function" && LINES[t]) say(t);
   }
@@ -912,7 +916,7 @@ export function mountFirstLight(root, options={}) {
     if (innerWidth > 1060) return;
     [
       ["cvShot", 0.3, 0.69],
-      ["ivShot", 0.11, 0.37],
+      ["ivShot", 0.072, 0.323],
     ].forEach(function (x) {
       var s = byId(x[0]);
       if (!s) return;

@@ -1286,6 +1286,7 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  padding: 90px 0 18px;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -1445,7 +1446,7 @@
 }
 
 [data-first-light-home] .win {
-  height: min(780px, calc(100vh - 90px));
+  height: min(780px, calc(100vh - 126px));
   border-radius: 16px;
   overflow: hidden;
   display: flex;
@@ -1959,6 +1960,9 @@
     0 0 0 1px rgba(42, 38, 32, 0.06),
     0 20px 44px -32px rgba(60, 35, 15, 0.6);
 }
+[data-first-light-home] #ivShot .shot-inner {
+  aspect-ratio: 1556 / 1382;
+}
 [data-first-light-home] .shot-inner img {
   position: absolute;
   inset: 0;
@@ -2068,10 +2072,11 @@
 }
 [data-first-light-home] .hot {
   position: absolute;
-  left: 5.2%;
-  top: 35.2%;
-  width: 16.6%;
-  height: 8%;
+  /* 与当前 1556×1382 截图中“练一道题”的真实位置绑定。 */
+  left: 0;
+  top: 29.16%;
+  width: 14.46%;
+  height: 6.3%;
   border: 2px solid var(--tomato);
   border-radius: 10px;
   background: rgba(224, 85, 44, 0.05);
@@ -2422,7 +2427,7 @@
     grid-template-columns: 1fr;
     gap: 0;
     align-content: start;
-    padding-top: 112px;
+    padding-top: 0;
   }
   [data-first-light-home] .win-bar small {
     display: none;
@@ -2450,7 +2455,7 @@
     display: none;
   }
   [data-first-light-home] .win {
-    height: calc(100vh - 150px);
+    height: calc(100vh - 214px);
   }
   [data-first-light-home] .win-body {
     grid-template-columns: 1fr;

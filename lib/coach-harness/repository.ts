@@ -98,9 +98,10 @@ async function recordResumeClaims(input: {
   sourceId: string;
   content: string;
   global: boolean;
+  workspaceOnly?: true;
 }) {
   const db = requireDb(await getDbClient());
-  if (!input.global) {
+  if (!input.global && !input.workspaceOnly) {
     const globalClaims = await db.from("coach_claims").select("entity_key")
       .eq("user_id", input.userId).eq("source_id", input.sourceId).is("opportunity_id", null).limit(1);
     if (globalClaims.error) throw globalClaims.error;
@@ -775,7 +776,10 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
   });
 }
 
-export async function createCockpitOpportunity(userId: string, opportunity: Omit<Opportunity, "id">) {
+export async function createCockpitOpportunity(
+  userId: string, opportunity: Omit<Opportunity, "id">,
+  internal?: { workspaceResumeOnly: true },
+) {
   const db = requireDb(await getDbClient());
   const { jdText, company, role, stage, scheduledInterviewAt, ...metadata } = opportunity;
   const { data, error } = await db.from("coach_opportunities").insert({
@@ -809,7 +813,9 @@ export async function createCockpitOpportunity(userId: string, opportunity: Omit
       opportunityId,
       sourceId: sourceRow.id,
       content: source.content,
-      global: opportunity.workspaceType === "preparation",
+      // A disposable admin QA copy must not enter the owner's global facts.
+      global: opportunity.workspaceType === "preparation" && !internal?.workspaceResumeOnly,
+      ...(internal?.workspaceResumeOnly ? { workspaceOnly: true as const } : {}),
     });
     if (source.type === "resume") await import("./run-ledger/events").then(({ intakeEvent }) => intakeEvent({ userId, opportunityId, clientEventId: `resume_${sourceRow.id}`, kind: "resume_saved", properties: { source_id: sourceRow.id } })).catch(() => console.error("Resume saved but intake unavailable"));
   }

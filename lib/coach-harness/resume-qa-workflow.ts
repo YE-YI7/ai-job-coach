@@ -26,7 +26,7 @@ export async function runNewResumeQaWorkflow(
     recommendation: 'prepare_then_apply', recommendationLabel: '仅验收', recommendationReason: '仅验收，不投递',
     nextEventLabel: null, evidenceCoverage: { strong: 0, weak: 0, missing: 0, unverified: 0 },
     activities: [], resumeChanges: [], interviewFocus: [],
-  });
+  }, { workspaceResumeOnly: true });
   const claimed = await claimResumeTask(user.id, opportunity.id, { action: 'start' });
   if (!claimed.claimed || !claimed.lease) throw Error('QA_TASK_NOT_CLAIMED');
   const generationId = `${claimed.task.id}:${claimed.version}`;

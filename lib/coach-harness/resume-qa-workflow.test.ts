@@ -22,6 +22,7 @@ test('a new QA target uses actual lease/CAS persistence and a four-call ceiling,
   const saved = jest.fn();
   const response = await runNewResumeQaWorkflow(new Request('https://candidate.invalid'), user, material, 4, saved);
   expect(saved).toHaveBeenCalledWith({ opportunityId: 'new-qa', taskId: 'new-task', generationId: 'new-task:1', requestId: 'resume-task:new-task:1' });
+  expect(createCockpitOpportunity).toHaveBeenCalledWith('owner', expect.any(Object), { workspaceResumeOnly: true });
   expect(saved.mock.invocationCallOrder[0]).toBeLessThan((runResumeDraft as jest.Mock).mock.invocationCallOrder[0]);
   const [request, actor, options] = (runResumeDraft as jest.Mock).mock.calls[0];
   expect(actor).toBe(user);
@@ -44,7 +45,7 @@ test('an empty JD uses the real general-resume path, without inventing a target 
     { ...material, jobDescription: '' }, 4, async () => undefined);
   expect(createCockpitOpportunity).toHaveBeenCalledWith('owner', expect.objectContaining({
     workspaceType: 'preparation', jdText: '',
-  }));
+  }), { workspaceResumeOnly: true });
   const [request] = (runResumeDraft as jest.Mock).mock.calls[0];
   expect(await request.json()).toMatchObject({ mode: 'general_resume', jobDescription: '' });
 });

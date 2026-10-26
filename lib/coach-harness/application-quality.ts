@@ -78,9 +78,31 @@ export function reviewAtsText(resumeText: string, jobDescription: string) {
   }
   const keywords = keywordTokens(jobDescription).slice(0, 80);
   const hits = keywords.filter((token) => normalized.toLowerCase().includes(token)).length;
-  const coverage = keywords.length ? hits / keywords.length : 1;
-  if (keywords.length >= 5 && coverage < 0.12) findings.push({ code: "low_keyword_coverage", severity: "warning", message: "岗位关键词覆盖偏低，请确认核心要求是否已用真实经历表达。" });
+  const coverage = keywords.length ? hits / keywords.length : null;
+  if (keywords.length >= 5 && coverage !== null && coverage < 0.12) findings.push({
+    code: "low_keyword_coverage", severity: "warning",
+    message: "岗位关键词覆盖偏低，请确认核心要求是否已用真实经历表达。",
+  });
   return { ok: !findings.some((finding) => finding.severity === "error"), coverage, findings };
+}
+
+/** Empty JD is unmeasured, not 100% fit. Readable text is not ATS certification. */
+export function atsReviewSummary(result: { ok: boolean; coverage: number | null }) {
+  if (!result.ok) return '文本不满足 ATS 基础要求。';
+  return result.coverage === null
+    ? '文本可解析；未提供有效 JD，岗位词匹配未测。'
+    : `文本可解析；岗位词覆盖 ${(result.coverage * 100).toFixed(0)}%。`;
+}
+
+/** Correct the product's read projection, never mutate historical audit rows. */
+export function presentResumeAtsQuality<T>(quality: T, jobDescription: string): T {
+  if (!quality || typeof quality !== 'object' || keywordTokens(jobDescription).length) return quality;
+  const raw = quality as Record<string, unknown>;
+  if (!Array.isArray(raw.reviews)) return quality;
+  return { ...raw, reviews: raw.reviews.map(review => {
+    if (!review || typeof review !== 'object' || review.reviewerType !== 'ats') return review;
+    return { ...review, summary: atsReviewSummary({ ok: review.status !== 'failed', coverage: null }) };
+  }) } as T;
 }
 
 function compactText(value: string) {

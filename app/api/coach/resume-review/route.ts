@@ -141,7 +141,9 @@ export async function POST(request: Request) {
     const reviews = await Promise.all([
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsPassed ? "passed" : "failed", summary: factSummary, findings: factFindings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewer.status === "not_run" ? "not_run" : reviewerPassed ? "passed" : "failed", summary: reviewer.summary, findings: reviewer.findings, contextFingerprint: context.fingerprint }),
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id),
+        reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: atsReviewSummary(ats),
+        findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
 
@@ -168,3 +170,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "简历修改检查失败" }, { status: 500 });
   }
 }
+import { atsReviewSummary } from '@/lib/coach-harness/application-quality';

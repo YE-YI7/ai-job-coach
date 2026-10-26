@@ -16,8 +16,10 @@ export async function runNewResumeQaWorkflow(
   callLimit: number,
   onCreated: (coordinates: { opportunityId: string; taskId: string; generationId: string; requestId: string }) => Promise<void>,
 ) {
+  const hasJd = Boolean(material.jobDescription.trim());
   const opportunity = await createCockpitOpportunity(user.id, {
-    workspaceType: 'job', company: '内部脱敏验收 · 完整改稿', role: '同稿改稿、保存刷新与 PDF',
+    workspaceType: hasJd ? 'job' : 'preparation',
+    company: '内部脱敏验收 · 完整改稿', role: '同稿改稿、保存刷新与 PDF',
     stage: 'captured', jdText: material.jobDescription, resumeText: material.resumeText,
     profileText: '独立 QA 材料，不是原账号作答或正式求职记录', requirements: [], actions: [],
     location: '', stageLabel: '已收集', priority: 'low', sourceLabel: '内部脱敏验收', capturedAtLabel: '刚刚',
@@ -36,7 +38,7 @@ export async function runNewResumeQaWorkflow(
     deliveryFromTask(null, { generationId, taskState: 'running' }), { ...coordinates, startedAt: new Date(started).toISOString() });
   const response = await runResumeDraft(new Request(request.url, { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...material,
-      opportunityId: opportunity.id, mode: 'target_resume', requestId,
+      opportunityId: opportunity.id, mode: hasJd ? 'target_resume' : 'general_resume', requestId,
       resumeTaskId: claimed.task.id, resumeTaskLease: claimed.lease,
     }),
   }), user, { editorialMode: 'narrative', maxModelCalls: callLimit, qaQuotaIsolation: true });

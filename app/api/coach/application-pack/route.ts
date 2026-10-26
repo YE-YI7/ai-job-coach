@@ -78,7 +78,9 @@ export async function POST(request: Request) {
     await Promise.all([
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: "passed", summary: retainedOriginal ? "保留用户原文，未新增 AI 表述。" : "投递文本已通过事实规则检查。", findings: [], contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: retainedOriginal ? "not_run" : "passed", summary: retainedOriginal ? "保留原文，无 AI 修改需复核。" : "起草版本已通过独立复核。", findings: [], contextFingerprint: context.fingerprint }),
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: "passed", summary: `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。`, findings: ats.findings, contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id),
+        reviewerType: "ats", status: "passed", summary: atsReviewSummary(ats),
+        findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
     const snapshot = await createOpportunitySnapshot({
@@ -117,3 +119,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "投递版本保存失败" }, { status: 500 });
   }
 }
+import { atsReviewSummary } from '@/lib/coach-harness/application-quality';

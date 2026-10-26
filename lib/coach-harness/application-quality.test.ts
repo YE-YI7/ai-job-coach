@@ -1,4 +1,25 @@
-import { applyResumeChanges, reviewAtsText, reviewPdfText } from "./application-quality";
+import { applyResumeChanges, reviewAtsText, reviewPdfText, atsReviewSummary, presentResumeAtsQuality } from "./application-quality";
+
+test('empty or unusable JD has no measured keyword coverage, never 100%', () => {
+  for (const jd of ['', '   ', '。。。']) {
+    const result = reviewAtsText('分析业务需求并整理原型。', jd);
+    expect(result.coverage).toBeNull();
+    expect(atsReviewSummary(result)).toContain('匹配未测');
+    expect(atsReviewSummary(result)).not.toContain('100%');
+  }
+});
+
+test('legacy product projection hides empty-JD 100% without changing the stored evidence', () => {
+  const raw = { status: 'ready', reviews: [
+    { reviewerType: 'ats', status: 'passed', summary: '文本可解析；岗位词覆盖 100%。' },
+    { reviewerType: 'facts', status: 'passed', summary: '原始事实检查' },
+  ] };
+  const shown = presentResumeAtsQuality(raw, '');
+  expect(shown.reviews[0].summary).toContain('匹配未测');
+  expect(raw.reviews[0].summary).toContain('100%');
+  expect(shown.reviews[1]).toBe(raw.reviews[1]);
+  expect(presentResumeAtsQuality(raw, '产品经理')).toBe(raw);
+});
 
 describe("application package quality", () => {
   const change = (before: string, after: string, id = "one") => ({ id, section: "项目经历", before, after, reason: "", evidenceId: null, status: "accepted" as const });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { atsReviewSummary } from './application-quality';
 import { resumeStyleContract, checkResumeFormat, readDocumentReview, WHOLE_DOCUMENT_REVIEW_PROMPT, RESUME_WORKFLOW_VERSION, type DocumentReview } from "./resume-document-review";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import {
@@ -26,6 +27,8 @@ import { renderResumeKnowledge } from "@/lib/knowledge/resume-examples";
 import { selectResumeDraftKnowledge, resumeEditorialCoreMethod } from "@/lib/knowledge/resume-methods";
 import { estimateTokens } from './context';
 import { resumeNarrativeMessages } from './resume-narrative-prompts';
+import { adjudicateResumeValueChecks } from './resume-edit-value';
+import { resumeNarrativeEnabled } from './resume-editorial-plan';
 import {
   readResumeEditorialPlan, readResumeNarrativeReview, resumeContentDelta, unresolvedResumeEditorialGoals,
   bindResumeEditorialAnchors, RESUME_NARRATIVE_REVIEW_PROMPT, type ResumeEditorialPlan, type ResumeNarrativeReview,
@@ -107,8 +110,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const styleContract = resumeStyleContract(resumeText, formatPolicy);
     if (options.actorModel && !options.isolated) throw Error('Actor model evaluation requires isolation');
     const modelUserId = options.isolated && !options.actorModel ? undefined : user.id;
-    const narrativeEnabled = strategy === 'independent' && (options.editorialMode
-      ? options.editorialMode === 'narrative' : process.env.RESUME_EDITORIAL_PLAN_ENABLED === '1');
+    const narrativeEnabled = resumeNarrativeEnabled(strategy, options.editorialMode);
     const coreMethod = narrativeEnabled ? resumeEditorialCoreMethod() : null;
     const coreMethodTokens = coreMethod ? estimateTokens(coreMethod.content) : 0;
     const generalResume = body.mode === "general_resume";
@@ -615,26 +617,27 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
     if(!followUp && (!agentTask || factualResumeAnswers(agentTask.answers).length < 5))
       followUp=nextResumeQuestion(resumeText,(reviewer as Record<string,unknown>).recovery,agentTask?.answers || []);
     trace.step("review","whole_document_checked",documentReview.findings.length,{input:{appliedCandidate:reviewCandidate.text,styleContract,strategy,changes},output:documentReview});
+    // Resolve goal/value judgments before choosing a repair scope. Otherwise a
+    // formatting failure locks cosmetic edits and loses the mainline feedback.
+    valueChecks = adjudicateResumeValueChecks(changes,
+      readResumeValueChecks((reviewer as Record<string, unknown>).valueChecks, changes.length));
+    (reviewer as Record<string, unknown>).valueChecks = valueChecks;
+    if (editorialPlan) {
+      narrativeReview = readResumeNarrativeReview((reviewer as Record<string, unknown>).narrativeReview, editorialPlan);
+      if (narrativeReview?.mainlineSupported) lockedEditorialPlan = editorialPlan;
+    }
     if(documentReview.status==="failed" && attempt===0){
       captureCheckpoint(attempt);
       const flagged=new Set(documentReview.findings.filter(f=>f.severity==="error").map(f=>f.changeId));
-      lockedChanges=flagged.has(null)?[]:changes.filter(c=>!flagged.has(c.id));
+      lockedChanges = editorialPlan || flagged.has(null) ? [] : changes.filter(c => !flagged.has(c.id));
       repairFeedback=[...rejected.map(item=>JSON.stringify({before:rawChanges[item.index]?.before,problem:item.reasons.join('；')})),...documentReview.findings.filter(f=>f.severity==="error").map(f=>JSON.stringify({changeId:f.changeId,before:changes.find(c=>c.id===f.changeId)?.before,problem:f.message}))].slice(0,10);
+      if (editorialPlan) repairFeedback.unshift(`整稿返修仍须完成原内容目标：${JSON.stringify({
+        plan: editorialPlan, review: narrativeReview, valueChecks,
+      })}。不要只纠正领头或错字就结束；保持事实、阶段和原文定位。`);
       trace.step("review","returned_to_original_editor",repairFeedback.length,{input:documentReview,output:{repairFeedback,lockedChangeIds:lockedChanges.map(c=>c.id),maxRepairs:1}});
       continue;
     }
     reviewerFindings = Array.isArray(reviewer.findings) ? reviewer.findings.slice(0, 20) : [];
-    valueChecks=readResumeValueChecks((reviewer as Record<string,unknown>).valueChecks,changes.length);
-    if (editorialPlan) {
-      valueChecks = valueChecks.map(check => check.impact === 'content'
-        && resumeContentDelta(changes[check.index].before, changes[check.index].after) !== 'body_changed'
-        ? { ...check, useful: false, kind: 'none', reason: '仅改段首概括、连接词或标点，正文信息未改变，不能算内容优化。' } : check);
-      // Checkpoints must retain the same adjudicated value checks, not revive
-      // the reviewer's overclaimed content labels after a later timeout.
-      (reviewer as Record<string, unknown>).valueChecks = valueChecks;
-      narrativeReview = readResumeNarrativeReview((reviewer as Record<string, unknown>).narrativeReview, editorialPlan);
-      if (narrativeReview?.mainlineSupported) lockedEditorialPlan = editorialPlan;
-    }
     const usefulIndexes=usefulResumeIndexes(valueChecks);
     trace.step('review','value_verdicts_received',valueChecks.length);
     trace.step('review','useful_changes',usefulIndexes.size);
@@ -769,7 +772,9 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
       const reviews = await Promise.all([
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "保留的改写引用已提供材料；被过滤的建议不在本版本中，不代表经历已核实。" : "当前预览存在无法定位或未通过事实校验的改写。", findings: preview.findings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id),
+          reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: atsReviewSummary(ats),
+          findings: ats.findings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
       ]);
       applicationQuality = {

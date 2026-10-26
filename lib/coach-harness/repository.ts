@@ -1,4 +1,5 @@
 import { getDbClient } from "@/lib/db";
+import { presentResumeAtsQuality } from './application-quality';
 import { createHash } from "node:crypto";
 import {selectResumeEvidence} from './evidence-retrieval';
 import {estimateTokens} from './context';
@@ -766,10 +767,10 @@ export async function listCockpitOpportunities(userId: string): Promise<Opportun
         id: String(snapshot.id), snapshotType: snapshot.snapshot_type as NonNullable<Opportunity["snapshots"]>[number]["snapshotType"],
         version: Number(snapshot.version), title: String(snapshot.title), frozenAt: String(snapshot.frozen_at),
       })),
-      applicationQuality: artifact ? {
+      applicationQuality: presentResumeAtsQuality(artifact ? {
         artifactId: String(artifact.id), version: Number(artifact.version), status: resumeQualityStatus(retainedOriginal, reviews.map(review => ({ reviewer_type: review.reviewer_type, status: review.status }))),
         reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["reviewerType"], status: review.status as NonNullable<Opportunity["applicationQuality"]>["reviews"][number]["status"], summary: String(review.summary), findings: readReviewFindings(review.findings) })),
-      } : undefined,
+      } : undefined, String(row.jd_text || '')),
     };
   });
 }

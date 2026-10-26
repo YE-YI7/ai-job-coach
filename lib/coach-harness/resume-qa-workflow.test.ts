@@ -38,3 +38,13 @@ test('returned output without a committed generation cannot become a saved docum
   expect(recordResumeDocument).not.toHaveBeenCalled();
   expect(finishResumeTask).not.toHaveBeenCalled();
 });
+
+test('an empty JD uses the real general-resume path, without inventing a target job', async () => {
+  await runNewResumeQaWorkflow(new Request('https://candidate.invalid'), user,
+    { ...material, jobDescription: '' }, 4, async () => undefined);
+  expect(createCockpitOpportunity).toHaveBeenCalledWith('owner', expect.objectContaining({
+    workspaceType: 'preparation', jdText: '',
+  }));
+  const [request] = (runResumeDraft as jest.Mock).mock.calls[0];
+  expect(await request.json()).toMatchObject({ mode: 'general_resume', jobDescription: '' });
+});

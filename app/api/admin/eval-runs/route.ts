@@ -182,7 +182,6 @@ export async function POST(request: Request) {
   if (comparison !== undefined && (!comparison || typeof comparison !== 'object' || Array.isArray(comparison)
     || Object.keys(comparison).some(key => !['mode', 'callLimit', 'persistNewQa'].includes(key))
     || (comparison.persistNewQa !== undefined && comparison.persistNewQa !== true)
-    || (comparison.persistNewQa === true && !String(body.jobDescription || '').trim())
     || comparison.mode !== 'narrative' || !Number.isInteger(comparison.callLimit)
     || Number(comparison.callLimit) < 1 || Number(comparison.callLimit) > 8 || body.selfEvaluate === true)) {
     return json({ error: '对比评测仅接受主线方案与明确调用上限；不附加收费自评。' }, 400);
@@ -261,7 +260,7 @@ export async function POST(request: Request) {
         });
     const response = await withEvalObserver({ spans, save }, () => comparison?.persistNewQa === true
       ? runNewResumeQaWorkflow(comparisonRequest, user, {
-        resumeText: String(body.resumeText), jobDescription: String(body.jobDescription),
+        resumeText: String(body.resumeText), jobDescription: String(body.jobDescription || ''),
       }, Number(comparison.callLimit), async coordinates => { run.qa = coordinates; await save(); })
       : comparison ? runResumeDraft(comparisonRequest, user, {
         isolated: true, actorModel: true, editorialMode: 'narrative', maxModelCalls: Number(comparison.callLimit),

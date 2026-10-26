@@ -39,7 +39,15 @@ const passedDocument={status:"passed",summary:"整稿一致，未发现本轮引
 const usefulValueChecks=[0,1].map(index=>({index,useful:true,kind:'clarity',reason:'将实际评测动作与交付口径对应，便于读者理解'}));
 
 describe("resume draft source mapping", () => {
+  const previousEditorialFlag = process.env.RESUME_EDITORIAL_PLAN_ENABLED;
+  afterAll(() => {
+    if (previousEditorialFlag === undefined) delete process.env.RESUME_EDITORIAL_PLAN_ENABLED;
+    else process.env.RESUME_EDITORIAL_PLAN_ENABLED = previousEditorialFlag;
+  });
   beforeEach(() => {
+    // Historical fixtures still exercise the rollback path, not pretend to
+    // contain a plan. The narrative test below exercises the new default.
+    process.env.RESUME_EDITORIAL_PLAN_ENABLED = '0';
     jest.clearAllMocks();
     (callLLM as jest.Mock).mockReset();
     (resumeTaskInput as jest.Mock).mockReset();
@@ -279,7 +287,8 @@ describe("resume draft source mapping", () => {
     expect(response.status).toBe(200);expect(await response.json()).toMatchObject({unchanged:true,changes:[]});expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 
-  test('narrative mode reserves a grounded core, delivers a sourced plan and independently checks its goals', async () => {
+  test('default independent mode reserves a grounded core and independently checks its goals', async () => {
+    delete process.env.RESUME_EDITORIAL_PLAN_ENABLED;
     (compileContextBundle as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/context').compileContextBundle);
     const before='- **需求记录。** 平时做需求，收集了30条反馈，收集后整理成问题清单，交给同事每周讨论。';
     const after='- **需求整理。** 整理30条反馈形成问题清单，交给同事每周讨论。';
@@ -295,7 +304,7 @@ describe("resume draft source mapping", () => {
     (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
     const user={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
     const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({resumeText:before,mode:'general_resume'})}),
-      user,{isolated:true,editorialMode:'narrative',maxModelCalls:4});
+      user,{isolated:true,maxModelCalls:4});
     const data=await response.json();expect({status:response.status,data}).toMatchObject({status:200,data:{editorialPlan:plan,narrativeReview:{status:'passed'}}});
     expect(callLLM).toHaveBeenCalledTimes(2);expect(reserveQuota).not.toHaveBeenCalled();
     expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain('主线');
@@ -305,6 +314,45 @@ describe("resume draft source mapping", () => {
     expect(schema.required).toContain('narrativeReview');
     expect(schema.properties.narrativeReview.required).toContain('goals');
     expect(reviewMessages.at(-1)!.content).toContain('只有warning');
+  });
+
+  test('a whole-document failure returns complete goals to the original editor, not locked cosmetic edits', async () => {
+    (compileContextBundle as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/context').compileContextBundle);
+    const before = '需求记录：平时收集需求，整理了30条反馈，整理后形成问题清单交给同事每周讨论。';
+    const after = '需求记录：整理30条反馈形成问题清单，交给同事每周讨论。';
+    const plan = { mainline: '用反馈清单与每周讨论证明有依据的需求整理能力',
+      claims: [{ point: '整理反馈清单供同事每周讨论', sourceIds: ['resume-line-1'] }],
+      priorities: [{ id: 'p1', anchorId: 'a1', goal: '删除重复整理过程，突出原有清单交付与用途' }] };
+    const draft = (text: string) => JSON.stringify({ editorialPlan: plan,
+      changes: [{ section: '经历', anchorId: 'a1', after: text,
+        reason: '删除重复职责与过程，突出反馈清单和用途', sourceIds: ['resume-line-1'] }] });
+    const review = JSON.stringify({ status: 'passed', summary: '实质删除重复过程并保留原有交付', findings: [], document: passedDocument,
+      valueChecks: [{ index: 0, useful: true, kind: 'concision', impact: 'content', reason: '删去重复整理过程使清单用途更集中' }],
+      narrativeReview: { status: 'passed', mainlineSupported: true, summary: '反馈和清单可以支持需求整理的主线',
+        goals: [{ id: 'p1', status: 'addressed', reason: '已删除重复过程，清单及其用途成为重点' }] } });
+    const firstReview = JSON.parse(review);
+    firstReview.document = { status: 'failed', summary: '正文仍有与主线重复的空泛职责',
+      findings: [{ changeId: null, category: 'quality', severity: 'error', message: '重复收集过程仍在，需要落实原精简目标' }] };
+    firstReview.narrativeReview = { ...firstReview.narrativeReview, status: 'failed',
+      goals: [{ id: 'p1', status: 'not_addressed', reason: '开头仍在重复笼统职责，精简目标没有做完' }] };
+    (callLLM as jest.Mock).mockResolvedValueOnce(draft(after.replace('需求记录：', '需求记录：平时收集需求，')))
+      .mockResolvedValueOnce(JSON.stringify(firstReview))
+      .mockResolvedValueOnce(draft(after)).mockResolvedValueOnce(review);
+    (applyResumeChanges as jest.Mock).mockImplementation(jest.requireActual('@/lib/coach-harness/application-quality').applyResumeChanges);
+    const response = await runResumeDraft(new Request('https://eval.invalid', { method: 'POST',
+      body: JSON.stringify({ resumeText: before, mode: 'general_resume' }) }),
+    { id: 'admin' } as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>,
+    { isolated: true, editorialMode: 'narrative', maxModelCalls: 4 });
+    const result = await response.json();
+    if (!result.ok) throw Error(JSON.stringify({ result, calls: (callLLM as jest.Mock).mock.calls.length }));
+    expect({ status: response.status, result }).toMatchObject({ status: 200,
+      result: { ok: true, changes: [{ before, after }], narrativeReview: { status: 'passed' } } });
+    expect(callLLM).toHaveBeenCalledTimes(4);
+    const messages = (callLLM as jest.Mock).mock.calls[2][0] as Array<{ content: string }>;
+    const repair = JSON.parse(messages.find(message => message.content.startsWith('{"sourceAnchors"'))!.content);
+    expect(repair.repairFeedback.join(' ')).toContain('整稿返修仍须完成原内容目标');
+    expect(repair.lockedChanges).toEqual([]);
+    expect(repair.lockedPlan).toMatchObject({ mainline: plan.mainline });
   });
 
   test('an unsupported narrative is refunded after bounded author repair, never saved as complete', async () => {
@@ -776,7 +824,8 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     // 两条都是「换措辞」类：守卫只给 annotate（见 spec §10 的两档裁定），所以都能进质检。
     // 语义上的扩大（凭空加「幻觉率」口径）只有质检员看得出来，由它摘掉那一条。
     const overClaim = { section: "项目经历", before: "负责模型评测", after: "独立完成模型评测方案，覆盖准确率与幻觉率两个口径", reason: "量化", sourceIds: ["claim-1"] };
-    const reworded = { section: "项目经历", before: "AI Job Coach：负责模型评测", after: "模型评测覆盖准确率口径", reason: "岗位匹配", sourceIds: ["claim-1"] };
+    const reworded = { section: "项目经历", before: "AI Job Coach：负责模型评测",
+      after: "AI Job Coach：模型评测覆盖准确率口径", reason: "岗位匹配", sourceIds: ["claim-1"] };
     (callLLM as jest.Mock)
       .mockResolvedValueOnce(JSON.stringify({ changes: [overClaim, reworded] }))
       .mockImplementationOnce(async (messages: { role: string; content: string }[]) => {

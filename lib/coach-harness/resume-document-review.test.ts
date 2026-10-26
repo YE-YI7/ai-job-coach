@@ -10,6 +10,16 @@ test("lost bold lead is caught, not repaired by blindly restoring old wording",(
   expect(checkResumeFormat(before,"candidate",[change("- 每周整理Excel订单记录，交给同事核对。")],"preserve")[0]).toMatchObject({changeId:"change-1",category:"format"});
   expect(checkResumeFormat(before,"candidate",[change("- **订单记录整理。** 每周整理Excel订单记录，交给同事核对。")],"preserve")).toEqual([]);
 });
+test('plain colon lead-in loss is a real format failure even when a model calls it content', () => {
+ const source = '业务需求分析与产品设计:分析三张台账，提炼十二项字段，设计人工复核流程。';
+ const edit = { ...change('分析三张台账，提炼十二项字段，设计人工复核流程。'), before: source };
+ expect(resumeStyleContract(source, 'preserve').plainLeadIns).toBe(1);
+ expect(checkResumeFormat(source, edit.after, [edit], 'preserve')).toEqual([
+  expect.objectContaining({ category: 'format', severity: 'error' }),
+ ]);
+ expect(checkResumeFormat(source, '流程抽象：分析三张台账，提炼十二项字段，设计人工复核流程。',
+  [{ ...edit, after: '流程抽象：分析三张台账，提炼十二项字段，设计人工复核流程。' }], 'preserve')).toEqual([]);
+});
 test("no source lead-ins means no invented requirement; standardization is explicit",()=>{
   expect(checkResumeFormat("每周整理订单记录。","候选",[{...change("每周整理订单记录，交给同事。"),before:"每周整理订单记录。"}],"preserve")).toEqual([]);
   expect(checkResumeFormat(before,"候选",[change("- 整理Excel订单记录，交给同事。")],"standard")).toEqual([]);

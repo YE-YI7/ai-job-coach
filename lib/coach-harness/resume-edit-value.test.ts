@@ -70,3 +70,14 @@ describe('resume editing value, separate from factuality',()=>{
   test.each(['整理未处理工单','维护尚未上线的原型','排查未登录用户的访问异常','上线后零故障'])('preserves domain negatives and project maturity: %s',text=>{expect(isPersonalDisclaimer(text)).toBe(false);expect(omitStandaloneDisclaimers(text)).toBe(text);});
   test('missing or duplicate quality verdict cannot pass',()=>{expect(usefulResumeIndexes(readResumeValueChecks(undefined,1)).size).toBe(0);const check={index:0,useful:true,kind:'concision',reason:'删除重复职责前缀，让交付动作清楚'};expect([...usefulResumeIndexes(readResumeValueChecks([check],1))]).toEqual([0]);expect(usefulResumeIndexes(readResumeValueChecks([check,check],1)).size).toBe(0);});
 });
+import { adjudicateResumeValueChecks } from './resume-edit-value';
+
+test('a content tag cannot promote deleted lead-ins plus surface changes into substantive editing', () => {
+  const before = '需求分析：整理业务反馈，归纳需求并明确优先级。';
+  const after = '整理业务反馈，归纳需求与明确优先级。';
+  const checks = [{ index: 0, useful: true, kind: 'structure', impact: 'content' as const,
+    reason: '模型声称内容改进' }];
+  expect(adjudicateResumeValueChecks([{ before, after }], checks)[0]).toMatchObject({ useful: false, kind: 'none' });
+  expect(checks[0].useful).toBe(true);
+  expect(adjudicateResumeValueChecks([{ before, after }], [{ ...checks[0], impact: 'correction' }])[0].useful).toBe(true);
+});

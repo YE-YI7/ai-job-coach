@@ -1,4 +1,5 @@
 import {isTrivialRewrite} from './resume-diff';
+import { resumeContentDelta } from './resume-editorial-plan';
 
 /** Content selection is separate from factual grounding. Never alter source
  * facts here: personal disclaimers remain in the evidence/context as limits. */
@@ -88,6 +89,17 @@ export function resumeEditValueIssues(before:string,after:string):string[]{
 }
 
 export type ResumeValueCheck={index:number;useful:boolean;kind:string;reason:string;impact?:'correction'|'content'};
+
+/** Backend veto only: never upgrade an independent verdict to passed. */
+export function adjudicateResumeValueChecks(
+  changes: Array<{ before: string; after: string }>, checks: ResumeValueCheck[],
+): ResumeValueCheck[] {
+  return checks.map(check => check.impact === 'content' && changes[check.index]
+    && resumeContentDelta(changes[check.index].before, changes[check.index].after) !== 'body_changed'
+    ? { ...check, useful: false, kind: 'none',
+      reason: '仅改段首概括、连接词或标点，正文信息未改变，不能算内容优化。' }
+    : check);
+}
 
 /** A legitimate OCR correction is useful, but does not prove that content was
  * tailored. Legacy small edits need BOTH author/reviewer correction evidence;

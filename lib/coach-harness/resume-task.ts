@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { presentResumeAtsQuality } from './application-quality';
 import { getDbClient } from "@/lib/db";
 import { requireDb } from "./repository";
 import { nextResumeQuestion, type ResumeAgentTask, type ResumeAgentAnswer, type ResumeConversationTurn } from "./resume-task-types";
@@ -48,6 +49,8 @@ export async function readResumeTask(userId: string, opportunityId: string) {
   if(row&&row.fingerprint===source.fingerprint&&row.state==='needs_detail'&&row.question&&!nextResumeQuestion(source.resume,row.question,row.answers))return publicResumeTask({...row,state:'failed',question:null,error:'这条补问需要重新整理，原材料已保留，可以继续'});
   if(!row||row.fingerprint!==source.fingerprint)return null;
   const task=publicResumeTask(row);
+  if (task.result) task.result = { ...task.result,
+    applicationQuality: presentResumeAtsQuality(task.result.applicationQuality, source.jd) };
   const delivery=await readResumeDelivery(userId,row.id,source.revision,row.state==='ready'?row.result?.resumeGenerationId:row.state==='running'?`${row.id}:${row.version}`:undefined);
   if(delivery)task.delivery=delivery.outcome==='running'&&row.state!=='running'?{...delivery,outcome:'unconfirmed'}:delivery;
   const generation=delivery?.generationId||(row.state==='ready'?row.result?.resumeGenerationId:`${row.id}:${row.state==='running'?row.version:row.version-1}`);

@@ -1,4 +1,6 @@
 import type { ResumeChange } from '@/lib/opportunities/types';
+import { resumeBodyWithoutLeadIns, resumeLeadIn, resumeSourceParagraphs } from './resume-source-structure';
+import { isTrivialRewrite } from './resume-diff';
 
 export type ResumeEditorialPlan = {
   mainline: string;
@@ -18,9 +20,16 @@ const text = (value: unknown, min: number, max: number): value is string =>
 const keys = (value: Record<string, unknown>, allowed: string[]) =>
   Object.keys(value).every(key => allowed.includes(key));
 
+/** Normal independent editing uses the plan; 0 is an explicit server rollback.
+ * A public request body can never select a weaker review strategy. */
+export function resumeNarrativeEnabled(strategy: string, mode?: 'narrative' | 'legacy') {
+  return strategy === 'independent' && (mode
+    ? mode === 'narrative' : process.env.RESUME_EDITORIAL_PLAN_ENABLED !== '0');
+}
+
 /** The model selects immutable source spans; it does not have to retype Markdown. */
 export function resumeEditorialAnchors(resume: string) {
-  return resume.split('\n').map(line => line.trim()).filter(line => line.length >= 8)
+  return resumeSourceParagraphs(resume).filter(line => line.length >= 8)
     .map((before, index) => ({ anchorId: `a${index + 1}`, before }));
 }
 
@@ -72,13 +81,16 @@ export function readResumeEditorialPlan(raw: unknown, resume: string, sourceIds:
 /** Signals, not a semantic judge: a renamed lead-in cannot prove body improvement.
  * Corrections may still be useful, but must not be labelled substantive content. */
 export function resumeContentDelta(before: string, after: string) {
-  const body = (value: string) => value
-    .replace(/^\s*[-*•]\s*/gm, '')
-    .replace(/^\*\*[^*\n]{1,80}\*\*[：:。.]?\s*/gm, '');
+  const body = resumeBodyWithoutLeadIns;
   const normalize = (value: string) => value.normalize('NFKC').replace(/[\s\p{P}\p{S}]/gu, '');
   const surface = (value: string) => normalize(value).replace(/把|将/g, '').replace(/和|与/g, '和');
   if (normalize(before) === normalize(after)) return 'surface_only' as const;
   if (surface(body(before)) === surface(body(after))) return 'lead_or_surface_only' as const;
+  // A changed/removed label plus tiny OCR changes in its body is not content
+  // selection. This signal never rejects useful corrections or new facts.
+  const label = (value: string) => normalize(resumeLeadIn(value.split(/\r?\n/)[0])?.label || '');
+  if (label(before) !== label(after)
+    && isTrivialRewrite(body(before), body(after))) return 'lead_or_surface_only' as const;
   return 'body_changed' as const;
 }
 

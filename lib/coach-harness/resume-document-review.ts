@@ -1,17 +1,19 @@
 import type { ResumeChange } from "@/lib/opportunities/types";
+import { resumeLeadIn } from './resume-source-structure';
 export type ReviewStrategy = "independent" | "self_review" | "format_only";
 export type FormatPolicy = "preserve" | "repair" | "standard";
 export type DocumentFinding = {changeId: string | null; category: string; severity: "error" | "warning"; message: string};
 export type DocumentReviewContractError='document_missing'|'document_unexpected_fields'|'document_status_invalid'|'document_summary_invalid'|'document_findings_invalid'|'document_finding_invalid'|'document_finding_fields_invalid'|'document_finding_id_invalid'|'document_finding_verdict_invalid'|'document_failed_without_error';
 export type DocumentReview = {status: "passed" | "failed"; summary: string; findings: DocumentFinding[]; source: "independent" | "self_review" | "deterministic_format"; contractError?:DocumentReviewContractError};
-export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v9-delivery-repair";
+export const RESUME_WORKFLOW_VERSION = "scoped-editor-whole-review-v10-mainline-source-spans";
 const lead = (text:string) => /^\s*(?:[-*•]\s+)?\*\*[^*\n]{2,80}\*\*/.test(text);
-const marker = (text:string) => text.match(/^\s*([-*•]|\d+[.)])\s+/)?.[1];
+const marker = (text:string) => text.match(/^\s*([-*•●]|\d+[.)])\s+/)?.[1];
 
 export function resumeStyleContract(source:string, policy:FormatPolicy) {
   const lines=source.split("\n").filter(line=>line.trim());
   return {version:"resume-style/v1",policy,sourceKind:"text_or_markdown_not_original_pdf_geometry",
     bullets:lines.filter(line=>marker(line)).length,boldLeadIns:lines.filter(lead).length,
+    plainLeadIns:lines.filter(line => resumeLeadIn(line)?.style === 'plain').length,
     headingLevels:[...new Set(lines.flatMap(line=>line.match(/^(#{1,6})\s/)?.[1].length || []))],
     rule:policy==="standard"?"明确授权标准化：经历用短条目，教育/公司/岗位/日期独立，保留事实、顺序和成熟度；不强制加粗领头句。"
       :policy==="repair"?"保留原有章节和内容层次，只修同一经历内的列表、概括和日期不一致；不能全篇换模板。"
@@ -27,6 +29,12 @@ export function checkResumeFormat(source:string,candidate:string,changes:ResumeC
     const sourceHasLead=before.some(lead);
     if(policy!=="standard" && sourceHasLead && after.filter(line=>line.trim()).some(line=>!lead(line)))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"原条目有加粗段首概括，改后丢失或只保留了部分概括；请重写具体概括并保持同段结构。"});
+    const plainLeads = before.filter(line => resumeLeadIn(line)?.style === 'plain');
+    if (policy !== 'standard' && plainLeads.length
+      && after.filter(line => resumeLeadIn(line)).length < plainLeads.length) {
+      findings.push({ changeId: change.id, category: 'format', severity: 'error',
+        message: '原条目有纯文本段首概括，改后丢失；应保留或重写具体概括，不能用删除领头冒充内容优化。' });
+    }
     if(policy!=="standard" && before.some(line=>marker(line)) && after.some(line=>line.trim()&&!marker(line)))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"列表条目被改成无列表标记的段落，破坏原有层级。"});
     if(after.some(line=>(line.match(/\*\*/g)||[]).length%2!==0))

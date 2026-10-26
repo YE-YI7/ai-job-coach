@@ -2,6 +2,17 @@
 export const COMPARISON_TYPE = 'resume_comparison';
 export const DRAFT_TYPE = 'resume_comparison_draft';
 export const DIRECT_TYPE = 'resume_comparison_direct';
+/** The legacy viewer treats a top-level traceId as its older steps/retrieval format. Adapt only this new record type. */
+export function directRunForEvalViewer(run: Record<string, unknown>): Record<string, unknown> {
+  if (run.recordType !== DIRECT_TYPE) return run;
+  const {traceId, ...rest} = run;
+  const spans = Array.isArray(run.spans) ? run.spans as Array<Record<string, unknown>> : [];
+  return {...rest, directTraceId: traceId, provenance: 'production', input: spans[0]?.input ?? null,
+    durationMs: spans.reduce((sum, s) => sum + (typeof s.durationMs === 'number' ? s.durationMs : 0), 0),
+    evaluation: null, evaluationStatus: 'not_requested',
+    limitations: [String(run.limitation || '模型直改未走产品质检，不代表改稿质量通过。'),
+      ...(run.protocolVersion === 'direct-rewrite-v2' ? [] : ['早期直调提示误把正文也要求保持相同，属于配置错误，不作模型能力对照。'])]};
+}
 export const COLUMN_IDS = ['original', 'manual', 'baseline', 'tuned', 'direct'] as const;
 export type ComparisonSection = {id: string; label: string; text: string};
 export type ComparisonColumn = {

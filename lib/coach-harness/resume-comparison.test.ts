@@ -1,4 +1,4 @@
-import {comparisonDiff, plainResume, parseComparison, parseDraft, COLUMN_IDS} from './resume-comparison';
+import {comparisonDiff, plainResume, parseComparison, parseDraft, COLUMN_IDS, directRunForEvalViewer} from './resume-comparison';
 const id = '1091ba32-5af2-43a7-bf82-af551af83284';
 export const sample = {schemaVersion: 'yizhi.resume-comparison/v1', id, title: '虚构同稿', notes: ['仅测试'],
   model: 'deepseek-v4-flash', provider: 'tokendance', input: {resume: '虚构经历', jd: '虚构岗位'},
@@ -22,4 +22,13 @@ test.each([['', ''], ['', '新增'], ['删去', ''], ['保留这一段', '保留
 test('display strips Markdown delimiters but retains actual readable words and does not execute HTML', () => {
   expect(plainResume('## 标题\n- **负责**[方案](https://example.invalid)')).toBe('标题\n- 负责方案');
   expect(plainResume('<script>unsafe</script>')).toBe('<script>unsafe</script>'); // React text, not HTML.
+});
+test('direct record reads as canonical spans, not a fabricated legacy retrieval trace; stored evidence is unchanged', () => {
+  const run = {id, recordType: 'resume_comparison_direct', traceId: id, protocolVersion: 'direct-rewrite-v2',
+    spans: [{id: 'span', input: {messages: [{role: 'user', content: '实际材料'}]}, output: '实际输出', durationMs: 2345}]};
+  const view = directRunForEvalViewer(run);
+  expect(view.traceId).toBeUndefined(); expect(view.directTraceId).toBe(id);
+  expect(view.input).toEqual(run.spans[0].input); expect(view.spans).toEqual(run.spans);
+  expect(view.provenance).toBe('production'); expect(view.durationMs).toBe(2345);
+  expect(run.traceId).toBe(id); expect(directRunForEvalViewer({id, spans: []})).toEqual({id, spans: []});
 });

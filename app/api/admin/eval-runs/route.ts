@@ -1,5 +1,6 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
+import {directRunForEvalViewer} from '@/lib/coach-harness/resume-comparison';
 import {
   isEvalAdmin,
   readEvalAssessment,
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
         return json({
           schemaVersion: "yizhi.eval/v1",
           runs: [
-            presentEvalRun(withStages(data.run), knowledgeTitles, retrieval),
+            presentEvalRun(withStages(directRunForEvalViewer(data.run)), knowledgeTitles, retrieval),
           ],
         });
       }

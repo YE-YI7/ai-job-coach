@@ -29,6 +29,7 @@ import { estimateTokens } from './context';
 import { resumeNarrativeMessages } from './resume-narrative-prompts';
 import { adjudicateResumeValueChecks } from './resume-edit-value';
 import { resumeNarrativeEnabled } from './resume-editorial-plan';
+import { preserveFailedResumeDocument, resumeReviewRepairReversedFailure } from './resume-review-diagnostic';
 import {
   readResumeEditorialPlan, readResumeNarrativeReview, resumeContentDelta, unresolvedResumeEditorialGoals,
   bindResumeEditorialAnchors, RESUME_NARRATIVE_REVIEW_PROMPT, type ResumeEditorialPlan, type ResumeNarrativeReview,
@@ -578,19 +579,29 @@ ${contractIssue?`上一轮质检未遵守输出契约，具体错误码：${cont
       }
     }
     if(strategy==='independent') {
-      const tightened = tightenResumeNarrativeVerdict(reviewer, editorialPlan);
+      const tightened = preserveFailedResumeDocument(tightenResumeNarrativeVerdict(reviewer, editorialPlan), changes);
       if (tightened !== reviewer) {
         reviewer = tightened as typeof reviewer;
         trace.step('review','negative_goal_verdict_preserved',1,{input:{verdictSource:'independent_review'},output:{direction:'passed_to_failed_only',additionalModelCalls:0}});
       }
       let issue:ReturnType<typeof resumeReviewProtocolIssue>=resumeReviewProtocolIssue(reviewer,changes,editorialPlan);
       if(issue&&!reviewContractRepairUsed){
+        const initialVerdict = reviewer;
         trace.data.reviewDiagnostics=[...(trace.data.reviewDiagnostics||[]),{attempt,...resumeReviewDiagnostic(reviewer,changes.map(c=>c.id),null),protocolIssue:issue}];
         trace.step('review','review_contract_repair',1);
         reviewContractRepairUsed=true;
         try{reviewerOutput=await requestIndependentReview(issue);}
         catch(error){if(restoreCheckpoint(attempt,error))break;throw error;}
-        try{reviewer=tightenResumeNarrativeVerdict(parseJson(reviewerOutput),editorialPlan) as typeof reviewer;}catch{reviewer={};}
+        try {
+          reviewer = preserveFailedResumeDocument(
+            tightenResumeNarrativeVerdict(parseJson(reviewerOutput), editorialPlan), changes) as typeof reviewer;
+        } catch { reviewer = {}; }
+        if (resumeReviewRepairReversedFailure(initialVerdict, reviewer)) {
+          outcome = 'blocked'; trace.step('review', 'review_verdict_reversed');
+          await finalizeQuota(reservation, false); reservation = null;
+          return NextResponse.json({ ok: false, reasonCode: 'resume_review_verdict_reversed',
+            error: '质检纠正前后结论不一致，未将该稿当作成功，原文和补充已保留，本次未扣额度。' }, { status: 503 });
+        }
         issue=resumeReviewProtocolIssue(reviewer,changes,editorialPlan);
       }
       if(issue){

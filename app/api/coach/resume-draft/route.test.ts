@@ -331,8 +331,9 @@ describe("resume draft source mapping", () => {
       narrativeReview: { status: 'passed', mainlineSupported: true, summary: '反馈和清单可以支持需求整理的主线',
         goals: [{ id: 'p1', status: 'addressed', reason: '已删除重复过程，清单及其用途成为重点' }] } });
     const firstReview = JSON.parse(review);
+    firstReview.status = 'failed';
     firstReview.document = { status: 'failed', summary: '正文仍有与主线重复的空泛职责',
-      findings: [{ changeId: null, category: 'quality', severity: 'error', message: '重复收集过程仍在，需要落实原精简目标' }] };
+      findings: [{ changeId: null, category: 'quality', severity: 'warning', message: '重复收集过程仍在，需要落实原精简目标' }] };
     firstReview.narrativeReview = { ...firstReview.narrativeReview, status: 'failed',
       goals: [{ id: 'p1', status: 'not_addressed', reason: '开头仍在重复笼统职责，精简目标没有做完' }] };
     (callLLM as jest.Mock).mockResolvedValueOnce(draft(after.replace('需求记录：', '需求记录：平时收集需求，')))

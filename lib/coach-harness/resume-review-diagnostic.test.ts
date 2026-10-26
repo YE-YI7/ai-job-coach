@@ -1,9 +1,28 @@
-import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint,tightenResumeNarrativeVerdict} from './resume-review-diagnostic';
+import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint,tightenResumeNarrativeVerdict,
+ preserveFailedResumeDocument,resumeReviewRepairReversedFailure} from './resume-review-diagnostic';
 import type { ResumeEditorialPlan } from './resume-editorial-plan';
 import type {ResumeChange} from '@/lib/opportunities/types';
 const changes=[{id:'c-1'} as ResumeChange];
 const valid={status:'passed',summary:'检查已有事实和表述',findings:[],valueChecks:[{index:0,useful:true,kind:'clarity',reason:'将事实动作和交付清晰对应'}],document:{status:'passed',summary:'整稿结构和事实一致',findings:[]}};
 const plan:ResumeEditorialPlan={mainline:'已有事实支撑产品判断',claims:[{point:'实际编写检查步骤用于判断',sourceIds:['s1']}],priorities:[{id:'p1',before:'原文已有的具体工作段落',goal:'突出已有检查步骤与判断依据'}]};
+test('an explicit failed manuscript with warning-only findings stays failed without a paid restatement', () => {
+ const raw = { ...valid, status: 'failed', findings: [{ changeId: 'c-1', severity: 'warning', message: '只修错字，没有兑现内容目标' }],
+  valueChecks: [{ index: 0, useful: false, kind: 'clarity', impact: 'correction', reason: '只有错字修复，不算内容改善' }],
+  document: { status: 'failed', summary: '明确没有完成内容目标，不能交付为完成',
+   findings: [{ changeId: 'c-1', category: 'quality', severity: 'warning', message: '本轮仅有错字修复，仍须内容返修' }] } };
+ expect(resumeReviewProtocolIssue(raw, changes)).toBe('document_failed_without_error');
+ const normalized = preserveFailedResumeDocument(raw, changes) as typeof raw;
+ expect(resumeReviewProtocolIssue(normalized, changes)).toBeNull();
+ expect(normalized.status).toBe('failed');
+ expect(normalized.document.status).toBe('failed');
+ expect(normalized.valueChecks).toBe(raw.valueChecks);
+ expect(raw.document.findings).toHaveLength(1);
+ expect(preserveFailedResumeDocument({ ...raw, document: { ...raw.document, after: '越权正文' } }, changes))
+  .toEqual({ ...raw, document: { ...raw.document, after: '越权正文' } });
+ expect(resumeReviewRepairReversedFailure(raw, valid)).toBe(true);
+ expect(resumeReviewRepairReversedFailure(raw, normalized)).toBe(false);
+ expect(resumeReviewRepairReversedFailure(valid, valid)).toBe(false);
+});
 test('negative goals only tighten the verdict and return to the editor without another paid judge',()=>{
  const raw={...valid,narrativeReview:{status:'passed',mainlineSupported:true,summary:'主线有依据，但开头仍未按计划改写',goals:[{id:'p1',status:'not_addressed',reason:'本轮未涉及开头，目标尚未处理'}]}};
  expect(resumeReviewProtocolIssue(raw,changes,plan)).toBe('review_narrative_invalid');

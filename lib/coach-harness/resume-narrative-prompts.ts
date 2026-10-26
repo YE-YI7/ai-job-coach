@@ -26,6 +26,7 @@ export function resumeNarrativeMessages(input: {
 删一个修饰词、连接词或重命名段首，不算完成内容优化；实验未复现“显著增量”也不能靠删掉“显著”冒充改好了。返修时首先逐项消除确定性事实拒绝的动作，不重复提交同一个被拒主张。` },
     { role: 'system', content: `${input.coreMethod}
 硬边界：sourceIds只能取事实清单ID，不能引用计划/要求/教学例子作为经历。位置只填sourceAnchors里的anchorId，服务器回填逐字原文，不重打一遍before，不去掉星号、加粗或数字。每个位置只改一次。
+位置编号a1、a2等绝不能填入claims.sourceIds或changes.sourceIds；这两个字段只能使用事实清单里的编号，不能把定位成功冒充事实回指。
 保留姓名联系方式、公司日期、责任/参与/协助、原型/未上线/提案、虚构/课程性质。个人“未负责/未统计”留作内部边界，不另写成简历bullet；不能把被否定的事改成自己的工作。
 遵守styleContract，保留原段首概括和列表层级；概括不具体就重写具体，不要抹掉结构。每个before只改对应范围，不擅自调换整个项目顺序，不动已有采纳/拒绝决定。
 原文清楚的地方保留，不能用标签重命名、标题改词或技能标点占满修改名额。` },
@@ -39,6 +40,7 @@ export function resumeNarrativeMessages(input: {
     { role: 'system', content: `输出合法JSON，不输出思考过程、Markdown围栏或长篇解释：
 {"editorialPlan":{"mainline":"本版简历的具体主线","claims":[{"point":"要证明的有依据命题","sourceIds":["实际事实ID"]}],"priorities":[{"id":"p1","anchorId":"实际段落编号","goal":"这段要消除的具体信息问题"}]},"changes":[{"section":"位置","anchorId":"实际段落编号","after":"可直接使用的正文","reason":"具体信息变化，80字内","sourceIds":["实际事实ID"]}]}
 mainline不超过160字，point和goal各不超过120字，不能用长段分析填字段。priorities的id用p1至p3，每条对应sourceAnchors里的一个位置，不能写“优化整份”。after保留该位置原有格式和身份信息。不要编造因果关系、把推进改为已完成全流程。原文等于改后文的条目不要放进changes，原样保留即可。
+同时遵守提供的结构化输出契约：有改稿时status="draft"；无需改动时editorialPlan可为null；没有关键追问时recovery=null。不能为了让字段非空而虚构内容。
 如果lockedPlan存在，沿用它，针对反馈返修，不能通过降低目标假装通过。若无lockedPlan且质检指出主线不受支持，先修主线再改稿。
 原文确实无需改时返回status:"unchanged",changes:[]，仍由独立复核决定；有缺失事实只附recovery:{sourceExcerpt:"12–260字原文",field:"context|action|deliverable|outcome|scope",question:"一个能改变改写的关键事实问题"}，同时交付能改的内容，不重复问已确认方向或已回答事实。
 ${input.trialScope ? `本轮仅有一次单段体验：所有before和追问必须在此原文内，最多3处，主线也只限该段，不改简介或别段：${input.trialScope}` : ''}` },

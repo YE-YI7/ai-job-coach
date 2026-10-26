@@ -31,6 +31,7 @@ import { adjudicateResumeValueChecks } from './resume-edit-value';
 import { resumeNarrativeEnabled } from './resume-editorial-plan';
 import { preserveFailedResumeDocument, resumeReviewRepairReversedFailure } from './resume-review-diagnostic';
 import { resumeEvidenceRetentionFindings } from './resume-evidence-retention';
+import { resumeEditorSchema } from './resume-editor-schema';
 import {
   readResumeEditorialPlan, readResumeNarrativeReview, resumeContentDelta, unresolvedResumeEditorialGoals,
   bindResumeEditorialAnchors, RESUME_NARRATIVE_REVIEW_PROMPT, type ResumeEditorialPlan, type ResumeNarrativeReview,
@@ -228,6 +229,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const citableIds = new Set([...context.allowedClaimIds, ...context.unverifiedClaimIds]);
     const source = rendered.text;
     if (!source) throw new Error("事实库里没有可用于简历的真实材料，请先补充简历或经历");
+    const editorSchema = narrativeEnabled ? resumeEditorSchema(editSource, citableIds) : undefined;
 
     // 回指来源只有两份：基础简历原文 + 本轮真进了上下文的可引用事实。
     // 被预算舍弃的 claim 不在 citableIds 里，所以也进不了这儿（FR-21）。
@@ -353,6 +355,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       provider: "deepseek", temperature: 0.15, maxTokens: trialScope ? 1800 : narrativeEnabled ? 3400 : 2600,
       reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs: 30_000,
       onDelta: () => undefined, maxRetries: 0, responseFormat: "json_object",
+      ...(editorSchema ? { responseSchema: editorSchema } : {}),
     }, attempt ? 'repair' : 'draft'));
     } catch(error) {
       if(restoreCheckpoint(attempt,error))break;

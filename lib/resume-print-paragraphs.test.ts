@@ -14,6 +14,13 @@ test('does not turn an overlong paragraph into an unbreakable page',()=>{
  expect(resumePrintParagraphRuns(['细节：'+'长'.repeat(1200),'接续内容。']).size).toBe(0);
 });
 
+test('keeps standalone entry dates and their preceding role/title with following content',()=>{
+ const html=resumePrintHtml('项目经历\n虚构空间项目\n项目Owner\n2026.03-至今\n设计：'+start+start+'\n'+end,'classic','虚构验收');
+ expect(html).toContain('<p class="resume-entry-heading">虚构空间项目</p>');
+ expect(html).toContain('<p class="resume-entry-date">2026.03-至今</p>');
+ expect(html).toContain('h2,h3,.resume-entry-date,.resume-entry-heading{break-after:avoid}');
+});
+
 test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])('%s retains every source character, emphasis and exact ink identity',template=>{
  const text='## 工作经历\n'+start+'\n'+end+'\n**另一领头**：已确认事实。';
  const pos=text.indexOf('模块边界');

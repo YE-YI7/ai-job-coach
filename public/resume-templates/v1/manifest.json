@@ -1,5 +1,5 @@
 {
-  "rendererSha256": "34191c5758e944dbdf752e1f1b98e963d0367556d3612cb46d21cf39435a5045",
+  "rendererSha256": "4bf0821191255dc84c8cb1890922e8643361fd209180ae217e6c5b77bac5128e",
   "rendererDependencies": {
     "fontLoader": "eeb5b0b9ad290dbcee67d438267fd8a02b5b30dde9e93d73d947d3108142203f",
     "paragraphs": "9518cb8850286358a0a2d3eaae9c73ffaf686aa6d9aebe2347c4071075026b9a",
@@ -45,6 +45,6 @@
   },
   "capture": {
     "method": "CUA Chrome full-page, fonts ready, cropped to real A4 body",
-    "date": "2026-10-26T05:06:17.902Z"
+    "date": "2026-10-26T05:15:33.926Z"
   }
 }

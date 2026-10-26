@@ -77,7 +77,9 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
      const date=line.match(DATE_RANGE)?.[0];
      if(date&&plain!==date&&(index===0||/^\s*\*\*/.test(line))){paragraphs.push(entryRow(line.replace(date,"").trim(),date));continue;}
     }
-    const kind=block.kind==="header"&&/^(?:头像区|照片|证件照)$/.test(plain)?'resume-photo-label':block.kind==="header"&&groupIndex===0&&index===nameIndex&&plain.length<=40?"resume-name":block.kind==="header"&&/^(?:求职方向|求职意向|意向)\s*[:：]/.test(plain)?"resume-role":block.kind==="header"?"resume-contact":bullet?"resume-bullet":"";
+    const nextRole=blocks[blockIndex+1]?.heading;
+    const entryHeading=index===lines.length-1&&plain.length<=80&&nextRole&&/^(?:项目Owner|项目负责人|技术负责人)$/i.test(stripResumeMarkdown(nextRole));
+    const kind=block.kind==="header"&&/^(?:头像区|照片|证件照)$/.test(plain)?'resume-photo-label':block.kind==="header"&&groupIndex===0&&index===nameIndex&&plain.length<=40?"resume-name":block.kind==="header"&&/^(?:求职方向|求职意向|意向)\s*[:：]/.test(plain)?"resume-role":block.kind==="header"?"resume-contact":isDateLine(line)?"resume-entry-date":entryHeading?"resume-entry-heading":bullet?"resume-bullet":"";
     const runEnd=paragraphRuns.get(index);
     if(runEnd!==undefined){
      paragraphs.push(`<p class="resume-body-run${kind?' '+kind:''}">${lines.slice(index,runEnd+1).map(lineHtml).join(' ')}</p>`);
@@ -110,7 +112,7 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  .resume-edit{position:absolute;right:0;top:0;border:0;background:#fff;color:#536044;border-radius:4px;padding:5px 8px;font:12px/1.5 sans-serif;opacity:0;cursor:pointer;box-shadow:0 1px 8px #0001}section[data-resume-block]:hover>.resume-edit,section[data-resume-block]:focus-within>.resume-edit{opacity:1}.resume-edit:focus-visible{outline:2px solid #536a40}@media(hover:none){.resume-edit{opacity:0;pointer-events:none;min-height:44px;min-width:44px}section[data-resume-block]:hover>.resume-edit{opacity:0}section[data-resume-block][data-editing-active=true]>.resume-edit,section[data-resume-block]:focus-within>.resume-edit{opacity:1;pointer-events:auto}}@media print{.resume-edit,.resume-grip{display:none}}
  @media screen{body{box-shadow:0 8px 28px rgba(41,40,35,.06)}${options.reading?'body{width:100%;min-height:0;margin:0;padding:24px 20px;font-size:16px;line-height:1.75}h1{font-size:24px}h2{font-size:18px}.resume-role{font-size:17px}.resume-contact,.resume-entry time{font-size:14px}.resume-entry{flex-wrap:wrap;gap:2px 10px}.resume-grip{right:calc(100% + 1px)}':''}}
  .resume-body-run{white-space:normal}
- @media print{.toolbar{display:none}body{margin:0;padding:0;width:auto;min-height:0;max-width:none;box-shadow:none}h2,h3{break-after:avoid}section{break-inside:auto}p{orphans:3;widows:3}.resume-body-run{break-inside:avoid-page}*{print-color-adjust:exact;animation:none!important;transition:none!important}mark{opacity:1;filter:none}}
+ @media print{.toolbar{display:none}body{margin:0;padding:0;width:auto;min-height:0;max-width:none;box-shadow:none}h2,h3,.resume-entry-date,.resume-entry-heading{break-after:avoid}section{break-inside:auto}p{orphans:3;widows:3}.resume-body-run{break-inside:avoid-page}*{print-color-adjust:exact;animation:none!important;transition:none!important}mark{opacity:1;filter:none}}
  </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。<span id="print-status" role="status">正文可选中、搜索。</span><br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
 }
 export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void,photo?:string){

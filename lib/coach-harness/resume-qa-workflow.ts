@@ -15,6 +15,7 @@ export async function runNewResumeQaWorkflow(
   material: { resumeText: string; jobDescription: string },
   callLimit: number,
   onCreated: (coordinates: { opportunityId: string; taskId: string; generationId: string; requestId: string }) => Promise<void>,
+  editorialFeedback?: string[],
 ) {
   const hasJd = Boolean(material.jobDescription.trim());
   const opportunity = await createCockpitOpportunity(user.id, {
@@ -41,7 +42,9 @@ export async function runNewResumeQaWorkflow(
       opportunityId: opportunity.id, mode: hasJd ? 'target_resume' : 'general_resume', requestId,
       resumeTaskId: claimed.task.id, resumeTaskLease: claimed.lease,
     }),
-  }), user, { editorialMode: 'narrative', maxModelCalls: callLimit, qaQuotaIsolation: true });
+  }), user, { editorialMode: 'narrative', maxModelCalls: callLimit, qaQuotaIsolation: true,
+    ...(editorialFeedback ? { editorialFeedback } : {}),
+  });
   const result = await response.clone().json();
   if (!result.ok) await finishResumeTask(user.id, claimed.task.id, claimed.lease, claimed.source, result).catch(() => null);
   const saved = await readResumeTask(user.id, opportunity.id);

@@ -49,3 +49,12 @@ test('an empty JD uses the real general-resume path, without inventing a target 
   const [request] = (runResumeDraft as jest.Mock).mock.calls[0];
   expect(await request.json()).toMatchObject({ mode: 'general_resume', jobDescription: '' });
 });
+
+test('internal manual repair directions stay separate from citable facts and the public body', async () => {
+  const feedback = ['保留原有具体诊断，不以删除问题背景代替贡献前置。'];
+  await runNewResumeQaWorkflow(new Request('https://candidate.invalid'), user,
+    material, 2, async () => undefined, feedback);
+  const [request, , options] = (runResumeDraft as jest.Mock).mock.calls[0];
+  expect(options).toMatchObject({ maxModelCalls: 2, editorialFeedback: feedback });
+  expect(await request.json()).not.toHaveProperty('editorialFeedback');
+});

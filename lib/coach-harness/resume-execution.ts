@@ -30,6 +30,7 @@ import { resumeNarrativeMessages } from './resume-narrative-prompts';
 import { adjudicateResumeValueChecks } from './resume-edit-value';
 import { resumeNarrativeEnabled } from './resume-editorial-plan';
 import { preserveFailedResumeDocument, resumeReviewRepairReversedFailure } from './resume-review-diagnostic';
+import { resumeEvidenceRetentionFindings } from './resume-evidence-retention';
 import {
   readResumeEditorialPlan, readResumeNarrativeReview, resumeContentDelta, unresolvedResumeEditorialGoals,
   bindResumeEditorialAnchors, RESUME_NARRATIVE_REVIEW_PROMPT, type ResumeEditorialPlan, type ResumeNarrativeReview,
@@ -82,6 +83,9 @@ export type ResumeExecutionOptions = {
   maxModelCalls?: number;
   /** Only the admin-created disposable QA task may skip hosted quota writes. */
   qaQuotaIsolation?: true;
+  /** Internal QA/editorial review feedback, never accepted from a public draft body.
+   * Directions only, not citable user facts. */
+  editorialFeedback?: string[];
 };
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
@@ -238,7 +242,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let followUp: ResumeAgentQuestion | null = null;
     let rawChanges:Record<string,unknown>[]=[],changes:ResumeChange[]=[],finalChanges:ResumeChange[]=[];
     let rejected:Array<{index:number;reasons:string[]}>=[],reviewer:{status?:string;summary?:string;findings?:unknown[]}={},reviewerFindings:unknown[]=[],reviewerPassed=false,errorChangeIds=new Set<string>();
-    let repairFeedback:string[]=[],valueChecks:ResumeValueCheck[]=[];
+    let repairFeedback:string[]=options.editorialFeedback || [],valueChecks:ResumeValueCheck[]=[];
     let personalDisclaimersOmitted=0;
     let documentReview: DocumentReview | null = null;
     let lastDraftReview: Record<string,unknown> = {};
@@ -537,7 +541,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const reviewMergedChanges = generationSource
       ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
     const reviewCandidate = applyResumeChanges(resumeText, reviewMergedChanges);
-    const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy);
+    const formatFindings = [
+      ...checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy),
+      ...resumeEvidenceRetentionFindings(changes),
+    ];
     // Deterministic format violations are already actionable. Return directly
     // to the editor once, rather than spend a review call rediscovering them.
     if(attempt===0&&formatFindings.some(f=>f.severity==='error')){

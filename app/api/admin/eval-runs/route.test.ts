@@ -88,9 +88,29 @@ test('full QA runs the bounded normal save workflow and persists recovery coordi
   const response = await POST(make({ ...body, comparison: { mode: 'narrative', callLimit: 4, persistNewQa: true } }));
   expect(response.status).toBe(200);
   expect(runNewResumeQaWorkflow).toHaveBeenCalledWith(expect.any(Request), admin,
-    { resumeText: body.resumeText, jobDescription: '' }, 4, expect.any(Function));
+    { resumeText: body.resumeText, jobDescription: '' }, 4, expect.any(Function), undefined);
   expect(query.eq).toHaveBeenCalledWith('properties->>requestHash', expect.any(String));
   expect(runResumeDraft).not.toHaveBeenCalled(); expect(rewrite).not.toHaveBeenCalled();
+});
+
+test('manual repair is same-owned-material, two-call bounded and deduplicated by parent rather than caller ID', async () => {
+  (hasActiveTokenPayConnection as jest.Mock).mockResolvedValue(true);
+  const feedback = ['保留已有具体诊断，不把删除业务问题当成内容取舍。'];
+  const comparison = { mode: 'narrative', callLimit: 2, persistNewQa: true,
+    repairOf: id, editorialFeedback: feedback };
+  const parent = { input: { resume: body.resumeText, jobDescription: '' }, qa: { opportunityId: id },
+    comparison: { newQaPersistence: true }, spans: [0, 1].map(() => ({ kind: 'agent', usage: { provider: 'tokendance' } })) };
+  const query = { eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: { run: parent }, error: null }) };
+  const insert = jest.fn().mockResolvedValue({ error: { code: '23505' } });
+  (getDbClient as jest.Mock).mockResolvedValue({ from: () => ({ select: () => query, insert }) });
+  expect((await POST(make({ ...body, comparison: { ...comparison, callLimit: 3 } }))).status).toBe(400);
+  expect((await POST(make({ ...body, resumeText: body.resumeText + '不同材料', comparison }))).status).toBe(422);
+  const a = await POST(make({ ...body, comparison }));
+  const b = await POST(make({ ...body, requestId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', comparison }));
+  expect(a.status).toBe(202);expect(b.status).toBe(202);
+  expect(insert.mock.calls[0][0].id).toBe(insert.mock.calls[1][0].id);
+  expect(query.eq).toHaveBeenCalledWith('user_id', admin.id);
+  expect(runNewResumeQaWorkflow).not.toHaveBeenCalled();
 });
 test("both read and model execution reject anonymous/non-admin users before database access", async () => {
   for (const user of [

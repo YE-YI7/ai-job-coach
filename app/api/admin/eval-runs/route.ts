@@ -1,4 +1,5 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
+import { createHash } from 'node:crypto';
 import { getDbClient } from "@/lib/db";
 import {
   isEvalAdmin,
@@ -178,9 +179,12 @@ export async function POST(request: Request) {
       { error: "请提供有效材料并确认正常模型计费；不支持传入用户或旧岗位ID。" },
       400,
     );
-  const comparison = body.comparison as { mode?: unknown; callLimit?: unknown; persistNewQa?: unknown } | undefined;
+  const comparison = body.comparison as {
+    mode?: unknown; callLimit?: unknown; persistNewQa?: unknown;
+    repairOf?: unknown; editorialFeedback?: unknown;
+  } | undefined;
   if (comparison !== undefined && (!comparison || typeof comparison !== 'object' || Array.isArray(comparison)
-    || Object.keys(comparison).some(key => !['mode', 'callLimit', 'persistNewQa'].includes(key))
+    || Object.keys(comparison).some(key => !['mode', 'callLimit', 'persistNewQa', 'repairOf', 'editorialFeedback'].includes(key))
     || (comparison.persistNewQa !== undefined && comparison.persistNewQa !== true)
     || comparison.mode !== 'narrative' || !Number.isInteger(comparison.callLimit)
     || Number(comparison.callLimit) < 1 || Number(comparison.callLimit) > 8 || body.selfEvaluate === true)) {
@@ -197,7 +201,34 @@ export async function POST(request: Request) {
   }
   const db = await getDbClient();
   if (!db) return json({ error: "评测存储不可用，未调用模型" }, 503);
-  const id = body.requestId,
+  // An admin's manual rejection continues only the same owned disposable
+  // sample. Directions are not facts, and never enter the public draft API.
+  const hasRepair = comparison?.repairOf !== undefined || comparison?.editorialFeedback !== undefined;
+  let editorialFeedback: string[] | undefined;
+  if (hasRepair) {
+    if (!uuid(comparison?.repairOf) || comparison?.persistNewQa !== true
+      || Number(comparison.callLimit) > 2 || !Array.isArray(comparison.editorialFeedback)
+      || comparison.editorialFeedback.length < 1 || comparison.editorialFeedback.length > 6
+      || comparison.editorialFeedback.some(item => typeof item !== 'string' || item.length < 8 || item.length > 600)) {
+      return json({ error: '人工返修只接受同稿来源、明确反馈与最多两次调用。' }, 400);
+    }
+    const parent = await db.from('coach_eval_runs').select('run')
+      .eq('id', comparison.repairOf).eq('user_id', user.id).maybeSingle();
+    const previous = parent.data?.run;
+    const calls = Array.isArray(previous?.spans) ? previous.spans.filter((span: EvalSpan) => span.kind === 'agent') : [];
+    if (parent.error || !previous?.qa || previous.comparison?.newQaPersistence !== true
+      || previous.input?.resume !== body.resumeText || previous.input?.jobDescription !== (body.jobDescription || '')
+      || calls.length !== 2 || calls.some((span: EvalSpan) => span.usage?.provider !== 'tokendance')) {
+      return json({ error: '原样本、材料或两次已用预算未核对通过，未调用模型。' }, 422);
+    }
+    editorialFeedback = comparison.editorialFeedback as string[];
+  }
+  const repairDigest = hasRepair
+    ? createHash('sha256').update(`manual-editor-repair/v1:${user.id}:${comparison!.repairOf}`).digest('hex') : null;
+  // One continuation per parent, regardless of a changed caller request UUID.
+  const id = repairDigest
+    ? `${repairDigest.slice(0, 8)}-${repairDigest.slice(8, 12)}-4${repairDigest.slice(13, 16)}-a${repairDigest.slice(17, 20)}-${repairDigest.slice(20, 32)}`
+    : body.requestId,
     started = Date.now();
   const spans: EvalSpan[] = [];
   const run: Record<string, unknown> = {
@@ -211,7 +242,9 @@ export async function POST(request: Request) {
     provenance: comparison ? 'real_model_deidentified_comparison' : 'production',
     ...(comparison ? { comparison: { mode: comparison.mode, maxModelCalls: comparison.callLimit,
       billing: 'current_actor_connection', liveDataTargets: false,
-      newQaPersistence: comparison.persistNewQa === true } } : {}),
+      newQaPersistence: comparison.persistNewQa === true,
+      ...(hasRepair ? { repairOf: comparison.repairOf, previousCalls: 2, editorialFeedback } : {}),
+    } } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
     input: {
@@ -261,7 +294,7 @@ export async function POST(request: Request) {
     const response = await withEvalObserver({ spans, save }, () => comparison?.persistNewQa === true
       ? runNewResumeQaWorkflow(comparisonRequest, user, {
         resumeText: String(body.resumeText), jobDescription: String(body.jobDescription || ''),
-      }, Number(comparison.callLimit), async coordinates => { run.qa = coordinates; await save(); })
+      }, Number(comparison.callLimit), async coordinates => { run.qa = coordinates; await save(); }, editorialFeedback)
       : comparison ? runResumeDraft(comparisonRequest, user, {
         isolated: true, actorModel: true, editorialMode: 'narrative', maxModelCalls: Number(comparison.callLimit),
       }) : rewriteResume(comparisonRequest));

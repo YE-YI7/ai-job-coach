@@ -25,10 +25,11 @@ test('display strips Markdown delimiters but retains actual readable words and d
 });
 test('direct record reads as canonical spans, not a fabricated legacy retrieval trace; stored evidence is unchanged', () => {
   const run = {id, recordType: 'resume_comparison_direct', traceId: id, protocolVersion: 'direct-rewrite-v2',
-    spans: [{id: 'span', input: {messages: [{role: 'user', content: '实际材料'}]}, output: '实际输出', durationMs: 2345}]};
+    spans: [{id: 'span', kind: 'agent', name: '模型直改', input: {messages: [{role: 'user', content: '实际材料'}]}, output: '实际输出', durationMs: 2345}]};
   const view = directRunForEvalViewer(run);
   expect(view.traceId).toBeUndefined(); expect(view.directTraceId).toBe(id);
-  expect(view.input).toEqual(run.spans[0].input); expect(view.spans).toEqual(run.spans);
+  expect(view.input).toEqual(run.spans[0].input);
+  expect(view.spans).toEqual([{...run.spans[0], agent: '模型直改'}]);
   expect(view.provenance).toBe('production'); expect(view.durationMs).toBe(2345);
   expect(run.traceId).toBe(id); expect(directRunForEvalViewer({id, spans: []})).toEqual({id, spans: []});
 });

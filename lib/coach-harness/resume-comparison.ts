@@ -8,6 +8,7 @@ export function directRunForEvalViewer(run: Record<string, unknown>): Record<str
   const {traceId, ...rest} = run;
   const spans = Array.isArray(run.spans) ? run.spans as Array<Record<string, unknown>> : [];
   return {...rest, directTraceId: traceId, provenance: 'production', input: spans[0]?.input ?? null,
+    spans: spans.map(s => s.kind === 'agent' ? {...s, agent: s.agent || s.name} : s),
     durationMs: spans.reduce((sum, s) => sum + (typeof s.durationMs === 'number' ? s.durationMs : 0), 0),
     evaluation: null, evaluationStatus: 'not_requested',
     limitations: [String(run.limitation || '模型直改未走产品质检，不代表改稿质量通过。'),

@@ -41,7 +41,8 @@ export async function POST(request: Request) {
       {role: 'user', content: JSON.stringify({resume: comparison.input.resume, jd: comparison.input.jd,
         sections: comparison.columns[0].sections})},
     ];
-    const span: EvalSpan = {id: randomUUID(), name: 'TokenDance 直接改稿（无改稿 Harness）', kind: 'agent',
+    const span: EvalSpan = {id: randomUUID(), name: 'TokenDance 直接改稿（无改稿 Harness）',
+      agent: 'TokenDance 直接改稿（无改稿 Harness）', kind: 'agent',
       status: 'running', startedAt: new Date(started).toISOString(), durationMs: 0, input: {messages,
         options: {model: comparison.model, provider: comparison.provider, maxTokens: 6500, temperature: 0.3, maxRetries: 0}},
       output: null, model: comparison.model, knowledge: []};

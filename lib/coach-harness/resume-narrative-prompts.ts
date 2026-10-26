@@ -37,6 +37,13 @@ export function resumeNarrativeMessages(input: {
       lockedPlan: input.lockedPlan, lockedChanges: input.lockedChanges, repairFeedback: input.feedback,
     }) },
     ...(input.knowledge ? [{ role: 'user' as const, content: input.knowledge }] : []),
+    { role: 'system', content: `下面是完全虚构、与本人经历无关的编辑教学，不是事实来源、也没有可引用ID：
+原句：“业务平台架构规划：基于统一中台、全域协同和智能运营愿景，参与退货确认流程设计；访谈3名客服，识别人工重复核验问题，画出两种退货确认路径并输出5页PRD，当前处于原型评审。”
+不合格：“业务平台架构规划：基于统一中台、全域协同和智能运营愿景，参与退货确认流程设计；访谈3名客服……”。它只是补标点，不能声称前置交付。
+有价值：“退货确认设计：访谈3名客服，识别人工重复核验问题；参与设计两种退货确认路径，输出5页PRD，当前处于原型评审。”它删掉了非交付的宏观愿景，把已有判断与具体交付放在主体，仍保留参与责任和原型阶段。不是新增经历、不是只换领头。
+相反，原句如果已经只有问题、动作和产物，没有这类宏观背景，就不能照抄“压缩宏观框架”作为它的目标。
+回到本人的sourceAnchors：优先选一处最妨碍阅读、能真正改变信息主次的长段，除非另有独立收益才选第二、三处。不要凑三处校对。逐项自问：after究竟删掉了哪段非必要背景，或把原来埋在后半段的哪个真实交付移到了主体？如果回答不出，就保留该段，不得把不存在的问题写成priority。不能只在reason里说已压缩，after必须真有相应取舍。已清楚的段落不必陪改。
+保留段首结构，不要求逐字保留空泛领头；替换领头必须同时改善正文，不得简单删除领头。保留有价值的失败机制、关键数据、本人责任和阶段，不删证据凑精简。教学里的姓名、数字、工具和动作都不得迁移到本人稿。` },
     { role: 'system', content: `输出合法JSON，不输出思考过程、Markdown围栏或长篇解释：
 {"editorialPlan":{"mainline":"本版简历的具体主线","claims":[{"point":"要证明的有依据命题","sourceIds":["实际事实ID"]}],"priorities":[{"id":"p1","anchorId":"实际段落编号","goal":"这段要消除的具体信息问题"}]},"changes":[{"section":"位置","anchorId":"实际段落编号","after":"可直接使用的正文","reason":"具体信息变化，80字内","sourceIds":["实际事实ID"]}]}
 mainline不超过160字，point和goal各不超过120字，不能用长段分析填字段。priorities的id用p1至p3，每条对应sourceAnchors里的一个位置，不能写“优化整份”。after保留该位置原有格式和身份信息。不要编造因果关系、把推进改为已完成全流程。原文等于改后文的条目不要放进changes，原样保留即可。

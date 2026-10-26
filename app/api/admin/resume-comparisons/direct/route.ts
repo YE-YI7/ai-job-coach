@@ -4,11 +4,12 @@ import {directComparisonModel} from '@/lib/direct-comparison-model';
 import {evalAdminAccess, evalJson as json} from '@/lib/coach-harness/eval-admin-http';
 import {COMPARISON_TYPE, DIRECT_TYPE, parseComparison, uuid} from '@/lib/coach-harness/resume-comparison';
 import type {EvalSpan} from '@/lib/coach-harness/eval-scope';
+import {isSameOriginRequest} from '@/lib/phone-auth/security';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 export async function POST(request: Request) {
   const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
-  if (request.headers.get('origin') !== new URL(request.url).origin) return json({error: '不允许跨站调用'}, 403);
+  if (!isSameOriginRequest(request)) return json({error: '不允许跨站调用'}, 403);
   let body;
   try {const raw = await request.text(); if (raw.length > 1000) return json({error: '参数过长'}, 413); body = JSON.parse(raw);}
   catch {return json({error: '请求无效'}, 400);}

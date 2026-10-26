@@ -9,7 +9,7 @@ const sample = {schemaVersion: 'yizhi.resume-comparison/v1', id, title: '虚构�
   provider: 'tokendance', input: {resume: '虚构材料', jd: ''}, columns: COLUMN_IDS.map(id => ({id, label: id, status: '只读',
     provenance: '夹具', sections: [{id: 'opening', label: '开头', text: '虚构材料'}], judgments: [], traceIds: [], changeIds: [], runIds: []}))};
 const req = (body: unknown, method = 'POST', origin = 'https://example.invalid') =>
-  new Request(url, {method, headers: {origin}, body: JSON.stringify(body)});
+  new Request(url, {method, headers: {origin, 'content-type': 'application/json'}, body: JSON.stringify(body)});
 const original = process.env.EVAL_ADMIN_USER_IDS;
 beforeEach(() => {jest.clearAllMocks(); process.env.EVAL_ADMIN_USER_IDS = 'admin';
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id: 'admin'});});
@@ -59,4 +59,12 @@ test('ownership is checked before any draft lookup/write and source records are 
   expect((await PATCH(req({id, revision: 0, sections: {opening: 'x'}}, 'PATCH'))).status).toBe(404);
   expect(queries).toHaveLength(1); expect(queries[0].calls).toContainEqual(['eq', ['user_id', 'admin']]);
   database([{error: {code: '23505'}}]); expect((await POST(req(sample))).status).toBe(409);
+});
+test('legitimate proxy host is accepted while explicit cross-site fetch remains blocked', async () => {
+  database([{data: {run: {comparison: sample}}}, {data: [{id: 'draft'}]}]);
+  const body = JSON.stringify({id, revision: 0, sections: {opening: '代理后保存'}});
+  const headers = {host: 'example.invalid', origin: 'https://example.invalid', 'content-type': 'application/json'};
+  expect((await PATCH(new Request('https://internal.invalid/api/admin/resume-comparisons',
+    {method: 'PATCH', headers, body}))).status).toBe(200);
+  expect((await PATCH(new Request(url, {method: 'PATCH', headers: {...headers, 'sec-fetch-site': 'cross-site'}, body}))).status).toBe(403);
 });

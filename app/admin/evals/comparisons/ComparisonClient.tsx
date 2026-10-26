@@ -1,6 +1,8 @@
 'use client';
 import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {comparisonDiff, plainResume, type ResumeComparison, type ComparisonColumn, type ComparisonSection}
   from '@/lib/coach-harness/resume-comparison';
 import s from './Comparison.module.css';
@@ -117,8 +119,11 @@ export default function ComparisonClient() {
         <button type="button" className={s.save} disabled={!dirty || busy} onClick={save}>{busy ? '保存中…' : '保存我的版本'}</button>
       </div>
       <div className={s.directTools}><span>模型直改：{data.directRuns.length} / 3 次</span>
-        {data.directRuns.length > 0 && <label>直调样本<select value={attempt} onChange={e => setAttempt(e.target.value)}>
-          {data.directRuns.map((r, i) => <option key={r.id} value={r.id}>第 {i + 1} 次 · {r.status}</option>)}</select></label>}
+        {data.directRuns.length > 0 && <label><span className={s.sampleLabel}>直调样本</span>
+          <select aria-label="直调样本" value={attempt} onChange={e => setAttempt(e.target.value)}>
+            {data.directRuns.map((r, i) => <option key={r.id} value={r.id}>第 {i + 1} 次 · {
+              r.status === 'completed' ? '已返回' : r.status === 'running' ? '处理中' : '失败'}</option>)}
+          </select></label>}
         <button type="button" onClick={refreshDirect} disabled={calling}>刷新直调记录</button>
         <button type="button" disabled={calling || data.directRuns.length >= 3 || data.directRuns.some(r => r.status === 'running')}
           onClick={() => setConfirm(true)}>{calling ? '模型直改中…' : '运行一次模型直改'}</button>
@@ -133,7 +138,8 @@ export default function ComparisonClient() {
           {tab === 'judgments' ? <>
             {columns.map(c => <section className={s.cell} key={c.id}><h3>来源与状态</h3><p>{c.provenance}</p>
               {c.judgments.length ? c.judgments.map((j, i) => <section className={s.judgment} key={i}><h3>{j.label}</h3>
-                <div className={s.prose}>{plainResume(j.text)}</div></section>) : <p className={s.hint}>没有记录 Agent 判断；不补造。</p>}
+                <div className={s.judgmentProse}><ReactMarkdown remarkPlugins={[remarkGfm]}>{j.text}</ReactMarkdown></div>
+              </section>) : <p className={s.hint}>没有记录 Agent 判断；不补造。</p>}
               <Sources column={c}/></section>)}
             <section className={s.cell}><h3>本人版本</h3><p>由你亲自编辑，没有模型 Trace。只保存到本对照，不回写求职工作区。</p>
               <p>{revision ? `已保存 ${revision} 版` : '还没有保存内容'}</p></section>

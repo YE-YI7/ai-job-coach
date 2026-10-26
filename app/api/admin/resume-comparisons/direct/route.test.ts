@@ -11,7 +11,7 @@ const sample = {schemaVersion: 'yizhi.resume-comparison/v1', id, title: '虚构�
   provider: 'tokendance', input: {resume: '虚构材料', jd: ''}, columns: COLUMN_IDS.map(id => ({id, label: id, status: '只读',
     provenance: '夹具', sections: [{id: 'opening', label: '开头', text: '虚构材料'}], judgments: [], traceIds: [], changeIds: [], runIds: []}))};
 const request = (body: unknown = {id, acknowledgeCost: true}, origin = 'https://example.invalid') =>
-  new Request(url, {method: 'POST', headers: {origin}, body: JSON.stringify(body)});
+  new Request(url, {method: 'POST', headers: {origin, 'content-type': 'application/json'}, body: JSON.stringify(body)});
 const original = process.env.EVAL_ADMIN_USER_IDS;
 beforeEach(() => {jest.clearAllMocks(); process.env.EVAL_ADMIN_USER_IDS = 'admin';
   (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({id: 'admin'});});

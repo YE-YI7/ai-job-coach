@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {getDbClient} from '@/lib/db';
 import {evalAdminAccess, evalJson as json} from '@/lib/coach-harness/eval-admin-http';
 import {COMPARISON_TYPE, DRAFT_TYPE, DIRECT_TYPE, parseComparison, parseDraft, uuid} from '@/lib/coach-harness/resume-comparison';
+import {isSameOriginRequest} from '@/lib/phone-auth/security';
 export const runtime = 'nodejs';
 function draftId(actor: string, comparison: string) {
   const s = createHash('sha256').update(`comparison-draft:${actor}:${comparison}`).digest('hex');
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
-  if (request.headers.get('origin') !== new URL(request.url).origin) return json({error: '不允许跨站存档'}, 403);
+  if (!isSameOriginRequest(request)) return json({error: '不允许跨站存档'}, 403);
   let comparison;
   try {const raw = await request.text(); if (Buffer.byteLength(raw) > 600000) return json({error: '对照过大'}, 413);
     comparison = parseComparison(JSON.parse(raw));} catch {return json({error: '对照格式无效'}, 400);}
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
 }
 export async function PATCH(request: Request) {
   const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
-  if (request.headers.get('origin') !== new URL(request.url).origin) return json({error: '不允许跨站保存'}, 403);
+  if (!isSameOriginRequest(request)) return json({error: '不允许跨站保存'}, 403);
   let body;
   try {const raw = await request.text(); if (Buffer.byteLength(raw) > 120000) return json({error: '手写稿过长'}, 413);
     body = JSON.parse(raw);} catch {return json({error: '手写稿格式无效'}, 400);}

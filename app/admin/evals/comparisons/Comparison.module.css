@@ -285,6 +285,24 @@
 .judgment{
   margin:24px 0
 }
+.judgmentProse{
+  overflow-wrap:anywhere;
+}
+.judgmentProse p,.judgmentProse ul{
+  margin:12px 0;
+}
+.judgmentProse table{
+  display:block;
+  overflow:auto;
+  border-collapse:collapse;
+  font-size:13px;
+}
+.judgmentProse th,.judgmentProse td{
+  padding:8px;
+  border-bottom:1px solid var(--line);
+  vertical-align:top;
+  text-align:left;
+}
 .editLabel{
   display:block!important;
   font-weight:600;
@@ -325,7 +343,8 @@
   gap:18px
 }
 .heading{
-  padding:24px 16px 12px;
+  padding:16px 16px 12px;
+  gap:12px;
   align-items:flex-start;
   flex-direction:column
 }
@@ -333,6 +352,15 @@
   align-items:flex-start;
   flex-direction:column;
   width:100%
+}
+.heading p,.legend,.sampleLabel{
+  display:none;
+}
+.heading label{
+  gap:6px;
+}
+.directTools label{
+  gap:6px;
 }
 .heading select{
   width:100%

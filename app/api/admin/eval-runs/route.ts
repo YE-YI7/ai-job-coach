@@ -103,6 +103,9 @@ export async function GET(request: Request) {
         .from("coach_eval_runs")
         .select("id,created_at,status,label,legacy_trace_id")
         .not("run", "cs", '{"recordType":"development_log"}')
+        .not("run", "cs", '{"recordType":"resume_comparison"}')
+        .not("run", "cs", '{"recordType":"resume_comparison_draft"}')
+        .not("run", "cs", '{"recordType":"resume_comparison_direct"}')
         .order("created_at", { ascending: false })
         .limit(limit),
       db

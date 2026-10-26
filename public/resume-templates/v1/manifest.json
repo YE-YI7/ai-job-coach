@@ -1,7 +1,9 @@
 {
-  "rendererSha256": "d28e83262626aff2390c264e82cc46377c38cdfbac3730346339c273c96edf1f",
+  "rendererSha256": "34191c5758e944dbdf752e1f1b98e963d0367556d3612cb46d21cf39435a5045",
   "rendererDependencies": {
     "fontLoader": "eeb5b0b9ad290dbcee67d438267fd8a02b5b30dde9e93d73d947d3108142203f",
+    "paragraphs": "9518cb8850286358a0a2d3eaae9c73ffaf686aa6d9aebe2347c4071075026b9a",
+    "sourceStructure": "80b1287e6eb08718cbd3dbf54863115d2543e5601ff6759d916acea02cd759af",
     "regular": "2abc4680a0f28708977377f02ea55090f86158f2cf9de766f9f967cd1ccad318",
     "semibold": "e8e51614f466f309d70321a4f6bf811b6cd52265c1dca3b8770e25108a3591c7"
   },
@@ -17,29 +19,32 @@
   "fictional": true,
   "assets": {
     "classic": {
-      "bytes": 7976,
-      "sha256": "38b54f9f7491f91efc7638d6bde1ad1552584ea0b6777048ddc3ad69ca5ee6cd"
+      "sha256": "494ab607d86a024d753e3940f248d64a9fab30c3771d379e69b7fe9f2242cea5",
+      "bytes": 9210
     },
     "modern": {
-      "bytes": 9926,
-      "sha256": "bff50f0eb819075414f1d24a9e5781192947b2ba5de7428608a90b209fc30a9d"
+      "sha256": "a1c66c543a5e5f2e6a32729faa4bd338aeb997e8b12901cfa2b81864063fb02d",
+      "bytes": 9520
     },
     "warm": {
-      "bytes": 9688,
-      "sha256": "a1afcbea67ffaf35aafc14a4ac37b16c5bbf47ce7a4b233eaf0094be0c20a476"
+      "sha256": "bf34d46acca9ce74a0b7cdb5a4c3df6f6fdecb9fecaf80555cabf22c0617e832",
+      "bytes": 9810
     },
     "compact": {
-      "bytes": 8954,
-      "sha256": "fcae012552533c4c4514fdec56a016eea95e112f325990a66dc95b30b362f88e"
+      "sha256": "0ebabbdce5a85770d887111577a4649d8f68fe893bc7ec26bc2bebd4f77308e3",
+      "bytes": 8978
     },
     "editorial": {
-      "bytes": 8578,
-      "sha256": "89a4ba4a7eb6fa27a4d300c0506ae90d3afe292b9c03cb0fd1cd9eff463368ce"
+      "sha256": "cbb91ba4a6df905fb9eef9d8c5f28b1d7fed4101067df5f8a7f6f4b5c8f5cac0",
+      "bytes": 9514
     },
     "rail": {
-      "bytes": 9804,
-      "sha256": "f68ea627ed6cf15d24c6388f82550ce7168ee09eec51cd1e3109a2c58b679603"
+      "sha256": "96b3f3598d43d7af295fce9b2ec42e69c24ed37e90faa1d4a5a7cdb78af37ba6",
+      "bytes": 9284
     }
   },
-  "provenance": "CUA Chrome CDP printToPDF, fictional fixture, A4, headers disabled; first page rasterized and resized only"
+  "capture": {
+    "method": "CUA Chrome full-page, fonts ready, cropped to real A4 body",
+    "date": "2026-10-26T05:06:17.902Z"
+  }
 }

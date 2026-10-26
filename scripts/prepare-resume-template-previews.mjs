@@ -56,6 +56,8 @@ writeFileSync(path.join(output, "manifest.json"), JSON.stringify({
   rendererSha256: hash(readFileSync("lib/resume-print.ts")),
   rendererDependencies: {
     fontLoader: hash(readFileSync('lib/resume-print-fonts.ts')),
+    paragraphs: hash(readFileSync('lib/resume-print-paragraphs.ts')),
+    sourceStructure: hash(readFileSync('lib/coach-harness/resume-source-structure.ts')),
     regular: hash(readFileSync('public/fonts/noto-serif-sc-print-regular.woff2')),
     semibold: hash(readFileSync('public/fonts/noto-serif-sc-print-semibold.woff2')),
   },

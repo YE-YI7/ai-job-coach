@@ -52,6 +52,8 @@ test("pre-generated gallery images come from the current PDF renderer and cannot
   expect(manifest.rendererSha256).toBe(hash(readFileSync("lib/resume-print.ts")));
   expect(manifest.rendererDependencies).toEqual({
     fontLoader: hash(readFileSync('lib/resume-print-fonts.ts')),
+    paragraphs: hash(readFileSync('lib/resume-print-paragraphs.ts')),
+    sourceStructure: hash(readFileSync('lib/coach-harness/resume-source-structure.ts')),
     regular: hash(readFileSync('public/fonts/noto-serif-sc-print-regular.woff2')),
     semibold: hash(readFileSync('public/fonts/noto-serif-sc-print-semibold.woff2')),
   });

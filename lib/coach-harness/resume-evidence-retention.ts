@@ -1,6 +1,9 @@
 import type { ResumeChange } from '@/lib/opportunities/types';
 
-const normalize = (value: string) => value.replace(/[\s\p{P}\p{S}]/gu, '');
+const normalize = (value: string) => value.replace(/[\s\p{P}\p{S}]/gu, '')
+  // OCR can duplicate a glyph inside the diagnosis. Correcting that glyph is
+  // not deleting the failure mechanism. Never collapse negative qualifiers.
+  .replace(/([\p{Script=Han}])\1/gu, (pair, char: string) => /[不未无非]/.test(char) ? pair : char);
 const failure = /误判|漏判|误报|漏报|不规范|错配|匹配不准|重复识别错误/;
 
 /** Narrow veto: a named failure mechanism explaining the subsequent fix is

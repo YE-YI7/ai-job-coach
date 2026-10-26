@@ -33,7 +33,11 @@ export async function POST(request: Request) {
     const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
     const traceId = randomUUID(), started = Date.now();
     const messages: Array<{role: 'system' | 'user'; content: string}> = [
-      {role: 'system', content: '你是简历编辑。根据给定原简历和目标JD，抓住候选人的主线与具体贡献，做有价值的取舍与结构调整，避免只换词；不得编造经历、数字或已上线能力。只返回JSON：sections（与给定分段完全相同的id、label、text）与decisions（3至6条简短的编辑取舍摘要）。保留必要事实和可核验链接。decisions只写可供用户审阅的结论，不提供内部推理。'},
+      {role: 'system', content: [
+        '你是简历编辑。根据给定原简历和目标JD，抓住候选人的主线与具体贡献，做有价值的取舍与结构调整，避免只换词；不得编造经历、数字或已上线能力。',
+        '只返回JSON：sections与decisions。sections中每段的id、label与输入保持一致，但text是你编辑后的正文，可以重新写、精简或调整重点，不是要求保持原文。',
+        '如果某段确实无需修改，可以保留原文，并在decisions说明。decisions写3至6条简短的编辑取舍摘要，不提供内部推理。保留必要事实和可核验链接。',
+      ].join('')},
       {role: 'user', content: JSON.stringify({resume: comparison.input.resume, jd: comparison.input.jd,
         sections: comparison.columns[0].sections})},
     ];
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
         options: {model: comparison.model, provider: comparison.provider, maxTokens: 6500, temperature: 0.3, maxRetries: 0}},
       output: null, model: comparison.model, knowledge: []};
     const run = {schemaVersion: 'yizhi.eval/v1', id, recordType: DIRECT_TYPE, comparisonId: body.id, slot,
-      traceId, status: 'running', model: comparison.model, provider: comparison.provider,
+      traceId, status: 'running', protocolVersion: 'direct-rewrite-v2', model: comparison.model, provider: comparison.provider,
       label: '模型直改 · ' + comparison.title, startedAt: span.startedAt, spans: [span],
       result: {status: 'running', output: null as unknown}, sections: [] as unknown[], decisions: [] as string[],
       limitation: '只保留通用认证、传输与成本日志；未使用产品知识检索、编辑计划、独立质检和返修。完成不代表质量通过。'};

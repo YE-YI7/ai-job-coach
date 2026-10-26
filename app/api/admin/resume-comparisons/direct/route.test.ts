@@ -51,6 +51,8 @@ test('one call uses the stored exact model/material, then retains the real outpu
   const args = (directComparisonModel as jest.Mock).mock.calls[0][0];
   expect(args.model).toBe(sample.model); expect(args.userId).toBe('admin');
   expect(JSON.parse(args.messages[1].content).resume).toBe(sample.input.resume);
+  expect(args.messages[0].content).toContain('text是你编辑后的正文');
+  expect(args.messages[0].content).not.toContain('完全相同的id、label、text');
   expect(writes[0].kind).toBe('insert');
   expect(writes[1].value).toMatchObject({status: 'completed', run: {sections: [{text: '修改内容'}]}});
 });

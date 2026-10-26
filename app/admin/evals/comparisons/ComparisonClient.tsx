@@ -7,7 +7,7 @@ import {comparisonDiff, plainResume, type ResumeComparison, type ComparisonColum
   from '@/lib/coach-harness/resume-comparison';
 import s from './Comparison.module.css';
 type Draft = {revision: number; sections: Record<string, string>; savedAt: string};
-type Direct = {id: string; status: string; run: {traceId: string; sections: ComparisonSection[];
+type Direct = {id: string; status: string; run: {traceId: string; protocolVersion?: string; sections: ComparisonSection[];
   decisions: string[]; spans: Array<{durationMs: number; usage?: {inputTokens: number; outputTokens: number; estimatedCostUsd: number}}>}};
 type Data = {comparison: ResumeComparison; draft: Draft | null; directRuns: Direct[]};
 async function api(path: string, init?: RequestInit) {
@@ -84,7 +84,8 @@ export default function ComparisonClient() {
   }
   const selected = data?.directRuns.find(r => r.id === attempt);
   const columns = data?.comparison.columns.map(c => c.id !== 'direct' || !selected ? c : {...c,
-    status: selected.status === 'completed' ? '模型已返回 · 未经产品质检' : selected.status === 'running' ? '处理中 · 请勿重复调用' : '直调失败 · 原始Trace保留',
+    status: selected.run.protocolVersion !== 'direct-rewrite-v2' ? '旧直调配置错误 · 不作能力对照' :
+      selected.status === 'completed' ? '模型已返回 · 未经产品质检' : selected.status === 'running' ? '处理中 · 请勿重复调用' : '直调失败 · 原始Trace保留',
     sections: selected.run.sections.length ? selected.run.sections : c.sections,
     judgments: selected.run.decisions.map(text => ({label: '模型自述取舍', text})),
     traceIds: [selected.run.traceId], runIds: [selected.id],
@@ -122,7 +123,8 @@ export default function ComparisonClient() {
         {data.directRuns.length > 0 && <label><span className={s.sampleLabel}>直调样本</span>
           <select aria-label="直调样本" value={attempt} onChange={e => setAttempt(e.target.value)}>
             {data.directRuns.map((r, i) => <option key={r.id} value={r.id}>第 {i + 1} 次 · {
-              r.status === 'completed' ? '已返回' : r.status === 'running' ? '处理中' : '失败'}</option>)}
+              r.run.protocolVersion !== 'direct-rewrite-v2' ? '配置错误' :
+                r.status === 'completed' ? '已返回' : r.status === 'running' ? '处理中' : '失败'}</option>)}
           </select></label>}
         <button type="button" onClick={refreshDirect} disabled={calling}>刷新直调记录</button>
         <button type="button" disabled={calling || data.directRuns.length >= 3 || data.directRuns.some(r => r.status === 'running')}

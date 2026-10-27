@@ -46,6 +46,7 @@ import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
 import {resumeEditorialContract,rawProjectMessages,rawProjectDeliveryIssues,bindRawProjectTargets} from './resume-editorial-contract';
+import {formatRawProjectHeading} from './resume-project-layout';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -394,7 +395,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       if(citationIds.resolved.length)trace!.step('grounding','source_id_abbreviation_resolved',citationIds.resolved.length,{input:{attempt,index,sourceIds:raw.sourceIds},output:{resolved:citationIds.resolved}});
       const rawBefore = String(raw.before || "").trim().slice(0, editorialContract.rawProject?30_000:2000);
       const before = editorialContract.rawProject ? rawBefore : resumeSourceBulletSpan(resumeText,anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore);
-      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, editorialContract.rawProject?6000:2000), before);
+      const rawAfter=String(raw.after||'').trim().slice(0,editorialContract.rawProject?6000:2000);
+      const proposedAfter = normalizeResumeBulletBreaks(
+        editorialContract.rawProject?formatRawProjectHeading(rawAfter):rawAfter,before,
+      );
       const after = normalizeResumeDeletion(before,omitStandaloneDisclaimers(proposedAfter));
       // A standalone personal disclaimer is factual context, not an
       // achievement. An explicitly proposed deletion may be reviewed and

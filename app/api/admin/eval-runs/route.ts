@@ -13,6 +13,7 @@ import {
 } from "@/lib/coach-harness/eval-observer";
 import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
 import type { ResumeAgentAnswer } from "@/lib/coach-harness/resume-task-types";
+import {readIsolatedEvalRepair} from '@/lib/coach-harness/eval-repair-contract';
 import { applyResumeChanges } from "@/lib/coach-harness";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import {
@@ -169,6 +170,8 @@ export async function POST(request: Request) {
       || Number((body.comparison as Record<string,unknown>).callLimit) < 1 || Number((body.comparison as Record<string,unknown>).callLimit) > 4)) ||
     (body.label !== undefined &&
       (typeof body.label !== "string" || body.label.length > 120)) ||
+    ((body.repairOf!==undefined || body.repairFeedback!==undefined) &&
+      (!uuid(body.repairOf) || typeof body.repairFeedback!=='string' || body.repairFeedback.length>3000)) ||
     Object.keys(body).some(
       (k) =>
         ![
@@ -180,6 +183,8 @@ export async function POST(request: Request) {
           "label",
           "editingRequest",
           "comparison",
+          "repairOf",
+          "repairFeedback",
         ].includes(k),
     )
   )
@@ -189,6 +194,13 @@ export async function POST(request: Request) {
     );
   const db = await getDbClient();
   if (!db) return json({ error: "评测存储不可用，未调用模型" }, 503);
+  let repair: ReturnType<typeof readIsolatedEvalRepair>|undefined;
+  if(body.repairOf){
+    const parent=await db.from('coach_eval_runs').select('run').eq('id',body.repairOf).eq('user_id',user.id).maybeSingle();
+    if(parent.error)return json({error:'原流程暂不可读，未调用模型'},503);
+    try{repair=readIsolatedEvalRepair(parent.data?.run||{},body);}
+    catch{return json({error:'只允许同一隔离候选的一次有界返修，材料、要求、模型和总调用预算必须相同。'},400);}
+  }
   const id = body.requestId,
     started = Date.now();
   const spans: EvalSpan[] = [];
@@ -210,6 +222,9 @@ export async function POST(request: Request) {
     },
     comparison: body.comparison || null,
     isolation: 'no_opportunity_no_quota_no_old_answers',
+    repairOf: body.repairOf||null,
+    repairFeedback: body.repairFeedback||null,
+    ...(repair?{workflowBudget:{parentCalls:repair.parentCalls,remainingCalls:repair.maxCalls,totalCap:4}}:{}),
     spans,
     knowledge: [],
     result: { status: "running", output: null },
@@ -253,6 +268,7 @@ export async function POST(request: Request) {
             requestId: id,
           }),
         }), user, {isolated:true, isolatedAnswers:instructions,
+          ...(repair?{isolatedRepair:{previousCandidate:repair.previousCandidate,feedback:repair.feedback}}:{}),
           ...(body.comparison?{evalModel:{model:'deepseek-v4-flash',maxCalls:Number((body.comparison as Record<string,unknown>).callLimit)}}:{})},
       ),
     );

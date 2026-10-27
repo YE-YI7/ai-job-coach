@@ -906,6 +906,20 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
       expect((await response.json()).reviewer.passed).toBe(false);
     }
   });
+  test('isolated repair resumes the original editor with the prior candidate, never quota or old answers',async()=>{
+    const {compileContextBundle:compile}=jest.requireActual('@/lib/coach-harness/context');
+    (compileContextBundle as jest.Mock).mockImplementation(input=>compile(input));
+    (callLLM as jest.Mock).mockRejectedValue(new Error('LLM_REQUEST_TIMEOUT'));
+    await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({
+      resumeText:'负责模型评测，记录准确率口径。',mode:'general_resume',requestId:'continuation',
+    })}),{id:'admin'} as any,{isolated:true,evalModel:{model:'deepseek-v4-flash',maxCalls:2},
+      isolatedRepair:{previousCandidate:'此前候选含有未证实的效果。',feedback:['不得将优化目标写成已取得的收益。']}});
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain('此前候选含有未证实的效果');
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain('不得将优化目标写成已取得的收益');
+    expect((runWithGenerationContext as jest.Mock).mock.calls[0][0]).toMatchObject({requestId:'continuation:repair'});
+    expect(reserveQuota).not.toHaveBeenCalled();expect(ownedResumeTaskSource).not.toHaveBeenCalled();
+  });
 });
 
 describe("isTrivialRewrite (同义换词不进确认列表)", () => {

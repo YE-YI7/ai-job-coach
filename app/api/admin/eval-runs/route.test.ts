@@ -2,6 +2,7 @@ import { GET, POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { runResumeDraft as rewrite } from "@/lib/coach-harness/resume-execution";
+import {isolatedEvalRepairId} from '@/lib/coach-harness/eval-repair-contract';
 jest.mock("@/lib/auth", () => ({ getCurrentUserFromRequest: jest.fn() }));
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
 jest.mock("@/lib/coach-harness/resume-execution", () => ({ runResumeDraft: jest.fn() }));
@@ -68,6 +69,20 @@ test("storage failure and same-ID replay never invoke the model", async () => {
     });
     expect([202, 503]).toContain((await POST(make(body))).status);
   }
+  expect(rewrite).not.toHaveBeenCalled();
+});
+test('a repair is owner-scoped and durably deduplicated before its remaining model calls',async()=>{
+  const query={eq:jest.fn().mockReturnThis(),maybeSingle:async()=>({data:{run:{
+    isolation:'no_opportunity_no_quota_no_old_answers',status:'completed',
+    input:{resume:body.resumeText,jobDescription:'',editingRequest:'原要求'},
+    comparison:{model:'deepseek-v4-flash',callLimit:4},
+    spans:[{kind:'agent',model:'deepseek-v4-flash'},{kind:'agent',model:'deepseek-v4-flash'}],
+    result:{rawResponse:{ok:true},output:'原流程待返修的候选'},
+  }},error:null})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:()=>({select:()=>query,insert:async()=>({error:{code:'23505'}})})});
+  const r=await POST(make({...body,editingRequest:'原要求',requestId:isolatedEvalRepairId(id),repairOf:id,
+    repairFeedback:'候选把优化目标写成了无依据的收益，需返修。',comparison:{model:'deepseek-v4-flash',callLimit:2}}));
+  expect(r.status).toBe(202);expect(query.eq).toHaveBeenCalledWith('user_id',admin.id);
   expect(rewrite).not.toHaveBeenCalled();
 });
 test("run list excludes development archives instead of presenting them as real model spans", async () => {

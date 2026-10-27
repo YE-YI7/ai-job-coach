@@ -65,6 +65,7 @@ function parseJson(text: string) {
 export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[];
   /** Server-only, explicit admin comparison. Never accepted by the product route. */
   evalModel?: { model: 'deepseek-v4-flash'; maxCalls: number };
+  isolatedRepair?: {previousCandidate:string;feedback:string[]};
 };
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
@@ -72,6 +73,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
   let modelCalls = 0;
   if(options.evalModel && (!options.isolated || !Number.isInteger(options.evalModel.maxCalls) || options.evalModel.maxCalls < 1 || options.evalModel.maxCalls > 4))
     throw Error('模型对照只允许隔离样本，最多四次调用');
+  if(options.isolatedRepair&&!options.isolated)throw Error('返修续接只允许隔离样本');
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
     if(options.evalModel && modelCalls >= options.evalModel.maxCalls) throw Error('EVAL_MODEL_CALL_LIMIT');
@@ -215,11 +217,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let followUp: ResumeAgentQuestion | null = null;
     let rawChanges:Record<string,unknown>[]=[],changes:ResumeChange[]=[],finalChanges:ResumeChange[]=[];
     let rejected:Array<{index:number;reasons:string[]}>=[],reviewer:{status?:string;summary?:string;findings?:unknown[]}={},reviewerFindings:unknown[]=[],reviewerPassed=false,errorChangeIds=new Set<string>();
-    let repairFeedback:string[]=[],valueChecks:ResumeValueCheck[]=[];
+    let repairFeedback:string[]=options.isolatedRepair?.feedback||[],valueChecks:ResumeValueCheck[]=[];
     let personalDisclaimersOmitted=0;
     let documentReview: DocumentReview | null = null;
     let lastDraftReview: Record<string,unknown> = {};
     let editorialPlan: unknown = null;
+    let previousCandidate=options.isolatedRepair?.previousCandidate;
     let lockedChanges: ResumeChange[] = [];
     let groundedCarry:ResumeChange[]=[];
     const unresolvedGrounding=new Map<string,string>();
@@ -260,6 +263,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const coversSupplement = (proposals:ResumeChange[]) => coversCurrentResumeAnswer(proposals,agentTask?.answers||[]);
     let lastUnchangedAttempt=-1;
     const checkUnchanged=async(attempt:number)=>{
+      if(options.isolatedRepair)return null; // A failed candidate cannot become an unreviewed no-op.
       if(latestAnswer||explicitQuestion||followUp||lastUnchangedAttempt===attempt)return null;
       lastUnchangedAttempt=attempt;
       const checkOutput=strategy!=="independent" ? JSON.stringify({status:strategy==="format_only"||readDocumentReview(lastDraftReview.document,[],strategy).status==="passed"?"passed":"failed",unchanged:true,summary:strategy==="format_only"?"作者未提出修改；仅格式检查，未独立评估内容。":"原编辑自查保留原稿，非独立复核。"}) : await runWithGenerationContext({userId:modelUserId,operation:'resume_review',requestId:`${requestId}:unchanged${attempt?':repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
@@ -281,15 +285,20 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       trace!.step('save','independently_checked_unchanged');
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
-    for(let attempt=0;attempt<2;attempt++){
+    for(let attempt=options.isolatedRepair?1:0;attempt<2;attempt++){
     let output:string;
     try { output = await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
       knowledgeDocumentIds: includedKnowledge.map(item => item.id),
-    }, () => callLLM(editorialContract.rawProject ? rawProjectMessages({source:editSource,facts:source,knowledge:knowledgePrompt,contract:editorialContract,feedback:repairFeedback}) : [
+    }, () => callLLM(editorialContract.rawProject ? rawProjectMessages({
+      source:editSource,facts:source,knowledge:knowledgePrompt,contract:editorialContract,feedback:repairFeedback,
+      ...(previousCandidate?{previousCandidate}:{}),
+    }) : [
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
+      ...(attempt&&previousCandidate?[{role:'user' as const,content:JSON.stringify({previousCandidate,
+        rule:'这是上次未完成的模型候选，不是新事实；结合质检反馈返修，仍以原材料和本人事实为依据。'})}]:[]),
       ...(editingRequest?[{role:'system' as const,content:'本轮有用户已确认的编辑要求，以最新要求为准；历史补充仍可作为事实使用，但不是每次都必须重新改写的任务。用户确有产品工作时，允许按目标岗位整理已有职责与成果，不要把“不可虚构产品经历”误解为禁止产品经理叙事。不要再询问已确认的写作方向。'}]:[]),
       {role:'system',content:`本轮按段落分配编辑责任：每个before只属于一个编辑范围，不修改其他段落的事实或结构。格式约定（数据）：${JSON.stringify(styleContract)}。先按已有事实改，缺事实只附一问，不阻断其他修改。`},
       ...(strategy==='self_review'?[{role:'system' as const,content:WHOLE_DOCUMENT_REVIEW_PROMPT+'本方案由原编辑在同一次输出里自查。把逐条status/findings/valueChecks及document放在selfReview对象；changeId暂用changes的0起始序号字符串，系统会映射真实ID。自查不是独立复核。'}]:[]),
@@ -479,6 +488,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const reviewMergedChanges = generationSource
       ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
     const reviewCandidate = applyResumeChanges(resumeText, reviewMergedChanges);
+    const candidateBeforeRepair=previousCandidate;
+    previousCandidate=reviewCandidate.text;
     const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy);
     // Deterministic format violations are already actionable. Return directly
     // to the editor once, rather than spend a review call rediscovering them.
@@ -490,6 +501,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const requestIndependentReview = (contractIssue?:string) => runWithGenerationContext({userId:modelUserId,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}${contractIssue?':contract-repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       {role:'system',content:WHOLE_DOCUMENT_REVIEW_PROMPT},
+      {role:'system',content:'不要因数字有来源就认定整句可靠。逐项核对新职责、功能名、新效果和因果承诺：原文的优化目标、方向性标题或合理预期，不等于已经取得了新收益；无依据的定性收益也必须退回原编辑，不能只检查新增数字。检查总领与bullet是否重复转录同一痛点和功能，而不是借结构完整掩盖冗余。事实可写为目的时不要硬写成已验证结果。'},
+      ...(attempt?[{role:'user' as const,content:JSON.stringify({priorCandidate:candidateBeforeRepair,unresolvedReviewFeedback:repairFeedback,
+        rule:'这些是同一流程退回的问题，不是新事实。逐项确认新候选确实修掉问题；不要因为已经返修就自动通过。'})}]:[]),
       {role:'system',content:`本轮编辑合同与计划必须结合最终正文核对，不因计划自称完成就通过：${JSON.stringify({editorialContract,editorialPlan})}。口述原材料按用户授权可重组，不要求保留口头指令和编号。含糊技术名只能保留原词，不得猜释；用户设定测试前提仅是自述，不是独立核验。逐项查遗漏贡献、量化口径、越权拔高和只换词，不把原稿术语待核误判为本轮新增造假。`},
       {role:'user',content:JSON.stringify({appliedCandidate:reviewCandidate.text,styleContract,mappingFindings:reviewCandidate.findings,
         resume:resumeText,jobDescription,facts:source,editingRequest:editingRequest||null})},

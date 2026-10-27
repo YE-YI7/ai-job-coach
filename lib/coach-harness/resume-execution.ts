@@ -61,17 +61,25 @@ function parseJson(text: string) {
 // 一处维护，本模块不再自带第二把正则）；断词/错字这类只有语义层能看出来的，
 // 交给下面的独立质检员，error 级发现的建议不再下发。
 
-export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]};
+export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[];
+  /** Server-only, explicit admin comparison. Never accepted by the product route. */
+  evalModel?: { model: 'deepseek-v4-flash'; maxCalls: number };
+};
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
   let siteFunded = false;
+  let modelCalls = 0;
+  if(options.evalModel && (!options.isolated || !Number.isInteger(options.evalModel.maxCalls) || options.evalModel.maxCalls < 1 || options.evalModel.maxCalls > 4))
+    throw Error('模型对照只允许隔离样本，最多四次调用');
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
+    if(options.evalModel && modelCalls >= options.evalModel.maxCalls) throw Error('EVAL_MODEL_CALL_LIMIT');
+    modelCalls++;
     lastModelPhase = phase;
     const timeoutMs = resumeCallTimeout(deadline, Date.now(), phase, settings?.timeoutMs || 55_000);
     // Receive upstream activity while buffering private JSON. Never show raw
     // partial JSON, silently switch providers, or retry a billable timeout.
-    return observedResumeLLM(messages,{...settings,siteFunded,timeoutMs,firstTokenTimeoutMs:Math.min(30_000,timeoutMs),onDelta:()=>undefined,maxRetries:0});
+    return observedResumeLLM(messages,{...settings,...(options.evalModel?{model:options.evalModel.model,provider:'deepseek' as const}:{}),siteFunded,timeoutMs,firstTokenTimeoutMs:Math.min(30_000,timeoutMs),onDelta:()=>undefined,maxRetries:0});
   };
   let reservation: QuotaReservation | null = null;
   let trace: Awaited<ReturnType<typeof startResumeTrace>> | undefined;
@@ -85,7 +93,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const strategy = options.strategy || "independent";
     const formatPolicy = options.formatPolicy || "preserve";
     const styleContract = resumeStyleContract(resumeText, formatPolicy);
-    const modelUserId = options.isolated ? undefined : user.id;
+    const modelUserId = options.isolated && !options.evalModel ? undefined : user.id;
     const generalResume = body.mode === "general_resume";
     if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
     const requestId = String(body.requestId || crypto.randomUUID()).slice(0, 180);

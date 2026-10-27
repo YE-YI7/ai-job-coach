@@ -11,7 +11,8 @@ import {
   redactEval,
   type EvalSpan,
 } from "@/lib/coach-harness/eval-observer";
-import { POST as rewriteResume } from "@/app/api/coach/resume-draft/route";
+import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
+import type { ResumeAgentAnswer } from "@/lib/coach-harness/resume-task-types";
 import { applyResumeChanges } from "@/lib/coach-harness";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import {
@@ -160,6 +161,12 @@ export async function POST(request: Request) {
     (body.jobDescription !== undefined &&
       typeof body.jobDescription !== "string") ||
     String(body.jobDescription || "").length > 30000 ||
+    (body.editingRequest !== undefined && (typeof body.editingRequest !== 'string' || body.editingRequest.length > 4000)) ||
+    (body.comparison !== undefined && (!body.comparison || typeof body.comparison !== 'object' || Array.isArray(body.comparison)
+      || Object.keys(body.comparison).sort().join(',') !== 'callLimit,model'
+      || (body.comparison as Record<string,unknown>).model !== 'deepseek-v4-flash'
+      || !Number.isInteger((body.comparison as Record<string,unknown>).callLimit)
+      || Number((body.comparison as Record<string,unknown>).callLimit) < 1 || Number((body.comparison as Record<string,unknown>).callLimit) > 4)) ||
     (body.label !== undefined &&
       (typeof body.label !== "string" || body.label.length > 120)) ||
     Object.keys(body).some(
@@ -171,6 +178,8 @@ export async function POST(request: Request) {
           "jobDescription",
           "selfEvaluate",
           "label",
+          "editingRequest",
+          "comparison",
         ].includes(k),
     )
   )
@@ -197,7 +206,10 @@ export async function POST(request: Request) {
     input: {
       resume: body.resumeText,
       jobDescription: body.jobDescription || "",
+      editingRequest: body.editingRequest || '',
     },
+    comparison: body.comparison || null,
+    isolation: 'no_opportunity_no_quota_no_old_answers',
     spans,
     knowledge: [],
     result: { status: "running", output: null },
@@ -228,8 +240,9 @@ export async function POST(request: Request) {
     if (error) throw Error("EVAL_SAVE_FAILED");
   };
   try {
+    const instructions: ResumeAgentAnswer[] = body.editingRequest ? [{id:'eval-instruction',kind:'instruction',answer:String(body.editingRequest),sourceExcerpt:'',field:'action',question:'本轮修改要求',savedAt:new Date().toISOString()}] : [];
     const response = await withEvalObserver({ spans, save }, () =>
-      rewriteResume(
+      runResumeDraft(
         new Request(new URL("/api/coach/resume-draft", request.url), {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -239,7 +252,8 @@ export async function POST(request: Request) {
             mode: body.jobDescription ? "target_resume" : "general_resume",
             requestId: id,
           }),
-        }),
+        }), user, {isolated:true, isolatedAnswers:instructions,
+          ...(body.comparison?{evalModel:{model:'deepseek-v4-flash',maxCalls:Number((body.comparison as Record<string,unknown>).callLimit)}}:{})},
       ),
     );
     const output = await response.json();

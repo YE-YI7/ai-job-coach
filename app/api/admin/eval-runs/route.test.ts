@@ -1,10 +1,10 @@
 import { GET, POST } from "./route";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
-import { POST as rewrite } from "@/app/api/coach/resume-draft/route";
+import { runResumeDraft as rewrite } from "@/lib/coach-harness/resume-execution";
 jest.mock("@/lib/auth", () => ({ getCurrentUserFromRequest: jest.fn() }));
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
-jest.mock("@/app/api/coach/resume-draft/route", () => ({ POST: jest.fn() }));
+jest.mock("@/lib/coach-harness/resume-execution", () => ({ runResumeDraft: jest.fn() }));
 jest.mock("@/lib/coach-harness/eval-observer", () => ({
   withEvalObserver: (_o: unknown, fn: () => unknown) => fn(),
   redactEval: (x: unknown) => x,
@@ -131,9 +131,11 @@ test("new eval uses only submitted materials, not existing opportunity or answer
   (rewrite as jest.Mock).mockResolvedValue(
     Response.json({ ok: true, changes: [] }),
   );
-  const response = await POST(make(body));
+  const response = await POST(make({...body,editingRequest:'请按总领和四个 bullet 重组',comparison:{model:'deepseek-v4-flash',callLimit:4}}));
   expect(response.status).toBe(200);
   const request = (rewrite as jest.Mock).mock.calls[0][0];
+  expect((rewrite as jest.Mock).mock.calls[0][2]).toMatchObject({isolated:true,
+    isolatedAnswers:[{kind:'instruction',answer:'请按总领和四个 bullet 重组'}],evalModel:{model:'deepseek-v4-flash',maxCalls:4}});
   expect(await request.json()).toEqual({
     resumeText: body.resumeText,
     jobDescription: "",

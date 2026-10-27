@@ -5,11 +5,12 @@ import {readResumeRequestCoverage} from './resume-edit-request';
 
 /** An invalid review is not an editing instruction. Keep the grounded draft
  * fixed while obtaining one corrected verdict, never ask the editor to guess. */
-export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
+export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[],requireCoverage=false) {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return 'review_not_object';
  const r=raw as Record<string,unknown>;
  if(r.status!=='passed'&&r.status!=='failed')return 'review_status_invalid';
  if(Object.keys(r).some(k=>!['status','summary','findings','valueChecks','document','recovery','requestCoverage'].includes(k)))return 'review_unexpected_fields';
+ if(requireCoverage&&!('requestCoverage' in r))return 'review_request_coverage_missing';
  if('requestCoverage' in r&&readResumeRequestCoverage(r.requestCoverage).status==='unverified')return 'review_request_coverage_invalid';
  if((r.summary!==undefined&&(typeof r.summary!=='string'||!r.summary.trim()))||!Array.isArray(r.findings)||r.findings.length>20)return 'review_fields_invalid';
  const ids=new Set(changes.map(c=>c.id));
@@ -20,6 +21,31 @@ export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
  const checks=readResumeValueChecks(r.valueChecks,changes.length);
  if(checks.length!==changes.length||new Set(checks.map(c=>c.index)).size!==changes.length)return 'review_value_checks_invalid';
  return null;
+}
+
+/** Correcting a JSON contract is not a new edit. Explicit valid negative
+ * diagnoses remain binding while the candidate text is byte-identical. */
+export function preserveResumeReviewRejections(previous: unknown, repaired: Record<string,unknown>, changes:ResumeChange[]) {
+ const old=previous&&typeof previous==='object'?previous as Record<string,unknown>:{};
+ const ids=new Set(changes.map(c=>c.id));
+ const errors=Array.isArray(old.findings)?old.findings.filter(f=>f&&ids.has(f.changeId)&&f.severity==='error'&&typeof f.message==='string'):[];
+ const result={...repaired};
+ if(errors.length){result.status='failed';result.findings=[...errors,...(Array.isArray(repaired.findings)?repaired.findings:[])].slice(0,20);}
+ const doc=readDocumentReview(old.document,changes,'independent');
+ if(!doc.contractError&&doc.status==='failed')result.document=old.document;
+ const unmapped=Array.isArray(old.findings)?old.findings.filter(f=>f&&f.severity==='error'&&typeof f.message==='string'&&f.message.trim()&&!ids.has(f.changeId)):[];
+ if(unmapped.length){
+   const current=readDocumentReview(result.document,changes,'independent');
+   result.document={status:'failed',summary:'此前明确否决的定位尚未可靠核对，补协议不能将其清除。',findings:[
+     ...(current.contractError?[]:current.findings),
+     ...unmapped.map(f=>({changeId:null,category:'system',severity:'error',message:'原质检否决尚未可靠定位：'+String(f.message).slice(0,1100)})),
+   ].slice(0,20)};
+ }
+ const negative=readResumeValueChecks(old.valueChecks,changes.length).filter(v=>!v.useful);
+ if(negative.length&&Array.isArray(repaired.valueChecks))result.valueChecks=repaired.valueChecks.map(v=>negative.find(n=>n.index===v.index)||v);
+ const coverage=readResumeRequestCoverage(old.requestCoverage);
+ if(coverage.status==='partial'||coverage.status==='not_addressed')result.requestCoverage=old.requestCoverage;
+ return result;
 }
 
 /** Operational categories only. Never store model text, material or arbitrary IDs. */
@@ -41,6 +67,7 @@ export function resumeReviewDiagnostic(raw:unknown, changeIds:string[], useful:n
 }
 export function resumeReviewRepairHint(issue:string){
  const hints:Record<string,string>={
+  review_request_coverage_missing:'本轮有明确修改要求，必须补上requestCoverage:{status:complete|partial|not_addressed,unaddressed:[],summary:具体核对依据}。不要改变已给出的其他有效否决。',
   review_request_coverage_invalid:'requestCoverage必须含status、unaddressed与具体summary；complete时未完成列表为空，否则必须列出尚未完成的目标。',
   document_missing:'必须同时返回document对象，不能只给逐条结论。',
   document_unexpected_fields:'document仅含status、summary、findings；不要加入source、score、recovery或正文。',

@@ -1,7 +1,22 @@
-import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint} from './resume-review-diagnostic';
+import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint,preserveResumeReviewRejections} from './resume-review-diagnostic';
 import type {ResumeChange} from '@/lib/opportunities/types';
 const changes=[{id:'c-1'} as ResumeChange];
 const valid={status:'passed',summary:'检查已有事实和表述',findings:[],valueChecks:[{index:0,useful:true,kind:'clarity',reason:'将事实动作和交付清晰对应'}],document:{status:'passed',summary:'整稿结构和事实一致',findings:[]}};
+test('explicit requests require a coverage verdict, without inventing an incomplete verdict',()=>{
+ expect(resumeReviewProtocolIssue(valid,changes,true)).toBe('review_request_coverage_missing');
+ expect(resumeReviewProtocolIssue({...valid,requestCoverage:{status:'complete',unaddressed:[],summary:'总领与四项要求均在正文中完成'}},changes,true)).toBeNull();
+});
+test('contract correction cannot erase real failures on an unchanged candidate',()=>{
+ const old={...valid,status:'failed',findings:[{changeId:'c-1',severity:'error',message:'责任被拔高，退回原编辑'}],
+   valueChecks:[{index:0,useful:false,kind:'none',reason:'只有换词没有真实内容改善'}],
+   document:{status:'failed',summary:'有未解决的整稿错误',findings:[{changeId:'c-1',category:'grounding',severity:'error',message:'新写主导缺来源'}]},
+   requestCoverage:{status:'partial',unaddressed:['项目定位'],summary:'项目定位要求尚未完成，请原编辑返修'}};
+ const repaired=preserveResumeReviewRejections(old,{...valid,requestCoverage:{status:'complete',unaddressed:[],summary:'模型试图把失败改为完成'}},changes);
+ expect(repaired).toMatchObject({status:'failed',findings:old.findings,document:old.document,valueChecks:old.valueChecks,requestCoverage:old.requestCoverage});
+ expect(resumeReviewProtocolIssue(repaired,changes,true)).toBeNull();
+ const unmapped=preserveResumeReviewRejections({...valid,status:'failed',findings:[{changeId:'0',severity:'error',message:'候选新增未提供的主导职责'}]},valid,changes);
+ expect(unmapped.document).toMatchObject({status:'failed',findings:[{changeId:null,severity:'error',message:expect.stringContaining('新增未提供的主导职责')}]});
+});
 test('separates protocol errors from actionable manuscript findings',()=>{
  expect(resumeReviewProtocolIssue(valid,changes)).toBeNull();
  expect(resumeReviewProtocolIssue({...valid,requestCoverage:{status:'complete',unaddressed:[],summary:'本轮修改要求已经体现在候选中'}},changes)).toBeNull();

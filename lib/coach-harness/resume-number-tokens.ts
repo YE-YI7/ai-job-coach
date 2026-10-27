@@ -9,7 +9,7 @@ export function resumeNumberTokens(text: string): Set<string> {
         tokens.add(`date:${year}-${month.padStart(2, "0")}${day ? "-" + day.padStart(2, "0") : ""}`);
         return " ";
       });
-  for (const match of body.matchAll(/(?<![A-Za-z\d])[¥￥$]?\d+(?:[.,]\d+)?(?:\s*(?:PP|pp|%|万|亿|[kK]|人|次|个月|年|天|分钟|元))?(?![A-Za-z\d])/g))
-    tokens.add(match[0].replace(/\s/g, "").replace(/pp$/, "PP"));
+  for (const match of body.matchAll(/(?<![A-Za-z\d])[¥￥$]?\d+(?:[.,]\d+)?(?:\s*(?:个百分点|PP|pp|%|万|亿|[kK]|人|次|个月|年|天|分钟|元))?(?![A-Za-z\d])/g))
+    tokens.add(match[0].replace(/\s/g, "").replace(/pp$|个百分点$/, "PP"));
   return tokens;
 }

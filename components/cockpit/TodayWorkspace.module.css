@@ -5,6 +5,7 @@
   --today-ink: #2a2620;
   --today-ink-2: #4f473d;
   --today-muted: #7b7266;
+  --today-phase: #6b6154;
   --today-accent: #b3411d;
   --today-honey: #f3d6a6;
   --today-apricot: #efae84;
@@ -36,37 +37,36 @@
 .goalNote { margin: 12px 0 0; color: var(--today-muted); font-size: 13px; line-height: 1.7; }
 
 .demoNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   max-width: 780px;
   margin: 18px 0 0;
-  padding: 10px 13px;
-  border-left: 2px solid var(--today-apricot);
-  background: rgba(239, 174, 132, 0.12);
-  color: var(--today-ink-2);
+  padding: 0;
+  color: var(--today-muted);
   font-size: 12px;
   line-height: 1.7;
 }
+.demoNote::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--today-apricot); }
 
 .mentorNote {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: center;
+  gap: 14px;
   max-width: 780px;
   margin: 26px 0 0;
-  padding: 20px 22px;
-  border: 1px solid var(--today-line);
-  border-radius: 16px;
-  background: var(--today-card);
+  padding: 0 0 24px;
+  border-bottom: 1px solid var(--today-line);
 }
 .mentorMark {
   flex: none;
-  width: 58px;
-  height: 58px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background: #fff;
   object-fit: cover;
   mix-blend-mode: multiply;
 }
-.mentorNote p { margin: 0; font-size: 16px; line-height: 1.85; color: var(--today-ink-2); }
+.mentorNote p { margin: 0; font-size: 15px; line-height: 1.8; color: var(--today-ink-2); }
 
 .saveAlert {
   display: flex;
@@ -95,44 +95,34 @@
   cursor: pointer;
 }
 
-.tasks { max-width: 780px; margin-top: 34px; }
+.tasks { max-width: 780px; margin-top: 28px; }
 .sectionHead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--today-line); }
 .sectionHead h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; }
 .sectionHead span { color: var(--today-muted); font-size: 12px; }
 
 .task {
+  position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 12px 14px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 8px 14px;
   align-items: start;
-  padding: 20px 2px;
-  border-bottom: 1px solid var(--today-line);
+  padding: 24px 0 26px;
 }
-.taskPrimary {
-  margin-top: 14px;
-  padding: 22px 20px;
-  border: 1px solid rgba(179, 65, 29, 0.22);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fffaf2 0%, #fffdf9 100%);
-}
-.taskIndex {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--today-line);
-  color: var(--today-muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.taskPrimary .taskIndex { border-color: transparent; background: var(--today-ink); color: #fff; }
+.task + .task { border-top: 1px solid rgba(42, 38, 32, 0.07); }
+.task:not(:last-of-type)::after { content: ""; position: absolute; left: 5px; top: 40px; bottom: -1px; width: 1px; background: var(--today-line); }
+.taskPrimary { padding: 28px 0 30px; }
+.taskIndex { position: relative; display: block; padding-left: 18px; color: var(--today-muted); font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.taskIndex::before { content: ""; position: absolute; left: 3px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: #b9b0a4; }
+.taskPrimary .taskIndex { color: var(--today-accent); font-weight: 600; }
+.taskPrimary .taskIndex::before { background: var(--today-accent); box-shadow: 0 0 0 4px rgba(179, 65, 29, 0.08); }
 .taskBody { min-width: 0; }
+.taskPhase { display: block; margin-bottom: 7px; color: var(--today-phase); font-size: 11px; letter-spacing: 0.08em; }
+.taskPrimary .taskPhase { color: var(--today-accent); }
 .taskBody h3 { margin: 0; font-size: 17px; line-height: 1.5; font-weight: 600; }
 .taskPrimary .taskBody h3 { font-size: clamp(19px, 2vw, 23px); }
 .taskWhy { margin: 7px 0 0; color: var(--today-ink-2); font-size: 13px; line-height: 1.75; }
 .taskMeta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; color: var(--today-muted); font-size: 12px; line-height: 1.6; }
-.taskActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 14px; }
+.taskActions { display: flex; flex-wrap: wrap; align-items: center; align-self: center; justify-content: flex-end; gap: 8px 14px; }
 .taskGo {
   display: inline-flex;
   align-items: center;
@@ -140,7 +130,7 @@
   min-height: 40px;
   padding: 0 15px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: var(--today-ink);
   color: #fff;
   font-size: 13px;
@@ -148,6 +138,8 @@
   transition: background-color 150ms ease;
 }
 .taskGo:hover { background: #4a4238; }
+.task:not(.taskPrimary) .taskGo { min-height: 36px; padding: 0; border-radius: 0; background: transparent; color: var(--today-accent); }
+.task:not(.taskPrimary) .taskGo:hover { background: transparent; text-decoration: underline; text-underline-offset: 4px; }
 .taskQuiet {
   min-height: 36px;
   padding: 0 2px;
@@ -201,38 +193,40 @@
 .historyNote { margin: 12px 0 0; color: var(--today-muted); font-size: 12px; line-height: 1.75; }
 .historyNote { margin-top: 16px; }
 
-.tools { display: flex; flex-wrap: wrap; gap: 8px; max-width: 780px; margin-top: 30px; padding-bottom: 12px; }
+.tools { display: flex; flex-wrap: wrap; gap: 10px 22px; max-width: 780px; margin-top: 26px; padding-bottom: 12px; }
 .tools button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 40px;
-  padding: 0 13px;
-  border: 1px solid var(--today-line);
-  border-radius: 999px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
   background: transparent;
   color: var(--today-ink-2);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease;
 }
-.tools button:hover { border-color: rgba(42, 38, 32, 0.28); background: rgba(255, 253, 249, 0.8); }
-.tools .addMaterial { margin-left: auto; border-color: transparent; background: var(--today-honey); color: #4a3820; }
-.tools .addMaterial:hover { background: var(--today-apricot); }
+.tools button:hover { border-bottom-color: currentColor; color: var(--today-accent); }
+.tools .addMaterial { margin-left: auto; color: var(--today-accent); font-weight: 600; }
 
 @media (max-width: 860px) {
   .today { padding: 26px 20px 60px; }
-  .task { grid-template-columns: 26px minmax(0, 1fr); }
+  .task { grid-template-columns: 30px minmax(0, 1fr); }
   .taskActions { grid-column: 2; justify-content: flex-start; }
   .tools .addMaterial { margin-left: 0; }
 }
 
 @media (max-width: 520px) {
-  .mentorNote { padding: 16px; gap: 12px; }
-  .mentorMark { width: 46px; height: 46px; }
+  .mentorNote { padding: 0 0 20px; gap: 12px; }
+  .mentorMark { width: 38px; height: 38px; }
   .mentorNote p { font-size: 15px; }
-  .taskPrimary { padding: 18px 15px; }
+  .taskPrimary { padding: 24px 0 26px; }
   .taskActions { gap: 8px 12px; }
+  .taskActions button,
+  .task:not(.taskPrimary) .taskGo { min-height: 44px; }
+  .tools { gap: 6px 18px; }
+  .tools button { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

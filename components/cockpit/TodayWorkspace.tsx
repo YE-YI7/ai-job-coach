@@ -129,6 +129,7 @@ export default function TodayWorkspace({
           <article key={task.id} className={`${styles.task} ${index === 0 ? styles.taskPrimary : ""}`} data-task={task.target}>
             <span className={styles.taskIndex} aria-hidden="true">{index + 1}</span>
             <div className={styles.taskBody}>
+              <span className={styles.taskPhase}>{index === 0 ? "现在" : index === 1 ? "接着" : "然后"}</span>
               <h3>{task.title}</h3>
               <p className={styles.taskWhy}>{task.why}</p>
               <p className={styles.taskMeta}>
@@ -175,7 +176,7 @@ export default function TodayWorkspace({
         onToggle={(event) => setHistoryOpen(event.currentTarget.open)}
       >
         <summary>
-          <span>本周真实推进</span>
+          <span>回看 · 本周真实推进</span>
           <span>{view.weekly.length} 项已确认</span>
         </summary>
         <div className={styles.historyBody}>

@@ -8,7 +8,7 @@ jest.mock('@/lib/db', () => ({getDbClient: jest.fn()}));
 jest.mock('@/lib/direct-comparison-model', () => ({directComparisonModel: jest.fn()}));
 const id = '1091ba32-5af2-43a7-bf82-af551af83284', url = 'https://example.invalid/api/admin/resume-comparisons/direct';
 const sample = {schemaVersion: 'yizhi.resume-comparison/v1', id, title: '虚构同稿', notes: [], model: 'deepseek-v4-flash',
-  provider: 'tokendance', input: {resume: '虚构材料', jd: ''}, columns: COLUMN_IDS.map(id => ({id, label: id, status: '只读',
+  provider: 'tokendance', input: {resume: '虚构材料', jd: '',editingRequest:'总领和四个 bullet，数字是测试前提，不新增事实'}, columns: COLUMN_IDS.map(id => ({id, label: id, status: '只读',
     provenance: '夹具', sections: [{id: 'opening', label: '开头', text: '虚构材料'}], judgments: [], traceIds: [], changeIds: [], runIds: []}))};
 const request = (body: unknown = {id, acknowledgeCost: true}, origin = 'https://example.invalid') =>
   new Request(url, {method: 'POST', headers: {origin, 'content-type': 'application/json'}, body: JSON.stringify(body)});
@@ -51,6 +51,7 @@ test('one call uses the stored exact model/material, then retains the real outpu
   const args = (directComparisonModel as jest.Mock).mock.calls[0][0];
   expect(args.model).toBe(sample.model); expect(args.userId).toBe('admin');
   expect(JSON.parse(args.messages[1].content).resume).toBe(sample.input.resume);
+  expect(JSON.parse(args.messages[1].content).editingRequest).toBe(sample.input.editingRequest);
   expect(args.messages[0].content).toContain('text是你编辑后的正文');
   expect(args.messages[0].content).not.toContain('完全相同的id、label、text');
   expect(writes[0].kind).toBe('insert');

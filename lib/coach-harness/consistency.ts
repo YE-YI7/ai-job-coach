@@ -1,10 +1,6 @@
 import { isCitableSource, type ArtifactDraft, type CareerClaim, type ConsistencyIssue, type ConsistencyReport, type ContextBundle } from "./types";
 
-const NUMBER_PATTERN = /(?<![\p{L}\p{N}])(?:[¥￥$]?\d+(?:[.,]\d+)?(?:%|万|亿|[kK]|人|次|个月|年|天|元)?|\d{4}[.-]\d{1,2})(?![\p{L}\p{N}])/gu;
-
-function numberTokens(value: string) {
-  return new Set((value.match(NUMBER_PATTERN) || []).map((token) => token.replaceAll("，", "")));
-}
+import { resumeNumberTokens as numberTokens } from "./resume-number-tokens";
 
 function claimNumberTokens(claim: CareerClaim) {
   const serialized = [claim.displayText, claim.sourceExcerpt || "", JSON.stringify(claim.value)].join("\n");

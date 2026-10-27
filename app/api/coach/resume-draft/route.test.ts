@@ -882,6 +882,19 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'old',resumeText:'负责模型评测',mode:'general_resume'})}),{id:'admin'} as any,{isolated:true});
     expect(response.status).toBe(500);expect(startResumeTrace).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();
   });
+  test('raw-project instructions reach the editor and the comparison ceiling blocks a second upstream call',async()=>{
+    const source='项目时间2025年11月份，原材料中已有具体动作和交付。';
+    const instruction='整理项目总领和四个 bullet，保留数字和事实。';
+    const {compileContextBundle:compile}=jest.requireActual('@/lib/coach-harness/context');
+    (compileContextBundle as jest.Mock).mockImplementation(input=>compile(input));
+    (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[]}));
+    await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({resumeText:source,mode:'general_resume'})}),{id:'admin'} as any,
+      {isolated:true,evalModel:{model:'deepseek-v4-flash',maxCalls:1},isolatedAnswers:[{id:'i',kind:'instruction',answer:instruction,field:'action',sourceExcerpt:'',question:'要求',savedAt:'2026-10-26'}]});
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain(instruction);
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({model:'deepseek-v4-flash',maxRetries:0});
+    expect(reserveQuota).not.toHaveBeenCalled();expect(reserveResumeTrial).not.toHaveBeenCalled();expect(ownedResumeTaskSource).not.toHaveBeenCalled();expect(createArtifactWithClaims).not.toHaveBeenCalled();
+  });
   test('self-review and format-only are real alternative execution paths, not renamed independent calls',async()=>{
     for(const strategy of ['self_review','format_only'] as const){
       (callLLM as jest.Mock).mockReset();

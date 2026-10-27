@@ -45,6 +45,7 @@ import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint}
 import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired, resumeTransportCanKeepCheckpoint, type ResumeModelPhase } from './resume-execution-policy';
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
+import {resumeEditorialContract,rawProjectMessages,rawProjectDeliveryIssues} from './resume-editorial-contract';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -91,8 +92,6 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if(options.isolated && (body.opportunityId || body.resumeTaskId || body.resumeTaskLease)) throw Error("实验只允许独立样本，禁止读取旧岗位或作答");
     const opportunityId = String(body.opportunityId || "").trim();
     const strategy = options.strategy || "independent";
-    const formatPolicy = options.formatPolicy || "preserve";
-    const styleContract = resumeStyleContract(resumeText, formatPolicy);
     const modelUserId = options.isolated && !options.evalModel ? undefined : user.id;
     const generalResume = body.mode === "general_resume";
     if (!resumeText || (!jobDescription && !generalResume)) return NextResponse.json({ ok: false, error: "请先补充简历和 JD" }, { status: 400 });
@@ -104,7 +103,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if (agentTask && agentTask.opportunity_id !== opportunityId) throw Error("改稿任务与当前简历不一致");
     // Read-time normalization only. Never rewrite historical user answers.
     if(agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||!isResumeEditingDirection(answer.answer));
-    const editingRequest=agentTask?.answers.filter(answer=>answer.kind==='instruction').at(-1)?.answer||'';
+    const editorialContract=resumeEditorialContract(resumeText,agentTask?.answers||[],!agentTask?.edit_scope);
+    const editingRequest=editorialContract.request;
+    const formatPolicy = options.formatPolicy || (editorialContract.rawProject ? 'standard' : 'preserve');
+    const styleContract = {...resumeStyleContract(resumeText,formatPolicy),editorialContract};
+    trace.step('context','editing_contract_compiled',undefined,{input:{confirmedInstructions:agentTask?.answers.filter(a=>a.kind==='instruction').map(a=>a.answer)||[]},output:editorialContract});
     let requestCoverage:ResumeRequestCoverage|null=null;
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
@@ -216,6 +219,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let personalDisclaimersOmitted=0;
     let documentReview: DocumentReview | null = null;
     let lastDraftReview: Record<string,unknown> = {};
+    let editorialPlan: unknown = null;
     let lockedChanges: ResumeChange[] = [];
     let groundedCarry:ResumeChange[]=[];
     const unresolvedGrounding=new Map<string,string>();
@@ -284,7 +288,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
       knowledgeDocumentIds: includedKnowledge.map(item => item.id),
-    }, () => callLLM([
+    }, () => callLLM(editorialContract.rawProject ? rawProjectMessages({source:editSource,facts:source,knowledge:knowledgePrompt,contract:editorialContract,feedback:repairFeedback}) : [
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       ...(editingRequest?[{role:'system' as const,content:'本轮有用户已确认的编辑要求，以最新要求为准；历史补充仍可作为事实使用，但不是每次都必须重新改写的任务。用户确有产品工作时，允许按目标岗位整理已有职责与成果，不要把“不可虚构产品经历”误解为禁止产品经理叙事。不要再询问已确认的写作方向。'}]:[]),
       {role:'system',content:`本轮按段落分配编辑责任：每个before只属于一个编辑范围，不修改其他段落的事实或结构。格式约定（数据）：${JSON.stringify(styleContract)}。先按已有事实改，缺事实只附一问，不阻断其他修改。`},
@@ -308,7 +312,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         : '最终输出契约：返回changes及可选recovery；已清楚的条目不要作为原文等于改后文的建议返回。保留原稿段首概括/列表层级，有空泛概括就重写具体概括；不硬加没有的结构。每个before只改其对应段，不动别段。'},
       ...(trialScope ? [{role:'system' as const,content:`本轮是账号唯一一次单段体验。只允许修改以下一段经历，不改其他段落、个人简介、技能或教育。before必须逐字包含在这段范围内，最多3处修改；只针对这段逐问，不索取别段材料。范围：${JSON.stringify(trialScope.excerpt)}`}]:[]),
       {role:'system',content:`最终格式约束优先于前述通用拆条示例：policy=${formatPolicy}。${formatPolicy==='preserve'?'按每个before的实际结构保留：原段没有列表标记时，after禁止新增 -、•、* 或编号列表，改为精简短句；原段已有列表时保留同种列表和段首概括。拆清动作不等于新增列表。':formatPolicy==='repair'?'只修同一经历的结构不一致，不跨段换模板。':'已获标准化授权，可用短列表但不得新增事实。'}只加字段分隔符或改技能标点不能充当内容改稿。责任边界请区分：协助/参与/团队结果必须保留；“未统计个人贡献比例”等说明仅是内部约束，可以不塞进after，但前面的协助/团队归属仍须保留，不能改为个人独立业绩。每条reason不超过80字，只说具体改善，不写长篇解释。`},
-    ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:2600, reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" },attempt?'repair':'draft'));
+      {role:'system',content:`本轮已确认编辑合同（指导结构与取舍，不是经历事实）：${JSON.stringify(editorialContract)}`},
+    ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:editorialContract.rawProject?3400:2600, reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" },attempt?'repair':'draft'));
     } catch(error) {
       if(restoreCheckpoint(attempt,error))break;
       if(agentTask&&attempt===0&&resumeOutputCanBeRepaired(error)){
@@ -325,6 +330,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       throw error;
     }
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
+    editorialPlan=parsed.editorialPlan||null;
     // Preserve both legitimate same-call JSON layouts; record raw output above.
     lastDraftReview={...(parsed.selfReview || {}),document:parsed.selfReview?.document || parsed.document};
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes) ? parsed.changes.slice(0, 6).filter((item:unknown)=>item&&typeof item==='object') : []);
@@ -376,9 +382,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const citationIds = resolveResumeSourceIds(raw.sourceIds, citableIds);
       const sourceIds = citationIds.ids;
       if(citationIds.resolved.length)trace!.step('grounding','source_id_abbreviation_resolved',citationIds.resolved.length,{input:{attempt,index,sourceIds:raw.sourceIds},output:{resolved:citationIds.resolved}});
-      const rawBefore = String(raw.before || "").trim().slice(0, 2000);
-      const before = resumeSourceBulletSpan(resumeText,anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore);
-      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, 2000), before);
+      const rawBefore = String(raw.before || "").trim().slice(0, editorialContract.rawProject?30_000:2000);
+      const before = editorialContract.rawProject ? rawBefore : resumeSourceBulletSpan(resumeText,anchoredResumeExcerpt(resumeText,rawBefore) || rawBefore);
+      const proposedAfter = normalizeResumeBulletBreaks(String(raw.after || "").trim().slice(0, editorialContract.rawProject?6000:2000), before);
       const after = normalizeResumeDeletion(before,omitStandaloneDisclaimers(proposedAfter));
       // A standalone personal disclaimer is factual context, not an
       // achievement. An explicitly proposed deletion may be reviewed and
@@ -390,6 +396,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const sourceIssues = resumeSourceProtection(before, after, String(raw.section || ""), resumeText);
       const valueIssues = resumeEditValueIssues(before,after);
       const mappingIssues = [
+        ...(editorialContract.rawProject?[
+          ...(before!==editSource?['口述项目重组必须原子替换完整本段原材料，不能错选标题或旁边一句']:[]),
+          ...rawProjectDeliveryIssues(editSource,after,editorialPlan),
+        ]:[]),
         ...(trialScope&&!inResumeTrialScope(trialScope,before,resumeText)?['修改越过本次体验所选经历，不能保存']:[]),
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
         ...sourceIssues,
@@ -479,6 +489,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const requestIndependentReview = (contractIssue?:string) => runWithGenerationContext({userId:modelUserId,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}${contractIssue?':contract-repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       {role:'system',content:WHOLE_DOCUMENT_REVIEW_PROMPT},
+      {role:'system',content:`本轮编辑合同与计划必须结合最终正文核对，不因计划自称完成就通过：${JSON.stringify({editorialContract,editorialPlan})}。口述原材料按用户授权可重组，不要求保留口头指令和编号。含糊技术名只能保留原词，不得猜释；用户设定测试前提仅是自述，不是独立核验。逐项查遗漏贡献、量化口径、越权拔高和只换词，不把原稿术语待核误判为本轮新增造假。`},
       {role:'user',content:JSON.stringify({appliedCandidate:reviewCandidate.text,styleContract,mappingFindings:reviewCandidate.findings,
         resume:resumeText,jobDescription,facts:source,editingRequest:editingRequest||null})},
       ...(editingRequest?[{role:'system' as const,content:RESUME_REQUEST_REVIEW_PROMPT}]:[]),
@@ -647,8 +658,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const ats = reviewAtsText(preview.text, jobDescription);
     const shortBullets = finalChanges.every(change => change.after.split(/\n+/).every(line => line.replace(/^\s*[-•*]\s*/, "").length <= 100));
     const grounding = preview.findings.length === 0;
-    trace.data.quality = { subject: "draft_quality_not_candidate", score: (grounding ? 40 : 0) + (reviewerPassed ? 30 : 0) + (shortBullets ? 20 : 0) + (ats.ok ? 10 : 0),
-      grounding, independentReview: reviewerPassed, shortBullets, ats: ats.ok, proposed: rawChanges.length, retained: finalChanges.length };
+    trace.data.quality = { subject: "draft_quality_not_candidate", score: jobDescription ? (grounding ? 40 : 0) + (reviewerPassed ? 30 : 0) + (shortBullets ? 20 : 0) + (ats.ok ? 10 : 0) : null,
+      grounding, independentReview: reviewerPassed, shortBullets, ats: jobDescription ? ats.ok : null, atsApplicable:Boolean(jobDescription), proposed: rawChanges.length, retained: finalChanges.length };
     trace.data.editingValue={reviewed:changes.length,useful:finalChanges.filter(change=>change.status==='pending').length,rejected:rejected.length+errorChangeIds.size,kinds:[...new Set(valueChecks.filter(check=>check.useful).map(check=>check.kind))],personalDisclaimersOmitted,disposition:'revised'};
     trace.step("review", reviewerPassed ? "review_passed" : "partial_changes_retained", finalChanges.length, {input:{changes},output:{reviewer,finalChanges,discardedReviewFindings,valueChecks}});
     let applicationQuality: import('@/lib/opportunities/types').Opportunity['applicationQuality'];

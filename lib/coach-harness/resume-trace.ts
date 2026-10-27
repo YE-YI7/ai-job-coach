@@ -14,7 +14,7 @@ export interface ResumeTrace {
     methodCandidateIds?: string[]; includedMethodIds?: string[]; excludedByBudgetIds?: string[];
     matches: Array<{ id: string; similarity: number; dimensions: string[]; signals: string[]; stageMatched: boolean }>;
     documentTitles?: Array<{ id: string; title: string }> };
-  quality: null | { subject: "draft_quality_not_candidate"; score: number; grounding: boolean; independentReview: boolean; shortBullets: boolean; ats: boolean; proposed: number; retained: number };
+  quality: null | { subject: "draft_quality_not_candidate"; score: number | null; grounding: boolean; independentReview: boolean; shortBullets: boolean; ats: boolean | null; atsApplicable?: boolean; proposed: number; retained: number };
   editingValue?: { reviewed:number; useful:number; rejected:number; kinds:string[]; personalDisclaimersOmitted:number; disposition:'revised'|'unchanged' };
   /** Fixed diagnostic categories only; never persist rejected text or prompts. */
   groundingRejections?: Array<{ attempt:number; index:number; codes:string[] }>;

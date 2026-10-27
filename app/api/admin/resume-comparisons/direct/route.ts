@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         '只返回JSON：sections与decisions。sections中每段的id、label与输入保持一致，但text是你编辑后的正文，可以重新写、精简或调整重点，不是要求保持原文。',
         '如果某段确实无需修改，可以保留原文，并在decisions说明。decisions写3至6条简短的编辑取舍摘要，不提供内部推理。保留必要事实和可核验链接。',
       ].join('')},
-      {role: 'user', content: JSON.stringify({resume: comparison.input.resume, jd: comparison.input.jd,
+      {role: 'user', content: JSON.stringify({resume: comparison.input.resume, jd: comparison.input.jd,editingRequest:comparison.input.editingRequest||null,
         sections: comparison.columns[0].sections})},
     ];
     const span: EvalSpan = {id: randomUUID(), name: 'TokenDance 直接改稿（无改稿 Harness）',

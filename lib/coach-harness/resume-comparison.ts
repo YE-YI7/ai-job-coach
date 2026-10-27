@@ -24,7 +24,7 @@ export type ComparisonColumn = {
 export type ResumeComparison = {
   schemaVersion: 'yizhi.resume-comparison/v1'; id: string; title: string; notes: string[];
   model: string; provider: 'tokendance'; columns: ComparisonColumn[];
-  input: {resume: string; jd: string};
+  input: {resume: string; jd: string; editingRequest?: string};
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
@@ -36,6 +36,8 @@ export function parseComparison(v: unknown): ResumeComparison | null {
     Object.keys(v).some(k => !['schemaVersion', 'id', 'title', 'notes', 'model', 'provider', 'columns', 'input'].includes(k)) ||
     !strings(v.notes, 12) || v.provider !== 'tokendance' || !str(v.model, 100) || !v.model ||
     !object(v.input) || !str(v.input.resume, 50000) || !v.input.resume || !str(v.input.jd, 30000) ||
+    (v.input.editingRequest !== undefined && !str(v.input.editingRequest, 4000)) ||
+    Object.keys(v.input).some(k=>!['resume','jd','editingRequest'].includes(k)) ||
     !Array.isArray(v.columns) || v.columns.length !== 5) return null;
   let sectionIds: string[] = [];
   for (const [i, c] of v.columns.entries()) {

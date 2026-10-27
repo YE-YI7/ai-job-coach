@@ -278,6 +278,7 @@ const CLAUSE_SPLIT = /[，,、；;：:\s]+/;
 
 interface RawStatement extends StatementLocation {
   text: string;
+  structuralHeading?: boolean;
 }
 
 function splitStatements(text: string): RawStatement[] {
@@ -290,7 +291,11 @@ function splitStatements(text: string): RawStatement[] {
       if (body) {
         const idx = text.indexOf(body, start);
         const at = idx < 0 ? start : idx;
-        out.push({ text: body, start: at, end: at + body.length });
+        // A short standalone heading followed by body is not a truncated claim.
+        // A terminal colon or a prose clause ending in comma still fails closed.
+        const structuralHeading = text[i] === "\n" && /^[\p{L}\p{N} ·/—-]{2,24}[：:]$/u.test(body.replace(/\*\*/g,''))
+          && Boolean(text.slice(i + 1).trim()) && !/[，,；;。]/.test(body);
+        out.push({ text: body, start: at, end: at + body.length, structuralHeading });
       }
       start = i + 1;
     }
@@ -489,7 +494,7 @@ function verifyStatement(raw: RawStatement, allSources: IndexedSource[], maxGapL
   }
 
   // 1. 文字完整性：悬挂尾/未闭合括号（残缺文本不许进入回指）。
-  const broken = brokenTailReason(statement);
+  const broken = brokenTailReason(raw.structuralHeading ? statement.replace(/[：:]$/, "") : statement);
   if (broken) {
     return makeRejected("broken_tail", "broken-tail", {
       ...base,

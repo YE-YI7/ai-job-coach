@@ -35,3 +35,17 @@ export const interviewLinkedQuestionSchema = {
     }),
   }),
 };
+
+/** Bind reference choices before generation; never rewrite a rejected citation. */
+export function boundInterviewQuestionSchema(previousQuestionId: string,
+  materials?: import("./question-lineage").QuestionMaterials) {
+  const schema = JSON.parse(JSON.stringify(interviewLinkedQuestionSchema)) as typeof interviewLinkedQuestionSchema;
+  const properties = schema.schema.properties as Record<string, Record<string, unknown>>;
+  const linkageProperties = properties.linkage.properties as Record<string, unknown>;
+  linkageProperties.previousQuestionId = { type: "string", enum: [previousQuestionId] };
+  const choices = Object.entries(materials || {}).flatMap(([source, items]) => (items || []).map(item => object({
+    source: { type: "string", enum: [source] }, pointer: { type: "string", enum: [item.id] },
+  })));
+  if (choices.length) properties.sources = { type: "array", items: { anyOf: choices } };
+  return schema;
+}

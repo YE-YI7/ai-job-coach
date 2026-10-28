@@ -4,6 +4,7 @@ import { getCurrentUserFromRequest } from "@/lib/auth";
 import { generateLinkedFollowUpQuestion } from "@/lib/interview/llm";
 import { FakeDb } from "@/lib/coach-harness/run-ledger/testing/fake-db";
 import { cancelTask } from "@/lib/coach-harness/run-ledger";
+import { QuestionLineageError } from "@/lib/interview/question-lineage";
 jest.mock("@/lib/db");
 jest.mock("@/lib/auth");
 jest.mock("@/lib/interview/llm");
@@ -72,4 +73,19 @@ test("生成期间取消不改写下一题、不将取消任务报完成", async
   expect((await POST(request())).status).toBe(409);
   expect(db.rows("interview_questions")[1].question_text).toBe("旧题");
   expect(db.rows("coach_runs")[0].status).toBe("cancelled");
+});
+test("rejected candidate and exact contract failures stay in owner-scoped validation events, not the question bank", async () => {
+  const candidate = { q: "没有正确引用的题", sources: [{ source: "jd", pointer: "wrong" }] };
+  (generateLinkedFollowUpQuestion as jest.Mock).mockImplementation(async input => {
+    input.onCandidate(candidate);
+    throw new QuestionLineageError("拒发", [{ index: 0, reasons: ["单源题"] }]);
+  });
+  expect((await POST(request())).status).toBe(500);
+  expect(db.rows("interview_questions")[1].question_text).toBe("旧题");
+  expect(db.rows("coach_runs")[0].status).toBe("failed");
+  expect(db.rows("coach_run_events")).toEqual(expect.arrayContaining([expect.objectContaining({
+    user_id: owner, event_type: "validation", payload: expect.objectContaining({
+      outcome: "rejected_question", candidate, violations: [{ index: 0, reasons: ["单源题"] }],
+    }),
+  })]));
 });

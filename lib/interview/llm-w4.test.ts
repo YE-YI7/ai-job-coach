@@ -166,6 +166,13 @@ describe("FR-26/FR-27：generateLinkedFollowUpQuestion 的承接合同", () => {
     await expect(generateLinkedFollowUpQuestion(followUpBase)).rejects.toThrow(QuestionLineageError);
   });
 
+  test("rejected structured candidate remains available to the server diagnostic hook, never delivered", async () => {
+    const onCandidate = jest.fn();
+    (callLLM as jest.Mock).mockResolvedValue(modelFollowUp({ sources: [{ source: "jd", pointer: "unloaded" }] }));
+    await expect(generateLinkedFollowUpQuestion({ ...followUpBase, onCandidate })).rejects.toThrow(QuestionLineageError);
+    expect(onCandidate).toHaveBeenCalledWith(expect.objectContaining({ sources: [{ source: "jd", pointer: "unloaded" }] }));
+  });
+
   test("仅由 JD 单源成立：拒发该题", async () => {
     (callLLM as jest.Mock).mockResolvedValue(modelFollowUp({
       sources: [{ source: "jd", pointer: "负责增长产品" }],

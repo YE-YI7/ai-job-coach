@@ -2,11 +2,11 @@ import { createHash } from "node:crypto";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { getDbClient } from "@/lib/db";
 import { generateLinkedFollowUpQuestion } from "@/lib/interview/llm";
-import { interviewMaterials } from "@/lib/interview/question-lineage";
+import { interviewMaterials, QuestionLineageError } from "@/lib/interview/question-lineage";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { compileContextBundle, assertContextFits, renderContextForPrompt } from "@/lib/coach-harness";
 import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
-import { startTask, startExecution, getTaskLedger, completeTask, failTask } from "@/lib/coach-harness/run-ledger";
+import { startTask, startExecution, getTaskLedger, completeTask, failTask, appendRunEvent } from "@/lib/coach-harness/run-ledger";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import type { RoundType } from "@/lib/interview/types";
 
@@ -18,6 +18,7 @@ const reply = (body: unknown, status = 200) => Response.json(body, { status, hea
 /** Explicit next-question CTA. One bounded call, persisted result, no default triple scoring. */
 export async function POST(request: Request) {
   let scope: { userId: string; runId: string } | undefined;
+  let rejectedCandidate: Record<string, unknown> | undefined;
   try {
     const auth = await getCurrentUserFromRequest();
     if (!auth) return reply({ ok: false, error: "未认证" }, 401);
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
     const next = await runWithGenerationContext({ userId: auth.id, operation: "mock_interview_follow_up", requestId: task.runId }, () => generateLinkedFollowUpQuestion({
       sessionId: session.id, roundType: session.round_type as RoundType, previousQuestionId: previous.id, previousQuestion: previous.question_text,
       previousAnswer: answer.answer, contextText: rendered.text, warnings: rendered.warnings, sourceMaterials: interviewMaterials(context),
+      onCandidate: candidate => { rejectedCandidate = candidate; },
     }));
     if ((await getTaskLedger(scope)).runStatus === "cancelled") return reply({ ok: false, error: "生成已取消" }, 409);
     const question = { ...next, id: target.id, created_at: target.created_at,
@@ -109,6 +111,12 @@ export async function POST(request: Request) {
     await completeTask({ ...scope, result: question, modelCallCount: 1 });
     return reply({ ok: true, question });
   } catch (error) {
+    if (scope && error instanceof QuestionLineageError) {
+      await appendRunEvent({ ...scope, eventType: "validation", payload: {
+        outcome: "rejected_question", violations: error.violations,
+        candidate: rejectedCandidate && JSON.stringify(rejectedCandidate).length <= 18000 ? rejectedCandidate : null,
+      } }).catch(() => undefined);
+    }
     if (scope) await failTask({ ...scope, reason: "error", failureType: "interview_next_failed" }).catch(() => undefined);
     return reply({ ok: false, error: error instanceof Error ? error.message : "下一题生成失败，保留当前回答" }, 500);
   }

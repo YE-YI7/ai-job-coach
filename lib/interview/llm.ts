@@ -6,7 +6,7 @@
 
 import { callLLM } from "@/lib/llm";
 import { estimateTokens } from "@/lib/coach-harness";
-import { interviewAssessmentSchema, interviewLinkedQuestionSchema, INTERVIEW_REASONING_RESERVE, INTERVIEW_CALL_DEADLINE_MS } from "./output-contract";
+import { interviewAssessmentSchema, boundInterviewQuestionSchema, INTERVIEW_REASONING_RESERVE, INTERVIEW_CALL_DEADLINE_MS } from "./output-contract";
 import { v4 as uuidv4 } from "uuid";
 import {
   checkQuestionSourcing,
@@ -1380,6 +1380,8 @@ export async function generateLinkedFollowUpQuestion(input: {
   warnings?: string[];
   model?: string;
   sourceMaterials?: QuestionMaterials;
+  /** Server-owned diagnostic hook; a rejected candidate is never a delivered question. */
+  onCandidate?: (candidate: Record<string, unknown>) => void;
 }): Promise<LineagedQuestion & { tips: Tips }> {
   const previousAnswer = input.previousAnswer.trim();
   if (!previousAnswer) {
@@ -1435,7 +1437,7 @@ ${previousAnswer}
       temperature: 0.5,
       maxTokens: 1500,
       reasoningBudgetTokens: INTERVIEW_REASONING_RESERVE,
-      responseSchema: interviewLinkedQuestionSchema,
+      responseSchema: boundInterviewQuestionSchema(input.previousQuestionId, input.sourceMaterials),
       timeoutMs: INTERVIEW_CALL_DEADLINE_MS,
       maxRetries: 0,
     }
@@ -1457,6 +1459,8 @@ ${previousAnswer}
   } catch {
     throw new Error("LLM 返回内容不是有效 JSON");
   }
+
+  input.onCandidate?.(rawData);
 
   const tipsRaw = (rawData.tips ?? {}) as Partial<Tips>;
   const tips: Tips = {

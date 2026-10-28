@@ -35,6 +35,11 @@ export async function POST(request: Request) {
     const previous = questions.data?.find((q: { id: string }) => q.id === body.previousQuestionId);
     const target = questions.data?.find((q: { id: string }) => q.id === body.nextQuestionId);
     if (!previous || !target) return reply({ ok: false, error: "题目不属于此面试" }, 404);
+    const seen = await db.from("coach_sources").select("id").eq("user_id", auth.id)
+      .eq("metadata->>kind", "interview_progress").eq("metadata->>sessionId", session.id)
+      .eq("metadata->>action", "seen").eq("metadata->>questionId", target.id).limit(1).maybeSingle();
+    if (seen.error) throw seen.error;
+    if (seen.data) return reply({ ok: true, question: { ...target, session_id: session.id } });
     const beforeOrdinal = previous.tips?._harness?.ordinal, nextOrdinal = target.tips?._harness?.ordinal;
     if (Number.isInteger(beforeOrdinal) && nextOrdinal !== beforeOrdinal + 1) return reply({ ok: false, error: "只能承接下一道题" }, 409);
     const answerQuery = await db.from("interview_answers").select("id,answer,assessment").eq("session_id", session.id).eq("question_id", previous.id).order("created_at", { ascending: false }).limit(1).maybeSingle();

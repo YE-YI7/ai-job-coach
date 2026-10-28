@@ -101,6 +101,10 @@ export interface InterviewRoundtableTurn {
   rationale?: string;
   answer?: string;
   assessment?: InterviewRoundtableAssessment;
+  attempts?: import("@/lib/interview/history").InterviewAnswerRecord[];
+  seenAt?: string;
+  skipped?: boolean;
+  followsQuestionId?: string;
 }
 
 export interface InterviewRoundtableSession {
@@ -110,6 +114,9 @@ export interface InterviewRoundtableSession {
   currentIndex: number;
   turns: InterviewRoundtableTurn[];
   createdAt: string;
+  endedAt?: string;
+  roundType?: string;
+  opportunityId?: string | null;
   summary?: {
     overallScore: number;
     grade: string;

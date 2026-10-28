@@ -271,6 +271,9 @@ test("简历读不出年限学历不阻断：全部保留并标注待补（FR-5�
 });
 
 test("时效标注随岗位下发：超过 30 天读作待核实", async () => {
+  // Freeze the clock, not the 30-day production rule: this fixture is dated Sep 28.
+  jest.useFakeTimers({ now: new Date("2026-09-30T00:00:00Z") });
+  try {
   const result = await withProfile("2 年产品经验。", "Own the roadmap.");
   expect(result.jobs[0].freshness).toBe("in_sale");
   const stale = await withProfile("2 年产品经验。", "Own the roadmap.");
@@ -278,6 +281,7 @@ test("时效标注随岗位下发：超过 30 天读作待核实", async () => {
   const staleBody = await (await POST(request())).json();
   expect(staleBody.jobs[0].freshness).toBe("待核实");
   expect(result.jobs).toHaveLength(1);
+  } finally { jest.useRealTimers(); }
 });
 
 test("公司层次核验在链路上：认得出的给层次与出处，认不出的照样保留", async () => {

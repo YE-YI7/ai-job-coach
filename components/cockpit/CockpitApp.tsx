@@ -79,6 +79,8 @@ import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
 import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHistory} from "@/lib/opportunities/resume-edit-history";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import VoiceControls from "./VoiceControls";
+import InterviewHistory, { InterviewResult } from "./InterviewRecords";
+import { historyFromRecord, type InterviewHistorySession } from "@/lib/interview/history";
 import {currentJourneyStage, normalizeRoundLabel, phoneScreeningLabel, resumeProgress, stageStatusWord, STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import {reorderIds, sortOpportunitiesForRail, togglePin} from "@/lib/opportunities/rail-order";
 import {readWorkspaceView, saveWorkspaceView, workspaceViewKey} from "@/lib/opportunities/workspace-view";
@@ -2069,6 +2071,15 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   const [feedbackFor, setFeedbackFor] = useState<string | null>(opportunity.interviewPractices?.[0]?.question || null);
   const [analyzingPractice, setAnalyzingPractice] = useState(false);
   const [roundtableOpen, setRoundtableOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(() => typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("interviewHistory") === "1");
+  const acceptedAnswerSave = useRef<Promise<void> | null>(null);
+  const submittingAnswer = useRef(false);
+  const endingSession = useRef(false);
+  const endedSessions = useRef(new Set<string>());
+  const sessionEpoch = useRef(0);
+  const locallyChanged = useRef(false);
+  const [endingRoundtable, setEndingRoundtable] = useState(false);
   const [round, setRound] = useState("业务面");
   const [questionCount, setQuestionCount] = useState(3);
   // 轮次（第几面）与题型（业务面/技术面…）拆开：轮次由用户自己填、和复盘侧同一套语义；
@@ -2104,6 +2115,65 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   useEffect(()=>{if(practicing){const panel=practiceRef.current;panel?.scrollIntoView({behavior:"smooth",block:"start"});panel?.querySelector("textarea")?.focus({preventScroll:true});}},[practicing]);
   const hasJd = Boolean(opportunity.jdText?.trim());
 
+  const saveProgress = async (sessionId: string, action: "setup" | "seen" | "end", questionId?: string) => {
+    if (dataMode === "demo") return;
+    const response = await fetch("/api/interview/history", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, action, questionId, ...(action === "setup" ? { roundLabel: roundOrdinalLabel } : {}) }) });
+    const result = await response.json();
+    if (!response.ok || !result.saved) throw Error(result.error || "面试进度未保存");
+  };
+  const rememberSession = (id: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("interviewSession", id); url.searchParams.set("tab", "interview");
+    window.history.replaceState(window.history.state, "", url);
+  };
+
+  const openHistory = () => { setHistoryOpen(true); };
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    const url = new URL(window.location.href);
+    for (const key of [...url.searchParams.keys()]) if (key.startsWith("interview")) url.searchParams.delete(key);
+    window.history.replaceState(window.history.state, "", url);
+  };
+  const resumeHistory = (session: InterviewHistorySession) => {
+    locallyChanged.current = true;
+    if (session.opportunityId && session.opportunityId !== opportunity.id) {
+      const url = new URL(window.location.href); url.searchParams.set("interviewSession", session.id);
+      url.searchParams.delete("interviewHistory"); window.history.replaceState(window.history.state, "", url);
+      onSelectJob(session.opportunityId); return;
+    }
+    closeHistory(); rememberSession(session.id); setRoundtable(toSessionView(session as unknown as InterviewRoundtableSession));
+    setRoundtableOpen(true); setRoundOrdinalLabel(session.round);
+    const current = session.turns[session.currentIndex];
+    setLastFeedback(normalizeInterviewAssessment(current?.assessment));
+    setRoundtableAnswer(current?.answer || "");
+  };
+
+  useEffect(() => {
+    sessionEpoch.current += 1;
+    submittingAnswer.current = false; endingSession.current = false; acceptedAnswerSave.current = null;
+    if (dataMode !== "live") return;
+    locallyChanged.current = false;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ opportunityId: opportunity.id });
+    const selected = new URLSearchParams(window.location.search).get("interviewSession");
+    if (selected) params.set("sessionId", selected);
+    void fetch(`/api/interview/history?${params}`, { cache: "no-store", signal: controller.signal }).then(async response => {
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw Error(result.error || "面试记录读取失败");
+      if (controller.signal.aborted || locallyChanged.current) return;
+      const session = selected ? result.sessions[0] : result.sessions.find((item: InterviewHistorySession) => item.status === "running"
+        && item.turns.some(turn => turn.seenAt));
+      if (session) {
+        setRoundtable(toSessionView(session)); setRoundtableOpen(true);
+        setRoundOrdinalLabel(session.round);
+        setLastFeedback(normalizeInterviewAssessment(session.turns[session.currentIndex]?.assessment));
+        setRoundtableAnswer(session.turns[session.currentIndex]?.answer || "");
+      }
+    }).catch(() => { if (!controller.signal.aborted) setRoundtableError("云端面试记录暂时无法读取，可以重新进入历史记录重试。"); });
+    return () => controller.abort();
+  }, [dataMode, opportunity.id]);
+
   useEffect(() => {
     if (!roundtableOpen) return;
     roundtableWorkspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2133,6 +2203,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   const startRoundtable = async () => {
     if (!hasJd || startingRoundtable) return;
     setStartingRoundtable(true);
+    locallyChanged.current = true;
     setRoundtableError("");
     try {
       let session: RoundtableSessionView;
@@ -2142,7 +2213,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           const source = sourceQuestions[index % sourceQuestions.length];
           return { questionId: `${source.id}-${index}`, question: source.question, rationale: source.rationale };
         });
-        session = { id: `demo-roundtable-${Date.now()}`, round: roundOrdinalLabel, status: "running", currentIndex: 0, turns, createdAt: new Date().toISOString() };
+        session = { id: `demo-roundtable-${Date.now()}`, round: roundOrdinalLabel, roundType: round,
+          status: "running", currentIndex: 0, turns, createdAt: new Date().toISOString() };
       } else {
         await assertGenerationQuota("interview",fetch,{answerSaved:false});
         const response = await fetch("/api/interview/start", {
@@ -2153,7 +2225,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         const result = await response.json();
         if (!response.ok || !result.session_id || !Array.isArray(result.questions)) throw apiResponseError(response, result, "圆桌启动失败");
         session = {
-          id: String(result.session_id), round: roundOrdinalLabel, status: "running", currentIndex: 0, createdAt: new Date().toISOString(),
+          id: String(result.session_id), round: roundOrdinalLabel, roundType: round,
+          status: "running", currentIndex: 0, createdAt: new Date().toISOString(),
           turns: result.questions.map((question: Record<string, unknown>) => ({
             questionId: String(question.id),
             question: String(question.question_text),
@@ -2168,6 +2241,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       setSelfReflection(null);
       setReflectionAnswers(ROUND_REFLECTION_QUESTIONS.map(() => ""));
       onSyncRoundtable(toSessionRecord(session));
+      rememberSession(session.id);
+      await saveProgress(session.id, "setup");
+      if (session.turns[0]) await saveProgress(session.id, "seen", session.turns[0].questionId);
     } catch (error) {
       setRoundtableError(error instanceof Error ? error.message : "圆桌启动失败");
     } finally {
@@ -2234,49 +2310,102 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   };
 
   const submitRoundtableAnswer = async () => {
-    if (!roundtable || !roundtableAnswer.trim() || submittingRoundtable) return;
+    if (!roundtable || !roundtableAnswer.trim() || submittingAnswer.current || endingSession.current) return;
     const currentTurn = roundtable.turns[roundtable.currentIndex];
     if (!currentTurn) return;
+    const submitted = roundtableAnswer.trim();
+    const epoch = sessionEpoch.current;
+    submittingAnswer.current = true;
+    locallyChanged.current = true;
     setSubmittingRoundtable(true);
     setRoundtableError("");
     try {
       let assessment: InterviewAssessmentView | null;
       if (dataMode === "demo") {
         await new Promise((resolve) => window.setTimeout(resolve, 450));
-        assessment = buildDemoAssessment(roundtableAnswer.trim());
+        assessment = buildDemoAssessment(submitted);
       } else {
-        const saved = await fetch("/api/interview/draft", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:roundtable.id,questionId:currentTurn.questionId,answer:roundtableAnswer.trim()})});
-        const savedBody = await saved.json();
-        if(!saved.ok||!savedBody.ok)throw new Error(savedBody.error||"回答未保存，尚未开始分析，请重试");
+        const saving = (async () => {
+          const saved = await fetch("/api/interview/draft", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId: roundtable.id, questionId: currentTurn.questionId, answer: submitted }) });
+          const savedBody = await saved.json();
+          if (!saved.ok || !savedBody.saved) throw Error(savedBody.error || "回答未保存，尚未开始分析，请重试");
+          if (sessionEpoch.current !== epoch) return;
+          setRoundtable(current => current?.id === roundtable.id ? { ...current, turns: current.turns.map(turn =>
+            turn.questionId === currentTurn.questionId ? { ...turn, answer: submitted } : turn) } : current);
+        })();
+        acceptedAnswerSave.current = saving;
+        await saving;
         const response = await fetch("/api/interview/answer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: roundtable.id, question_id: currentTurn.questionId, answer: roundtableAnswer.trim(), opportunityId: opportunity.id, resumeText: opportunity.resumeText || "" }),
+          body: JSON.stringify({ session_id: roundtable.id, question_id: currentTurn.questionId, answer: submitted, opportunityId: opportunity.id, resumeText: opportunity.resumeText || "" }),
         });
         const result = await response.json();
         if (!response.ok || !result.assessment) throw apiResponseError(response, result, "本题分析失败");
         assessment = normalizeInterviewAssessment(result.assessment);
       }
       if (!assessment) throw new Error("本题反馈不可用，请重试");
+      if (sessionEpoch.current !== epoch) return;
 
       // 只保存回答和反馈，题号推进由 goNextQuestion 决定：needs_more_input 停在本题。
       const updated: RoundtableSessionView = {
         ...roundtable,
-        turns: roundtable.turns.map((turn, index) => index === roundtable.currentIndex ? { ...turn, answer: roundtableAnswer.trim(), assessment } : turn),
+        status: endedSessions.current.has(roundtable.id) ? "completed" : roundtable.status,
+        turns: roundtable.turns.map((turn, index) => index === roundtable.currentIndex ? { ...turn, answer: submitted, assessment } : turn),
       };
-      setRoundtable(updated);
+      if (dataMode === "live") {
+        const readback = await fetch(`/api/interview/history?sessionId=${roundtable.id}`, { cache: "no-store" });
+        const body = await readback.json();
+        if (sessionEpoch.current !== epoch) return;
+        if (readback.ok && body.ok && body.sessions[0]) {
+          const record = toSessionView(body.sessions[0]);
+          updated.turns = record.turns;
+          updated.endedAt = record.endedAt;
+          updated.status = record.status;
+        }
+      }
+      setRoundtable(current => current?.id === updated.id ? { ...updated, endedAt: current.endedAt || updated.endedAt } : current);
       setLastFeedback(assessment);
       if (assessment.status === "assessed") setRoundtableAnswer("");
       onSyncRoundtable(toSessionRecord(updated));
-      if (requestsTeaching(roundtableAnswer) || assessment.status === "needs_more_input") {
-        onTeach(currentTurn.question,roundtableAnswer);
+      if (!endedSessions.current.has(roundtable.id) && (requestsTeaching(submitted) || assessment.status === "needs_more_input")) {
+        onTeach(currentTurn.question, submitted);
       }
     } catch (error) {
+      if (sessionEpoch.current !== epoch) return;
       setLastFeedback(null);
       setRoundtableError(error instanceof Error ? error.message : "本题分析失败");
     } finally {
-      setSubmittingRoundtable(false);
+      if (sessionEpoch.current === epoch) {
+        submittingAnswer.current = false;
+        acceptedAnswerSave.current = null;
+        setSubmittingRoundtable(false);
+      }
     }
+  };
+
+  const endRoundtable = async () => {
+    if (!roundtable || endingSession.current) return;
+    const epoch = sessionEpoch.current;
+    endingSession.current = true; locallyChanged.current = true; setEndingRoundtable(true); setRoundtableError("");
+    try {
+      // Wait for the free durable answer write, not for slow model feedback.
+      await acceptedAnswerSave.current;
+      await saveProgress(roundtable.id, "end");
+      endedSessions.current.add(roundtable.id);
+      if (sessionEpoch.current !== epoch) return;
+      const ended = { ...roundtable, status: "completed" as const, endedAt: new Date().toISOString() };
+      if (dataMode === "live") {
+        const response = await fetch(`/api/interview/history?sessionId=${roundtable.id}`, { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok || !result.ok || !result.sessions[0]) throw Error("结束进度已保存，记录暂未读回，请打开历史记录重试");
+        if (sessionEpoch.current !== epoch) return;
+        const restored = toSessionView(result.sessions[0]); setRoundtable(restored); onSyncRoundtable(toSessionRecord(restored));
+      } else { setRoundtable(ended); onSyncRoundtable(toSessionRecord(ended)); }
+    } catch (error) {
+      if (sessionEpoch.current === epoch) setRoundtableError(error instanceof Error ? error.message : "结束未保存，请重试，回答仍保留");
+    } finally { if (sessionEpoch.current === epoch) { endingSession.current = false; setEndingRoundtable(false); } }
   };
 
   const goNextQuestion = async () => {
@@ -2297,6 +2426,8 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       } finally { setSubmittingRoundtable(false); }
     }
     const advanced: RoundtableSessionView = { ...roundtable, turns, currentIndex: step.currentIndex, status: step.completed ? "completed" : "running" };
+    try { await saveProgress(roundtable.id, step.completed ? "end" : "seen", step.completed ? undefined : turns[step.currentIndex].questionId); }
+    catch (error) { setRoundtableError(error instanceof Error ? error.message : "进度未保存，请重试"); return; }
     setRoundtable(advanced);
     setLastFeedback(null);
     onSyncRoundtable(toSessionRecord(advanced));
@@ -2320,6 +2451,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         }
       }
       const updated:RoundtableSessionView={...roundtable,currentIndex:step.currentIndex,status:step.completed?"completed":"running",turns:roundtable.turns.map((turn,index)=>index===roundtable.currentIndex?{...turn,answer:`[已跳过，未评分] ${answer}`,assessment:undefined}:turn)};
+      await saveProgress(roundtable.id, step.completed ? "end" : "seen", step.completed ? undefined : updated.turns[step.currentIndex].questionId);
       setRoundtable(updated);setLastFeedback(null);setRoundtableAnswer("");onSyncRoundtable(toSessionRecord(updated));
     } catch(error){setRoundtableError(error instanceof Error?error.message:"跳过未保存，原回答仍在");}
     finally{setSubmittingRoundtable(false);}
@@ -2340,6 +2472,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
     void summarizeRound(roundtable, formatRoundReflection(selfReflection.questions, selfReflection.answers));
   };
 
+  if (historyOpen) return <InterviewHistory opportunityId={opportunity.id} onClose={closeHistory} onResume={resumeHistory}
+    demoSessions={dataMode === "demo" ? (opportunity.mockInterviews || []).map(historyFromRecord) : undefined} />;
+
   if (roundtableOpen) {
     const turn = roundtable?.turns[roundtable.currentIndex];
     const isAssessed = lastFeedback?.status === "assessed";
@@ -2357,7 +2492,10 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       <section ref={roundtableWorkspaceRef} className={styles.roundtableWorkspace}>
         <header className={styles.roundtableHeader}>
           <div><button type="button" className={styles.textButton} onClick={() => setRoundtableOpen(false)}>返回面试准备</button><h2>整轮模拟面试</h2><p>{opportunity.company} · {opportunity.role} · {roundtable?.round || `${roundOrdinalLabel} · ${round}`}</p></div>
-          {roundtable && <span className={styles.roundtableProgress}>{roundtable.status === "completed" ? "本轮完成" : `${roundtable.currentIndex + 1} / ${roundtable.turns.length}`}</span>}
+          <div><button type="button" className={styles.textButton} onClick={openHistory}>过往模拟面试</button>
+            {roundtable && <span className={styles.roundtableProgress}>{roundtable.status === "completed" ? "本轮结束" : `${roundtable.currentIndex + 1} / ${roundtable.turns.length}`}</span>}
+            {roundtable?.status === "running" && <button type="button" className={styles.textButton} disabled={endingRoundtable}
+              onClick={() => void endRoundtable()}>{endingRoundtable ? "正在确认保存…" : "结束并看记录"}</button>}</div>
         </header>
         {!roundtable ? <div className={styles.roundtableStart}>
           <div className={styles.interviewStageHero}>
@@ -2377,7 +2515,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           </div>
           {!hasJd && <p className={styles.inlineError}>当前岗位还没有 JD，圆桌只能按真实 JD 出题，先回岗位档案补上再开始。</p>}
           {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
-        </div> : roundtable.status === "completed" ? <div className={styles.roundtableComplete}>
+        </div> : roundtable.status === "completed" ? <div>
+          <InterviewResult session={historyFromRecord(toSessionRecord(roundtable))} onHistory={openHistory} />
+          <details className={styles.roundtableComplete}><summary>我的复盘与导师点评</summary>
           {!roundtable.summary&&!roundtable.turns.some(item=>item.assessment?.status==="assessed")?<><h3>本轮练习记录已保留</h3><p>{skippedCount} 道题已跳过，未评分。没有可评分回答，不生成整轮分数；可以回到准备区继续练习。</p><button className={styles.secondaryButton} onClick={()=>setRoundtableOpen(false)}>回到面试准备</button></>:!roundtable.summary ? (completionPhase === "self_reflection" ? <>
             <Sparkles size={26} />
             <h3>这一轮答完了：先按你自己的感觉复盘</h3>
@@ -2412,6 +2552,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
               <button className={styles.secondaryButton} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setReflectionAnswers(ROUND_REFLECTION_QUESTIONS.map(() => "")); }}>再练一轮</button>
             </div>
           </>}
+          </details>
         </div> : <>
           {roundtable.currentIndex > 0 && <div className={styles.roundtableTranscript} aria-label="本轮对话记录">
             {roundtable.turns.slice(0, roundtable.currentIndex).map((past, index) => <div key={past.questionId} className={styles.transcriptTurn}>
@@ -2523,7 +2664,10 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           </div>;
         })()}
       </details> : <details><summary>查看岗位重点题（0）</summary><div className={styles.focusList}><EmptySection label="岗位重点题尚未生成，可以先练基础项目介绍。" /></div></details>}
-      {(opportunity.mockInterviews || []).length > 0 && <section className={styles.mockHistory}><header><h3>模拟记录{exampleRecords ? <span style={{marginLeft:6,fontSize:12,color:"#9a6b1f"}}>· 示例数据</span> : null}</h3><span>{opportunity.mockInterviews?.length} 轮</span></header>{opportunity.mockInterviews?.slice(0, 3).map((session) => <button type="button" key={session.id} onClick={() => { setRoundtable(toSessionView(session)); setRoundOrdinalLabel(normalizeRoundLabel(session.round) || session.round || roundOrdinalLabel); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}><span><strong>{session.round}</strong><small>{new Date(session.createdAt).toLocaleDateString("zh-CN")} · {session.turns.filter((turn) => turn.answer).length}/{session.turns.length} 题{exampleRecords ? " · 示例" : ""}</small></span><em>{session.status === "completed" ? "已完成" : "继续练习"}</em></button>)}</section>}
+      <section className={styles.mockHistory}><button type="button" onClick={openHistory}>
+        <span><strong>过往模拟面试</strong><small>按轮次、问题、回答和追问搜索，逐题回看原话</small></span><ArrowRight size={16} />
+      </button></section>
+      {roundtableError && <p className={styles.inlineError} role="alert">{roundtableError}</p>}
     </section>
   );
 }

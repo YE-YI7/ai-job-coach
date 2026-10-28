@@ -6,7 +6,8 @@
     "codex/experience-safety-1024": false,
     "codex/qoder-today-experience-1024": false,
     "codex/resume-intent-delivery-1025": false,
-    "codex/eval-six-way-1026": false
+    "codex/eval-six-way-1026": false,
+    "codex/interview-results-history-1028": false
   } },
   "crons": [{ "path": "/api/cron/job-market", "schedule": "0 1 * * *" }]
 }

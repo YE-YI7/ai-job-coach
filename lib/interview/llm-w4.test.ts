@@ -147,7 +147,10 @@ describe("FR-26/FR-27：generateLinkedFollowUpQuestion 的承接合同", () => {
     expect(question.sources.map((s) => s.source)).toEqual(["resume", "knowledge"]);
     const user = String((callLLM as jest.Mock).mock.calls[0][0][1].content);
     expect(user).toContain(followUpBase.previousAnswer); // 承接以真实回答原文为输入
-    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({ maxRetries: 0, maxTokens: 1500 });
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({ maxRetries: 0, maxTokens: 1500,
+      reasoningBudgetTokens: 4096, timeoutMs: 55000,
+      responseSchema: expect.objectContaining({ name: "interview_linked_question" }),
+    });
   });
 
   test("编造承接（片段不在上一答里）：拒发该题", async () => {

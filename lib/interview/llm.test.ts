@@ -48,7 +48,8 @@ describe("evaluateAnswer with contextText", () => {
     expect(user).toContain("【面试问题】\n如何评测？");
     expect(user).toContain("【候选人回答】\n我做了抽检");
     expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({
-      maxTokens: 3000, maxRetries: 0, timeoutMs: 30000,
+      maxTokens: 3000, maxRetries: 0, timeoutMs: 55000, reasoningBudgetTokens: 4096,
+      responseSchema: expect.objectContaining({ name: "interview_assessment" }),
     });
   });
 

@@ -28,6 +28,7 @@ This change integrates the reviewed local result/history layout into the existin
 - A pending assessment resumes the reached question; it cannot silently advance to a generated next question.
 - An already reached question is not regenerated and overwritten by a later next-question request.
 - Single-answer assessment reserves 3000 output tokens for its evidence/dimensions/rewrite JSON; linked-question output retains its existing budget. Incomplete provider output is still rejected, never repaired into success by deleting fields. These two explicit actions disable hidden SDK/outer retries; a durable answer remains available for a user-directed retry.
+- Hosted Step reasoning additionally receives a bounded 4096-token reasoning allowance and a strict output schema, with a 55-second model deadline inside the 60-second route. This is provider-aware: connected gateways do not receive that extra token allowance or Step schema. Content evidence and question-lineage checks still run after parsing. Verify the deployed provider through telemetry; local development environment values are not proof of production routing. See the [official reasoning](https://platform.stepfun.com/docs/zh/guides/developer/reasoning) and [structured-output](https://platform.stepfun.com/docs/zh/guides/developer/json-mode) guides.
 
 ## Release gates
 

@@ -795,9 +795,14 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
     {
       model: model || process.env.LLM_MODEL_CHAT,
       temperature: 0.7,
-      maxTokens: 1500,
+      // Evidence, gaps and per-dimension feedback share one JSON document.
+      // 1500 truncated a normal 324-character answer mid-followUp in real QA.
+      // Keep the completeness gate; reserve enough final-output headroom instead.
+      maxTokens: 3000,
       timeoutMs: 30000,
-      maxRetries: 2,
+      // A user action is one paid assessment. Preserve the draft and let an
+      // explicit retry recover failures, rather than multiplying SDK/outer retries.
+      maxRetries: 0,
     }
   );
 
@@ -1427,7 +1432,7 @@ ${previousAnswer}
       temperature: 0.5,
       maxTokens: 1500,
       timeoutMs: 45000,
-      maxRetries: 2,
+      maxRetries: 0,
     }
   );
 

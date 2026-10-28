@@ -2165,6 +2165,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       const session = selected ? result.sessions[0] : result.sessions.find((item: InterviewHistorySession) => item.status === "running"
         && item.turns.some(turn => turn.seenAt));
       if (session) {
+        rememberSession(session.id);
         setRoundtable(toSessionView(session)); setRoundtableOpen(true);
         setRoundOrdinalLabel(session.round);
         setLastFeedback(normalizeInterviewAssessment(session.turns[session.currentIndex]?.assessment));
@@ -2395,6 +2396,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       await saveProgress(roundtable.id, "end");
       endedSessions.current.add(roundtable.id);
       if (sessionEpoch.current !== epoch) return;
+      rememberSession(roundtable.id);
       const ended = { ...roundtable, status: "completed" as const, endedAt: new Date().toISOString() };
       if (dataMode === "live") {
         const response = await fetch(`/api/interview/history?sessionId=${roundtable.id}`, { cache: "no-store" });

@@ -47,6 +47,17 @@ describe("evaluateAnswer with contextText", () => {
     // 题目和回答有自己的抬头
     expect(user).toContain("【面试问题】\n如何评测？");
     expect(user).toContain("【候选人回答】\n我做了抽检");
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({
+      maxTokens: 3000, maxRetries: 0, timeoutMs: 30000,
+    });
+  });
+
+  test("preserves the truncated-output rejection without retrying or inventing feedback", async () => {
+    (callLLM as jest.Mock).mockRejectedValue(new Error("Incomplete response from LLM (finish_reason=length)"));
+    await expect(evaluateAnswer({ question: "q", jd: "JD", answer: "完整的虚构回答", roundType: "业务面" }))
+      .rejects.toThrow("finish_reason=length");
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect((callLLM as jest.Mock).mock.calls[0][1].maxRetries).toBe(0);
   });
 
   test("appends warnings after the answer", async () => {

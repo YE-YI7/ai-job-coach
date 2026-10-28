@@ -27,6 +27,7 @@ This change integrates the reviewed local result/history layout into the existin
 - Late assessment cannot reopen an ended session or overwrite another job's UI. Current-session navigation is kept in the URL; history filters/page/expanded record survive refresh.
 - A pending assessment resumes the reached question; it cannot silently advance to a generated next question.
 - An already reached question is not regenerated and overwritten by a later next-question request.
+- Single-answer assessment reserves 3000 output tokens for its evidence/dimensions/rewrite JSON; linked-question output retains its existing budget. Incomplete provider output is still rejected, never repaired into success by deleting fields. These two explicit actions disable hidden SDK/outer retries; a durable answer remains available for a user-directed retry.
 
 ## Release gates
 

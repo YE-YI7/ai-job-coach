@@ -85,3 +85,18 @@ test("failed draft does not call assessment or end and original composer remains
   expect(fetcher.mock.calls.some(([url, init]) => url.includes("/history") && init?.method === "POST")).toBe(false);
   expect(tree.root.findAllByType("textarea")[0].props.value).toBe("原话不要丢");
 });
+
+test("a cloud-restored session pins its identity so ending and refresh do not lose the result", async () => {
+  global.window.location.search = "";
+  global.window.location.href = "http://localhost/cockpit";
+  fetcher.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.includes("/draft?")) return Promise.resolve(response({ ok: true, answer: null }));
+    if (init?.method === "POST") return Promise.resolve(response({ ok: true, saved: true }));
+    return Promise.resolve(response({ ok: true, sessions: [{ ...session, turns: [{ ...session.turns[0],
+      seenAt: session.createdAt, skipped: false, attempts: [] }] }] }));
+  });
+  await act(async () => { tree = renderer.create(React.createElement(Component, props)); });
+  const urls = (global.window.history.replaceState as jest.Mock).mock.calls.map(call => String(call[2]));
+  expect(urls.some(url => new URL(url).searchParams.get("interviewSession") === session.id
+    && new URL(url).searchParams.get("tab") === "interview")).toBe(true);
+});

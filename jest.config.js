@@ -2,14 +2,15 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
-  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts', '**/?(*.)+(spec|test).tsx'],
   modulePathIgnorePatterns: ['<rootDir>/.next/'],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.tsx?$': 'ts-jest',
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^server-only$': '<rootDir>/test/server-only.ts',
+    '\\.module\\.css$': '<rootDir>/test/style-mock.ts',
   },
   collectCoverageFrom: [
     'app/**/*.ts',
@@ -21,7 +22,7 @@ module.exports = {
   globals: {
     'ts-jest': {
       tsconfig: {
-        jsx: 'react',
+        jsx: 'react-jsx',
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
       },

@@ -80,6 +80,7 @@ import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHis
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import VoiceControls from "./VoiceControls";
 import InterviewHistory, { InterviewResult } from "./InterviewRecords";
+import InterviewRoundReview from "./InterviewRoundReview";
 import { historyFromRecord, type InterviewHistorySession } from "@/lib/interview/history";
 import {currentJourneyStage, normalizeRoundLabel, phoneScreeningLabel, resumeProgress, stageStatusWord, STAGE_STATUS_WORDS} from "@/lib/opportunities/timeline";
 import {reorderIds, sortOpportunitiesForRail, togglePin} from "@/lib/opportunities/rail-order";
@@ -2518,8 +2519,9 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           {!hasJd && <p className={styles.inlineError}>当前岗位还没有 JD，圆桌只能按真实 JD 出题，先回岗位档案补上再开始。</p>}
           {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
         </div> : roundtable.status === "completed" ? <div>
-          <InterviewResult session={historyFromRecord(toSessionRecord(roundtable))} onHistory={openHistory} />
-          <details className={styles.roundtableComplete}><summary>我的复盘与导师点评</summary>
+          {!roundtable.summary && <InterviewResult session={historyFromRecord(toSessionRecord(roundtable))} onHistory={openHistory} />}
+          <details className={roundtable.summary ? undefined : styles.roundtableComplete} open={Boolean(roundtable.summary)}>
+<summary>{roundtable.summary ? "本轮点评与逐题回看" : "我的复盘与导师点评"}</summary>
           {!roundtable.summary&&!roundtable.turns.some(item=>item.assessment?.status==="assessed")?<><h3>本轮练习记录已保留</h3><p>{skippedCount} 道题已跳过，未评分。没有可评分回答，不生成整轮分数；可以回到准备区继续练习。</p><button className={styles.secondaryButton} onClick={()=>setRoundtableOpen(false)}>回到面试准备</button></>:!roundtable.summary ? (completionPhase === "self_reflection" ? <>
             <Sparkles size={26} />
             <h3>这一轮答完了：先按你自己的感觉复盘</h3>
@@ -2548,11 +2550,13 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             </div>
             {roundtableError && <p className={styles.inlineError}>{roundtableError}</p>}
           </>) : <>
-            <RoundSummary summary={roundtable.summary} turns={roundtable.turns} selfReflection={selfReflection} />
-            <div>
-              <button className={styles.primaryButton} onClick={() => setRoundtableOpen(false)}>回到作战板<ArrowRight size={15} /></button>
-              <button className={styles.secondaryButton} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setReflectionAnswers(ROUND_REFLECTION_QUESTIONS.map(() => "")); }}>再练一轮</button>
-            </div>
+            <InterviewRoundReview summary={roundtable.summary} turns={roundtable.turns}
+              selfReflection={selfReflection} round={roundtable.round} createdAt={roundtable.createdAt}
+              onOpenHistory={openHistory} example={dataMode === "demo"}
+              onBack={() => setRoundtableOpen(false)} onRestart={() => {
+                setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null);
+                setSelfReflection(null); setReflectionAnswers(ROUND_REFLECTION_QUESTIONS.map(() => ""));
+              }} />
           </>}
           </details>
         </div> : <>
@@ -2674,58 +2678,6 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   );
 }
 
-/** 整轮总结：先回放用户自己的复盘，再给七维评价 + 逐题决定性问题 + 最多 3 个下一步。缺什么就不展示什么，不补假数据。 */
-function RoundSummary({ summary, turns, selfReflection }: { summary: InterviewRoundSummaryView; turns: RoundtableTurnView[]; selfReflection?: { questions: string[]; answers: string[] } | null }) {
-  const questionText = (questionId: string) => turns.find((turn) => turn.questionId === questionId)?.question || "";
-  const reflectionEntries = (selfReflection?.questions || []).map((question, index) => ({ question, answer: (selfReflection?.answers || [])[index] || "" })).filter((entry) => entry.answer.trim());
-  return (
-    <article className={styles.roundSummary}>
-      <header>
-        <div><span className={styles.eyebrow}>整轮总结</span><strong className={styles.roundGrade}><i>{summary.grade}</i>{summary.overallScore}<small>/100</small></strong><p className={styles.scoreBandNote}>{scoreBandLine(summary.variance)}</p></div>
-        {summary.verdict && <p>{summary.verdict}</p>}
-      </header>
-      {reflectionEntries.length > 0 && <section className={styles.summarySection}>
-        <h3>你自己先写的复盘（AI 点评围绕这段展开）</h3>
-        <ul className={styles.selfReviewRecap}>{reflectionEntries.map((entry) => <li key={entry.question}><b>{entry.question}</b><p>{entry.answer}</p></li>)}</ul>
-      </section>}
-      {summary.dimensions.length > 0 && <section className={styles.summarySection}>
-        <h3>七维评价</h3>
-        <div className={styles.summaryDimensions}>{summary.dimensions.map((dimension) => {
-          const pct = Math.max(0, Math.min(100, dimension.score));
-          return <div key={dimension.name} className={styles.summaryDimRow}>
-            <div className={styles.summaryDimHead}><span>{dimension.name}</span><i className={styles.dimensionTrack}><b style={{ width: `${pct}%` }} data-tone={pct >= 70 ? "good" : pct >= 45 ? "mid" : "low"} /></i><em>{dimension.score}</em></div>
-            <p>{dimension.comment}</p>
-          </div>;
-        })}</div>
-      </section>}
-      {summary.questionBreakdown.length > 0 && <section className={styles.summarySection}>
-        <h3>逐题决定性问题</h3>
-        <ol className={styles.breakdownList}>{summary.questionBreakdown.map((entry, index) => (
-          <li key={`${entry.questionId || index}-${index}`} className={styles.breakdownItem}>
-            <span data-tone={entry.score === null ? "na" : entry.score >= 70 ? "good" : entry.score >= 45 ? "mid" : "low"}>{entry.score === null ? "未评分" : entry.score}</span>
-            <div>{questionText(entry.questionId) && <b>{questionText(entry.questionId)}</b>}<p>{entry.decisiveFinding}</p></div>
-          </li>
-        ))}</ol>
-      </section>}
-      {(summary.strengths.length > 0 || summary.weaknesses.length > 0) && <section className={styles.summarySection}>
-        <div className={styles.summaryColumns}>
-          {summary.strengths.length > 0 && <div><h3>保留</h3><ul className={styles.dotListGood}>{summary.strengths.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-          {summary.weaknesses.length > 0 && <div><h3>先改</h3><ul className={styles.dotListWarn}>{summary.weaknesses.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-        </div>
-      </section>}
-      {summary.nextActions.length > 0 && <section className={styles.summarySection}>
-        <h3>下一步（已放进作战板 · 最多 3 个）</h3>
-        <div className={styles.nextActionList}>{summary.nextActions.map((action, index) => (
-          <article key={`${action.title}-${index}`} className={styles.nextActionItem}>
-            <div><b>{action.title}</b><span className={styles.priorityChip} data-priority={action.priority}>{action.priority === "urgent" ? "紧急" : action.priority === "high" ? "重要" : "常规"}</span></div>
-            <p>{action.reason}</p>
-            <footer>完成标准：{action.doneWhen || "——"}</footer>
-          </article>
-        ))}</div>
-      </section>}
-    </article>
-  );
-}
 
 function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity: Opportunity; onAnalyze: (round: string, notes: string) => Promise<void>; onGuide: (round: string, notes: string) => Promise<boolean>; analyzing: boolean }) {
   const [notes, setNotes] = useState("");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, Search } from "lucide-react";
 import { interviewProgress, questionMatches, type InterviewHistorySession } from "@/lib/interview/history";
 import TutorMarkdown from "./TutorMarkdown";
 import { normalizeInterviewAssessment } from "./interview-assessment-logic";
@@ -154,7 +154,9 @@ export default function InterviewHistory({ opportunityId, onClose, onResume, dem
   }, [opportunityId, query, round, allJobs, page, demoSessions, requestKey]);
   return <section className={styles.history} aria-label="过往模拟面试">
     <header className={styles.resultHeader}><div><button type="button" onClick={onClose}><ArrowLeft size={16} />返回面试准备</button>
-      <h2>过往模拟面试</h2><p>{demoSessions ? "虚构示例，仅演示界面，不是你的真实历史。" : "只显示当前账号的记录，旧回答按原文保留。"}</p></div></header>
+      <h2>过往模拟面试</h2>
+      <p>{demoSessions ? "虚构示例，仅演示界面，不是你的真实历史。" : "练过的，都留着。按轮次或当时的原话找，只显示当前账号的记录。"}</p>
+      </div></header>
     <form className={styles.filters} onSubmit={event => {
       event.preventDefault(); setQuery(search.trim()); setRound(roundDraft.trim()); setPage(1); setSelected(null);
     }}>
@@ -174,16 +176,27 @@ export default function InterviewHistory({ opportunityId, onClose, onResume, dem
     </form>
     {loading ? <p role="status">正在读取历史记录…</p> : error ? <div role="alert"><p>{error}</p>
       <button type="button" onClick={() => setRetry(value => value + 1)}>重新读取</button></div> : <>
-      <p className={styles.meta}>{total} 场{query ? ` · “${query}”` : ""}</p>
+      <p className={styles.historyCount} role="status">{total} 场{query ? ` · “${query}”` : ""}</p>
       {!sessions.length && <p role="status">{query || round ? "没有匹配的记录，换个关键词或清空筛选。" : "还没有模拟面试记录。完成一次练习后，可以在这里回看。"}</p>}
       {sessions.map(session => {
         const progress = interviewProgress(session);
+        const date = new Date(session.createdAt);
+        const validDate = Number.isFinite(date.getTime());
         return <article className={styles.historyRow} key={session.id}>
           <button type="button" className={styles.historyToggle} aria-expanded={selected === session.id}
             onClick={() => setSelected(value => value === session.id ? null : session.id)}>
-            <span><strong>{session.round} · {session.roundType}</strong><small>{session.jobLabel ? `${session.jobLabel} · ` : ""}{new Date(session.createdAt).toLocaleString("zh-CN")}
-              · {session.status === "completed" ? "已结束" : "尚未结束"}</small></span>
-            <span>{progress.answered} / {session.turns.length} 题 <ArrowRight size={16} /></span>
+            <span className={styles.historyDay}>
+              <time dateTime={validDate ? session.createdAt : undefined}>
+                {validDate ? date.toLocaleDateString("zh-CN", {month: "2-digit", day: "2-digit"}) : "日期未记录"}
+              </time>
+              <small>{validDate ? date.toLocaleTimeString("zh-CN", {hour: "2-digit", minute: "2-digit"}) : ""}</small>
+            </span>
+            <span className={styles.historyIdentity}>
+              <strong>{session.round} · {session.roundType}</strong>
+              <small>{session.jobLabel || "未关联岗位"} · {session.status === "completed" ? "已结束" : "尚未结束"}</small>
+            </span>
+            <span className={styles.historyCoverage}>{progress.answered} / {session.turns.length} 题</span>
+            <ChevronDown size={17} aria-hidden="true" className={styles.historyChevron} />
           </button>
           {progress.longest && selected !== session.id && <p className={styles.excerpt}><Highlight text={progress.longest.answer} query={query} /></p>}
           {selected === session.id && <InterviewResult session={session} query={query} onResume={() => onResume(session)} />}

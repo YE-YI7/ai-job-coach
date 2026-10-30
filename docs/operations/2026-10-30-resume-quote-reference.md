@@ -46,3 +46,20 @@
 - `evidence/quote-popup-desktop.jpg` / `quote-final-desktop.jpg` / `quote-mobile.jpg`：实拍。
 
 本地仅 development 的虚构演示页：`/cockpit/preview?resumeQuote=1`，生产继续 `notFound()`。可以用 `npx next dev --webpack --port 3372` 启动。请勿在同一 `.next` 目录并行运行 dev 和生产 build；构建前先停止本任务 dev。
+
+## 追加：本人明确批准后完成真实登录态验收并独立上线
+
+先前“未发布/只模拟”的段落是前一阶段记录，现由本段更新状态，不覆盖原验收边界。
+
+- 正式代码：`175d2c1099f121e18e858d909feab30ce9557a36`，分支 `codex/resume-quote-reference-1030` 已推送。精确 SHA 的 GitHub [41053438778](https://github.com/YE-YI7/ai-job-coach/actions/runs/41053438778) 全量回归与隔离 schema 两项 success。
+- 项目/团队 ID 与上次正式相同。`production --skip-domain` 生成 `dpl_CSKuTqsCpRboMcieDdBLcgn65TyC`，候选 READY、无 alias，API 元数据精确对应上述 SHA；候选健康数据库 ok、匿名简历任务 401。
+- 新建两位虚构 QA，经原邀请码登录接口正常签发会话，不借真人 Cookie、不伪造用户会话、不改变 Auth/RLS 或收费。只有 QA 岗位预置一条明确虚构的建议及 ready 任务，不跑整稿或把它冒充质量验收。
+- 浏览器在候选实点黄色引用 → 输入问题 → 刷新 → 重新打开“我的简历”后原文/建议/草稿恢复 → 主动发送一次。真实导师返回 discuss，消息、引用、回复写入云端；再刷新和独立 GET 都读回相同内容、改动 ID、源位置。原简历/建议和 task.answers 不变，未启动编辑。
+- 普通导师链另一次真实请求验证 pending 指针保存、刷新 GET、引用及回复持久化；同 ID 重放返回原 turn，没有重新生成。第二个正常鉴权 QA 账号读/发别人的任务 404；读取别人会话无数据。错误源哈希及原 ID 改绑引用 409，模型事件和 QA 额度前后不变。
+- 390px 真工作台点红色引用可打开现有导师抽屉，仍待用户发送、无横向溢出。模型选择弹窗可打开，保持自动档；渐进 Markdown 聊天沿用原实现。
+- 本轮实际 2 次站点 StepFun / `step-3.7-flash` 成功调用，输入合计 8579、输出 960 Token。没有自动重试/编辑调用，未使用真人 TokenDance 或真人益职积分；未估造实扣费用。
+- promote 同一生产构建后，`https://yizhioffer.com` inspect 确认为 CSK/READY，健康数据库 ok；正式域名正常鉴权读取同一专用/普通导师引用与回复，新增模型事件 0。上一正式 DoDT 保留回滚，未混未验 Harness/S04/备份 A。
+- 原六列所属账号 7 组前后 SHA-256 完全相同：20 岗位、14 简历任务、34 普通导师记录、1 额度行、2 扣额账本行、8 面试、16 原作答。本轮没有写这些原有记录。近 10 分钟有界部署 error 日志 0 条，不等同长期零错。
+- 两个测试账号标为 `qa`，仅其事件追加 internal/is_test/qa，按已有统计规则排除。候选浏览器 QA 已退出，两条本次临时邀请码已移除，云端 QA 消息/模型记录保留作证据；未删除旧用户、旧作答或积分。
+
+新增证据：`quote-candidate-api.json`、`quote-ci.json`、`quote-cloud-api.log`、`quote-cloud-ui-readback.log`、`quote-cloud-guards.log`、`quote-cloud-acceptance-result.json`、`quote-formal-readback.log`、`quote-live-after.json`、`quote-release-errors.jsonl`、`quote-invite-cleanup.log`；真实桌面/手机截图在 `evidence/quote-cloud-*`。私有测试状态 0600，不进 Git；测试记录不是 B05 强稿或 S04 语义验收，不改变这些失败结论。

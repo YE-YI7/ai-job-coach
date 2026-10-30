@@ -7,6 +7,7 @@ import { readResumeTrace } from "@/lib/coach-harness/resume-trace";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import { runResumeConversation } from "@/lib/coach-harness/resume-conversation";
 import { resumeConversationStream } from '@/lib/coach-harness/resume-reply-stream';
+import { ResumeReferenceError } from '@/lib/opportunities/resume-reference';
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
           }
           const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
           const received=task?.conversation?.some(turn=>turn.id===body.requestId);
-          return reply({ok:false,error:message,...(task?{task}:{}),messagePersisted:Boolean(received)},error instanceof ResumeTaskError?error.status:503);
+          return reply({ok:false,error:message,...(task?{task}:{}),messagePersisted:Boolean(received)},error instanceof ResumeTaskError||error instanceof ResumeReferenceError?error.status:503);
         }
       };
       return request.headers.get('accept')?.includes('application/x-ndjson')?resumeConversationStream(execute):await execute();

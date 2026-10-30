@@ -5,6 +5,8 @@ import useQuotaLabel from "./useQuotaLabel";
 import {assertGenerationQuota} from "@/lib/quota-preflight";
 import {resumeMessageExpired} from "@/lib/coach-harness/resume-conversation-recovery";
 import AgentConversation, {type CoachingStart} from "./AgentConversation";
+import { ResumeReferenceProvider } from './ResumeReference';
+import type { ResumeReference } from '@/lib/opportunities/resume-reference';
 import ProfileWorkspace from "./ProfileWorkspace";
 import CurrentArrangement from "./CurrentArrangement";
 import TodayWorkspace from "./TodayWorkspace";
@@ -918,7 +920,7 @@ function CockpitWorkspace({
 
   const runResumeAgent = async (
     action:string,answer?:string,target=active,requestId?:string,onReply?:(text:string)=>void,
-    trial?:{blockId:string;excerpt:string},onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode,
+    trial?:{blockId:string;excerpt:string},onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode,resumeReference?:ResumeReference,
   ) => {
     if(!target||resumeRequestBusy.current)throw Error('请等待导师处理上一条消息');
     const id=target.id;
@@ -930,7 +932,7 @@ function CockpitWorkspace({
       });
       const response=await fetch('/api/coach/resume-agent',{
         method:'POST',headers:{'Content-Type':'application/json',...(action==='message'?{'Accept':'application/x-ndjson'}:{})},
-        body:JSON.stringify({opportunityId:id,action,answer,requestId,modelMode,questionId:resumeAgentTasks[id]?.question?.id,
+        body:JSON.stringify({opportunityId:id,action,answer,requestId,modelMode,resumeReference,questionId:resumeAgentTasks[id]?.question?.id,
           ...(trial?{trialBlockId:trial.blockId,trialExcerpt:trial.excerpt}:{})}),
       });
       const result=await readChatResponse<{ok:boolean;error?:string;task:ResumeAgentTask;conversationDecision?:string}>(response,onReply||(()=>{}),undefined,event=>{if(event.task){onReceipt?.(event.task);receiveResumeTask(id,event.task);}});
@@ -1340,6 +1342,7 @@ function CockpitWorkspace({
   }
 
   return (
+    <ResumeReferenceProvider source={active} owner={userEmail || 'preview'} onQuote={focusResumeMentor}>
     <main className={styles.shell}>
       {entryGateModal}
       {notesOpen && <MyNotes onClose={() => setNotesOpen(false)} />}
@@ -1480,8 +1483,8 @@ function CockpitWorkspace({
                 resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,
               content:<ResumeAgentConversation
                 key={resumeAgentTasks[active.id]!.id} task={resumeAgentTasks[active.id]!} busy={generatingResume||resumeMessageBusy}
-                onMessage={(message,requestId,onReply,onReceipt,modelMode)=>
-                  runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt,modelMode)}
+                onMessage={(message,requestId,onReply,onReceipt,modelMode,reference)=>
+                  runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt,modelMode,reference)}
                 onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}
               />,
             } : undefined
@@ -1515,6 +1518,7 @@ function CockpitWorkspace({
       {mobileRail && <button className={styles.mobileScrim} onClick={() => setMobileRail(null)} aria-label="关闭侧栏" />}
       <div className={`${styles.toast} ${notice ? styles.toastVisible : ""}`} role="status" aria-live="polite">{notice}</div>
     </main>
+    </ResumeReferenceProvider>
   );
 }
 

@@ -66,6 +66,11 @@ export function resumeConversationMessages(
       id: turn.id,
       user: turn.message,
       tutor: turn.reply || null,
+      ...(turn.resumeReference ? { referencedChange: {
+        changeId: turn.resumeReference.changeId, sourceStart: turn.resumeReference.start, sourceEnd: turn.resumeReference.end,
+        original: turn.resumeReference.before, suggestion: turn.resumeReference.after,
+        note: '用户引用的AI建议仅供定位，不是已确认经历；按本条用户意愿讨论，不因引用自动改稿。',
+      } } : {}),
     })),
     knowledge: knowledge.map((k) => ({
       id: k.id,

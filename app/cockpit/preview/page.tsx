@@ -6,6 +6,7 @@ import { parseEntryKind } from "@/lib/entry-doors";
 import ResumeMentorFixture from "@/components/cockpit/ResumeMentorFixture";
 import ExperienceSafetyFixture from '@/components/cockpit/ExperienceSafetyFixture';
 import InterviewUiFixture from '@/components/cockpit/InterviewUiFixture';
+import ResumeReferenceFixture from '@/components/cockpit/ResumeReferenceFixture';
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +31,12 @@ export default async function CockpitPreviewPage({ searchParams }: {
   searchParams: Promise<{
     empty?: string; preparation?: string; tab?: string; longResume?: string;
     narrative?: string; changes?: string; studio?: string; entry?: string; longCopy?: string; mentorUI?: string;safetyUI?:string;
-    interviewUI?: string; interviewHistory?: string;
+    interviewUI?: string; interviewHistory?: string; resumeQuote?: string;
   }>;
 }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
+  if (params.resumeQuote === '1') return <ResumeReferenceFixture />;
   if (params.interviewUI === '1') return <InterviewUiFixture initialHistory={params.interviewHistory === '1'} />;
   if(params.safetyUI==='1')return <ExperienceSafetyFixture/>;
   if(params.mentorUI==='1')return <ResumeMentorFixture/>;

@@ -14,6 +14,7 @@ import {readResumeProcessing} from './resume-trace';
 import {readResumeDelivery} from './resume-delivery-record';
 import {skipsResumeFact} from './resume-single-question';
 import {isResumeEditingDirection} from './resume-edit-request';
+import { parseResumeReference, resolveResumeReference, sameResumeReference } from '@/lib/opportunities/resume-reference';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
@@ -22,7 +23,9 @@ export const resumeTaskFingerprint = (resume: string, jd: string, revision?: str
 export function publicResumeTask(row: Row): ResumeAgentTask {
   return { id: row.id, state: row.state, question: row.question, answers: row.answers, updatedAt: row.updated_at,
     ...(row.edit_scope ? {editScope:row.edit_scope} : {}),
-    ...(row.conversation?.length?{conversation:row.conversation.map(({id,message,reply,status,decision,savedAt,failure})=>({id,message,reply,status,decision,savedAt,...(failure?{failure}:{})}))}:{}),
+    ...(row.conversation?.length?{conversation:row.conversation.map(
+      ({id,message,reply,status,decision,savedAt,failure,resumeReference})=>({id,message,reply,status,decision,savedAt,
+        ...(failure?{failure}:{}),...(resumeReference?{resumeReference}:{})}))}:{}),
     ...(row.result ? { result: row.result } : {}), ...(row.error ? { error: row.error } : {}) };
 }
 
@@ -59,17 +62,19 @@ export async function readResumeTask(userId: string, opportunityId: string) {
 }
 
 /** Discussion has its own receipt, not a generation lease or an experience answer. */
-export async function beginResumeMessage(userId:string,opportunityId:string,id:string,message:string){
+export async function beginResumeMessage(userId:string,opportunityId:string,id:string,message:string,reference?:unknown){
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||!message.trim()||message.length>2000)throw new ResumeTaskError('请输入1–2000字消息',400);
   const source=await ownedResumeTaskSource(userId,opportunityId),row=await readRow(userId,opportunityId);
   if(!row||row.fingerprint!==source.fingerprint)throw new ResumeTaskError('简历任务已变化，请刷新后继续讨论');
   const turns=row.conversation||[],prior=turns.find(t=>t.id===id);
-  if(prior&&prior.message!==message.trim())throw new ResumeTaskError('消息编号已用于其他内容，请刷新核对');
+  const pointer=reference===undefined?undefined:parseResumeReference(reference);
+  if(prior&&(prior.message!==message.trim()||!sameResumeReference(prior.resumeReference,pointer)))throw new ResumeTaskError('消息编号已用于其他内容或引用，请刷新核对');
   if(prior?.status==='completed')return {task:publicResumeTask(row),source,version:row.version,replayed:true,
     needsRevision:prior.decision==='revise'&&prior.plan?.action==='revise'&&row.state!=='running'&&!row.answers.some(a=>a.id===`conversation:${id}`)};
   if(row.state==='running')throw new ResumeTaskError('导师正在完成当前修改，消息尚未提交，输入已保留');
   if(turns.some(t=>t.status==='pending'&&!resumeMessageExpired(t)))throw new ResumeTaskError('导师正在回复上一条消息，输入已保留，请稍后继续');
-  const next:SavedConversationTurn={id,message:message.trim(),reply:'',status:'pending',savedAt:new Date().toISOString()};
+  const resolved=pointer?await resolveResumeReference(pointer,{id:opportunityId,resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes}):undefined;
+  const next:SavedConversationTurn={id,message:message.trim(),reply:'',status:'pending',savedAt:new Date().toISOString(),...(resolved?{resumeReference:resolved}:{})};
   // The retry is the active turn, with the same ID, never a duplicate entry.
   const conversation=[...turns.filter(t=>t.id!==id).map(t=>t.status==='pending'?{...t,status:'failed' as const}:t),next];
   const db=requireDb(await getDbClient());
@@ -83,6 +88,7 @@ export async function completeResumeMessage(userId:string,opportunityId:string,i
   if(!row||row.version!==version||row.fingerprint!==source.fingerprint||row.state==='running')throw new ResumeTaskError('简历或对话已更新，本轮未执行修改，请刷新核对');
   if(!row.conversation?.some(t=>t.id===id&&t.status==='pending'))throw new ResumeTaskError('消息进度已变化，请刷新核对');
   const turn=row.conversation.find(t=>t.id===id)!;
+  if(turn.resumeReference)await resolveResumeReference(turn.resumeReference,{id:opportunityId,resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes});
   const skipped=row.question&&skipsResumeFact(turn.message)&&!row.answers.some(answer=>answer.id===row.question!.id);
   const safePlan=skipped?{...plan,supplement:null}:plan;
   const conversation=row.conversation.map(t=>t.id===id?{...t,status:'completed' as const,reply:safePlan.reply,decision:safePlan.action,plan:safePlan}:t);
@@ -139,11 +145,15 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
   if(input.action==='conversation'){
     const turn=row!.conversation?.find(t=>t.id===input.messageId&&t.status==='completed'&&t.decision==='revise');
     if(!turn?.plan||turn.plan.action!=='revise')throw new ResumeTaskError('导师尚未决定执行这次修改');
+    if(turn.resumeReference)await resolveResumeReference(turn.resumeReference,{id:opportunityId,resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes});
     const instructionId=`conversation:${turn.id}`;
     if(row!.answers.some(a=>a.id===instructionId))return {task:publicResumeTask(row!),source,claimed:false};
     const additions:ResumeAgentAnswer[]=[{
-      id:instructionId,kind:'instruction',field:'context',sourceExcerpt:'',
-      question:'导师确认的本次修改目标',answer:turn.plan.editorBrief,savedAt:new Date().toISOString(),
+      id:instructionId,kind:'instruction',field:'context',sourceExcerpt:turn.resumeReference?.before||'',
+      question:'导师确认的本次修改目标',
+      answer:turn.plan.editorBrief+(turn.resumeReference?
+        `\n引用定位：${turn.resumeReference.changeId}，源区间[${turn.resumeReference.start},${turn.resumeReference.end})。原文：${turn.resumeReference.before}`:''),
+      savedAt:new Date().toISOString(),
     }];
     const supplements=turn.plan.supplements||(turn.plan.supplement?[turn.plan.supplement]:[]);
     for(const supplement of supplements){

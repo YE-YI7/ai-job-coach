@@ -40,6 +40,8 @@ import { finalizeTeachingReply, renderTeachingFrame, teachingFrame } from "@/lib
 import { LEARNING_OUTCOME_VERSION, extractOutcomeTag, outcomeFromModel } from "@/lib/coach-harness/learning-outcome";
 import { recordChatRequest } from "@/lib/coach-harness/request-telemetry";
 import {withAgentRequest} from '@/lib/coach-harness/agent-request';
+import { ownedResumeTaskSource } from '@/lib/coach-harness/resume-task';
+import { resolveResumeReference, resumeReferenceContext, ResumeReferenceError, type ResolvedResumeReference } from '@/lib/opportunities/resume-reference';
 import {recallLearningHistory,EVIDENCE_RETRIEVAL_VERSION} from '@/lib/coach-harness/evidence-retrieval';
 import { attachCompanionFeedback, companionContext } from "@/lib/coach-harness/companion-store";
 import { COMPANION_PROTOCOL_VERSION, COMPANION_SYSTEM, companionBinding, companionInstructions, companionMaterial, companionVisibleText, extractCompanionReview } from "@/lib/coach-harness/companion-protocol";
@@ -119,7 +121,8 @@ export async function GET(req: Request) {
   }
   catch { return NextResponse.json({ error: "暂时无法读取对话" }, { status: 503, headers }); }
 }
-async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?: (message:string)=>void, onReplace?: (text:string)=>void) {
+async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?: (message:string)=>void,
+  onReplace?: (text:string)=>void, quoted?:ResolvedResumeReference) {
   const startedAt=Date.now();
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ error: "请先登录" }, { status: 401, headers });
@@ -157,7 +160,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   if (companion && explicitResumeEdit && needsResumeGrounding(companionText)) return NextResponse.json({ error: "内容已保存。这次涉及简历改写，请回到简历修改入口继续；陪伴提交不会启动或代替原来的改稿流程。", retryable: false }, { status: 422, headers });
   const groundedDraft=!companion&&body.interactionMode!=="mock_interview"&&needsResumeGrounding(body.message);
   const semanticMessage = companion ? companionText : body.message;
-  const reference = await resolveSavedJobReference(user.id, semanticMessage);
+  const reference = quoted ? { ambiguous: [], job: null } : await resolveSavedJobReference(user.id, semanticMessage);
   const contextId = reference.ambiguous.length ? null : reference.job?.id ?? id;
   if(id){
     const scope=await db.from("coach_opportunities").select("id").eq("id",id).eq("user_id",user.id).maybeSingle();
@@ -246,7 +249,9 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
       ].filter((m): m is TutorMaterialInput => Boolean(m))
        .filter(m=>!(interviewer||companion)||!["teaching_frame","coaching_strategy"].includes(m.kind));
   const actualSystem=(groundedDraft?RESUME_GROUNDING_PROMPT:interviewer?interviewSystem(firstInterview):companion?COMPANION_SYSTEM:LEARNING_SYSTEM)+"\n回复语言以本轮用户为准：中文提问用自然中文回答，专业术语可保留英文；只有用户明确要求英文练习或翻译时才切换语言。不要因换模型、换岗位或材料语言而切换回复语言。"+(companion ? companionInstructions(companion.binding) : "");
-  const compiled=compileTutorPrompt({system:actualSystem,question:semanticMessage,materials});
+  // Quote coordinates are required input, not optional page activity that can be silently trimmed.
+  const compiled=compileTutorPrompt({system:actualSystem,
+    question:quoted?`${semanticMessage}\n\n${resumeReferenceContext(quoted)}`:semanticMessage,materials});
   // 槽1 装配后准入：一次跑完「该不该问 / 该不该拒」，主链路不再内联任何容量判断。
   // 顺序就是注册顺序（装配容量 → 材料缺口 → grounding 分型 → 提示词保护区），
   // 先挡下来的是最靠近「材料本身」的原因，模型档位问题留到材料合格之后再说。
@@ -361,6 +366,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
   // FR-33：这一轮模型真看见了哪些料、哪些被砍过、哪些整条没进——台账必须能还原。
   const trace={promptVersion,interactionMode,harness,groundedDraft,proactive:body.proactive===true?true:undefined,timing:{contextReadyMs,firstTextMs:visibleTextAt===null?null:visibleTextAt-startedAt,modelFirstTextMs:firstTextAt===null?null:firstTextAt-startedAt,generationDoneMs:Date.now()-startedAt},knowledgeIds:context.knowledge.map(k=>k.id),knowledgeExclusions:context.selection.excluded.filter(x=>x.kind==="knowledge").map(x=>({id:x.refId,reason:x.reason})),materials:{version:TUTOR_MATERIAL_VERSION,budgetTokens:compiled.budgetTokens,usedTokens:compiled.usedTokens,injected:compiled.injected,excluded:compiled.excluded,partialNotices:compiled.partialNotices},inputTokens:estimateTokens(actualSystem)+estimateTokens(actualPrompt),priorTurns:turns.slice(-4).map(t=>t.id),memoryLoaded:Boolean(learningMemory),profileLoaded:Boolean(profileMemory),modelCalls,suggestions,model:selection.model,modelSwap:modelSwap??undefined,modelUsage,insufficiency:{level:guarded.level,needsMoreInput:guarded.needsMoreInput,blocked:guarded.blocked,collapsed:guarded.collapsed,downgradedRedundantAsk:guarded.downgradedRedundantAsk,providedMaterials:providedMaterials.map(m=>m.kind),claimsHedged:guarded.claimsHedged},teaching:{goal:frame.goal,criterion:frame.criterion,criterionSatisfied:!!outcome && outcome.observedStatus!=="未独立检验" && !outcome.openIssue,intent:frame.intent,stage:frame.stage,criterionVersion:frame.criterionVersion,priorAttempts:frame.attemptTurnIds.length,currentIsAttempt:frame.currentIsAttempt,scenarioAudited:frame.scenarioAudited},outcome:outcome??undefined,outcomeVersion:outcome?LEARNING_OUTCOME_VERSION:undefined,outcomeNote:outcomeNote??undefined,guards:guardLedgerRows(guardVerdicts)};
   Object.assign(trace,{historyRetrieval:{version:EVIDENCE_RETRIEVAL_VERSION,turnIds:recalled.ids},materialInventory:context.materialInventory});
+  if(quoted)Object.assign(trace,{resumeReference:quoted});
   if (companion) Object.assign(trace, { teaching: undefined, companion: { ...companion.binding, protocolVersion: COMPANION_PROTOCOL_VERSION, reviewValidation: companionOutput?.review ? "valid" : "missing_or_invalid", review: companionOutput?.review ?? null } });
   const observation = { stateObservation: state.product, responseLatencyMs: responseTime(body.responseLatencyMs) };
   const privateTrace = { ...trace, ...observation, compiledPrompt: actualPrompt, ...(companion ? { compiledSystem: actualSystem, rawModelOutput: modelRawOutput } : {}) };
@@ -413,6 +419,20 @@ export async function POST(req:Request) {
    (requestBody.sessionId!=null&&!uuid.test(requestBody.sessionId))||(requestBody.opportunityId!=null&&!uuid.test(requestBody.opportunityId)))return early('回答或会话格式无效',400);
   const suppliedKey=req.headers.get('x-idempotency-key')?.trim();
   if(suppliedKey&&suppliedKey!==requestId)return early('回答编号不一致，未开始生成',400);
+  // Resolve before the billing wrapper. No model/tool call or quota reservation locates a quote.
+  let quoted:ResolvedResumeReference|undefined;
+  const validateQuote=async()=>{
+   if(requestBody.resumeReference!==undefined){
+    try{
+      if(!requestBody.opportunityId)return early('引用缺少所属简历，尚未调用模型',400);
+      const source=await ownedResumeTaskSource(user.id,requestBody.opportunityId);
+      quoted=await resolveResumeReference(requestBody.resumeReference,{id:requestBody.opportunityId,
+        resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes});
+    }catch(cause){return early(cause instanceof Error?cause.message:'引用无法定位，输入已保留',
+      cause instanceof ResumeReferenceError?cause.status:409);}
+   }
+   return null;
+  };
   // 状态锁、计费与遥测必须用同一个编号，旧客户端没带 header 时也不随机预扣。
   const canonicalHeaders=new Headers(req.headers);canonicalHeaders.set('x-idempotency-key',requestId);
   req=new Request(req,{headers:canonicalHeaders});
@@ -421,9 +441,11 @@ export async function POST(req:Request) {
         first_text_ms:trace?.timing?.firstTextMs,duration_ms:Date.now()-requestStart}) : Promise.resolve();
   if(user)await record("started");
   const metered=(onDelta?: (text:string)=>void,onStatus?: (message:string)=>void,onReplace?: (text:string)=>void)=>{
-    const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace),{operation:"cockpit_agent",quotaType:"chat",firstCoaching:true});
+    const run=withMeteredAiRoute((request:Request)=>handlePost(request,onDelta,onStatus,onReplace,quoted),{operation:"cockpit_agent",quotaType:"chat",firstCoaching:true});
     return async(request:Request)=>{
-      try { const response=await withAgentRequest(user.id,requestBody,()=>run(request));const body=await response.clone().json().catch(()=>null);
+      try { const response=await withAgentRequest(user.id,requestBody,async()=>{
+          const invalid=await validateQuote(); return invalid || run(request);
+        });const body=await response.clone().json().catch(()=>null);
         await record(body?.ok?"completed":"failed",body?.learning_trace);return response;
       }catch(error){await record("failed");throw error;}
     };

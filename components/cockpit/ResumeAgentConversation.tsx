@@ -8,16 +8,23 @@ import TutorMarkdown from './TutorMarkdown';
 import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 import ResumeComposerModel from './ResumeComposerModel';
 import type {ChatMode} from '@/lib/coach-harness/chat-options';
+import { ResumeReferenceDraft, ResumeReferencePreview, useResumeReference } from './ResumeReference';
+import { sameResumeReference, type ResumeReference, type ResolvedResumeReference } from '@/lib/opportunities/resume-reference';
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
 export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{
   task:ResumeAgentTask;busy:boolean;
-  onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode)=>Promise<void>;
+  onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode,reference?:ResumeReference)=>Promise<void>;
   onContinue:()=>Promise<void>;onSkip:()=>Promise<void>;
 }){
   const key=`yizhi:resume-question:${task.id}:request`;
   const modelControl=useContext(ResumeComposerModel);
+  const reference = useResumeReference();
+  const selectedReference = reference?.selection;
+  const composerInput = useRef<HTMLTextAreaElement>(null);
+  const quoteNonce = selectedReference?.nonce;
+  useEffect(() => { if (quoteNonce) composerInput.current?.focus({preventScroll:true}); }, [quoteNonce]);
   const legacyKey=useRef(`yizhi:resume-question:${task.id}:${task.question?.id||'request'}`).current;
   const [answer,setAnswer]=useState(''),[error,setError]=useState('');
   const [errorId,setErrorId]=useState('');
@@ -26,7 +33,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
   const answerRef=useRef(''),scopeRef=useRef(key);
   const taskRef=useRef(task);taskRef.current=task;
   const [unconfirmedReplies,setUnconfirmedReplies]=useState<Record<string,string>>({});
-  const [incoming,setIncoming]=useState<{id:string;message:string;reply:string}|null>(null);
+  const [incoming,setIncoming]=useState<{id:string;message:string;reply:string;resumeReference?:ResolvedResumeReference}|null>(null);
   const [readingTurn,setReadingTurn]=useState<{id:string;height:number}|null>(null);
   useEffect(()=>{scopeRef.current=key;let draft='';try{draft=localStorage.getItem(key)||localStorage.getItem(legacyKey)||'';if(draft&&legacyKey!==key){localStorage.setItem(key,draft);localStorage.removeItem(legacyKey);}}catch{}answerRef.current=draft;setAnswer(draft);},[key,legacyKey]);
   // Restore history once. Streaming updates and server receipts never pull a
@@ -46,21 +53,23 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
   const [now,setNow]=useState(()=>Date.now());
   const pending=task.conversation?.some(turn=>turn.status==='pending');
   useEffect(()=>{if(task.state!=='running'&&!pending)return;setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),5000);return()=>clearInterval(timer);},[task.state,pending]);
-  const sendMessage=async(text:string,requestId:string)=>{
+  const sendMessage=async(text:string,requestId:string,quoted?:ResumeReference)=>{
     if(busy||task.state==='running'||sending.current)return;
     setError('');setErrorId(requestId);sending.current=true;
-    setIncoming({id:requestId,message:text,reply:''});
+    setIncoming({id:requestId,message:text,reply:'',...(sameResumeReference(quoted,selectedReference?.pointer)&&selectedReference?.preview?{resumeReference:selectedReference.preview}:{})});
     const wasDraft=answerRef.current.trim()===text.trim();
     if(wasDraft){answerRef.current='';setAnswer('');try{localStorage.removeItem(key);}catch{}}
     let preview='',receivedTurn:NonNullable<ResumeAgentTask['conversation']>[number]|undefined;
     try{
       await onMessage(text,requestId,
         reply=>{preview=reply;if(scopeRef.current===key)setIncoming(current=>current?.id===requestId?{...current,reply}:current);},
-        receipt=>{receivedTurn=receipt.conversation?.find(turn=>turn.id===requestId);},modelControl?.mode);
+        receipt=>{receivedTurn=receipt.conversation?.find(turn=>turn.id===requestId);},modelControl?.mode,quoted);
+      if (quoted) reference?.clear(quoted);
       try{const receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');if(receipt?.id===requestId)localStorage.removeItem(`${key}:request`);}catch{}
     }catch(cause){
       if(scopeRef.current===key){
         const received=receivedTurn||taskRef.current.conversation?.find(turn=>turn.id===requestId);
+        if (quoted && received?.status === 'completed') reference?.clear(quoted);
         if(received?.status!=='completed')setError(readableError(cause));
         if(preview&&!received?.reply)setUnconfirmedReplies(current=>({...current,[requestId]:preview}));
         // The saved user message is not an unsent draft. Preserve a newer draft
@@ -90,12 +99,18 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
       </details>}
       {(running||showOutcome)&&task.processing&&<ResumeProcessingReceipt processing={task.processing}/>}
       {visibleTurns.map(turn=><div key={turn.id} data-turn-id={turn.id} className={styles.turn} style={readingTurn?.id===turn.id?{minHeight:readingTurn.height}:undefined}>
-        <div className={`${styles.message} ${styles.userMessage}`} aria-label="你"><p>{turn.message}</p></div>
+        <div className={`${styles.message} ${styles.userMessage}`} aria-label="你">
+          {'resumeReference' in turn && turn.resumeReference && <ResumeReferencePreview reference={turn.resumeReference}/>}
+          <p>{turn.message}</p>
+        </div>
         {(incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply||unconfirmedReplies[turn.id])&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师" aria-busy={incoming?.id===turn.id||undefined}><TutorMarkdown className={styles.reply} streaming={incoming?.id===turn.id}>{incoming?.id===turn.id?incoming.reply||turn.reply:turn.reply||unconfirmedReplies[turn.id]}</TutorMarkdown>{!turn.reply&&incoming?.id!==turn.id&&unconfirmedReplies[turn.id]&&<p>这段回复尚未确认保存。</p>}</div>}
         {incoming?.id===turn.id&&!incoming.reply&&!turn.reply&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><span className={styles.reading} aria-hidden="true"/><span>导师正在思考…</span></p></div>}
         {incoming?.id!==turn.id&&(turn.status==='failed'||resumeMessageExpired(turn,now))&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
           <p>{turn.failure?.message||'这条消息暂时没处理完成，内容已保留。可以重新发送。'}</p>
-          <div className={styles.messageTools}><button className={styles.inlineAction} type="button" disabled={busy||running||awaitingReply} onClick={()=>void sendMessage(turn.message,turn.id)}>重新发送</button></div>
+          <div className={styles.messageTools}>
+            <button className={styles.inlineAction} type="button" disabled={busy||running||awaitingReply}
+              onClick={()=>void sendMessage(turn.message,turn.id,turn.resumeReference)}>重新发送</button>
+          </div>
         </div>}
       </div>)}
       {running?<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
@@ -122,16 +137,24 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
       </>}
       {(busy||awaitingReply)&&!running&&!incoming&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师"><p role="status" className={styles.progress}><span className={styles.reading} aria-hidden="true" /><span>导师正在思考…</span></p></div>}
     </div>
-    <form className={styles.form} onSubmit={async event=>{event.preventDefault();if(!answer.trim()||busy||running||awaitingReply||sending.current)return;
-      let receipt:{id:string;text:string}|null=null;try{receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');}catch{}
-      const failed=[...conversation].reverse().find(turn=>(turn.status==='failed'||resumeMessageExpired(turn,now))&&turn.message===answer.trim());
-      const requestId=failed?.id||(receipt?.text===answer&&receipt.id?receipt.id:crypto.randomUUID());
-      try{localStorage.setItem(`${key}:request`,JSON.stringify({id:requestId,text:answer}));}catch{}
-      await sendMessage(answer,requestId);
+    <form className={styles.form} onSubmit={async event=>{event.preventDefault();if((!answer.trim()&&!selectedReference)||selectedReference?.error||busy||running||awaitingReply||sending.current)return;
+      const quoted=selectedReference?.pointer, text=answer.trim() || '请解释这处修改。';
+      let receipt:{id:string;text:string;reference?:ResumeReference}|null=null;try{receipt=JSON.parse(localStorage.getItem(`${key}:request`)||'null');}catch{}
+      const failed=[...conversation].reverse().find(turn=>(turn.status==='failed'||resumeMessageExpired(turn,now))&&turn.message===text&&sameResumeReference(turn.resumeReference,quoted));
+      const requestId=failed?.id||(receipt?.text===text&&sameResumeReference(receipt.reference,quoted)&&receipt.id?receipt.id:crypto.randomUUID());
+      try{localStorage.setItem(`${key}:request`,JSON.stringify({id:requestId,text,reference:quoted}));}catch{}
+      await sendMessage(text,requestId,quoted);
     }}>
       <label className={styles.srOnly} htmlFor={`resume-answer-${task.id}`}>给简历导师发消息</label>
       <div className={styles.composer}>
-        <textarea id={`resume-answer-${task.id}`} rows={2} maxLength={2000} value={answer} placeholder={busy||running?'可以先写下一条，等导师完成后发送…':'和导师聊聊这份简历…'} onChange={event=>{answerRef.current=event.target.value;setAnswer(event.target.value);try{localStorage.setItem(key,event.target.value);}catch{/* The in-memory input remains editable. */}}} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){event.preventDefault();event.currentTarget.form?.requestSubmit();}}}/>
+        <ResumeReferenceDraft/>
+        <textarea ref={composerInput} id={`resume-answer-${task.id}`} rows={2} maxLength={2000} value={answer}
+          placeholder={busy||running?'可以先写下一条，等导师完成后发送…':'和导师聊聊这份简历…'}
+          onChange={event=>{answerRef.current=event.target.value;setAnswer(event.target.value);
+            try{localStorage.setItem(key,event.target.value);}catch{/* The in-memory input remains editable. */}}}
+          onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.nativeEvent.isComposing){
+            event.preventDefault();event.currentTarget.form?.requestSubmit();
+          }}}/>
         <div className={styles.actions}>
           {modelControl&&<fieldset
             className={styles.modelControl}
@@ -140,7 +163,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
           >{modelControl.control}</fieldset>}
           <button type="submit" className={styles.send}
             aria-label={busy||awaitingReply?'正在处理':'发送'}
-            disabled={busy||running||awaitingReply||!answer.trim()}
+            disabled={busy||running||awaitingReply||Boolean(selectedReference?.error)||(!answer.trim()&&!selectedReference)}
           >{busy||awaitingReply?<span className={styles.reading} aria-hidden="true" />:<ArrowUp size={18} aria-hidden="true"/>}</button>
         </div>
       </div>

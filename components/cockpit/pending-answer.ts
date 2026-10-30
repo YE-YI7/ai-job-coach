@@ -1,4 +1,6 @@
-export type PendingAnswer={text:string;sessionId:string;requestId:string;opportunityId?:string|null;interactionMode?:"coaching"|"mock_interview"};
+import type { ResumeReference } from '@/lib/opportunities/resume-reference';
+export type PendingAnswer={text:string;sessionId:string;requestId:string;opportunityId?:string|null;
+ interactionMode?:"coaching"|"mock_interview";resumeReference?:ResumeReference};
 type Store=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 const key=(id:string)=>`yi-zhi.pending-answer.v1:${id}`;
 export function pendingAnswerStore():Store {return {getItem:k=>{try{return sessionStorage.getItem(k);}catch{return null;}},setItem:(k,v)=>{try{sessionStorage.setItem(k,v);}catch{}},removeItem:k=>{try{sessionStorage.removeItem(k);}catch{}}};}

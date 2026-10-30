@@ -23,5 +23,18 @@ test("same request replays without writing, changed text is a conflict",async()=
 test("colliding foreign source cannot be overwritten",async()=>{const q=setup();q.insert.mockResolvedValue({error:{code:"23505"}});expect((await POST(req())).status).toBe(409);expect(q.maybeSingle).toHaveBeenCalledTimes(2);expect(q.eq).toHaveBeenCalledWith("user_id","owner");});
 test("completed turn is not restored if cleanup fails",async()=>{const q=setup();q.limit.mockResolvedValue({data:[{id:requestId,content:body.text,metadata:body}]});q.in.mockResolvedValue({data:[{request_id:requestId}]});expect(await (await GET(req("GET"))).json()).toMatchObject({ok:true,pending:null,completedRequestIds:[requestId]});});
 test("pending answer survives reload without model calls",async()=>{const q=setup();q.limit.mockResolvedValue({data:[{id:requestId,content:body.text,metadata:body}]});expect(await (await GET(req("GET"))).json()).toMatchObject({ok:true,pending:body});});
+test('待发送引用和原岗位一起保存，刷新恢复不丢；同ID不得更换引用',async()=>{
+ const q=setup();
+ const reference={version:1,opportunityId:'33333333-3333-4333-8333-333333333333',revision:'r1',changeId:'c1',sourceHash:'a'.repeat(64),changeHash:'b'.repeat(64)};
+ q.maybeSingle.mockResolvedValueOnce({data:{id:reference.opportunityId}}).mockResolvedValueOnce({data:null});
+ expect((await POST(req('POST',{...body,opportunityId:reference.opportunityId,resumeReference:reference}))).status).toBe(201);
+ expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({metadata:expect.objectContaining({resumeReference:reference})}));
+ q.limit.mockResolvedValue({data:[{id:requestId,content:body.text,metadata:{...body,resumeReference:reference}}]});
+ expect(await(await GET(req('GET'))).json()).toMatchObject({pending:{resumeReference:reference}});
+ q.maybeSingle.mockResolvedValueOnce({data:{id:reference.opportunityId}})
+   .mockResolvedValueOnce({data:{content:body.text,opportunity_id:reference.opportunityId,metadata:{resumeReference:reference}}});
+ expect((await POST(req('POST',{...body,opportunityId:reference.opportunityId,resumeReference:{...reference,changeId:'different'}}))).status).toBe(409);
+ expect((await POST(req('POST',{...body,resumeReference:reference}))).status).toBe(400);
+});
 test("database failure is never called saved",async()=>{const q=setup();q.insert.mockResolvedValue({error:{code:"XX"}});expect((await POST(req())).status).toBe(503);});
 test("a completed newest answer cannot resurrect an older failed draft",async()=>{const q=setup();q.limit.mockResolvedValue({data:[{id:requestId,content:body.text,metadata:{...body,status:"completed"}},{id:"33333333-3333-4333-8333-333333333333",content:"旧回答",metadata:body}]});expect(await (await GET(req("GET"))).json()).toMatchObject({ok:true,pending:null});});

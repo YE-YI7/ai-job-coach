@@ -31,6 +31,7 @@ export interface ResumeAgentTask {
 }
 
 export interface ResumeConversationTurn {
+  resumeReference?: import('@/lib/opportunities/resume-reference').ResolvedResumeReference;
   id: string;
   message: string;
   reply: string;

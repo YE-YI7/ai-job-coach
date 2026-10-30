@@ -1,0 +1,39 @@
+.fixture {
+  max-width: 1440px;
+  padding: 24px;
+  margin: auto;
+  color: #29251f;
+}
+.fixture nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.fixture button {
+  min-height: 44px;
+  font: inherit;
+  cursor: pointer;
+}
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  gap: 32px;
+}
+.panes aside {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 800px;
+}
+@media (max-width: 800px) {
+  .fixture {
+    padding: 16px;
+  }
+  .panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panes aside {
+    height: 600px;
+  }
+}

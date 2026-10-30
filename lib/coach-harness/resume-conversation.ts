@@ -12,16 +12,17 @@ import type { ResumeAgentTask } from "./resume-task-types";
 import { resumeReplyPreview } from './resume-reply-stream';
 import {isChatMode} from './chat-options';
 import {resolveChatModel} from './chat-models';
+import { ResumeReferenceError } from '@/lib/opportunities/resume-reference';
 
 const reply=(body:unknown)=>Response.json(body,{headers:{'Cache-Control':'private, no-store'}});
 /** Sending invokes the mentor. Only its validated decision may invoke the editor. */
 export async function runResumeConversation(
-  request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string;modelMode?:unknown},
+  request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string;modelMode?:unknown;resumeReference?:unknown},
   revise:(messageId:string)=>Promise<ResumeAgentTask>,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,
 ){
   const mode=body.modelMode;
   if(mode!==undefined&&!isChatMode(mode))throw new ResumeTaskError('模型选项无效',400);
-  const opened=await beginResumeMessage(user.id,body.opportunityId,body.requestId,String(body.answer||''));
+  const opened=await beginResumeMessage(user.id,body.opportunityId,body.requestId,String(body.answer||''),body.resumeReference);
   onReceipt?.(opened.task);
   if(opened.replayed)return reply({ok:true,task:opened.needsRevision?await revise(body.requestId):opened.task,replayed:true});
   const traceId=randomUUID();
@@ -57,12 +58,14 @@ export async function runResumeConversation(
     }
     return response;
   }catch(error){
-    const failure={...resumeMessageFailure(error),...(workspaceEvalEnabled(user)?{traceId}:{})};
+    const failure={...resumeMessageFailure(error),...(error instanceof ResumeReferenceError?{message:error.message}:{}),
+      ...(workspaceEvalEnabled(user)?{traceId}:{})};
     await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,failure).catch(()=>undefined);
     const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
     // The mentor receipt can already be committed when a later editor/settlement
     // fails. Let the route finish its editor lease; never relabel/re-run the mentor.
     if(task?.conversation?.some(turn=>turn.id===body.requestId&&turn.status==='completed'))throw error;
-    return Response.json({ok:false,error:error instanceof ResumeTaskError?error.message:failure.message,task},{status:error instanceof ResumeTaskError?error.status:503,headers:{'Cache-Control':'private, no-store'}});
+    const known=error instanceof ResumeTaskError||error instanceof ResumeReferenceError;
+    return Response.json({ok:false,error:known?error.message:failure.message,task},{status:known?error.status:503,headers:{'Cache-Control':'private, no-store'}});
   }
 }

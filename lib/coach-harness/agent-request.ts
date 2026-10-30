@@ -2,15 +2,19 @@ import {createHash,randomUUID} from 'node:crypto';
 import {getDbClient} from '@/lib/db';
 import {readLearningSession} from './learning-memory';
 import {chatFailureMessage} from './chat-failure';
+import { sameResumeReference, type ResumeReference } from '@/lib/opportunities/resume-reference';
 
 export interface AgentRequestInput {
   requestId:string; message:string; sessionId?:string|null; opportunityId?:string|null;
   interactionMode?:'coaching'|'mock_interview'; proactive?:boolean;
+  resumeReference?:ResumeReference;
 }
 const headers={'Cache-Control':'private, no-store'};
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers});
 export function agentInputFingerprint(input:AgentRequestInput){
- return createHash('sha256').update(JSON.stringify([input.message,input.sessionId??null,input.opportunityId??null,input.interactionMode??null,input.proactive===true])).digest('hex');
+ const parts:unknown[]=[input.message,input.sessionId??null,input.opportunityId??null,input.interactionMode??null,input.proactive===true];
+ if(input.resumeReference)parts.push(input.resumeReference);
+ return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 function visibleTrace(trace:Record<string,unknown>|null){const {compiledPrompt,compiledSystem,rawModelOutput,...visible}=trace||{};void compiledPrompt;void compiledSystem;void rawModelOutput;return visible;}
 
@@ -22,7 +26,9 @@ export async function withAgentRequest(userId:string,input:AgentRequestInput,run
  if(existing.data){
   const t=existing.data;
   if(t.question!==input.message||(t.session_id??null)!==(input.sessionId??null)||(t.opportunity_id??null)!==(input.opportunityId??null)||
-    (input.interactionMode&&t.learning_trace?.interactionMode&&input.interactionMode!==t.learning_trace.interactionMode))return reply({ok:false,code:'REQUEST_CONFLICT',error:'这次请求已有不同内容，请保留原文后新开一次回答',retryable:false},409);
+    (input.interactionMode&&t.learning_trace?.interactionMode&&input.interactionMode!==t.learning_trace.interactionMode)
+    ||!sameResumeReference(t.learning_trace?.resumeReference,input.resumeReference))
+    return reply({ok:false,code:'REQUEST_CONFLICT',error:'这次请求已有不同内容，请保留原文后新开一次回答',retryable:false},409);
   const trace=visibleTrace(t.learning_trace);
   return reply({ok:true,replayed:true,id:t.id,answer:t.answer,learning_trace:trace,needsMoreInput:(trace.insufficiency as {needsMoreInput?:boolean})?.needsMoreInput??false,
    blocked:(trace.insufficiency as {blocked?:boolean})?.blocked??false,stageSuggestion:trace.stageSuggestion??null,outcome:trace.outcome??null,outcomeNote:trace.outcomeNote??null});

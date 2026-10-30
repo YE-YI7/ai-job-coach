@@ -9,6 +9,8 @@ import {decide,registerGuard} from "@/lib/coach-harness/guard-slots";
 import {learningHandoff} from '@/lib/interview/learning-handoff';
 import * as companionStore from "@/lib/coach-harness/companion-store";
 import { companionPrompt } from "@/lib/coach-harness/companion-protocol";
+import * as resumeTaskStore from '@/lib/coach-harness/resume-task';
+import { makeResumeReference, referencePointer } from '@/lib/opportunities/resume-reference';
 jest.mock("@/lib/coach-harness/learning-memory",()=>({...jest.requireActual("@/lib/coach-harness/learning-memory"),readLearningMemory:jest.fn(),refreshProfileMemory:jest.fn(),readLearningSession:jest.fn()}));
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
@@ -27,6 +29,40 @@ function setupGeneration(saveError=false){
  return q;
 }
 function streamRequest(mode="auto") {return new Request("https://example.com/api/coach/agent",{method:"POST",headers:{accept:"application/x-ndjson"},body:JSON.stringify({modelMode:mode,message:"教我一个概念",requestId:"11111111-1111-4111-8111-111111111111"})});}
+test('引用无需额外模型：同一导师调用拿到精确源区间，定位不落可被裁剪的界面日志', async () => {
+ jest.resetAllMocks(); const q=setupGeneration();
+ const job='33333333-3333-4333-8333-333333333333';
+ const text='整理需求记录，交给产品经理每周核对。';
+ const change={id:'c1',section:'项目',before:text,after:'整理需求记录供每周核对。',reason:'精简',status:'pending' as const,evidenceId:null};
+ const source={resume:text,jd:'',revision:'r1',changes:[change],applicationQuality:undefined,general:true,fingerprint:'fixture'};
+ const owned=jest.spyOn(resumeTaskStore,'ownedResumeTaskSource').mockResolvedValue(source);
+ q.maybeSingle.mockResolvedValue({data:{id:job}}); // workarea ownership; first completed-turn read below is null
+ q.maybeSingle.mockResolvedValueOnce({data:null});
+ const ref=await makeResumeReference({id:job,resumeText:text,resumeRevision:'r1',resumeChanges:[change]},change.id);
+ (callLLM as jest.Mock).mockResolvedValue('这处建议缩短了重复表达，原事实没有变。');
+ try{
+  const response=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({
+   opportunityId:job,message:'为什么这样改，先别改？',requestId:'11111111-1111-4111-8111-111111111111',resumeReference:referencePointer(ref),
+  })}));
+  expect((await response.json()).ok).toBe(true); expect(callLLM).toHaveBeenCalledTimes(1);
+  const prompt=JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);
+  expect(prompt).toContain('sourceStart'); expect(prompt).toContain(change.before); expect(prompt).toContain(change.after);
+  expect(q.insert).toHaveBeenCalledWith(expect.objectContaining({learning_trace:expect.objectContaining({resumeReference:ref})}));
+ }finally{owned.mockRestore();}
+});
+test('引用过期或跨岗位时模型和上下文检索均零调用', async () => {
+ jest.resetAllMocks(); setupGeneration();
+ const owned=jest.spyOn(resumeTaskStore,'ownedResumeTaskSource').mockResolvedValue({
+  resume:'原稿',jd:'',revision:'r2',changes:[],applicationQuality:undefined,general:true,fingerprint:'fixture',
+ });
+ try{
+  const response=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({
+   opportunityId:'33333333-3333-4333-8333-333333333333',message:'这处怎么改',requestId:'11111111-1111-4111-8111-111111111111',
+   resumeReference:{version:1,opportunityId:'44444444-4444-4444-8444-444444444444',revision:'r1',changeId:'old',sourceHash:'0'.repeat(64),changeHash:'0'.repeat(64)},
+  })}));
+  expect(response.status).toBe(409); expect(callLLM).not.toHaveBeenCalled(); expect(getContextBundleForUser).not.toHaveBeenCalled();
+ }finally{owned.mockRestore();}
+});
 test("陪伴提交不能绕过原简历事实和收费入口，改整稿请求不调用模型", async () => {
  jest.resetAllMocks(); const q = setupGeneration();
  const binding = { planId: "22222222-2222-4222-8222-222222222222", version: 2, submissionId: null };

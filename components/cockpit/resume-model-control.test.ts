@@ -7,6 +7,6 @@ test('resume composer receives the same catalog and preference as normal coachin
  expect(resume).toContain('modelControl.control');
  expect(resume).toContain('disabled={busy||running||awaitingReply}');
  expect(resume).toContain('modelControl?.mode');
- expect(cockpit).toContain('onReceipt,modelMode)');
- expect(cockpit).toContain('requestId,modelMode,questionId');
+ expect(cockpit).toContain('onReceipt,modelMode,reference)');
+ expect(cockpit).toContain('requestId,modelMode,resumeReference,questionId');
 });

@@ -13,7 +13,7 @@ test("输入框只有一个框，框下只剩一行免责声明", () => {
   // textarea 自己不再浮阴影，聚焦环归外层 form.composer
   expect(css).toContain(".panel.panel textarea:focus-visible{outline:none;box-shadow:none;background:transparent}");
   expect(conversation()).toContain('className={styles.composer}');
-  expect(conversation()).toMatch(/<footer><ModelPicker[^>]*\/><VoiceControls[^>]*\/><button aria-label="发送消息"/);
+  expect(conversation()).toMatch(/<footer><ModelPicker[^>]*\/>\s*<VoiceControls[^>]*\/>\s*<button aria-label="发送消息"/);
   expect(conversation()).toContain('className={styles.disclaimer}>AI 也会出错');
 });
 
@@ -51,7 +51,7 @@ test("改稿消息独立滚动，输入留在底部，发送按钮仍在输入�
   expect(conversationCss()).toContain(".guidedWorkflow>:last-child{flex:1;min-height:0;width:100%}");
   expect(resumeCss()).toContain('.messages{flex:1;min-height:0;overflow-y:auto');
   expect(resumeCss()).toContain('.conversation .form{flex:none;display:flex');
-  expect(resume()).toMatch(/<div className=\{styles\.composer\}>\s*<textarea/);
+  expect(resume()).toMatch(/<div className=\{styles\.composer\}>\s*<ResumeReferenceDraft\s*\/>\s*<textarea/);
   expect(resume()).toMatch(/<textarea[\s\S]*<div className=\{styles\.actions\}/);
   expect(resumeCss()).toContain('.composer:focus-within{box-shadow:var(--field-active-shadow,');
   expect(resumeCss()).toContain('width:44px;height:44px;min-width:44px;min-height:44px');

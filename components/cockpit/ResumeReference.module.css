@@ -1,0 +1,50 @@
+.draft {
+  color: var(--ink, #29251f);
+  padding: 8px 0;
+  min-width: 0;
+}
+.label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted, #6b6154);
+}
+.label button {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: inherit;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.label button:focus-visible {
+  outline: 2px solid var(--accent-deep, #984320);
+  outline-offset: 2px;
+}
+.preview {
+  margin: 0;
+  padding: 0 0 0 12px;
+  border: 0;
+  border-left: 1px solid var(--line-strong, #cfc8bc);
+  min-width: 0;
+}
+.preview strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.preview p,
+.draft > p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.preview p {
+  max-height: 7em;
+  overflow-y: auto;
+}

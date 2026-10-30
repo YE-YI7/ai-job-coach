@@ -54,3 +54,20 @@ test('已存面试官回复不能伪装成教练回复重放',async()=>{
  turn={id:'t',question:input.message,answer:'问题',session_id:input.sessionId,opportunity_id:null,learning_trace:{interactionMode:'mock_interview'}};
  expect((await withAgentRequest('owner',{...input,interactionMode:'coaching'},jest.fn())).status).toBe(409);
 });
+test('相同引用的已存回复免费恢复；同ID换引用不能重放或预扣',async()=>{
+ const reference={version:1 as const,opportunityId:'opp',revision:'r1',changeId:'c1',sourceHash:'a'.repeat(64),changeHash:'b'.repeat(64)};
+ turn={id:'t',question:input.message,answer:'已解释原引用',session_id:input.sessionId,opportunity_id:null,
+  learning_trace:{resumeReference:{...reference,before:'原文',after:'建议',start:0,end:2,section:'项目'}}};
+ const run=jest.fn();
+ expect(await(await withAgentRequest('owner',{...input,resumeReference:reference},run)).json()).toMatchObject({ok:true,replayed:true});
+ expect((await withAgentRequest('owner',{...input,resumeReference:{...reference,changeId:'c2'}},run)).status).toBe(409);
+ expect((await withAgentRequest('owner',input,run)).status).toBe(409);
+ expect(run).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
+});
+test('执行账本的同请求引用变更属于输入冲突，不启动第二次生成',async()=>{
+ const reference={version:1 as const,opportunityId:'opp',revision:'r1',changeId:'c1',sourceHash:'a'.repeat(64),changeHash:'b'.repeat(64)};
+ const run=jest.fn(async()=>Response.json({ok:true,answer:'已存'}));
+ await withAgentRequest('owner',{...input,resumeReference:reference},run);
+ expect((await withAgentRequest('owner',{...input,resumeReference:{...reference,changeHash:'c'.repeat(64)}},run)).status).toBe(409);
+ expect(run).toHaveBeenCalledTimes(1);
+});

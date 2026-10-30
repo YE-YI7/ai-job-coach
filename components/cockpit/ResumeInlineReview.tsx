@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Check, X, Pencil } from "lucide-react";
+import { Check, X, Pencil, MessageSquareQuote } from "lucide-react";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { splitResumeBlocks } from "@/lib/opportunities/resume-blocks";
 import { resumeInlineProjection } from "@/lib/opportunities/resume-inline";
@@ -12,6 +12,7 @@ import { useResumePhoto } from "@/components/resume/useResumePhoto";
 import ResumeInlineEditor from "./ResumeInlineEditor";
 import { useResumeBlockDraft } from "./ResumeDraftSession";
 import styles from "./ResumeInlineReview.module.css";
+import { useResumeReference } from './ResumeReference';
 
 const editHintKey = 'yizhi:hint:inline-edit:v2';
 const editingHintSeen = () => { try { return localStorage.getItem(editHintKey)==='seen'; } catch { return true; } };
@@ -37,6 +38,7 @@ export default function ResumeInlineReview(props: ResumeInlineReviewProps) {
 }
 
 function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, onEditBlock, disabled=false, showMarks=true }: ResumeInlineReviewProps) {
+  const reference = useResumeReference();
   const [template]=useResumeTemplate();
   const photo=useResumePhoto(opportunity.resumePhoto);
   const [active,setActive]=useState<{id:string;left:number;top:number;bottom:number;keyboard:boolean;restoreFocus:()=>void}|null>(null);
@@ -98,6 +100,10 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
     {projection.findings.length>0&&<details className={styles.unlocated}><summary>有 {projection.findings.length} 处建议无法定位，原文未变</summary>{projection.findings.map(finding=><p key={finding.changeId}>{finding.message}<button type="button" onClick={()=>onUpdate(finding.changeId!,"rejected")}>保留原文</button></p>)}</details>}
     {active&&change&&showMarks&&!disabled&&createPortal(<div ref={bubble} role="dialog" aria-label="处理这处修改" className={styles.bubble} style={{left:Math.max(12,Math.min(active.left,window.innerWidth-332)),top:Math.max(12,Math.min(active.bottom+8,window.innerHeight-(editing?300:150)))}}>
       <div className={styles.decisions}><button type="button" aria-label="采纳这处修改" title="采纳" onClick={()=>{active.restoreFocus();reportDecision('已采纳 · 可以撤销');onUpdate(change.id,"accepted");dismissHint();setActive(null);}}><Check size={16}/><span>采纳</span></button><button type="button" aria-label="拒绝这处修改，保留原文" title="保留原文" onClick={()=>{active.restoreFocus();reportDecision('已保留原文 · 可以撤销');onUpdate(change.id,"rejected");dismissHint();setActive(null);}}><X size={16}/><span>保留原文</span></button><button type="button" aria-label="自己修改这处文字" title="自己改" onClick={()=>{setValue(change.after);setEditing(true);}}><Pencil size={15}/></button></div>
+      {reference && <button type="button" className={styles.quote} aria-label="引用这处修改到对话" onClick={async () => {
+        try { await reference.quote(change.id); setActive(null); setEditing(false); }
+        catch (cause) { setEditError(cause instanceof Error ? cause.message : '引用失败，请重新点选。'); }
+      }}><MessageSquareQuote size={16} aria-hidden="true" />引用到对话</button>}
       {editing?<form onSubmit={event=>{event.preventDefault();if(!value.trim())return;onEdit(change.id,value.trim());setEditing(false);setActive(null);}}><textarea aria-label="自己修改简历文字" rows={4} maxLength={2000} value={value} onChange={event=>setValue(event.target.value)} autoFocus/><button type="submit">保存文字</button></form>:<p>{change.reason}</p>}
     </div>,document.body)}
   </div>;

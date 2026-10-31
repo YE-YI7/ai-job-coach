@@ -98,6 +98,8 @@ test('原生工具真实注册，按同tool_call_id回传，再装入所选facts
         function: {name: 'context_load', arguments: JSON.stringify({id: index[0].id, revision: index[0].revision})}}]}), usage};
     }
     expect(messages.find(m => m.role === 'tool' && m.tool_call_id === 'native-read-1')).toBeDefined();
+    const toolResult = JSON.parse(messages.find(m => m.role === 'tool' && m.tool_call_id === 'native-read-1')!.content);
+    expect(toolResult.loadedSourceFacts).toEqual([{id: 'owned-one', text: snapshot.documents[0].text}]);
     expect(JSON.parse(messages[1].content).facts).toContain(snapshot.documents[0].text);
     return {text: JSON.stringify({type: 'native_tool_calls', tool_calls: [{id: 'native-submit-1', type: 'function',
       function: {name: 'submit_edit', arguments: JSON.stringify(draft)}}]}), usage};
@@ -106,6 +108,18 @@ test('原生工具真实注册，按同tool_call_id回传，再装入所选facts
   expect(result.status).toBe('completed'); expect(result.calls).toBe(3);
   expect(result.loadedFacts).toHaveLength(1);
   expect(f.spans[0].input).toHaveProperty('nativeTools');
+});
+test('原生引用由服务端绑定完整已读原文，不让模型抄写或凭空填引文', async () => {
+  const f = setup('without_memory');
+  const candidate = {...draft, editorialPlan: {decisions: [{evidence: [{sourceId: 'resume-line-1'}]}]}};
+  f.responses.push({type: 'native_tool_calls', tool_calls: [{id: 'native-submit', type: 'function',
+    function: {name: 'submit_edit', arguments: JSON.stringify(candidate)}}]}, pass);
+  const result = await runEvidenceComparison(f.input);
+  expect(result.status).toBe('completed');
+  expect(result.boundEvidence).toEqual([{decisionIndex: 0, sourceId: 'resume-line-1', sourceText: '原料',
+    binding: 'host_exact_source_not_model_quote'}]);
+  expect(result.draft?.changes).toEqual(candidate.changes);
+  expect(JSON.parse(f.inputs[1].messages[1].content).boundEvidence).toEqual(result.boundEvidence);
 });
 test('错误引文只返修引用，正文冻结；修后引用仍非法绝不放行', async () => {
   const invalid = {...draft, editorialPlan: {decisions: [{evidence: [{sourceId: 'resume-line-1', quote: '不存在的引文'}]}]}};

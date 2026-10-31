@@ -9,8 +9,8 @@ import { checkEditorialEvidence, evidenceReviewPassed, parseEvidenceJson,
 import type { EvalSpan } from './eval-scope';
 import type {LlmMessage, NativeTool, NativeToolCall} from '@/lib/llm-tools';
 import {evidenceEditorTools, EVIDENCE_NATIVE_NAMES, NATIVE_EDIT_INSTRUCTION,
-  citationIssues, applyCitationRepair} from './resume-evidence-tools';
-import {GROUNDING_EVIDENCE_INSTRUCTION, groundingEvidenceIssues} from './resume-evidence-review';
+  citationIssues, applyCitationRepair, bindEditorialReferences} from './resume-evidence-tools';
+import {GROUNDING_EVIDENCE_INSTRUCTION, groundingEvidenceIssues, candidateEvidenceIndex} from './resume-evidence-review';
 
 type Message = LlmMessage;
 type Payload = {source: string; facts: string; knowledge: string; feedback: unknown[]; contract: {request: string}};
@@ -140,7 +140,7 @@ export async function runEvidenceComparison(input: {
     const legacyInterface = edit.findIndex(m => m.role === 'system'
       && m.content.includes('target固定为whole_project_source'));
     if (legacyInterface >= 0) edit.splice(legacyInterface, 1);
-    edit.push({role: 'system', content: RESUME_EVIDENCE_EDIT_PROMPT.split('当前可用工具')[0]});
+    edit.push({role: 'system', content: RESUME_EVIDENCE_EDIT_PROMPT.split('editorialPlan.decisions')[0]});
     if (input.arm === 'with_memory') edit.push({role: 'system', content: MEMORY_DISCOVERY_INSTRUCTION});
     edit.push({role: 'system', content: NATIVE_EDIT_INSTRUCTION});
     edit.push({role: 'user', content: JSON.stringify({
@@ -166,7 +166,11 @@ export async function runEvidenceComparison(input: {
           const args = JSON.parse(c.function.arguments);
           const result = await memory.executeAsync(name, args, new AbortController().signal);
           receipts.push({name, args, toolCallId: c.id, result});
-          history.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify(result)});
+          const response = name === 'context.load' && result.ok ? {...result,
+            loadedSourceFacts: (await store.read()).blocks.find(b => b.id === args.id)?.evidence
+              .map(e => ({id: e.sourceId, text: e.quote})) || [],
+            note: '以下为已读的同一用户原文证据，不是新生成摘要。下次facts和质检同步使用，无需再次回读。'} : result;
+          history.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify(response)});
           if (!result.ok) throw Error(result.error);
         }
         await input.checkpoint(); continue;
@@ -188,10 +192,12 @@ export async function runEvidenceComparison(input: {
     // Missing an optional policy explanation must never trigger five full-résumé rewrites.
     // Zero reads are recorded as non-activation, not invented loading or an invalid user draft.
     if (!changes || changes.length !== 1 || changes[0].target !== 'whole_project_source' || !changes[0].after?.trim()) throw Error('EDITOR_CONTRACT_INVALID');
+    const candidateText = changes[0].after;
     const available = new Set(blocks(currentFacts).map(b => b.id));
     if (!Array.isArray(changes[0].sourceIds) || !changes[0].sourceIds.length
       || changes[0].sourceIds.some(id => !available.has(id))) throw Error('EDITOR_EVIDENCE_INVALID');
-    let issues = citationIssues(output.editorialPlan, currentFacts);
+    const boundEvidence = submission ? bindEditorialReferences(output.editorialPlan, currentFacts) : [];
+    let issues = submission ? [] : citationIssues(output.editorialPlan, currentFacts);
     if (issues.length) {
       if (submission) {
         history.push({role: 'tool', tool_call_id: submission.id,
@@ -218,8 +224,9 @@ export async function runEvidenceComparison(input: {
     const reviewMessages = structuredClone(source.review).map(message => {
       let p: Record<string, unknown>; try {p = JSON.parse(message.content);} catch {p = {};}
       if (typeof p.appliedCandidate === 'string') return {...message, content: JSON.stringify({...p,
-        appliedCandidate: changes[0].after, facts: currentFacts, editingRequest: source.payload.contract.request,
-        styleContract: {...(p.styleContract as Record<string, unknown> || {}), editorialContract: source.payload.contract}})};
+        appliedCandidate: candidateText, facts: currentFacts, editingRequest: source.payload.contract.request,
+        styleContract: {...(p.styleContract as Record<string, unknown> || {}), editorialContract: source.payload.contract},
+        boundEvidence, candidateEvidenceIndex: candidateEvidenceIndex(candidateText)})};
       if (message.content.startsWith('待审修改')) {
         const cut = message.content.indexOf('\n') + 1;
         const list = JSON.parse(message.content.slice(cut));
@@ -246,7 +253,7 @@ export async function runEvidenceComparison(input: {
       const loaded = await loadedFacts(), activated = input.arm !== 'with_memory' || loaded.length > 0;
       return {status: activated ? 'completed' : 'failed', draft, review, repairRound,
         experimentValidity: {activated, reason: activated ? 'actual_input_recorded' : 'memory_not_loaded_not_an_effective_memory_arm'},
-        loadedFacts: loaded, memory: memory.inspect(), storedBlocks: (await store.read()).blocks,
+        loadedFacts: loaded, memory: memory.inspect(), storedBlocks: (await store.read()).blocks, boundEvidence,
         receipts, calls: count, delivered: false};
     }
     if (count + 2 > EVIDENCE_CALL_LIMIT) break;

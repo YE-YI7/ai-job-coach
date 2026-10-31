@@ -22,7 +22,8 @@ export function evidenceEditorTools(input: {facts: string; memoryEnabled: boolea
     object({repairs: list(object({decisionIndex: {type: 'integer', minimum: 0, maximum: 8},
       evidence: list(evidenceSchema(input.facts), 8)}), 8)}))];
   const decision = object({topic: text, retain: text, change: text,
-    evidence: list(evidenceSchema(input.facts), 8)}, ['topic', 'retain', 'change']);
+    evidence: list(object({sourceId: {type: 'string', enum: factBlocks(input.facts).map(b => b.id)}}), 8)},
+  ['topic', 'retain', 'change']);
   const properties: Record<string, unknown> = {
     editorialPlan: object({mainline: text, decisions: list(decision, 8), ambiguities: list(text, 8)}),
     changes: {...list(object({target: {type: 'string', enum: ['whole_project_source']}, after: text,
@@ -37,15 +38,28 @@ export function evidenceEditorTools(input: {facts: string; memoryEnabled: boolea
   if (!input.memoryEnabled) return [finish];
   const ref = {id: {type: 'string', enum: input.index.map(b => b.id)}, revision: text};
   return [
-    tool('memory_catalog', '列出私有项目资料类别；不是读取正文。', object({})),
     tool('memory_find', '按当前具体问题、判断或修复动作搜索全部有效资料；返回索引，不代表已加载。',
       object({query: text, limit: {type: 'integer', minimum: 1, maximum: 20}}, ['query'])),
-    tool('memory_recall', '按目录ID/版本回读一块的原文与证据；要用于正文请再context_load。', object(ref)),
     tool('context_load', '按目录ID/版本完整读入本人项目事实，供下一次编辑及同次质检使用。'
-      + '可直接选目录，无须先搜索；可一次调用多次读不同块，不要求全选。', object(ref)),
-    tool('context_release', '释放不再需要的已读块，不删除存储或用户原话。', object({id: text})),
-    tool('context_inspect', '检查已读块、上下文预算和实际加载状态。', object({})), finish,
+      + '响应直接含完整原文和可引用sourceId，不需要再recall或inspect。可直接选目录，也可先搜索；可批量读不同块，不要求全选。', object(ref)), finish,
   ];
+}
+
+/** Model chooses references, the host binds exact original text. This proves provenance, NOT semantic quality. */
+export function bindEditorialReferences(plan: unknown, facts: string) {
+  const sources = new Map(factBlocks(facts).map(b => [b.id, b.text]));
+  const decisions = (plan as {decisions?: Array<{evidence?: unknown}>})?.decisions;
+  if (!Array.isArray(decisions)) throw Error('EDITOR_REFERENCES_INVALID');
+  return decisions.flatMap((d, decisionIndex) => {
+    if (d.evidence === undefined) return [];
+    if (!Array.isArray(d.evidence) || d.evidence.length > 8) throw Error('EDITOR_REFERENCES_INVALID');
+    return d.evidence.map(e => {
+      if (!e || typeof e.sourceId !== 'string' || !sources.has(e.sourceId)
+        || Object.keys(e).some(k => k !== 'sourceId')) throw Error('EDITOR_REFERENCES_INVALID');
+      return {decisionIndex, sourceId: e.sourceId, sourceText: sources.get(e.sourceId)!,
+        binding: 'host_exact_source_not_model_quote'};
+    });
+  });
 }
 
 /** An actionable error identifies the exact failed quote; it never silently relinks it or loads unseen material. */
@@ -79,4 +93,5 @@ export function applyCitationRepair(candidate: Record<string, unknown>, patch: R
 export const NATIVE_EDIT_INSTRUCTION = `使用本次API注册的函数，按任务自主选取工具及顺序，不在正文模拟工具调用。
 需要私人项目资料就context_load，结果会以原tool_call_id回传，实际facts也会更新；未读索引不是事实。
 候选只用submit_edit提交，结构按函数schema；不另输出JSON正文。原稿和已读facts可大胆重构，B05边界不变。
+计划中的evidence只选择已读sourceId，服务端逐字绑定原文，不要再次抄写quote。绑定只是来源证明，具体主张仍需事实与质量审核。
 无须资料时可明确none直接提交，不强制取材；未读不能说已用Memory。协议补齐不得重写整稿冒充内容返修。`;

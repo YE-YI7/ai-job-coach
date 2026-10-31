@@ -27,7 +27,7 @@ export default function EvidenceTrial() {
     <h2>本轮有无 Memory 对照</h2>
     <p>同稿、同模型 deepseek-v4-flash、B05 固定。每臂最多 6 次调用，不自动重试；只写 Eval，不改原简历或益职积分。</p>
     <button type="button" disabled={busy || receipts.length > 0} onClick={() => setConfirmed(true)}>
-      {busy ? '对照执行中，请勿重复发起…' : '运行 M07 同稿对照'}</button>
+      {busy ? '对照执行中，请勿重复发起…' : '运行 M07.1 同稿对照'}</button>
     {confirmed && <p>将使用现有 TokenDance 连接并产生供应商费用。
       <button type="button" onClick={() => setConfirmed(false)}>先不运行</button>
       <button type="button" onClick={run}>确认运行这一对</button></p>}

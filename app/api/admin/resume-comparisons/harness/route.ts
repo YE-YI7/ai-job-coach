@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.2 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.3 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,

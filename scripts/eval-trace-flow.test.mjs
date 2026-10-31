@@ -152,6 +152,13 @@ test("空目录记录为0；没有目录是未知，不混为一谈", () => {
   assert.equal(memoryEvidence(empty).catalogueCount, 0);
   assert.equal(memoryEvidence({ spans: [] }).catalogueCount, null);
 });
+test("新运行实际存储的未加载块可查看，不能谎称Trace没有完整快照", () => {
+  const r = structuredClone(run);
+  r.result.rawResponse.storedBlocks = [{id:'m3',title:'未装入的实际记忆',evidence:[{sourceId:'owned-three',quote:'这是实际存储的全文及边界。'}]}];
+  const html = renderFlow(r,{nodeId:'memory'});
+  assert.match(html,/以下为本轮存储快照，不代表编辑器读过/);
+  assert.match(html,/这是实际存储的全文及边界/);
+});
 
 test("纯展示不新增模型、存储或数据请求，危险HTML不执行", () => {
   const code = readFileSync(new URL("../public/eval-lab/trace-flow.mjs", import.meta.url), "utf8");

@@ -3,7 +3,11 @@ import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
 import type {ResumeChange} from '@/lib/opportunities/types';
 /** B05 is unchanged. This contract makes evidence selection inspectable; it is not a new Agent or fact source. */
-export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M05.2';
+export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M05.3';
+export const MEMORY_DISCOVERY_INSTRUCTION = `本轮给你一份本人项目资料的可选索引，它不是公共写法参考，也不是完整事实。
+原稿只说“重构/优化/搭建”而没交代本人具体判断与实际干预时，可按索引自主挑选相关资料，调用context.load完整读入后再写；目录说明不能直接当已读事实。
+你仍可选择不取任何资料，但交稿时须附memoryDecision:{choice:"none",reason:"为什么现有facts已足以完成具体贡献目标"}。不能默默跳过这个决定。
+工具顺序由你选择，不要求全读、不要求数字、不要求照搬资料；重点是写清有依据的本人判断和实际改变。`;
 export const RESUME_EVIDENCE_EDIT_PROMPT = `先从实际可读的事实中选择最能解释本人判断和实际干预的证据，再重构正文。
 editorialPlan.decisions中可增加evidence:[{sourceId:"已在facts中的编号",quote:"该编号原文的连续短摘录"}]；
 为实质贡献保留证据回指，不能只在计划里宣称合并、压缩或串闭环。不是要求用完资料，也不是每条硬凑数字。

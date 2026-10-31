@@ -4,7 +4,8 @@ import { createContextMemory, CONTEXT_MEMORY_TOOLS, type MemorySnapshot } from '
 import { createResumeMemoryCapabilities } from './resume-memory-capabilities';
 import { createInMemorySemanticStore, emptySemanticState } from './semantic-memory';
 import { checkEditorialEvidence, evidenceReviewPassed, parseEvidenceJson,
-  RESUME_CONTRIBUTION_REVIEW_PROMPT, RESUME_EVIDENCE_EDIT_PROMPT, RESUME_EVIDENCE_HARNESS_VERSION } from './resume-evidence-contract';
+  RESUME_CONTRIBUTION_REVIEW_PROMPT, RESUME_EVIDENCE_EDIT_PROMPT, RESUME_EVIDENCE_HARNESS_VERSION,
+  MEMORY_DISCOVERY_INSTRUCTION } from './resume-evidence-contract';
 import type { EvalSpan } from './eval-scope';
 
 type Message = {role: 'system' | 'user' | 'assistant'; content: string};
@@ -127,12 +128,12 @@ export async function runEvidenceComparison(input: {
     const currentFacts = await facts(), edit = structuredClone(source.edit);
     edit[source.index].content = JSON.stringify({...source.payload, facts: currentFacts, feedback: pendingFeedback});
     edit.push({role: 'system', content: RESUME_EVIDENCE_EDIT_PROMPT});
+    if (input.arm === 'with_memory') edit.push({role: 'system', content: MEMORY_DISCOVERY_INSTRUCTION});
     edit.push({role: 'user', content: JSON.stringify({availableTools: input.arm === 'with_memory'
       ? [...capabilities.tools, ...CONTEXT_MEMORY_TOOLS].filter((t, i, a) => MEMORY_READ_TOOLS.some(name => name === t.name)
         && a.findIndex(x => x.name === t.name) === i) : [],
     memoryEnabled: input.arm === 'with_memory', toolResults: receipts,
-    ...(input.arm === 'with_memory' ? {availableMemoryIndex: discovery,
-      memorySelectionInstruction: '这是可选资料的索引，不是完整事实。按当前稿缺少的具体判断/实际干预，自主决定查找或按ID读入；不要求全选。若不需要任何一块，请在编辑计划里简要说明取舍。'} : {}),
+    ...(input.arm === 'with_memory' ? {availableMemoryIndex: discovery} : {}),
     budget: {remainingCallsIncludingReview: EVIDENCE_CALL_LIMIT - count},
     ...(draft ? {previousCandidate: draft} : {})})});
     const output = await call(edit, 'edit');
@@ -149,6 +150,13 @@ export async function runEvidenceComparison(input: {
       await input.checkpoint(); continue;
     }
     const changes = output.changes as Array<{after?: string; sourceIds?: string[]; target?: string}> | undefined;
+    if (input.arm === 'with_memory' && !(await loadedFacts()).length) {
+      const decision = output.memoryDecision as {choice?: string; reason?: string} | undefined;
+      if (decision?.choice !== 'none' || typeof decision.reason !== 'string' || !decision.reason.trim()) {
+        pendingFeedback = [{code: 'MEMORY_DECISION_MISSING', message: '先明确取材决定：需要资料可自行调用已提供工具；不需要则附memoryDecision的具体理由。不能把未读目录当成事实，也不要求全选。'}];
+        continue;
+      }
+    }
     if (!changes || changes.length !== 1 || changes[0].target !== 'whole_project_source' || !changes[0].after?.trim()) throw Error('EDITOR_CONTRACT_INVALID');
     const evidenceErrors = checkEditorialEvidence(output.editorialPlan, currentFacts);
     const available = new Set(blocks(currentFacts).map(b => b.id));

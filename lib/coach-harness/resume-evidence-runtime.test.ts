@@ -69,10 +69,19 @@ test('贡献未通过退回原编辑，复检通过才completed；不调用另�
   expect(f.inputs[2].messages[0].content).toBe('B05冻结');
 });
 test('可自主不取Memory，但不能拿质检passed冒充有效有Memory对照', async () => {
-  const f = setup('with_memory'); f.responses.push(draft, pass);
+  const f = setup('with_memory'); f.responses.push({...draft, memoryDecision: {choice: 'none', reason: '现有事实已说明本轮要保留的贡献'}}, pass);
   const result = await runEvidenceComparison(f.input);
   expect(result.status).toBe('failed'); expect(result.review?.status).toBe('passed');
   expect(result.loadedFacts).toEqual([]); expect(result.experimentValidity?.activated).toBe(false);
+});
+test('选材职责由system明确授权，不让普通数据字段冒充指令；缺决定时返回原编辑补齐', async () => {
+  const f = setup('with_memory');
+  f.responses.push(draft, {...draft, memoryDecision: {choice: 'none', reason: '当前facts已足够，不新增事实'}}, pass);
+  const result = await runEvidenceComparison(f.input);
+  expect(f.inputs[0].messages.some(m => m.role === 'system' && m.content.includes('本人项目资料的可选索引'))).toBe(true);
+  expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).memorySelectionInstruction).toBeUndefined();
+  expect(JSON.parse(f.inputs[1].messages[1].content).feedback[0].code).toBe('MEMORY_DECISION_MISSING');
+  expect(result.experimentValidity?.activated).toBe(false); expect(result.calls).toBe(3);
 });
 test('伪造引用和未装载引用都不启动质检，无Memory臂不能偷偷调工具', async () => {
   for (const output of [{...draft, changes: [{...draft.changes[0], sourceIds: ['owned-one']}]},

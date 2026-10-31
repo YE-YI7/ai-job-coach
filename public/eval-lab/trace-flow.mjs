@@ -72,6 +72,7 @@ export function memoryEvidence(run) {
     const evidence = arr(block.evidence)[0];
     if (typeof block.id === "string" && evidence?.sourceId && !documents.has(block.id)) documents.set(block.id, {
       id: block.id, title: block.title, description: block.description,
+      storageText: arr(block.evidence).map(e => e.quote).filter(x => typeof x === "string").join("\n"),
       selectionEvidence: {sourceId: evidence.sourceId, excerpts: []},
     });
   }
@@ -95,7 +96,7 @@ export function memoryEvidence(run) {
     const block = blocks.find(item => item.sourceId === sourceId);
     return { id: doc.id, sourceId, title: doc.title || doc.id, selected: requested.has(doc.id),
       inEditor: Boolean(block), cited: sourceId != null && citations.has(sourceId),
-      text: block?.text ?? null, reviewText: reviewBlocks.get(sourceId) ?? null,
+      text: block?.text ?? null, reviewText: reviewBlocks.get(sourceId) ?? null, storageText: doc.storageText || null,
       excerpts: arr(doc.selectionEvidence?.excerpts).filter(obj).map(item => item.quote),
       recordedDescription: doc.description || null };
   });
@@ -181,6 +182,7 @@ function memoryList(memory, onlyLoaded = false) {
     + `<span>${source.inEditor ? "已进入编辑输入" : source.selected ? "已请求读取 · 未证明进入编辑" : "未进入编辑输入"}</span></summary>`
     + (source.text ? paragraph(source.text) : source.reviewText
       ? paragraph("以下全文来自产品质检输入，不代表编辑器读过。") + paragraph(source.reviewText)
+      : source.storageText ? paragraph("以下为本轮存储快照，不代表编辑器读过。") + paragraph(source.storageText)
       : paragraph("本Trace只留了以下原文片段，没有完整正文快照。") + source.excerpts.map(paragraph).join(""))
     + (source.text && source.reviewText && source.text !== source.reviewText
       ? paragraph("注意：编辑与最后一次产品质检收到的同ID正文不同。") + raw({ reviewText: source.reviewText }) : "")

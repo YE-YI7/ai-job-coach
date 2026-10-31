@@ -13,6 +13,8 @@ type Message = {
 };
 
 type LlmOptions = {
+  /** Administrator experiments only: use this account's gateway, exact requested model, never catalog/hosted substitution. */
+  requireExactConnectedModel?: boolean;
   /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
   siteFunded?: boolean;
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
@@ -174,6 +176,13 @@ export async function callLLM(
   const trace = getGenerationContext();
   let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
   let apiKey: string | undefined;
+  if (options?.requireExactConnectedModel) {
+    if (provider !== 'tokendance' || !trace?.userId || !options.model || options.siteFunded) {
+      throw new Error('EXACT_CONNECTED_MODEL_CONTEXT_REQUIRED');
+    }
+    apiKey = await getTokenPayCredential(trace.userId) || undefined;
+    if (!apiKey) throw new Error('EXACT_CONNECTED_MODEL_KEY_REQUIRED');
+  }
   // A connected TokenPay account becomes the user's model provider for every
   // metered AI action carrying a generation context. Unconnected users keep
   // the hosted provider and existing product quota behavior.
@@ -201,7 +210,7 @@ export async function callLLM(
   // caller-supplied DeepSeek model id has to be reconciled with the gateway
   // catalog, or every interview/analyze/quick-practice call fails with a raw
   // 400 "模型不存在". Hosted (unconnected) users never enter this branch.
-  if (provider === "tokendance" && trace?.userId) {
+  if (provider === "tokendance" && trace?.userId && !options?.requireExactConnectedModel) {
     model = await resolveTokenDanceModel(trace.userId, model);
   }
   const startedAt = Date.now();

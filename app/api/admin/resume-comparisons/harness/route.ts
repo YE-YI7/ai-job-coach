@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.1 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,
@@ -58,11 +58,13 @@ export async function POST(request: Request) {
           let usage: (NonNullable<EvalSpan['usage']> & {model: string}) | undefined;
           const text = await runWithGenerationContext({userId: user.id, operation: 'admin_resume_harness_comparison',
             requestId: `${id}:${sequence}:${phase}`}, () => callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash',
-            temperature: 0.15, maxTokens: phase === 'review' ? 4200 : 3400, maxRetries: 0,
+            requireExactConnectedModel: true, temperature: 0.15, maxTokens: phase === 'review' ? 4200 : 3400, maxRetries: 0,
             timeoutMs: 65000, firstTokenTimeoutMs: 30000, thinking: 'disabled', responseFormat: 'json_object',
+            onDiagnostic: diagnostic => {const span = spans.at(-1); if (span) span.transport = diagnostic;},
             onUsage: value => {usage = {...value, cacheHitTokens: value.cacheHitTokens ?? null,
               estimatedCostUsd: value.estimatedCostUsd ?? null, pricingVersion: value.pricingVersion ?? null,
-              provider: value.provider ?? null, retryCount: value.retryCount ?? null};}}));
+              provider: value.provider ?? null, retryCount: value.retryCount ?? null};
+              const span = spans.at(-1); if (span) span.usage = usage;}}));
           if (!usage || usage.provider !== 'tokendance' || usage.model !== 'deepseek-v4-flash') throw Error('FROZEN_MODEL_OR_USAGE_MISSING');
           return {text, usage};
         }});
@@ -72,8 +74,10 @@ export async function POST(request: Request) {
       run.status = 'failed'; run.result = {status: 'failed', output: null, notDelivered: true,
         reason: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXPERIMENT_EXECUTION_FAILED'};
     }
-    run.metrics = {calls: spans.length, inputTokens: spans.reduce((n, s) => n + (s.usage?.inputTokens || 0), 0),
-      outputTokens: spans.reduce((n, s) => n + (s.usage?.outputTokens || 0), 0),
+    const allReported = spans.length > 0 && spans.every(s => s.usage != null);
+    run.metrics = {calls: spans.length, reportedTokenCalls: spans.filter(s => s.usage != null).length,
+      inputTokens: allReported ? spans.reduce((n, s) => n + s.usage!.inputTokens, 0) : null,
+      outputTokens: allReported ? spans.reduce((n, s) => n + s.usage!.outputTokens, 0) : null,
       referenceUsd: spans.every(s => s.usage?.estimatedCostUsd != null)
         ? spans.reduce((n, s) => n + s.usage!.estimatedCostUsd!, 0) : null};
     try {await save();} catch {return json({id, error: '模型可能已执行，保存未确认；不要重复调用'}, 503);}

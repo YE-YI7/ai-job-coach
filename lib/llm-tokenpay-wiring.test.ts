@@ -144,6 +144,25 @@ describe("站点 StepFun 接线", () => {
 });
 
 describe("callLLM 的 TokenPay 网关接线", () => {
+  test('administrator exact-model lane loads the existing server credential and never substitutes via catalog', async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'owner', operation: 'admin_resume_harness_comparison'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('fixture-key');
+    create.mockResolvedValue(completion('ok'));
+    await callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash', requireExactConnectedModel: true, maxRetries: 0});
+    expect(getTokenPayCredential).toHaveBeenCalledWith('owner');
+    expect(resolveTokenDanceModel).not.toHaveBeenCalled();
+    expect((globalThis as Record<string, unknown>).__openaiOptions).toMatchObject({apiKey: 'fixture-key', baseURL: 'https://tokendance.space/gateway/v1', maxRetries: 0});
+    expect(create.mock.calls[0][0].model).toBe('deepseek-v4-flash');
+  });
+  test('exact-model lane fails closed on credential loss, wrong provider or missing actor, never uses hosted funds', async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'owner'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue(null);
+    await expect(callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash', requireExactConnectedModel: true})).rejects.toThrow('EXACT_CONNECTED_MODEL_KEY_REQUIRED');
+    await expect(callLLM(messages, {provider: 'deepseek', model: 'deepseek-v4-flash', requireExactConnectedModel: true})).rejects.toThrow('EXACT_CONNECTED_MODEL_CONTEXT_REQUIRED');
+    (getGenerationContext as jest.Mock).mockReturnValue(undefined);
+    await expect(callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash', requireExactConnectedModel: true})).rejects.toThrow('EXACT_CONNECTED_MODEL_CONTEXT_REQUIRED');
+    expect(create).not.toHaveBeenCalled();
+  });
   test('resume mentor uses bounded gateway streaming, preserves model and parses only complete JSON',async()=>{
     (getGenerationContext as jest.Mock).mockReturnValue({userId:'fixture',operation:'resume_conversation'});
     (getTokenPayCredential as jest.Mock).mockResolvedValue('fixture-key');

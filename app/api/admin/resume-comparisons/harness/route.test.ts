@@ -61,7 +61,8 @@ test('source owner is checked, missing credential never falls back, spent reserv
 test('same model, no retries, only Eval writes; result requires confirmed persistence', async () => {
   const {writes} = database([{data: {run: {}}}, {}, {data: [{id: 'saved'}]}]);
   (callLLM as jest.Mock).mockImplementation(async (_m, options) => {
-    expect(options).toMatchObject({provider: 'tokendance', model: 'deepseek-v4-flash', maxRetries: 0, thinking: 'disabled'});
+    expect(options).toMatchObject({provider: 'tokendance', model: 'deepseek-v4-flash', requireExactConnectedModel: true,
+      maxRetries: 0, thinking: 'disabled'});
     options.onUsage({model: 'deepseek-v4-flash', provider: 'tokendance', inputTokens: 10, outputTokens: 4}); return '{}';
   });
   (runEvidenceComparison as jest.Mock).mockImplementation(async ({invoke}) => {

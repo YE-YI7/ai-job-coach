@@ -114,7 +114,11 @@ export async function runEvidenceComparison(input: {
       const parsed = parseEvidenceJson(result.text);
       if (parsed.type === 'actions') {span.name = '编辑 Agent · 自主取材'; span.agent = '记忆选材接续';}
       return parsed;
-    } catch (error) {span.status = 'failed'; throw error;}
+    } catch (error) {
+      span.status = 'failed';
+      span.code = error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'MODEL_PHASE_FAILED';
+      throw error;
+    }
     finally {span.durationMs = Date.now() - Date.parse(span.startedAt); await input.checkpoint();}
   };
   while (count < EVIDENCE_CALL_LIMIT - 1) {

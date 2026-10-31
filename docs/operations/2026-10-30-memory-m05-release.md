@@ -28,3 +28,11 @@
 - 浏览器、真实模型、部署、数据保护、资源与质量结果：须在发布后续段追加，不由构建通过冒充。
 
 私有证据目录 `/Users/yi/Documents/Codex/yizhi-memory-m05-release-20261030/`。原始私有材料不进 Git，也不公开发布。
+
+## M05.1 追加：正式运行暴露连接配置漏取，保留失败后修复
+
+b627aea 的生产构建 CRj4 发布后，从已有正常 Chrome 管理员会话点击运行。两臂分别在首个模型阶段失败：55d2f8d0-cb8a-4d86-afcb-aee52db2b266、027b5b35-84b5-42f0-a3e5-e1573d1dcd2c。ai_generation_events 对应 request_id 均为 configuration、零上报 Token、无参考费用。结合调用封装先于 SDK 构造即抛缺配置异常的代码路径，确认未发出上游模型请求；不是两份简历被质检拒绝，也不把零上报当供应商账单凭证。两条失败原样留存。
+
+原因是既有 callLLM 只在从 DeepSeek 自动切 TokenDance 时加载账号凭据，显式 provider=tokendance 的管理员入口漏取。新增仅本实验启用的 requireExactConnectedModel 选项：服务端取现有账号凭据，缺失就失败，拒绝托管资金/错误供应商，不跑目录替换；其他用户默认路由行为不变。新增两条接线回归覆盖实取密钥、精确模型、失去凭据/主体时拒绝，324 suites / 3161 tests、tsc、ESLint、build 重新通过。
+
+M05.1 另用新版本确定性预留，不清除 M05 的失败锁、不篡改旧 Trace。新增诊断回执与失败代码，已上报 usage 即刻留存；Token 未上报显示 null，而非宣称零消耗。新模型对照仍须在 M05.1 部署后执行。

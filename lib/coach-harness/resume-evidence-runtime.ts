@@ -91,6 +91,8 @@ export async function runEvidenceComparison(input: {
     category: source.categories[d.id] || d.title.slice(0, 40), sourceIds: [d.id]}))},
     new AbortController().signal);
   await indexed.commit?.();
+  const discovery = (await store.read()).blocks.map(block => ({id: block.id, revision: block.revision,
+    category: block.category, title: block.title, description: block.description, previewOnly: true}));
   let count = 0, draft: Record<string, unknown> | null = null, review: Record<string, unknown> | null = null;
   let pendingFeedback: unknown[] = [], repairRound = 0;
   const loadedFacts = async () => {
@@ -129,6 +131,8 @@ export async function runEvidenceComparison(input: {
       ? [...capabilities.tools, ...CONTEXT_MEMORY_TOOLS].filter((t, i, a) => MEMORY_READ_TOOLS.some(name => name === t.name)
         && a.findIndex(x => x.name === t.name) === i) : [],
     memoryEnabled: input.arm === 'with_memory', toolResults: receipts,
+    ...(input.arm === 'with_memory' ? {availableMemoryIndex: discovery,
+      memorySelectionInstruction: '这是可选资料的索引，不是完整事实。按当前稿缺少的具体判断/实际干预，自主决定查找或按ID读入；不要求全选。若不需要任何一块，请在编辑计划里简要说明取舍。'} : {}),
     budget: {remainingCallsIncludingReview: EVIDENCE_CALL_LIMIT - count},
     ...(draft ? {previousCandidate: draft} : {})})});
     const output = await call(edit, 'edit');
@@ -166,9 +170,13 @@ export async function runEvidenceComparison(input: {
     });
     reviewMessages.push({role: 'system', content: RESUME_CONTRIBUTION_REVIEW_PROMPT});
     review = await call(reviewMessages, 'review');
-    if (evidenceReviewPassed(review, input.runId)) return {status: 'completed', draft, review, repairRound,
-      loadedFacts: await loadedFacts(), memory: memory.inspect(), storedBlocks: (await store.read()).blocks,
-      receipts, calls: count, delivered: false};
+    if (evidenceReviewPassed(review, input.runId)) {
+      const loaded = await loadedFacts(), activated = input.arm !== 'with_memory' || loaded.length > 0;
+      return {status: activated ? 'completed' : 'failed', draft, review, repairRound,
+        experimentValidity: {activated, reason: activated ? 'actual_input_recorded' : 'memory_not_loaded_not_an_effective_memory_arm'},
+        loadedFacts: loaded, memory: memory.inspect(), storedBlocks: (await store.read()).blocks,
+        receipts, calls: count, delivered: false};
+    }
     if (count + 2 > EVIDENCE_CALL_LIMIT) break;
     // Same editor, original B05 and exact facts; reviewer returns issues, never replacement prose.
     pendingFeedback = [review]; repairRound++;

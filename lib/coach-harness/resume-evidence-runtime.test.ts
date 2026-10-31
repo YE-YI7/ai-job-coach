@@ -32,6 +32,7 @@ test('无Memory臂不传私有资料/不提供工具，编辑与质检拿到同�
   const edit = JSON.parse(f.inputs[0].messages[1].content), review = JSON.parse(f.inputs[1].messages[1].content);
   expect(edit.facts).toBe('[resume-line-1] 原料'); expect(review.facts).toBe(edit.facts);
   expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).availableTools).toEqual([]);
+  expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).availableMemoryIndex).toBeUndefined();
   expect(JSON.stringify(source)).toBe(before);
 });
 test('同一编辑可以自主查库再load，不强制ready工序；只装载所选内容，编辑与审稿一致', async () => {
@@ -52,6 +53,8 @@ test('同一编辑可以自主查库再load，不强制ready工序；只装载�
   const result = await runEvidenceComparison(f.input);
   expect(result.status).toBe('completed'); expect(result.calls).toBe(4);
   expect(result.loadedFacts).toEqual([{id: 'owned-one', text: snapshot.documents[0].text}]);
+  expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).availableMemoryIndex).toEqual([
+    expect.objectContaining({title: snapshot.documents[0].title, previewOnly: true})]);
   expect(JSON.parse(f.inputs.at(-1)!.messages[1].content).facts).toContain(snapshot.documents[0].text);
   expect(f.spans[0].agent).toBe('记忆选材接续'); expect(f.spans[2].agent).toBe('改稿 Agent');
 });
@@ -64,6 +67,12 @@ test('贡献未通过退回原编辑，复检通过才completed；不调用另�
   expect(f.inputs.map(i => i.phase)).toEqual(['edit', 'review', 'edit', 'review']);
   expect(JSON.parse(f.inputs[2].messages[1].content).feedback[0].contributionReview.status).toBe('failed');
   expect(f.inputs[2].messages[0].content).toBe('B05冻结');
+});
+test('可自主不取Memory，但不能拿质检passed冒充有效有Memory对照', async () => {
+  const f = setup('with_memory'); f.responses.push(draft, pass);
+  const result = await runEvidenceComparison(f.input);
+  expect(result.status).toBe('failed'); expect(result.review?.status).toBe('passed');
+  expect(result.loadedFacts).toEqual([]); expect(result.experimentValidity?.activated).toBe(false);
 });
 test('伪造引用和未装载引用都不启动质检，无Memory臂不能偷偷调工具', async () => {
   for (const output of [{...draft, changes: [{...draft.changes[0], sourceIds: ['owned-one']}]},

@@ -3,7 +3,7 @@ import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
 import type {ResumeChange} from '@/lib/opportunities/types';
 /** B05 is unchanged. This contract makes evidence selection inspectable; it is not a new Agent or fact source. */
-export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M05.1';
+export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M05.2';
 export const RESUME_EVIDENCE_EDIT_PROMPT = `先从实际可读的事实中选择最能解释本人判断和实际干预的证据，再重构正文。
 editorialPlan.decisions中可增加evidence:[{sourceId:"已在facts中的编号",quote:"该编号原文的连续短摘录"}]；
 为实质贡献保留证据回指，不能只在计划里宣称合并、压缩或串闭环。不是要求用完资料，也不是每条硬凑数字。

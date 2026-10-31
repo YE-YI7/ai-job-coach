@@ -37,6 +37,13 @@ test("原编辑、产品质检和额外Judge各有角色，不按失败默认把
   assert.equal(flowModel(run).draft, "这是编辑器给出的候选稿");
   assert.equal(flowModel(run).judgeSpans.length, 0);
 });
+test("同一编辑的自主取材动作按记录角色展示，批次目的不伪装逐块理由", () => {
+  const action = {...prep, name: '编辑 Agent · 自主取材', output: {type: 'actions', purpose: '读回协议误拦的实际修复'}};
+  assert.equal(spanRole(action), 'preparation');
+  const html = renderFlow({...run, spans: [action, editor, gate]}, {nodeId: 'selection'});
+  assert.match(html, /读回协议误拦的实际修复/);
+  assert.match(html, /不是逐块理由/);
+});
 test("返修后展示最后一次实际编辑的候选和输入，不把首稿当最终稿", () => {
   const r = structuredClone(run);
   r.spans.push({...editor, id: 'repair', output: {changes: [{after: '最后返修稿', sourceIds: ['owned-one']}]}}, gate);

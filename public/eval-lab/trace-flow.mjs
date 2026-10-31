@@ -33,7 +33,7 @@ export function spanRole(span) {
   const data = inputs(span), output = parseRecorded(span.output);
   if (span.role === "product_review" || span.agent === "独立质检 Agent" || data.some(x => x.appliedCandidate != null)) return "gate";
   if (span.role === "editor" || span.agent === "改稿 Agent" || Array.isArray(output?.changes)) return "editor";
-  if (data.some(x => typeof x.version === "string" && x.version.startsWith("context-memory/"))
+  if (span.agent === "记忆选材接续" || data.some(x => typeof x.version === "string" && x.version.startsWith("context-memory/"))
     || /记忆选材/.test(span.name || "")) return "preparation";
   return "other";
 }
@@ -121,6 +121,7 @@ export function flowModel(run) {
   const editor = memory.editor;
   const gates = spans.filter(span => spanRole(span) === "gate");
   const preparations = spans.filter(span => spanRole(span) === "preparation");
+  const purposes = preparations.map(span => parseRecorded(span.output)?.purpose).filter(value => typeof value === "string" && value);
   const output = parseRecorded(editor?.output);
   const draft = arr(output?.changes).filter(obj).map(change => change.after).filter(value => typeof value === "string").join("\n\n");
   const nodes = [{ id: "input", title: "收到输入", value: run.input != null ? "原稿与本轮要求" : "输入未采集",
@@ -135,7 +136,8 @@ export function flowModel(run) {
   if (preparations.length) nodes.push({ id: "selection", title: "Agent 自主选材",
     value: `${preparations.length} 次模型调用 · 选 ${memory.sources.filter(source => source.selected).length} 块`,
     points: [memory.selectionReasons.length ? `记录里有 ${memory.selectionReasons.length} 条选材理由，见下方原文。`
-      : "选取依据的逐项理由没有单独留存；不是宿主自动把所有资料塞入。",
+      : purposes.length ? `模型明示的批次取材目的：${excerpt(purposes.join("；"), 150)}（不是逐块理由）`
+        : "选取依据的逐项理由没有单独留存；不是宿主自动把所有资料塞入。",
       "下游是否实际收到，要以编辑输入核对，不能只看读取请求。"], spans: preparations });
   if (editor) nodes.push({ id: "context", title: "装入编辑输入",
     value: memory.blocks.length ? `${memory.blocks.length} 块 Memory · ${memory.characters} 字符` : "看实际输入，不推断 Memory",

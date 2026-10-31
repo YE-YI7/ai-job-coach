@@ -84,6 +84,13 @@ test('a failed checkpoint stops before any subsequent upstream call and records 
   const response = await POST(req()); expect((await response.json()).status).toBe('failed');
   expect(callLLM).not.toHaveBeenCalled();
 });
+test('unchanged no-Memory control is read back by owner and input hashes, never charged again', async () => {
+  database([{data: {run: {}}}, {data: {run: {status: 'completed', model: 'deepseek-v4-flash', provider: 'tokendance',
+    input: {arm: 'without_memory', sourceHash: 'same-source', boundaryHash: 'B05', knowledgeHash: 'same-knowledge'}}}}]);
+  const response = await POST(req({...body, arm: 'without_memory'}));
+  expect(response.status).toBe(409); expect(await response.json()).toMatchObject({reused: true, calls: 0});
+  expect(callLLM).not.toHaveBeenCalled(); expect(runEvidenceComparison).not.toHaveBeenCalled();
+});
 test('consent window expires closed and stub execution cannot masquerade as real', async () => {
   process.env.LLM_STUB = '1'; expect((await POST(req())).status).toBe(409);
   delete process.env.LLM_STUB;

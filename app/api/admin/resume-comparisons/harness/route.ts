@@ -12,6 +12,10 @@ import type { EvalSpan } from '@/lib/coach-harness/eval-scope';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+function trialId(userId: string, version: string, arm: EvidenceArm) {
+  const d = createHash('sha256').update(`${userId}:${EVIDENCE_SOURCE_TRACE}:${version}:${arm}`).digest('hex');
+  return `${d.slice(0, 8)}-${d.slice(8, 12)}-4${d.slice(13, 16)}-a${d.slice(17, 20)}-${d.slice(20, 32)}`;
+}
 export async function POST(request: Request) {
   const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
   if (!isSameOriginRequest(request)) return json({error: '不允许跨站调用'}, 403);
@@ -31,12 +35,21 @@ export async function POST(request: Request) {
     if (original.error) throw original.error;
     if (!original.data) return json({error: '原样本不属于当前账号'}, 404);
     const source = evidenceSource(original.data.run, user.id);
+    if (body.arm === 'without_memory') {
+      const priorId = trialId(user.id, 'resume-evidence-harness/M05.1', 'without_memory');
+      const prior = await db.from('coach_eval_runs').select('run').eq('id', priorId).eq('user_id', user.id).maybeSingle();
+      const r = prior.data?.run;
+      if (prior.error || !r || r.status !== 'completed' || r.input?.arm !== 'without_memory'
+        || r.model !== 'deepseek-v4-flash' || r.provider !== 'tokendance'
+        || r.input.sourceHash !== source.sourceHash || r.input.boundaryHash !== source.boundaryHash
+        || r.input.knowledgeHash !== source.knowledgeHash) return json({error: '基线未核同，停止本轮，不重跑模型'}, 503);
+      return json({id: priorId, status: r.status, calls: 0, reused: true, saved: true, delivered: false}, 409);
+    }
     if (!await getTokenPayCredential(user.id)) return json({error: '现有TokenDance连接不可用，不切换供应商'}, 409);
-    const digest = createHash('sha256').update(`${user.id}:${EVIDENCE_SOURCE_TRACE}:${RESUME_EVIDENCE_HARNESS_VERSION}:${body.arm}`).digest('hex');
-    const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-4${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+    const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.1 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.2 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,

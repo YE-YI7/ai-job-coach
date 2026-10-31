@@ -202,3 +202,27 @@ An actual LLM score, reason and information gaps lead the assessment area. Pendi
 - **Don't** imply that a local human judgment is saved to the server.
 
 Not canonized: no approved image comp or QUALITY BAR card was used; no raster artwork was shipped. Live deployment, production-model behavior and any unverified browser behavior remain outside this design-system record.
+
+## 2026-10-30 · Trace inspector candidate
+
+The user rejected the fragmented, table-like Trace surface. This candidate replaces its information architecture, not the Lab's palette. The selected run opens a focused inspector: a compact call tree or recorded timeline on the left, one node's evidence on the right. The run rail and the assessment/feedback forms are still available through explicit disclosure, rather than continuously shrinking the evidence.
+
+Node evidence has Output, Input, Call Information and Raw Record tabs. Output renders the preserved draft and the model's explicit editorial plan; it does not reconstruct hidden reasoning. Input renders message roles and individual supplied fields; system instructions, knowledge and contracts disclose progressively. Full-text search scans preserved input/output locally and highlights literal matches. Unknown fields remain accessible in the raw node record; missing historical snapshots stay missing.
+
+Model execution and output verdict are distinct. A completed reviewer call whose recorded result is `failed` is an inspectable issue, not a successful résumé. A timeline requires every displayed node's real `startedAt` and positive duration; otherwise it is disabled. Timeline gaps are unobserved intervals, not attributed to model generation. Parentage comes only from recorded `parentId`.
+
+Reference: [Langfuse's official redesigned Trace view](https://langfuse.com/changelog/2025-03-19-new-trace-view), specifically hierarchy/timeline navigation, selected-observation I/O and search. This is not an integration, paid subscription or trace upload to Langfuse.
+
+Acceptance scope: actual C04b saved Trace replayed through the candidate static files, desktop 1450×726 and mobile 390×844. No new model call, production write or deployment. Local preview and code completion are not a user aesthetic approval or a live-release claim. See `docs/operations/2026-10-30-trace-inspector-ui.md` for evidence and limits.
+
+## 2026-10-30 · C02 user correction supersedes C01 readability acceptance
+
+The user found C01 still verbose and could not distinguish editor output from reviewer output. The default is now a connected evidence-flow diagram, with one selected node's short points and disclosed full I/O. The old call inspector remains a secondary raw-evidence view, not the initial reading surface. This correction concerns Trace inspection, not a blanket ban on tables.
+
+Execution scope is separate from database provenance. The current C04b record is an isolated experiment, not a live user request. Memory inventory, reused retrieval, selection, actual editor context, editor draft, product quality gate and delivery are distinct nodes. A data-source connection is not a fabricated new tool call or hidden chain of thought.
+
+The product quality gate remains on the execution flow because it affects delivery. Additional Eval Judge, self-evaluation and retained human verdict have an independent column. Missing extra evaluation is not substituted by product-review JSON. Default candidate output is the actual editor draft.
+
+Memory counts must come from the actual recipient's recorded input: inventory six, editor five/775 characters, reviewer six. Twelve original résumé facts are not Memory; three public writing references were supplied inputs rather than a newly performed retrieval. A readable full body in reviewer input must never imply the editor also received it. Retrieved, requested, injected, explicitly cited and substantively adopted are separate states.
+
+Desktop uses connected navigation, adjacent evidence and a quiet evaluation column; medium widths place evaluation below; narrow widths keep a scrollable path and stacked details. Default content is concise; complete payloads remain one disclosure away. See `docs/operations/2026-10-30-trace-flow-c02.md`. Local replay and tests are not production or user aesthetic acceptance.

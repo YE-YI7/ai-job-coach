@@ -1,4 +1,4 @@
-import {comparisonDiff, plainResume, parseComparison, parseDraft, COLUMN_IDS, directRunForEvalViewer} from './resume-comparison';
+import {comparisonDiff, plainResume, parseComparison, parseDraft, COLUMN_IDS, EXTENDED_COLUMN_IDS, directRunForEvalViewer} from './resume-comparison';
 const id = '1091ba32-5af2-43a7-bf82-af551af83284';
 export const sample = {schemaVersion: 'yizhi.resume-comparison/v1', id, title: '虚构同稿', notes: ['仅测试'],
   model: 'deepseek-v4-flash', provider: 'tokendance', input: {resume: '虚构经历', jd: '虚构岗位'},
@@ -11,6 +11,14 @@ test('five immutable sources and the independently saved sixth version are disti
   expect(parseComparison({...sample, columns: sample.columns.map((c, i) => i ? {...c, sections: [{id: 'other', label: 'x', text: 'x'}]} : c)})).toBeNull();
   expect(parseDraft({opening: ''}, ['opening'])).toEqual({opening: ''});
   expect(parseDraft({opening: 'x', sourceResume: 'overwrite'}, ['opening'])).toBeNull();
+});
+test('v2 adds exactly one immutable failure column without changing historical v1 or the editable draft', () => {
+  const extended = {...sample, schemaVersion: 'yizhi.resume-comparison/v2', columns: EXTENDED_COLUMN_IDS.map(id => ({...sample.columns[0], id}))};
+  expect(parseComparison(extended)).not.toBeNull();
+  expect(parseComparison({...extended, schemaVersion: sample.schemaVersion})).toBeNull();
+  expect(parseComparison({...extended, columns: [...extended.columns].reverse()})).toBeNull();
+  expect(parseComparison({...extended, columns: [...extended.columns, extended.columns[0]]})).toBeNull();
+  expect(parseComparison(sample)?.columns).toHaveLength(5);
 });
 test.each([['', ''], ['', '新增'], ['删去', ''], ['保留这一段', '保留这一段'],
   ['我做了项目，发现问题。', '我发现问题，再推进项目。'], ['**工作**\n项目', '**实习**\n项目'],

@@ -16,7 +16,7 @@ function harness() {
     return elements.get(id);
   }
   const source=readFileSync(new URL('../public/eval-lab/app.mjs',import.meta.url),'utf8')
-    .replace(/^import[\s\S]*?from "\.\/core.mjs";\n/,'').replace(/^import .*?;\n/m,'')
+    .replace(/^import[\s\S]*?from "\.\/core.mjs";\n/,'').replace(/^import .*?;\n/gm,'')
     .replace(/\bexport /g,'').replace(/if \(typeof document !== "undefined"\) boot\(\);/,'');
   const api=new Function('document','sessionStorage','crypto','fetch','setTimeout','clearTimeout',source+`
     return { saveFeedback, loadFeedback, captureDraft, renderFeedback,

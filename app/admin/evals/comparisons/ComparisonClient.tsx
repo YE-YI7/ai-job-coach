@@ -1,11 +1,12 @@
 'use client';
-import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
+import {Fragment, useEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {comparisonDiff, plainResume, type ResumeComparison, type ComparisonColumn, type ComparisonSection}
   from '@/lib/coach-harness/resume-comparison';
 import s from './Comparison.module.css';
+import EvidenceTrial from './EvidenceTrial';
 type Draft = {revision: number; sections: Record<string, string>; savedAt: string};
 type Direct = {id: string; status: string; run: {traceId: string; protocolVersion?: string; sections: ComparisonSection[];
   decisions: string[]; spans: Array<{durationMs: number; usage?: {inputTokens: number; outputTokens: number; estimatedCostUsd: number}}>}};
@@ -91,16 +92,19 @@ export default function ComparisonClient() {
     traceIds: [selected.run.traceId], runIds: [selected.id],
   });
   const sections = data?.comparison.columns[0].sections.filter(x => section === 'all' || section === x.id) || [];
+  const columnCount = (columns?.length || 5) + 1;
+  const columnLabel = columnCount === 7 ? '七列' : '六列';
   return <main className={s.root}>
-    <a className={s.skip} href="#comparison">跳到六列对照</a>
+    <a className={s.skip} href="#comparison">跳到{columnLabel}对照</a>
     <header className={s.header}><Link href="/admin/evals" className={s.brand}>益职 / <strong>Eval Lab</strong></Link>
       <nav aria-label="后台导航"><Link href="/admin/evals">运行</Link><Link href="/admin/evals/records">开发记录</Link>
         <Link href="/admin/evals/comparisons" aria-current="page">简历对照</Link><Link href="/admin/evals/analytics">数据</Link></nav></header>
-    <div className={s.heading}><div><h1>简历六列对照</h1><p>同稿对读、改动高亮、判断与溯源。最后一列只保存为点评副本。</p></div>
+    <div className={s.heading}><div><h1>简历{columnLabel}对照</h1><p>同稿对读、改动高亮、判断与溯源。最后一列只保存为点评副本。</p></div>
       <label>选择案例<select value={id} disabled={dirty || busy || calling} onChange={e => setId(e.target.value)}>
         {rows.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}</select></label></div>
     <p className={error ? s.error : s.status} role={error ? 'alert' : 'status'}>{error || message}{dirty && ' · 有未保存修改'}</p>
     {data && columns && <>
+      {data.comparison.id === '3f421a27-1e46-471f-97c4-52548dd87407' && <EvidenceTrial/>}
       <details className={s.boundary}><summary>输入与比较边界 · {data.comparison.model}</summary>
         <p>{data.comparison.title}</p><ul>{data.comparison.notes.map(n => <li key={n}>{n}</li>)}</ul>
         <details><summary>本次共用 JD</summary><div className={s.prose}>{data.comparison.input.jd || '未提供 JD，不做匹配评分。'}</div></details>
@@ -132,9 +136,9 @@ export default function ComparisonClient() {
         {confirm && <span className={s.confirm}>将使用 {data.comparison.model}，产生 TokenDance 费用，不扣益职积分。
           <button type="button" onClick={() => setConfirm(false)}>先不运行</button><button type="button" onClick={direct}>确认运行一次</button></span>}
       </div>
-      <p className={s.hint}>五份来源稿只读，黄底标出相对原稿的变化。屏幕较窄时，横向滑动查看六列。</p>
-      <div className={s.viewport} id="comparison" role="tabpanel" aria-label={tab === 'resume' ? '六列简历' : '六列判断与Trace'} tabIndex={0}>
-        <div className={s.grid}>
+      <p className={s.hint}>{columns.length} 份来源稿只读，黄底标出相对原稿的变化。屏幕较窄时，横向滑动查看{columnLabel}。</p>
+      <div className={s.viewport} id="comparison" role="tabpanel" aria-label={tab === 'resume' ? columnLabel + '简历' : columnLabel + '判断与Trace'} tabIndex={0}>
+        <div className={s.grid} style={{'--comparison-columns': columnCount} as CSSProperties}>
           {columns.map(c => <section className={s.columnHead} key={c.id}><h2>{c.label}</h2><p>{c.status}</p></section>)}
           <section className={s.columnHead}><h2>我自己写</h2><p>{dirty ? '未保存' : revision ? `已存后台 · 版本 ${revision}` : '可编辑 · 尚未保存'}</p></section>
           {tab === 'judgments' ? <>

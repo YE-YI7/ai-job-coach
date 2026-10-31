@@ -12,6 +12,8 @@ import {
   preferredSpan,
 } from "./core.mjs";
 import { samples } from "./samples.mjs";
+import { renderTrace, spanHasIssue } from "./trace-view.mjs";
+import { renderFlow, executionLabel } from "./trace-flow.mjs";
 const $ = (id) => document.getElementById(id);
 // The URL, storage and every DOM binding are read inside boot() so this module
 // stays importable by the unit tests, which have no browser.
@@ -26,6 +28,8 @@ let runs = [],
   requestSequence = 0,
   pendingId = null;
 let uncertainId = null;
+let tracePane = "output", traceQuery = "", traceAssessment = false, traceLayout = "tree", traceRuns = false;
+let traceMode = "flow", traceFlowId = "context", traceFlowFull = false;
 // 案例反馈的草稿只存在本机 sessionStorage；编号在同一次提交的失败重试里保持不变。
 let feedbacks = [],
   feedbackDraft = null,
@@ -197,25 +201,6 @@ function knowledgeHTML(entries, scopeLabel = "知识库使用") {
   const used = items.filter((entry) => entry.included).length;
   return `<details class="knowledge"><summary>${esc(scopeLabel)} <span class="muted">· ${items.length ? `${used} 条实际纳入` : "未记录"}${items.some((entry) => !entry.included) ? ` / ${items.length} 条候选` : ""}</span></summary>${items.length ? knowledgeCards(items) : missing("未记录知识条目", "这不等于本次没有使用知识；需要以实际采集记录为准。")}</details>`;
 }
-function knowledgeBoard(entries) {
-  const items = uniqueKnowledge(entries);
-  if (!items.length)
-    return missing(
-      "未记录知识条目",
-      "这次运行没有留下检索到的知识文档。不能据此判断当时没有查知识库。",
-    );
-  const used = items.filter((entry) => entry.included).length;
-  const held = items.length - used;
-  return `<section class="knowledge-board" aria-label="这次调取的知识"><h2>这次调取的知识</h2><p class="muted">${used} 条纳入上下文${held ? ` · ${held} 条未纳入` : ""}</p>${knowledgeCards(items)}</section>`;
-}
-function sameKnowledge(left, right) {
-  const key = (entries) =>
-    uniqueKnowledge(entries)
-      .map((entry) => `${entry.id}:${entry.included}:${entry.reason || ""}:${entry.excerpt || ""}`)
-      .sort()
-      .join("\n");
-  return key(left) === key(right);
-}
 function current() {
   return runs.find((r) => r.id === selected);
 }
@@ -280,6 +265,13 @@ async function select(id) {
   const seq = ++requestSequence;
   selected = id;
   spanId = null;
+  tracePane = "output";
+  traceQuery = "";
+  traceAssessment = false;
+  traceLayout = "tree";
+  traceMode = "flow";
+  traceFlowId = "context";
+  traceFlowFull = false;
   resetFeedback(id);
   const r = current();
   renderList();
@@ -351,7 +343,7 @@ function renderDetail() {
           ? "真实模型 · 虚构隔离样本"
           : r.source === "workspace"
           ? "工作区真实请求 · 直接采集"
-          : "益职正式站 · 管理员观察"
+          : executionLabel(r)
         : "本地导入 · 仅当前标签页";
   $("run-status").className = `status ${r.status}`;
   $("run-status").textContent = STATUS[r.status] || "状态未记录";
@@ -376,7 +368,10 @@ function renderDetail() {
 function renderPanel() {
   const r = current();
   if (!r) return;
-  let h = coverageHTML(r);
+  $("detail").classList.toggle("trace-mode", tab === "trace");
+  $("detail").classList.toggle("trace-assessment-open", traceAssessment);
+  document.querySelector(".shell").classList.toggle("trace-runs-open", traceRuns);
+  let h = tab === "trace" ? "" : coverageHTML(r);
   if (tab === "input") {
     h +=
       '<p class="section-intro">核对本次实际送入的材料，和用户原始事实保持一致。</p>';
@@ -399,15 +394,11 @@ function renderPanel() {
     } else h += payload(r.input);
   }
   if (tab === "trace") {
-    h +=
-      '<p class="section-intro">点击一个阶段，核对它实际拿到了什么、交出了什么。</p>';
-    if (!r.spans.length) h += missing("没有阶段记录");
-    else {
-      const s = preferredSpan(r.spans, spanId);
-      spanId = s.id;
-      h += knowledgeBoard(r.knowledge);
-      h += `<div class="trace-grid"><div class="stage-list" aria-label="阶段时间线">${r.spans.map((item) => `<button class="stage-button" data-span="${esc(item.id)}" aria-pressed="${item.id === spanId}"><strong>${esc(item.name)}</strong>${item.code ? `<span class="stage-code">${esc(item.code)}</span>` : ""}<span>${esc(formatStepMs(item.durationMs))} · ${esc(STATUS[item.status] || "未记录")}</span></button>`).join("")}</div><div class="span-detail"><div class="span-title"><h2>${esc(s.name)}</h2>${statusHTML(s.status)}</div><p class="code-label">${esc(formatStepMs(s.durationMs))}${s.code ? ` · ${esc(s.code)}` : ""}${s.model ? ` · ${esc(s.model)}` : ""}</p>${io(s)}${sameKnowledge(s.knowledge, r.knowledge) ? "" : knowledgeHTML(s.knowledge?.length ? s.knowledge : [], "本阶段另外记录的知识")}</div></div>`;
-    }
+    spanId = preferredSpan(r.spans, spanId || r.spans.find(spanHasIssue)?.id)?.id ?? null;
+    const state = { spanId, pane: tracePane, query: traceQuery, assessment: traceAssessment,
+      layout: traceLayout, runs: traceRuns, nodeId: traceFlowId, full: traceFlowFull };
+    h += traceMode === "flow" ? renderFlow(r, state)
+      : '<button class="text-button" data-trace-mode="flow">返回执行动线</button>' + renderTrace(r, state);
   }
   if (tab === "agents") {
     const agents = r.spans.filter((s) => s.agent);
@@ -481,6 +472,97 @@ function renderPanel() {
         renderPanel();
       }),
     );
+  if (tab === "trace") bindTrace(r);
+}
+
+function bindTrace(run) {
+  const panel = $("panel");
+  panel.querySelectorAll("[data-trace-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      traceMode = button.dataset.traceMode;
+      renderPanel();
+    });
+  });
+  panel.querySelectorAll("[data-flow-node]").forEach((button) => {
+    button.addEventListener("click", () => {
+      traceFlowId = button.dataset.flowNode;
+      traceFlowFull = false;
+      tracePane = ["context", "input"].includes(traceFlowId) ? "input" : "output";
+      renderPanel();
+      panel.querySelector('[data-flow-node][aria-pressed="true"]')?.focus();
+    });
+  });
+  panel.querySelector("[data-flow-full]")?.addEventListener("click", () => {
+    traceFlowFull = !traceFlowFull;
+    if (traceFlowFull) tracePane = ["context", "input"].includes(traceFlowId) ? "input" : "output";
+    renderPanel();
+  });
+  panel.querySelector("[data-trace-runs]")?.addEventListener("click", () => {
+    traceRuns = !traceRuns;
+    renderPanel();
+    if (traceRuns) $("search").focus();
+  });
+  panel.querySelectorAll("[data-trace-pane]").forEach((button) => {
+    const choose = (pane) => {
+      tracePane = pane;
+      renderPanel();
+      panel.querySelector(`[data-trace-pane="${pane}"]`)?.focus();
+    };
+    button.addEventListener("click", () => choose(button.dataset.tracePane));
+    button.addEventListener("keydown", (event) => {
+      const panes = ["output", "input", "meta", "raw"];
+      let index = panes.indexOf(tracePane);
+      if (event.key === "ArrowRight") index = (index + 1) % panes.length;
+      else if (event.key === "ArrowLeft") index = (index + panes.length - 1) % panes.length;
+      else if (event.key === "Home") index = 0;
+      else if (event.key === "End") index = panes.length - 1;
+      else return;
+      event.preventDefault();
+      choose(panes[index]);
+    });
+  });
+  panel.querySelector("[data-trace-issue]")?.addEventListener("click", () => {
+    const issues = run.spans.filter(spanHasIssue);
+    const index = issues.findIndex((span) => span.id === spanId);
+    spanId = issues[(index + 1) % issues.length]?.id ?? spanId;
+    tracePane = "output";
+    traceQuery = "";
+    renderPanel();
+    panel.querySelector('[data-span][aria-pressed="true"]')?.focus();
+  });
+  panel.querySelector("[data-trace-assessment]")?.addEventListener("click", () => {
+    traceAssessment = !traceAssessment;
+    renderPanel();
+    if (traceAssessment) $("verdict").focus();
+  });
+  panel.querySelectorAll("[data-trace-layout]").forEach((button) => {
+    button.addEventListener("click", () => {
+      traceLayout = button.dataset.traceLayout;
+      renderPanel();
+      panel.querySelector(`[data-trace-layout="${traceLayout}"]`)?.focus();
+    });
+  });
+  panel.querySelector("#trace-search")?.addEventListener("input", (event) => {
+    const { selectionStart } = event.target;
+    traceQuery = event.target.value.slice(0, 200);
+    renderPanel();
+    const search = panel.querySelector("#trace-search");
+    search?.focus();
+    try { search?.setSelectionRange(selectionStart, selectionStart); } catch {}
+  });
+  panel.querySelector(".trace-nodes")?.addEventListener("keydown", (event) => {
+    const nodes = [...panel.querySelectorAll("[data-span]")];
+    const active = event.target.closest("[data-span]");
+    if (!active) return;
+    let index = nodes.indexOf(active);
+    if (event.key === "ArrowDown") index = Math.min(index + 1, nodes.length - 1);
+    else if (event.key === "ArrowUp") index = Math.max(0, index - 1);
+    else if (event.key === "Home") index = 0;
+    else if (event.key === "End") index = nodes.length - 1;
+    else return;
+    event.preventDefault();
+    nodes[index]?.focus();
+  });
 }
 function renderAssessment() {
   const r = current(),
@@ -1006,7 +1088,7 @@ async function refresh() {
       loading = false;
       return;
     }
-    $("connection").textContent = "正式站 · 管理员";
+    $("connection").textContent = "管理员数据已连接";
     $("connection").classList.add("live");
     notice("正式管理员记录 · 只读查看，不会自动调用模型");
     renderList();

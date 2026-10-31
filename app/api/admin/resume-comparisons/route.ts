@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   let comparison;
   try {const raw = await request.text(); if (Buffer.byteLength(raw) > 600000) return json({error: '对照过大'}, 413);
     comparison = parseComparison(JSON.parse(raw));} catch {return json({error: '对照格式无效'}, 400);}
-  if (!comparison) return json({error: '请核对五份来源与对齐分段，第六列由本人独立保存'}, 400);
+  if (!comparison) return json({error: '请核对来源列与对齐分段，最后一列由本人独立保存'}, 400);
   try {
     const db = await getDbClient(); if (!db) throw Error('unavailable');
     const saved = await db.from('coach_eval_runs').insert({id: comparison.id, user_id: user.id, label: comparison.title,

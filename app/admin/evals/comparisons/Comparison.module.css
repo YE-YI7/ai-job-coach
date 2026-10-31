@@ -233,7 +233,7 @@
 }
 .grid{
   display:grid;
-  grid-template-columns:repeat(6,minmax(215px,1fr));
+  grid-template-columns:repeat(var(--comparison-columns,6),minmax(215px,1fr));
   min-width:1290px;
   align-items:stretch
 }
@@ -388,7 +388,7 @@
   margin:0 8px
 }
 .grid{
-  grid-template-columns:repeat(6,280px);
+  grid-template-columns:repeat(var(--comparison-columns,6),280px);
   min-width:1680px
 }
 

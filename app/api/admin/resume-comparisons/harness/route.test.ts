@@ -119,3 +119,19 @@ test('consent window expires closed and stub execution cannot masquerade as real
   jest.setSystemTime(new Date('2026-11-04T00:00Z')); expect((await POST(req())).status).toBe(410);
   expect(getDbClient).not.toHaveBeenCalled();
 });
+test('single explicit recovery preserves connect-timeout evidence; no retry for completed or output-bearing runs', async () => {
+  const prior = {status:'failed',model:'deepseek-v4-flash',provider:'tokendance',harnessVersion:'resume-evidence-harness/M07.2',
+    input:{arm:'without_memory',sourceHash:'same-source',boundaryHash:'B05',knowledgeHash:'same-knowledge',
+      requestHash:createHash('sha256').update(CURRENT_EVIDENCE_REQUEST).digest('hex')},
+    spans:[{output:null,transport:{phase:'connecting',nativeErrorCodes:['UND_ERR_CONNECT_TIMEOUT']}}],metrics:{reportedTokenCalls:0}};
+  const b={...body,recoverConnection:true};
+  for(const bad of [{...prior,status:'completed'}, {...prior,spans:[{output:'already produced'}]},
+    {...prior,input:{...prior.input,boundaryHash:'other'}}]) {
+    const db=database([{data:{run:{}}},{data:{run:bad}}]);
+    expect((await POST(req(b))).status).toBe(409);expect(db.writes).toEqual([]);
+  }
+  const db=database([{data:{run:{}}},{data:{run:prior}},{error:{code:'23505'}}]);
+  expect((await POST(req(b))).status).toBe(409);expect(db.writes).toHaveLength(1);
+  expect(db.writes[0].value).toMatchObject({run:{recoveryOf:expect.any(String),executionProvenance:'explicit_single_recovery_same_vercel_route'}});
+  expect(callLLM).not.toHaveBeenCalled();expect(runEvidenceComparison).not.toHaveBeenCalled();
+});

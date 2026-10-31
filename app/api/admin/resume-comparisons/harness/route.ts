@@ -19,11 +19,13 @@ function trialId(userId: string, version: string, arm: EvidenceArm) {
 export async function POST(request: Request) {
   const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
   if (!isSameOriginRequest(request)) return json({error: '不允许跨站调用'}, 403);
-  let body: {sourceTraceId?: string; arm?: EvidenceArm; acknowledgeCost?: boolean};
+  let body: {sourceTraceId?: string; arm?: EvidenceArm; acknowledgeCost?: boolean; recoverConnection?: boolean};
   try {const raw = await request.text(); if (raw.length > 500) return json({error: '参数过长'}, 413); body = JSON.parse(raw);}
   catch {return json({error: '参数无效'}, 400);}
   if (!body || body.sourceTraceId !== EVIDENCE_SOURCE_TRACE || !['with_memory', 'without_memory'].includes(String(body.arm))
-    || body.acknowledgeCost !== true || Object.keys(body).some(key => !['sourceTraceId', 'arm', 'acknowledgeCost'].includes(key))) {
+    || body.acknowledgeCost !== true || (body.recoverConnection !== undefined && body.recoverConnection !== true)
+    || (body.recoverConnection && body.arm !== 'without_memory')
+    || Object.keys(body).some(key => !['sourceTraceId', 'arm', 'acknowledgeCost', 'recoverConnection'].includes(key))) {
     return json({error: '只允许本次冻结样本的两臂；需要确认TokenDance费用'}, 400);
   }
   if (process.env.LLM_STUB === '1') return json({error: '模拟环境不能标记真实验收'}, 409);
@@ -55,12 +57,28 @@ export async function POST(request: Request) {
       return json({error: '已通过Memory臂的冻结条件不一致，不重复调用或静默替换'}, 409);
     }
     if (!await getTokenPayCredential(user.id)) return json({error: '现有TokenDance连接不可用，不切换供应商'}, 409);
-    const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
+    const originalId = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
+    if (body.recoverConnection) {
+      const failed = await db.from('coach_eval_runs').select('run').eq('id', originalId).eq('user_id', user.id).maybeSingle();
+      if (failed.error) throw failed.error;
+      const r = failed.data?.run, span = r?.spans?.[0];
+      const eligible = r?.status === 'failed' && r.model === 'deepseek-v4-flash' && r.provider === 'tokendance'
+        && r.harnessVersion === RESUME_EVIDENCE_HARNESS_VERSION && r.input?.arm === 'without_memory'
+        && r.input?.sourceHash === source.sourceHash
+        && r.input?.boundaryHash === source.boundaryHash && r.input?.knowledgeHash === source.knowledgeHash
+        && r.input?.requestHash === createHash('sha256').update(CURRENT_EVIDENCE_REQUEST).digest('hex')
+        && r.spans.length === 1 && !span.output && !span.usage && r.metrics?.reportedTokenCalls === 0
+        && span.transport?.phase === 'connecting'
+        && span.transport?.nativeErrorCodes?.includes('UND_ERR_CONNECT_TIMEOUT');
+      if (!eligible) return json({error: '仅允许上次无输出连接超时的一次显式补验；旧记录不清除'}, 409);
+    }
+    const id = body.recoverConnection ? trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION + '/connect-recovery-1', body.arm!) : originalId;
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
       executionScope: 'isolated_admin_eval_no_domain_writes', label: `M07.2 · 无Memory补验`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
+      ...(body.recoverConnection ? {recoveryOf: originalId, executionProvenance: 'explicit_single_recovery_same_vercel_route'} : {}),
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,
         boundaryHash: source.boundaryHash, knowledgeHash: source.knowledgeHash, maxCalls: EVIDENCE_CALL_LIMIT,
         source: source.payload.source, request: source.payload.contract.request,

@@ -17,13 +17,14 @@ export function groundingEvidenceIssues(review: Record<string, unknown>, facts: 
   const errors = doc.findings.flatMap((f, i) => f.category === 'grounding' && f.severity === 'error' ? [i] : []);
   if (!Array.isArray(review.groundingEvidence)) return ['GROUNDING_EVIDENCE_MISSING'];
   const proof = review.groundingEvidence as Array<Record<string, unknown>>;
-  if (proof.length !== errors.length || proof.length > 20) return ['GROUNDING_EVIDENCE_UNMAPPED'];
+  if (proof.length > 20) return ['GROUNDING_EVIDENCE_UNMAPPED'];
   const sources = new Map(factBlocks(facts).map(b => [b.id, b.text])), seen = new Set<number>();
   const candidates = new Map(candidateEvidenceIndex(candidate).map(b => [b.id, b.text]));
   const issues: string[] = [];
   for (const p of proof) {
     const index = p?.findingIndex;
-    if (typeof index !== 'number' || !errors.includes(index) || seen.has(index)) {
+    if (typeof index !== 'number' || !Number.isSafeInteger(index) || !doc.findings[index]
+      || doc.findings[index].severity !== 'error' || seen.has(index)) {
       issues.push('GROUNDING_EVIDENCE_UNMAPPED'); continue;
     }
     seen.add(index);
@@ -38,5 +39,6 @@ export function groundingEvidenceIssues(review: Record<string, unknown>, facts: 
       issues.push('GROUNDING_EVIDENCE_NOT_IN_INPUT');
     }
   }
+  if (errors.some(index => !seen.has(index))) issues.push('GROUNDING_EVIDENCE_UNMAPPED');
   return issues;
 }

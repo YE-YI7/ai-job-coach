@@ -3,7 +3,7 @@ import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
 import type {ResumeChange} from '@/lib/opportunities/types';
 /** B05 is unchanged. This contract makes evidence selection inspectable; it is not a new Agent or fact source. */
-export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M07.1';
+export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M07.2';
 /** Restores the user's approved contribution objective. Source Trace supplies material, not the current instruction. */
 export const CURRENT_EVIDENCE_REQUEST = `请修改同一份“益职 AI”项目经历，交付目标不是把产品定位、Harness、降本、Eval四个主题写顺，而是写清已有事实中的具体问题、本人作出的判断与取舍、实际改变的机制或交付，以及有依据的结果。
 可重组、精简和选择事实，不按原句一一润色。原稿不是事实范围的上限；本人同一项目补充记录完整读入facts后，也是已有事实，不要把“原稿没写”当成编造。是否取哪些资料由你决定，不强制全选或每条凑数据。

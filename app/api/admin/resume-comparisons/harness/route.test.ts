@@ -5,6 +5,7 @@ import {getTokenPayCredential} from '@/lib/tokenpay';
 import {callLLM} from '@/lib/llm';
 import {evidenceSource, runEvidenceComparison, EVIDENCE_SOURCE_TRACE} from '@/lib/coach-harness/resume-evidence-runtime';
 import {CURRENT_EVIDENCE_REQUEST} from '@/lib/coach-harness/resume-evidence-contract';
+import {createHash} from 'node:crypto';
 jest.mock('@/lib/auth', () => ({getCurrentUserFromRequest: jest.fn()}));
 jest.mock('@/lib/db', () => ({getDbClient: jest.fn()}));
 jest.mock('@/lib/tokenpay', () => ({getTokenPayCredential: jest.fn()}));
@@ -13,7 +14,7 @@ jest.mock('@/lib/generation-context', () => ({runWithGenerationContext: (_c: unk
 jest.mock('@/lib/coach-harness/resume-evidence-runtime', () => ({evidenceSource: jest.fn(), runEvidenceComparison: jest.fn(),
   EVIDENCE_CALL_LIMIT: 6, EVIDENCE_SOURCE_TRACE: '789f2b98-4fce-4755-abca-33a950e7f73b'}));
 const url = 'https://example.invalid/api/admin/resume-comparisons/harness';
-const body = {sourceTraceId: EVIDENCE_SOURCE_TRACE, arm: 'with_memory', acknowledgeCost: true};
+const body = {sourceTraceId: EVIDENCE_SOURCE_TRACE, arm: 'without_memory', acknowledgeCost: true};
 const req = (b: unknown = body, origin = 'https://example.invalid') => new Request(url,
   {method: 'POST', headers: {origin, 'content-type': 'application/json'}, body: JSON.stringify(b)});
 const oldAdmins = process.env.EVAL_ADMIN_USER_IDS, oldStub = process.env.LLM_STUB;
@@ -92,6 +93,25 @@ test('restored current task is identical in both arms; old weak-goal control is 
   expect((evidenceSource as jest.Mock).mock.results.at(-1)?.value.payload.contract.request).toBe(CURRENT_EVIDENCE_REQUEST);
   expect(getTokenPayCredential).toHaveBeenCalled();
   expect(callLLM).not.toHaveBeenCalled(); expect(runEvidenceComparison).not.toHaveBeenCalled();
+});
+test('completed Memory is reused only with exact frozen identity; no reservation or model call is repeated', async () => {
+  const run = {id: '24eaa04c-76bd-43bb-aa86-6161094a5422', status: 'completed',
+    model: 'deepseek-v4-flash', provider: 'tokendance', harnessVersion: 'resume-evidence-harness/M07.1',
+    input: {arm: 'with_memory', sourceHash: 'same-source', boundaryHash: 'B05', knowledgeHash: 'same-knowledge',
+      requestHash: createHash('sha256').update(CURRENT_EVIDENCE_REQUEST).digest('hex')},
+    spans: [{}, {}, {}], result: {rawResponse: {loadedFacts: [{id: 'selected'}]}}};
+  const {writes, filters} = database([{data: {run: {}}}, {data: {run}}]);
+  const response = await POST(req({...body, arm: 'with_memory'}));
+  expect(await response.json()).toMatchObject({id: run.id, reused: true, calls: 3, newCalls: 0, delivered: false});
+  expect(filters).toContainEqual(['user_id', 'admin']); expect(writes).toEqual([]);
+  expect(getTokenPayCredential).not.toHaveBeenCalled(); expect(callLLM).not.toHaveBeenCalled();
+  expect(runEvidenceComparison).not.toHaveBeenCalled();
+  for (const bad of [{...run, status: 'failed'}, {...run, input: {...run.input, boundaryHash: 'changed'}},
+    {...run, result: {rawResponse: {loadedFacts: []}}}]) {
+    const db = database([{data: {run: {}}}, {data: {run: bad}}]);
+    expect((await POST(req({...body, arm: 'with_memory'}))).status).toBe(409);
+    expect(db.writes).toEqual([]);
+  }
 });
 test('consent window expires closed and stub execution cannot masquerade as real', async () => {
   process.env.LLM_STUB = '1'; expect((await POST(req())).status).toBe(409);

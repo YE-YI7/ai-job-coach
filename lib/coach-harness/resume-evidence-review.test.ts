@@ -23,3 +23,11 @@ test('新协议按编号回指完整原文/候选，不要求模型重复抄写�
   expect(groundingEvidenceIssues(proof, facts, candidate)).toEqual([]);
   expect(groundingEvidenceIssues(proof, facts, '')).not.toEqual([]);
 });
+test('质量问题多给一条真实证据不构成协议失败；grounding证据仍须全部覆盖', () => {
+  const proof = review.groundingEvidence[0];
+  const r = {document: {findings: [{category: 'grounding', severity: 'error'}, {category: 'quality', severity: 'error'}]},
+    groundingEvidence: [proof, {...proof, findingIndex: 1}]};
+  expect(groundingEvidenceIssues(r, facts, candidate)).toEqual([]);
+  expect(groundingEvidenceIssues({...r, groundingEvidence: [{...proof, findingIndex: 1}]}, facts, candidate))
+    .toContain('GROUNDING_EVIDENCE_UNMAPPED');
+});

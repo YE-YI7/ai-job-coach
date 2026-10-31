@@ -37,11 +37,28 @@ export async function POST(request: Request) {
     const source = evidenceSource(original.data.run, user.id);
     const originalRequest = source.payload.contract.request;
     source.payload.contract = {...source.payload.contract, request: CURRENT_EVIDENCE_REQUEST};
+    if (body.arm === 'with_memory') {
+      // Only the deterministic proof validator changed after M07.1. Exact private replay proves
+      // the completed Memory arm's requests/tools/output unchanged; reuse it, never charge again.
+      const prior = await db.from('coach_eval_runs').select('run').eq('user_id', user.id)
+        .eq('id', '24eaa04c-76bd-43bb-aa86-6161094a5422').maybeSingle();
+      if (prior.error) throw prior.error;
+      const r = prior.data?.run;
+      const same = r?.status === 'completed' && r.model === 'deepseek-v4-flash'
+        && r.provider === 'tokendance' && r.harnessVersion === 'resume-evidence-harness/M07.1'
+        && r.input?.arm === 'with_memory' && r.input.sourceHash === source.sourceHash
+        && r.input.boundaryHash === source.boundaryHash && r.input.knowledgeHash === source.knowledgeHash
+        && r.input.requestHash === createHash('sha256').update(CURRENT_EVIDENCE_REQUEST).digest('hex')
+        && r.result?.rawResponse?.loadedFacts?.length > 0;
+      if (same) return json({id: r.id, status: 'completed', calls: r.spans.length,
+        saved: true, delivered: false, reused: true, newCalls: 0});
+      return json({error: '已通过Memory臂的冻结条件不一致，不重复调用或静默替换'}, 409);
+    }
     if (!await getTokenPayCredential(user.id)) return json({error: '现有TokenDance连接不可用，不切换供应商'}, 409);
     const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M07.1 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M07.2 · 无Memory补验`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,

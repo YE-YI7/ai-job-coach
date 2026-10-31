@@ -2,7 +2,7 @@
 import {useState} from 'react';
 import Link from 'next/link';
 import s from './Comparison.module.css';
-type Receipt = {id: string; status?: string; calls?: number; error?: string};
+type Receipt = {id: string; status?: string; calls?: number; error?: string; reused?: boolean};
 /** One explicitly authorized pair. The server reserves each arm once, including failed calls. */
 export default function EvidenceTrial() {
   const [busy, setBusy] = useState(false), [confirmed, setConfirmed] = useState(false);
@@ -27,13 +27,13 @@ export default function EvidenceTrial() {
     <h2>本轮有无 Memory 对照</h2>
     <p>同稿、同模型 deepseek-v4-flash、B05 固定。每臂最多 6 次调用，不自动重试；只写 Eval，不改原简历或益职积分。</p>
     <button type="button" disabled={busy || receipts.length > 0} onClick={() => setConfirmed(true)}>
-      {busy ? '对照执行中，请勿重复发起…' : '运行 M07.1 同稿对照'}</button>
+      {busy ? '对照执行中，请勿重复发起…' : '运行修后补验（Memory不重跑）'}</button>
     {confirmed && <p>将使用现有 TokenDance 连接并产生供应商费用。
       <button type="button" onClick={() => setConfirmed(false)}>先不运行</button>
       <button type="button" onClick={run}>确认运行这一对</button></p>}
     {error && <p role="alert">{error}</p>}
     {receipts.map((r, i) => <p key={r.id}>{i === 0 ? '无 Memory' : '有 Memory'}：
       {r.status === 'completed' ? '质检通过，仍待人工审阅' : r.status === 'failed' ? '未通过，保留失败证据' : '已有运行，请读回核对'}
-      {r.calls != null && ` · ${r.calls} 次调用`} · <Link href={'/admin/evals?run=' + r.id}>查看实际 Trace</Link></p>)}
+      {r.calls != null && ` · ${r.reused ? '复用原' : ''}${r.calls} 次调用${r.reused ? '，本次无新增' : ''}`} · <Link href={'/admin/evals?run=' + r.id}>查看实际 Trace</Link></p>)}
   </section>;
 }

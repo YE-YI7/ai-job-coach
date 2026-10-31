@@ -7,7 +7,7 @@ import { evalAdminAccess, evalJson as json } from '@/lib/coach-harness/eval-admi
 import { isSameOriginRequest } from '@/lib/phone-auth/security';
 import { evidenceSource, runEvidenceComparison, EVIDENCE_CALL_LIMIT, EVIDENCE_SOURCE_TRACE,
   type EvidenceArm } from '@/lib/coach-harness/resume-evidence-runtime';
-import { RESUME_EVIDENCE_HARNESS_VERSION } from '@/lib/coach-harness/resume-evidence-contract';
+import { RESUME_EVIDENCE_HARNESS_VERSION, CURRENT_EVIDENCE_REQUEST } from '@/lib/coach-harness/resume-evidence-contract';
 import type { EvalSpan } from '@/lib/coach-harness/eval-scope';
 
 export const runtime = 'nodejs';
@@ -35,26 +35,20 @@ export async function POST(request: Request) {
     if (original.error) throw original.error;
     if (!original.data) return json({error: '原样本不属于当前账号'}, 404);
     const source = evidenceSource(original.data.run, user.id);
-    if (body.arm === 'without_memory') {
-      const priorId = trialId(user.id, 'resume-evidence-harness/M05.1', 'without_memory');
-      const prior = await db.from('coach_eval_runs').select('run').eq('id', priorId).eq('user_id', user.id).maybeSingle();
-      const r = prior.data?.run;
-      if (prior.error || !r || r.status !== 'completed' || r.input?.arm !== 'without_memory'
-        || r.model !== 'deepseek-v4-flash' || r.provider !== 'tokendance'
-        || r.input.sourceHash !== source.sourceHash || r.input.boundaryHash !== source.boundaryHash
-        || r.input.knowledgeHash !== source.knowledgeHash) return json({error: '基线未核同，停止本轮，不重跑模型'}, 503);
-      return json({id: priorId, status: r.status, calls: 0, reused: true, saved: true, delivered: false}, 409);
-    }
+    const originalRequest = source.payload.contract.request;
+    source.payload.contract = {...source.payload.contract, request: CURRENT_EVIDENCE_REQUEST};
     if (!await getTokenPayCredential(user.id)) return json({error: '现有TokenDance连接不可用，不切换供应商'}, 409);
     const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M05.3 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M06 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,
         boundaryHash: source.boundaryHash, knowledgeHash: source.knowledgeHash, maxCalls: EVIDENCE_CALL_LIMIT,
         source: source.payload.source, request: source.payload.contract.request,
+        originalRequest, requestHash: createHash('sha256').update(CURRENT_EVIDENCE_REQUEST).digest('hex'),
+        goalVersion: 'current-contribution-objective/v1',
         boundaryVersion: 'resume-boundary/v0.7.0-B05', memorySnapshot: source.snapshot},
       spans, result: {status: 'running', output: null}, evaluation: null, evaluationStatus: 'not_requested'};
     const inserted = await db.from('coach_eval_runs').insert({id, user_id: user.id, label: run.label, status: 'running', run});

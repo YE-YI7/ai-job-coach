@@ -31,6 +31,7 @@ test('无Memory臂不传私有资料/不提供工具，编辑与质检拿到同�
   expect(result.status).toBe('completed'); expect(result.loadedFacts).toEqual([]); expect(result.calls).toBe(2);
   const edit = JSON.parse(f.inputs[0].messages[1].content), review = JSON.parse(f.inputs[1].messages[1].content);
   expect(edit.facts).toBe('[resume-line-1] 原料'); expect(review.facts).toBe(edit.facts);
+  expect(review.editingRequest).toBe(edit.contract.request);
   expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).availableTools).toEqual([]);
   expect(JSON.parse(f.inputs[0].messages.at(-1)!.content).availableMemoryIndex).toBeUndefined();
   expect(JSON.stringify(source)).toBe(before);

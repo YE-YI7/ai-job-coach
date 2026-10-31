@@ -165,7 +165,8 @@ export async function runEvidenceComparison(input: {
     draft = output;
     const reviewMessages = structuredClone(source.review).map(message => {
       let p: Record<string, unknown>; try {p = JSON.parse(message.content);} catch {p = {};}
-      if (typeof p.appliedCandidate === 'string') return {...message, content: JSON.stringify({...p, appliedCandidate: changes[0].after, facts: currentFacts})};
+      if (typeof p.appliedCandidate === 'string') return {...message, content: JSON.stringify({...p,
+        appliedCandidate: changes[0].after, facts: currentFacts, editingRequest: source.payload.contract.request})};
       if (message.content.startsWith('待审修改')) {
         const cut = message.content.indexOf('\n') + 1;
         const list = JSON.parse(message.content.slice(cut));

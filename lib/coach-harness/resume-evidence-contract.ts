@@ -3,7 +3,11 @@ import {readResumeValueChecks} from './resume-edit-value';
 import {readResumeRequestCoverage} from './resume-edit-request';
 import type {ResumeChange} from '@/lib/opportunities/types';
 /** B05 is unchanged. This contract makes evidence selection inspectable; it is not a new Agent or fact source. */
-export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M05.3';
+export const RESUME_EVIDENCE_HARNESS_VERSION = 'resume-evidence-harness/M06';
+/** Restores the user's approved contribution objective. Source Trace supplies material, not the current instruction. */
+export const CURRENT_EVIDENCE_REQUEST = `请修改同一份“益职 AI”项目经历，交付目标不是把产品定位、Harness、降本、Eval四个主题写顺，而是写清已有事实中的具体问题、本人作出的判断与取舍、实际改变的机制或交付，以及有依据的结果。
+可重组、精简和选择事实，不按原句一一润色。原稿不是事实范围的上限；本人同一项目补充记录完整读入facts后，也是已有事实，不要把“原稿没写”当成编造。是否取哪些资料由你决定，不强制全选或每条凑数据。
+保留项目总领加四个bullet的可读结构，但栏目齐全不是内容完成。材料里的数字和方案继续作为用户给定的测试前提，不核查是否上线，不新增未提供的事实、数字、责任或因果；含糊名词不猜释。有信息缺口可留明确待补并一次问一个关键细节，不妨碍先改已有依据的部分。`;
 export const MEMORY_DISCOVERY_INSTRUCTION = `本轮给你一份本人项目资料的可选索引，它不是公共写法参考，也不是完整事实。
 原稿只说“重构/优化/搭建”而没交代本人具体判断与实际干预时，可按索引自主挑选相关资料，调用context.load完整读入后再写；目录说明不能直接当已读事实。
 你仍可选择不取任何资料，但交稿时须附memoryDecision:{choice:"none",reason:"为什么现有facts已足以完成具体贡献目标"}。不能默默跳过这个决定。

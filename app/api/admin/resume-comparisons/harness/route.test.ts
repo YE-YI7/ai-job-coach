@@ -4,6 +4,7 @@ import {getDbClient} from '@/lib/db';
 import {getTokenPayCredential} from '@/lib/tokenpay';
 import {callLLM} from '@/lib/llm';
 import {evidenceSource, runEvidenceComparison, EVIDENCE_SOURCE_TRACE} from '@/lib/coach-harness/resume-evidence-runtime';
+import {CURRENT_EVIDENCE_REQUEST} from '@/lib/coach-harness/resume-evidence-contract';
 jest.mock('@/lib/auth', () => ({getCurrentUserFromRequest: jest.fn()}));
 jest.mock('@/lib/db', () => ({getDbClient: jest.fn()}));
 jest.mock('@/lib/tokenpay', () => ({getTokenPayCredential: jest.fn()}));
@@ -84,11 +85,12 @@ test('a failed checkpoint stops before any subsequent upstream call and records 
   const response = await POST(req()); expect((await response.json()).status).toBe('failed');
   expect(callLLM).not.toHaveBeenCalled();
 });
-test('unchanged no-Memory control is read back by owner and input hashes, never charged again', async () => {
-  database([{data: {run: {}}}, {data: {run: {status: 'completed', model: 'deepseek-v4-flash', provider: 'tokendance',
-    input: {arm: 'without_memory', sourceHash: 'same-source', boundaryHash: 'B05', knowledgeHash: 'same-knowledge'}}}}]);
+test('restored current task is identical in both arms; old weak-goal control is not reused as a same-input baseline', async () => {
+  database([{data: {run: {}}}, {error: {code: '23505'}}]);
   const response = await POST(req({...body, arm: 'without_memory'}));
-  expect(response.status).toBe(409); expect(await response.json()).toMatchObject({reused: true, calls: 0});
+  expect(response.status).toBe(409); expect(await response.json()).not.toHaveProperty('reused');
+  expect((evidenceSource as jest.Mock).mock.results.at(-1)?.value.payload.contract.request).toBe(CURRENT_EVIDENCE_REQUEST);
+  expect(getTokenPayCredential).toHaveBeenCalled();
   expect(callLLM).not.toHaveBeenCalled(); expect(runEvidenceComparison).not.toHaveBeenCalled();
 });
 test('consent window expires closed and stub execution cannot masquerade as real', async () => {

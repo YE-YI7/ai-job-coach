@@ -6,15 +6,15 @@ import { getTokenPayCredential, tokenDanceAttributionHeaders, TokenPayError, typ
 import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 import { hostedStepModel } from "./hosted-model";
 import { assertFinalLlmOutput, diagnosticFetch, type LlmTransportDiagnostic } from './llm-transport';
+import {nativeToolEnvelope, type LlmMessage, type NativeTool} from './llm-tools';
 
-type Message = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+type Message = LlmMessage;
 
 type LlmOptions = {
   /** Administrator experiments only: use this account's gateway, exact requested model, never catalog/hosted substitution. */
   requireExactConnectedModel?: boolean;
+  /** Bounded administrator experiments only; no implicit protocol or provider fallback. */
+  nativeTools?: NativeTool[];
   /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
   siteFunded?: boolean;
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
@@ -64,6 +64,11 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
     request.thinking = { type: options?.thinking || "disabled" };
   }
   if (options?.responseFormat) request.response_format = { type: options.responseFormat };
+  if (options?.nativeTools) {
+    request.tools = options.nativeTools;
+    request.tool_choice = 'required';
+    delete request.response_format;
+  }
   // Step's API may return reasoning even with a thinking-disable flag. Use a
   // bounded effort, and only expose final content (the streaming reader below
   // already separates reasoning). Do not promise reasoning is disabled.
@@ -172,6 +177,8 @@ export async function callLLM(
   if (!Array.isArray(messages)) {
     throw new Error("Invalid messages");
   }
+  if (options?.nativeTools && (!options.requireExactConnectedModel || options.onDelta
+    || !options.nativeTools.length)) throw Error('NATIVE_TOOLS_EXPERIMENT_ONLY');
 
   const trace = getGenerationContext();
   let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
@@ -341,7 +348,9 @@ export async function callLLM(
       buildChatCompletionRequest(messages, provider, model, options) as unknown as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
     );
     receivedUsage = completion.usage;
-    const content = completion.choices[0]?.message?.content;
+    const content = options?.nativeTools
+      ? nativeToolEnvelope(completion.choices[0]?.message, completion.choices[0]?.finish_reason, options.nativeTools)
+      : completion.choices[0]?.message?.content;
     const finishReason = completion.choices[0]?.finish_reason;
     diagnostic.finishReason = finishReason || 'missing';
     diagnostic.outputCharacters = content?.length || 0;
@@ -349,7 +358,9 @@ export async function callLLM(
     // Some compatible non-streaming test/providers omit finish_reason; retain
     // that legacy compatibility for nonempty text, but never accept length.
     assertFinalLlmOutput(content, finishReason || 'stop');
-    return completion;
+    return options?.nativeTools
+      ? {...completion, choices: [{...completion.choices[0], message: {...completion.choices[0].message, content}}]}
+      : completion;
   };
 
   // call with timeout & retry

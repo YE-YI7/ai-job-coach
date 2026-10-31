@@ -1,0 +1,33 @@
+# Memory M07 · 原生工具与质检证据修复
+
+用户要求修复M06两个技术断点后再展示。B05、deepseek-v4-flash、原始益职AI材料、六块冻结私有记录不变。上一M06历史及比较只读；本轮另起M07确定性预留和新对照，不清失败锁、不写原简历/旧作答/积分。
+
+## 可复现原因与实现
+
+- M06实际callLLM请求没有tools：只有正文菜单与手写JSON动作约定。M07只对显式管理员精确连接启用原生函数；SDK按tool_calls接收空正文、保留真实ID/参数并计量；assistant/tool消息按同ID接回，选中块读入下一次facts。普通流式聊天和默认路由不启用，未迁移框架、未换模型。
+- 缺memoryDecision以前触发五次整稿生成。原生提交schema明确该字段，运行器不再为了非核心说明循环整稿；没读入按未激活记录，不能后台自动全读或宣称有Memory收益。
+- 错误引文以前直接丢掉整个结果。现在返回确切sourceId/引用/对应原文，只开放repair_evidence最小修复，正文冻结；仍非法就拒绝，修复后才调用原质检。没有替模型猜ID或改主张。
+- 产品质检必须对grounding error提供原主张与候选连续引用、来源编号、新增语义维度和具体新主张。正常稿不逐句吐证据；不完整先同质检补证一次，不误导原编辑破坏稿件；所有原价值/格式/事实/贡献否决仍在。修复styleContract.editorialContract残留旧目标，待审before为同一原材料，编辑与审稿同任务/同facts。
+- Trace阅读器只补原生submit_edit解析及context_load选择显示，沿用执行动线/短要点和完整I/O，不把产品质检当额外Judge。仅修引用的调用不能盖掉已有候选正文。UI只改运行版本标识，无样式改动。
+
+## 一手依据（设计取舍，不当作收益证明）
+
+Anthropic工具工程：明确工具契约和有用错误响应、真实工具结果反馈与行为级评估，不因标点或等价表述差异严格拒绝。https://www.anthropic.com/research/writing-tools-for-agents
+
+Anthropic按需上下文/Memory：持久存储与工作上下文分层，按任务取回；不把全库强灌替代自主选择。https://www.anthropic.com/research/effective-context-engineering-for-ai-agents 与 https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool
+
+Harness²原论文v1：冻结模型/环境，以参考执行和候选的行为对照推动修正；保留失败经验，但行为差异不是正确性证明。没有安装该框架或夸为完整自进化。https://arxiv.org/html/2610.14224v1
+
+DeepSeek原生tool_calls与tool_call_id接续协议：https://api-docs.deepseek.com/guides/tool_calls/ 。直接接口支持不代替TokenDance实际验收，网关不支持时显式失败，不静默退文本协议。
+
+## 已执行本地门禁
+
+4套定向37条通过，包括原生工具到SDK/空正文非空响应/真实ID/usage/作用域/失败不降级、Memory只加载自选块并对齐编辑与质检、引用错误局部返修、质检协议补证冻结候选。零费用真实历史输入回放1条通过，B05与原料未变、新协议不可冒用旧控制。
+
+全量正式命令`npm test -- --runInBand`326套3175条通过，6套11条跳过为既有配置/可选私有回放；tsc、ESLint和生产build成功。首次误用`npx jest`少了项目指定VM参数，PDF动态导入1条失败，原日志保留；随后按package.json正式命令全量重跑，未改/跳过PDF测试。Trace node30条通过。Impeccable对本次两个UI解析/版本文件手动detect一次，结果[]，不启用自动hooks、不扩修历史问题。
+
+## 尚待实际完成
+
+发布仅管理员实验/阅读器，普通默认Harness不切。生产目标ai-job-coach（prj_fav7gQZKEEE2JO3b8v9S9leeRhkS，team_7qIutahimwnjCje1fOtQEPyT），从已核正式74d4c5a继续；不混M06发布后仅文档追加或备份A。MCP团队授权403，已确认原CLI正常登录，因此使用现有CLI，不要求本人重新验证。
+
+正式发布后通过正常Chrome管理员会话跑M07新两臂，各最多6次上游，自动重试0；全部输入输出、真实加载、候选、产品审稿、后验分析、耗时和usage参考费用进Eval。新七列保留M06失败稿，原C04b仍在历史对照。只有实际读取/编入/质量通过才能签对应项，不能用本段预告完成。

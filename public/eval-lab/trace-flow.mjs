@@ -13,6 +13,13 @@ const excerpt = (value, max = 150) => {
 const paragraph = (value) => `<p class="flow-prose">${esc(value)}</p>`;
 const raw = (value) => `<pre class="trace-raw">${esc(text(sanitize(value)))}</pre>`;
 
+function editorOutput(span) {
+  const output = parseRecorded(span?.output);
+  if (output?.type !== 'native_tool_calls') return output;
+  const submitted = arr(output.tool_calls).find(call => call?.function?.name === 'submit_edit');
+  return submitted ? parseRecorded(submitted.function.arguments) : null;
+}
+
 function inputs(span) {
   const input = parseRecorded(span.input);
   return Array.isArray(input?.messages)
@@ -49,7 +56,7 @@ export function memoryEvidence(run) {
   const documents = new Map(), receipts = new Map(), catalogues = [];
   let editor = null, editorInput = null;
   for (const span of arr(run.spans)) {
-    if (spanRole(span) === "editor") {
+    if (spanRole(span) === "editor" && (!editor || Array.isArray(editorOutput(span)?.changes))) {
       editor = span;
       editorInput = inputs(span).find(x => x.facts != null) ?? inputs(span)[0] ?? {};
     }
@@ -83,12 +90,13 @@ export function memoryEvidence(run) {
   const lastGate = arr(run.spans).filter(span => spanRole(span) === "gate").at(-1);
   const reviewFacts = lastGate ? inputs(lastGate).find(input => typeof input.facts === "string")?.facts : null;
   const reviewBlocks = new Map(factBlocks(reviewFacts).map(block => [block.sourceId, block.text]));
-  const citations = new Set(arr(parseRecorded(editor?.output)?.changes).filter(obj).flatMap(change => arr(change.sourceIds)));
+  const citations = new Set(arr(editorOutput(editor)?.changes).filter(obj).flatMap(change => arr(change.sourceIds)));
   const selectionReasons = arr(run.spans).flatMap(span => arr(parseRecorded(span.output)?.selected)
     .filter(obj).filter(item => typeof item.reason === "string").map(item => ({ id: item.id, reason: item.reason })));
   const requested = new Set(arr(run.spans).flatMap(span => {
     const output = parseRecorded(span.output);
-    return [...arr(output?.selected).filter(obj).map(item => item.id), ...arr(output?.actions)
+    return [...arr(output?.selected).filter(obj).map(item => item.id), ...arr(output?.tool_calls)
+      .filter(call => call?.function?.name === 'context_load').map(call => parseRecorded(call.function.arguments)?.id), ...arr(output?.actions)
       .filter(obj).filter(action => action.name === "context.load").map(action => action.args?.id)].filter(Boolean);
   }));
   const sources = [...documents.values()].map(doc => {
@@ -123,7 +131,7 @@ export function flowModel(run) {
   const gates = spans.filter(span => spanRole(span) === "gate");
   const preparations = spans.filter(span => spanRole(span) === "preparation");
   const purposes = preparations.map(span => parseRecorded(span.output)?.purpose).filter(value => typeof value === "string" && value);
-  const output = parseRecorded(editor?.output);
+  const output = editorOutput(editor);
   const draft = arr(output?.changes).filter(obj).map(change => change.after).filter(value => typeof value === "string").join("\n\n");
   const nodes = [{ id: "input", title: "收到输入", value: run.input != null ? "原稿与本轮要求" : "输入未采集",
     detail: run.input, points: [executionLabel(run), "只读原记录，不补造用户输入。"], spans: [] }];

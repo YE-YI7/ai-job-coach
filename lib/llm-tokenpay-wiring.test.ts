@@ -66,6 +66,32 @@ function completion(text: string) {
   return { choices: [{ message: { content: text }, finish_reason: "stop" }], usage: null, model: "m" };
 }
 
+test('管理员原生工具确实到达SDK，空正文的tool_calls原样回传且计量，不触发空响应重试', async () => {
+  (getGenerationContext as jest.Mock).mockReturnValue({userId: 'u', operation: 'admin_trial'});
+  (getTokenPayCredential as jest.Mock).mockResolvedValue('existing-key');
+  const nativeTools = [{type: 'function' as const, function: {name: 'context_load', description: 'read',
+    parameters: {type: 'object', properties: {id: {type: 'string'}}, required: ['id']}}}];
+  const calls = [{id: 'call-native-one', type: 'function', function: {name: 'context_load', arguments: '{"id":"one"}'}}];
+  create.mockResolvedValue({model: 'deepseek-v4-flash', usage: {prompt_tokens: 23, completion_tokens: 17},
+    choices: [{finish_reason: 'tool_calls', message: {content: null, tool_calls: calls}}]});
+  const onUsage = jest.fn();
+  const output = await callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash',
+    requireExactConnectedModel: true, nativeTools, responseFormat: 'json_object', maxRetries: 0, onUsage});
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(create.mock.calls[0][0]).toMatchObject({tools: nativeTools, tool_choice: 'required'});
+  expect(create.mock.calls[0][0]).not.toHaveProperty('response_format');
+  expect(JSON.parse(output).tool_calls).toEqual(calls);
+  expect(onUsage).toHaveBeenCalledWith(expect.objectContaining({inputTokens: 23, outputTokens: 17}));
+});
+
+test('原生工具仅显式管理员精确连接启用，不影响渐进聊天，也不静默回退', async () => {
+  const nativeTools = [{type: 'function' as const, function: {name: 'read', description: 'read', parameters: {type: 'object'}}}];
+  await expect(callLLM(messages, {nativeTools})).rejects.toThrow('NATIVE_TOOLS_EXPERIMENT_ONLY');
+  await expect(callLLM(messages, {nativeTools, requireExactConnectedModel: true, onDelta: jest.fn()}))
+    .rejects.toThrow('NATIVE_TOOLS_EXPERIMENT_ONLY');
+  expect(create).not.toHaveBeenCalled();
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   delete process.env.LLM_STUB;

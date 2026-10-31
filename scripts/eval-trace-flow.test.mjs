@@ -51,6 +51,19 @@ test("返修后展示最后一次实际编辑的候选和输入，不把首稿�
   assert.equal(memoryEvidence(r).editor.id, 'repair');
 });
 
+test('原生工具候选按真实submit参数展示；只修引用的后续调用不能把正文藏掉', () => {
+  const r = structuredClone(run);
+  r.spans[0].output = {type: 'native_tool_calls', tool_calls: [{id: 'read', type: 'function',
+    function: {name: 'context_load', arguments: '{"id":"m1","revision":"r1"}'}}]};
+  r.spans[2].output = {type: 'native_tool_calls', tool_calls: [{id: 'submit', type: 'function',
+    function: {name: 'submit_edit', arguments: JSON.stringify(editor.output)}}]};
+  r.spans.push({...editor, id: 'cite-only', output: {type: 'native_tool_calls', tool_calls: [{id: 'citation', type: 'function',
+    function: {name: 'repair_evidence', arguments: '{"repairs":[]}'}}]}});
+  assert.equal(flowModel(r).draft, '这是编辑器给出的候选稿');
+  assert.equal(memoryEvidence(r).sources.find(s => s.id === 'm1').selected, true);
+  assert.equal(memoryEvidence(r).editor.id, 'edit');
+});
+
 test("产品质检的额外Memory不能算成编辑已读取，两个输入单独计数", () => {
   const r = structuredClone(run);
   r.spans[3].input.messages[0].content = JSON.stringify({ appliedCandidate: "候选",

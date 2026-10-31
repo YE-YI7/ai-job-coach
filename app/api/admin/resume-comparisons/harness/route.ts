@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const id = trialId(user.id, RESUME_EVIDENCE_HARNESS_VERSION, body.arm!);
     const started = Date.now(), spans: EvalSpan[] = [];
     const run: Record<string, unknown> = {schemaVersion: 'yizhi.eval/v1', id, recordType: 'resume_harness_trial',
-      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M06 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
+      executionScope: 'isolated_admin_eval_no_domain_writes', label: `M07 · ${body.arm === 'with_memory' ? '有Memory' : '无Memory'}`,
       harnessVersion: RESUME_EVIDENCE_HARNESS_VERSION, sourceTraceId: EVIDENCE_SOURCE_TRACE,
       model: 'deepseek-v4-flash', provider: 'tokendance', startedAt: new Date(started).toISOString(), status: 'running',
       input: {arm: body.arm, sourceTraceId: EVIDENCE_SOURCE_TRACE, sourceHash: source.sourceHash,
@@ -61,11 +61,12 @@ export async function POST(request: Request) {
     };
     try {
       const result = await runEvidenceComparison({source, arm: body.arm!, runId: id, spans, checkpoint: save,
-        invoke: async (messages, phase, sequence) => {
+        invoke: async (messages, phase, sequence, nativeTools) => {
           let usage: (NonNullable<EvalSpan['usage']> & {model: string}) | undefined;
           const text = await runWithGenerationContext({userId: user.id, operation: 'admin_resume_harness_comparison',
             requestId: `${id}:${sequence}:${phase}`}, () => callLLM(messages, {provider: 'tokendance', model: 'deepseek-v4-flash',
             requireExactConnectedModel: true, temperature: 0.15, maxTokens: phase === 'review' ? 4200 : 3400, maxRetries: 0,
+            ...(nativeTools ? {nativeTools} : {}),
             timeoutMs: 65000, firstTokenTimeoutMs: 30000, thinking: 'disabled', responseFormat: 'json_object',
             onDiagnostic: diagnostic => {const span = spans.at(-1); if (span) span.transport = diagnostic;},
             onUsage: value => {usage = {...value, cacheHitTokens: value.cacheHitTokens ?? null,

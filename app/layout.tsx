@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: "益职 AI｜网页求职作战盘与本地 Agent 免费版",
   description: "在益职网页直接管理求职作战盘，或让自己的 Agent 在本地沙箱中免费运行。",
   icons: {
-    icon: '/logo.png',
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
   },
 };
 

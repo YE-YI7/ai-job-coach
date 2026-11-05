@@ -1561,3 +1561,9 @@
 }
 .probeActions button:first-child { border-color: var(--accent); background: var(--accent); color: #fff; }
 @media (prefers-reduced-motion: reduce) { .probeActions button { transition: none; } }
+
+/* 抽屉模式：后文的 background:transparent 会盖掉固定侧栏底色，导致打开时内容透到页面上。 */
+@media (max-width: 980px) {
+  .workspace:not(.salaryWorkspace) > .opportunityRail.mobileRailOpen { background: #f7f6f2; }
+  .workspace:not(.salaryWorkspace) > .actionRail.mobileRailOpen { background: #fbfaf7; }
+}

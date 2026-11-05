@@ -63,6 +63,7 @@ export default function InterviewRoundReview({
   example,
   onRestart,
   onBack,
+  backLabel = "回到面试准备",
 }: {
   summary: InterviewRoundSummaryView;
   turns: RoundtableTurnView[];
@@ -71,8 +72,9 @@ export default function InterviewRoundReview({
   createdAt: string;
   onOpenHistory?: () => void;
   example: boolean;
-  onRestart: () => void;
-  onBack: () => void;
+  onRestart?: () => void;
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const [query, setQuery] = useState("");
   const [openQuestion, setOpenQuestion] = useState<number | null>(null);
@@ -590,13 +592,17 @@ export default function InterviewRoundReview({
 
       <footer className={styles.resultFoot}>
         <div>
-          <button className={styles.primaryButton} onClick={onRestart}>
-            再练一场
-            <ArrowRight size={15} />
-          </button>
-          <button className={styles.secondaryButton} onClick={onBack}>
-            回到面试准备
-          </button>
+          {onRestart && (
+            <button className={styles.primaryButton} onClick={onRestart}>
+              再练一场
+              <ArrowRight size={15} />
+            </button>
+          )}
+          {onBack && (
+            <button className={styles.secondaryButton} onClick={onBack}>
+              {backLabel}
+            </button>
+          )}
         </div>
         {Boolean(onOpenHistory) && (
           <button

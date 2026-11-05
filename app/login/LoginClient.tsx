@@ -317,7 +317,6 @@ function LoginContent({ phoneEnabled }: { phoneEnabled: boolean }) {
             <div>
               <div className={styles.dividerRow}><span className={styles.divider} /><span className={styles.dividerText}>或</span><span className={styles.divider} /></div>
               <a href={watchaAuthorizeHref} className={styles.oauth}>
-                <img src="https://watcha.tos-cn-beijing.volces.com/products/logo/1752064513_guan-cha-insights.png" alt="" />
                 <span>观猹账号登录</span>
               </a>
             </div>

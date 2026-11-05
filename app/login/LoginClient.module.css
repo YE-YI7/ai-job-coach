@@ -262,13 +262,6 @@
   background: #fff8ec;
 }
 
-.oauth img {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  object-fit: contain;
-}
-
 .emailLine {
   display: flex;
   align-items: center;

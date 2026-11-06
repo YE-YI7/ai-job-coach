@@ -61,9 +61,10 @@ function parseJson(text: string) {
 // 一处维护，本模块不再自带第二把正则）；断词/错字这类只有语义层能看出来的，
 // 交给下面的独立质检员，error 级发现的建议不再下发。
 
-export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]};
+export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2};
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
+  const maxDraftAttempts = options.maxDraftAttempts ?? 2;
   let siteFunded = false;
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
@@ -269,7 +270,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       trace!.step('save','independently_checked_unchanged');
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
-    for(let attempt=0;attempt<2;attempt++){
+    trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy}});
+    for(let attempt=0;attempt<maxDraftAttempts;attempt++){
+    // A failed writer attempt never spends the remaining quality-check budget
+    // on a new draft when the caller has opted for one generation.
+    const canRepairDraft=attempt+1<maxDraftAttempts;
     let output:string;
     try { output = await runWithGenerationContext({
       userId: modelUserId,
@@ -303,7 +308,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     ], { provider: "deepseek", temperature: 0.15, maxTokens: trialScope?1400:2600, reasoningBudgetTokens: 4096, timeoutMs: 75_000, firstTokenTimeoutMs:30_000, onDelta:()=>undefined, maxRetries:0, responseFormat: "json_object" },attempt?'repair':'draft'));
     } catch(error) {
       if(restoreCheckpoint(attempt,error))break;
-      if(agentTask&&attempt===0&&resumeOutputCanBeRepaired(error)){
+      if(agentTask&&canRepairDraft&&resumeOutputCanBeRepaired(error)){
         repairFeedback=['上一轮没有返回最终正文。请简短给出完整JSON；没有值得改的内容就明确返回status:unchanged和changes:[]，不能以空响应代替判断。'];
         trace.step('draft','empty_response_bounded_repair');continue;
       }
@@ -313,7 +318,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let parsed;
     try { parsed = parseJson(output); } catch (error) {
       if(restoreCheckpoint(attempt,error))break;
-      if(agentTask&&attempt===0){repairFeedback=['上次返回的 JSON 无法解析。请重新给出完整、合法的 JSON，字符串换行使用转义，不用 Markdown 围栏；减少修改条数，确保每一条完整。'];trace.step('draft','invalid_format_bounded_repair');continue;}
+      if(agentTask&&canRepairDraft){repairFeedback=['上次返回的 JSON 无法解析。请重新给出完整、合法的 JSON，字符串换行使用转义，不用 Markdown 围栏；减少修改条数，确保每一条完整。'];trace.step('draft','invalid_format_bounded_repair');continue;}
       throw error;
     }
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
@@ -327,7 +332,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     followUp = (!agentTask || factualResumeAnswers(agentTask.answers).length < 5)
       ? nextResumeQuestion(resumeText, parsed.recovery, agentTask?.answers || []) : null;
     if(trialScope&&followUp&&!inResumeTrialScope(trialScope,followUp.sourceExcerpt,resumeText))followUp=null;
-    if(attempt===1&&!rawChanges.length&&followUp&&!latestAnswer&&!explicitQuestion){
+    if(!canRepairDraft&&(agentTask||attempt>0)&&!rawChanges.length&&followUp&&!latestAnswer&&!explicitQuestion){
       const optionalQuestion=followUp;followUp=null;
       const unchanged=await checkUnchanged(attempt);
       if(unchanged)return unchanged;
@@ -337,10 +342,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // positive answer or an explicit missing fact. Independently confirm it.
     if((parsed.status==='unchanged'||!parsed.status)&&!rawChanges.length&&!latestAnswer&&!explicitQuestion&&!followUp){
       const unchanged=await checkUnchanged(attempt);if(unchanged)return unchanged;
-      if(agentTask&&attempt===0)continue;
+      if(agentTask&&canRepairDraft)continue;
     }
     if (parsed.status === "needs_detail" && !rawChanges.length) {
-      if (agentTask && attempt === 0) {
+      if (agentTask && canRepairDraft) {
         repairFeedback = ["上一轮没有实际改稿。请重新通读整份简历，优先忠实精简已有职责、拆开长段、去掉重复表述；一处缺细节不能阻断其他段落。仍完全无法安全改善才只问一个问题，不补编。"];
         trace.step("draft", "detail_request_rechecked");
         continue;
@@ -348,7 +353,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       // An editor may confuse "nothing worth changing" with "missing facts".
       // On the bounded final attempt, confirm the original before questioning a
       // clear résumé. Explicit gaps/latest answers still prohibit this shortcut.
-      if(attempt===1&&!latestAnswer&&!explicitQuestion){
+      if(!canRepairDraft&&(agentTask||attempt>0)&&!latestAnswer&&!explicitQuestion){
         const pendingQuestion=followUp;followUp=null;
         const unchanged=await checkUnchanged(attempt);
         if(unchanged)return unchanged;
@@ -431,8 +436,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     });
     // Retry the requested paragraph once. Its failure must not discard other
     // grounded edits: those still need the independent fact/value review below.
-    if (!changes.length || (rejected.length > 0 && changes.every(change=>!change.after.trim())) || (agentTask&&attempt===0&&!coversSupplement(changes))) {
-      if(agentTask&&attempt===0){
+    if (!changes.length || (rejected.length > 0 && changes.every(change=>!change.after.trim())) || (agentTask&&canRepairDraft&&!coversSupplement(changes))) {
+      if(agentTask&&canRepairDraft){
         groundedCarry=changes;
         repairFeedback=[...rejected.map(item=>JSON.stringify({before:rawChanges[item.index]?.before,problem:item.reasons})),
           ...(!coversSupplement(changes)?['补问对应经历尚未用已保存的本人补充完成修改，不能只改无关技能']:[])].slice(0,10);
@@ -463,7 +468,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy);
     // Deterministic format violations are already actionable. Return directly
     // to the editor once, rather than spend a review call rediscovering them.
-    if(attempt===0&&formatFindings.some(f=>f.severity==='error')){
+    if(canRepairDraft&&formatFindings.some(f=>f.severity==='error')){
       repairFeedback=formatFindings.filter(f=>f.severity==='error').map(f=>JSON.stringify({before:changes.find(c=>c.id===f.changeId)?.before,problem:f.message}));
       trace.step('review','deterministic_format_returned_to_editor',formatFindings.length,{input:{styleContract,changes},output:{findings:formatFindings,maxRepairs:1}});
       continue;
@@ -490,7 +495,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     try { reviewer = parseJson(reviewerOutput); } catch (error) {
       if(strategy==='independent')reviewer={};
       else {
-        if(agentTask&&attempt===0){repairFeedback=['质检返回格式无效。请重新给出少量完整、事实可回指的修改，以便重新检查。'];trace.step('review','invalid_format_bounded_repair');continue;}
+        if(agentTask&&canRepairDraft){repairFeedback=['质检返回格式无效。请重新给出少量完整、事实可回指的修改，以便重新检查。'];trace.step('review','invalid_format_bounded_repair');continue;}
         throw error;
       }
     }
@@ -529,7 +534,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if(!followUp && (!agentTask || factualResumeAnswers(agentTask.answers).length < 5))
       followUp=nextResumeQuestion(resumeText,(reviewer as Record<string,unknown>).recovery,agentTask?.answers || []);
     trace.step("review","whole_document_checked",documentReview.findings.length,{input:{appliedCandidate:reviewCandidate.text,styleContract,strategy,changes},output:documentReview});
-    if(documentReview.status==="failed" && attempt===0){
+    if(documentReview.status==="failed" && canRepairDraft){
       captureCheckpoint(attempt);
       const flagged=new Set(documentReview.findings.filter(f=>f.severity==="error").map(f=>f.changeId));
       lockedChanges=flagged.has(null)?[]:changes.filter(c=>!flagged.has(c.id));
@@ -560,9 +565,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     requestCoverage=editingRequest&&strategy==='independent'?readResumeRequestCoverage((reviewer as Record<string,unknown>).requestCoverage):null;
     if(requestCoverage)trace.step('review','editing_request_coverage_checked',requestCoverage.unaddressed.length,
       {input:{editingRequest},output:requestCoverage});
-    if (!finalChanges.length || (agentTask&&attempt===0&&(!coversSupplement(finalChanges)||Boolean(requestCoverage&&requestCoverage.status!=='complete')))) {
+    if (!finalChanges.length || (agentTask&&canRepairDraft&&(!coversSupplement(finalChanges)||Boolean(requestCoverage&&requestCoverage.status!=='complete')))) {
       captureCheckpoint(attempt);
-      if(agentTask&&attempt===0){
+      if(agentTask&&canRepairDraft){
         groundedCarry=finalChanges;
         repairFeedback=[...rejected.flatMap(item=>item.reasons),
           ...reviewerFindings.map(finding=>String((finding as Record<string,unknown>)?.message||'独立复核未通过')),
@@ -584,7 +589,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // and genuine small clarifications. But rejected content plus only tiny
     // surviving polish must not end a full edit before its one repair attempt.
     const polishAfterRejectedContent=!latestAnswer&&rejected.length>0&&finalChanges.length>0&&finalChanges.every(change=>isTrivialRewrite(change.before,change.after));
-    if(attempt===0&&agentTask&&(correctionRound||polishAfterRejectedContent)){
+    if(canRepairDraft&&agentTask&&(correctionRound||polishAfterRejectedContent)){
       captureCheckpoint(attempt);
       repairFeedback=[...rejected.flatMap(item=>item.reasons),correctionRound?'刚才通过的建议只有文字校对，没有完成用户要求的内容优化。':'内容候选被过滤后只剩小幅措辞变化，不能靠旁边的技能和换词结束。请优先返修刚才被过滤的经历。','请基于已有事实，在相同段落合并必要纠错与内容调整：删掉重复职责和过程、突出本人主要动作/具体交付/已有结果，保留概括领头、责任与原格式。个人未统计/未负责事项仅作为内部边界，不写进正文，但不得把店铺总结果改成本人贡献。不能只换词、增加标签、重复项目标题或虚构JD经历。最多3处高价值修改；原稿本来清楚、确无内容可改可返回unchanged，不为凑修改硬改，也不笼统把系统失败归因缺信息。'];
       lockedChanges=[];
@@ -703,7 +708,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       documentReview,
-      workflow:{version:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxRepairs:1,maxReviewContractRepairs:1},
+      workflow:{version:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,maxReviewContractRepairs:1},
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

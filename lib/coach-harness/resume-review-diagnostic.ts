@@ -5,7 +5,7 @@ import {readResumeRequestCoverage} from './resume-edit-request';
 
 /** An invalid review is not an editing instruction. Keep the grounded draft
  * fixed while obtaining one corrected verdict, never ask the editor to guess. */
-export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
+export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[],candidate?:string,source='') {
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return 'review_not_object';
  const r=raw as Record<string,unknown>;
  if(r.status!=='passed'&&r.status!=='failed')return 'review_status_invalid';
@@ -19,6 +19,17 @@ export function resumeReviewProtocolIssue(raw:unknown,changes:ResumeChange[]) {
  if(r.status==='failed'&&!r.findings.length&&document.status!=='failed')return 'review_failure_unattributed';
  const checks=readResumeValueChecks(r.valueChecks,changes.length);
  if(checks.length!==changes.length||new Set(checks.map(c=>c.index)).size!==changes.length)return 'review_value_checks_invalid';
+ if(candidate!==undefined){
+  const fold=(text:string)=>text.replace(/[\s*#`]/g,'');
+  const findings=[...r.findings,...document.findings] as Array<{severity:string;message:string}>;
+  for(const finding of findings.filter(f=>f.severity==='error')){
+   const omission=/删除了|删去了|丢失|未保留|漏掉|遗漏|去掉了/.test(finding.message);
+   for(const quote of finding.message.matchAll(/[“「]([^”」\n]{8,300})[”」]/g)){
+    if(/…|\.\.\./.test(quote[1]))continue; // An explicitly elided paraphrase is not an exact quotation.
+    if(fold(source).includes(fold(quote[1]))&&!fold(candidate).includes(fold(quote[1]))&&!omission)return 'review_candidate_quote_missing';
+   }
+  }
+ }
  return null;
 }
 
@@ -41,6 +52,7 @@ export function resumeReviewDiagnostic(raw:unknown, changeIds:string[], useful:n
 }
 export function resumeReviewRepairHint(issue:string){
  const hints:Record<string,string>={
+  review_candidate_quote_missing:'刚才error引用的长原句不存在于appliedCandidate，不能把resume/facts/changes.before中的旧错字当成本轮成稿错误。保持成稿不变重新核验，每个错误都先回到appliedCandidate定位；若指实际删漏，只能依据真实原稿，不能编一段并不存在的候选句。不得把校验通过当质量通过，其他事实和语义问题仍照常拒绝。',
   review_request_coverage_invalid:'requestCoverage必须含status、unaddressed与具体summary；complete时未完成列表为空，否则必须列出尚未完成的目标。',
   document_missing:'必须同时返回document对象，不能只给逐条结论。',
   document_unexpected_fields:'document仅含status、summary、findings；不要加入source、score、recovery或正文。',

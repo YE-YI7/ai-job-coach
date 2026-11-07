@@ -17,17 +17,17 @@ export function resumeStyleContract(source:string, policy:FormatPolicy) {
       :policy==="repair"?"保留原有章节和内容层次，只修同一经历内的列表、概括和日期不一致；不能全篇换模板。"
       :"默认保留原有章节、列表、日期和段首概括结构；原概括空泛时重写具体概括，不可悄悄去掉领头结构；原稿没有的结构不硬加。"};
 }
-export function checkResumeFormat(source:string,candidate:string,changes:ResumeChange[],policy:FormatPolicy):DocumentFinding[] {
+export function checkResumeFormat(source:string,candidate:string,changes:ResumeChange[],policy:FormatPolicy,documentWriter=false):DocumentFinding[] {
   const findings:DocumentFinding[]=[];
   for(const change of changes){
     if(!change.after.trim())continue; // legitimate omissions are handled by factual guards
     const before=change.before.split("\n"),after=change.after.split("\n");
-    if(policy==='preserve' && !before.some(line=>marker(line)) && after.some(line=>marker(line)))
+    if(!documentWriter && policy==='preserve' && !before.some(line=>marker(line)) && after.some(line=>marker(line)))
       findings.push({changeId:change.id,category:'format',severity:'error',message:'原段为段落式正文，保留格式时不能新增列表标记；请精简成清楚的短句，保持原段结构。'});
     const sourceHasLead=before.some(lead);
-    if(policy!=="standard" && sourceHasLead && after.filter(line=>line.trim()).some(line=>!lead(line)))
+    if(!documentWriter && policy!=="standard" && sourceHasLead && after.filter(line=>line.trim()).some(line=>!lead(line)))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"原条目有加粗段首概括，改后丢失或只保留了部分概括；请重写具体概括并保持同段结构。"});
-    if(policy!=="standard" && before.some(line=>marker(line)) && after.some(line=>line.trim()&&!marker(line)))
+    if(!documentWriter && policy!=="standard" && before.some(line=>marker(line)) && after.some(line=>line.trim()&&!marker(line)))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"列表条目被改成无列表标记的段落，破坏原有层级。"});
     if(after.some(line=>(line.match(/\*\*/g)||[]).length%2!==0))
       findings.push({changeId:change.id,category:"format",severity:"error",message:"加粗标记不配对。"});

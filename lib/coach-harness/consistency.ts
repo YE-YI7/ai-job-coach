@@ -1,9 +1,13 @@
 import { isCitableSource, type ArtifactDraft, type CareerClaim, type ConsistencyIssue, type ConsistencyReport, type ContextBundle } from "./types";
 
-const NUMBER_PATTERN = /(?<![\p{L}\p{N}])(?:[¥￥$]?\d+(?:[.,]\d+)?(?:%|万|亿|[kK]|人|次|个月|年|天|元)?|\d{4}[.-]\d{1,2})(?![\p{L}\p{N}])/gu;
+// Han text has no mandatory word spaces. Both “提升6.4个百分点” and
+// “提升 6.4 个百分点” must expose the same number, without treating Vue3
+// or a model version as a metric. Unknown numbers still fail closed.
+const NUMBER_PATTERN = /(?<![A-Za-z\d])(?:[¥￥$]?\d+(?:[.,]\d+)?(?:%|万|亿|[kK]|人|次|个月|年|天|元)?|\d{4}[.-]\d{1,2})(?![A-Za-z\d])/gu;
 
 function numberTokens(value: string) {
-  return new Set((value.match(NUMBER_PATTERN) || []).map((token) => token.replaceAll("，", "")));
+  const canonical=value.replace(/(\d)\s+(?=%|万|亿|[kK]|人|次|个月|年|天|元)/g,'$1');
+  return new Set((canonical.match(NUMBER_PATTERN) || []).map((token) => token.replaceAll("，", "")));
 }
 
 function claimNumberTokens(claim: CareerClaim) {

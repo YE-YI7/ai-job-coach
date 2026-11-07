@@ -66,6 +66,19 @@ function completion(text: string) {
   return { choices: [{ message: { content: text }, finish_reason: "stop" }], usage: null, model: "m" };
 }
 
+test('server F6 tools retain the selected gateway model and allow an immediate complete draft',async()=>{
+  (getGenerationContext as jest.Mock).mockReturnValue({userId:'u',operation:'resume_draft'});
+  (getTokenPayCredential as jest.Mock).mockResolvedValue('existing-key');
+  (resolveTokenDanceModel as jest.Mock).mockResolvedValue('deepseek-v4-flash');
+  create.mockClear();create.mockResolvedValue(completion('完整简历正文'));
+  const nativeTools=[{type:'function' as const,function:{name:'write_output',description:'交稿',parameters:{type:'object'}}}];
+  expect(await callLLM(messages,{provider:'deepseek',model:'deepseek-v4-flash',nativeTools,resumeF6Tools:true,maxRetries:0})).toBe('完整简历正文');
+  expect(create.mock.calls[0][0]).toMatchObject({model:'deepseek-v4-flash',tool_choice:'auto',tools:nativeTools});
+  expect(resolveTokenDanceModel).toHaveBeenCalledWith('u','deepseek-v4-flash');
+  await expect(callLLM(messages,{nativeTools:[{type:'function',function:{name:'arbitrary_execution',description:'x',parameters:{}}}],resumeF6Tools:true}))
+    .rejects.toThrow('F6_TOOL_SCOPE_INVALID');
+});
+
 test('管理员原生工具确实到达SDK，空正文的tool_calls原样回传且计量，不触发空响应重试', async () => {
   (getGenerationContext as jest.Mock).mockReturnValue({userId: 'u', operation: 'admin_trial'});
   (getTokenPayCredential as jest.Mock).mockResolvedValue('existing-key');

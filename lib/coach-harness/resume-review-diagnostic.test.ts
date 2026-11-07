@@ -2,6 +2,15 @@ import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint}
 import type {ResumeChange} from '@/lib/opportunities/types';
 const changes=[{id:'c-1'} as ResumeChange];
 const valid={status:'passed',summary:'检查已有事实和表述',findings:[],valueChecks:[{index:0,useful:true,kind:'clarity',reason:'将事实动作和交付清晰对应'}],document:{status:'passed',summary:'整稿结构和事实一致',findings:[]}};
+test('an error must not quote a typo from the source as if it existed in the rewritten candidate',()=>{
+ const source='能够使用Codex、Claude Code是开展AI Coding';
+ const candidate='能用Codex、Claude Code开展AI Coding';
+ const bad={...valid,status:'failed',findings:[{changeId:'c-1',severity:'error',message:'“能够使用Codex、Claude Code是开展AI Coding”多出是字，需要修正'}]};
+ expect(resumeReviewProtocolIssue(bad,changes,candidate,source)).toBe('review_candidate_quote_missing');
+ expect(resumeReviewProtocolIssue(bad,changes,source,source)).toBeNull();
+ const omitted={...valid,status:'failed',findings:[{changeId:'c-1',severity:'error',message:'删除了“目前进入上线前测试”阶段，改变了完成度'}]};
+ expect(resumeReviewProtocolIssue(omitted,changes,'完成原型','完成原型，目前进入上线前测试')).toBeNull();
+});
 test('separates protocol errors from actionable manuscript findings',()=>{
  expect(resumeReviewProtocolIssue(valid,changes)).toBeNull();
  expect(resumeReviewProtocolIssue({...valid,requestCoverage:{status:'complete',unaddressed:[],summary:'本轮修改要求已经体现在候选中'}},changes)).toBeNull();

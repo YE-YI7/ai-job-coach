@@ -6,7 +6,8 @@ export function applyUserResumeEdit(
   after: string,
   now = Date.now(),
 ): Opportunity {
-  const nextText = after.trim().slice(0, 2_000);
+  const nextText = after.trim();
+  if(nextText.length>30_000)throw Error('修改超过简历可保存长度，文字未被截断；请缩短后再保存。');
   if (!nextText) return opportunity;
 
   return {

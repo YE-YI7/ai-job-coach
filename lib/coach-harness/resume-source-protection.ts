@@ -14,14 +14,18 @@ function preservesMixedHeader(before:string,after:string,firstLine:string){
 }
 
 /** Automated editing must not rewrite identity/contact or upgrade an example to a real project. */
-export function resumeSourceProtection(before: string, after: string, section: string, resume = ""): string[] {
+export function resumeSourceProtection(before: string, after: string, section: string, resume = "", documentRewrite = false): string[] {
   const identitySection = /^(?:姓名(?:栏)?|基本信息|个人信息|个人资料|联系方式|联系信息|简历抬头)(?:$|[\s：:、/（(])/;
   const contact = /[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?<!\d)1[3-9]\d{9}(?!\d)|(?:电话|手机|邮箱)\s*[:：]/i;
   const firstLine = resume.split(/\n/).map(line => line.replace(/^#+\s*/, "").trim()).find(Boolean) || "";
   const nameLine = /^(?:姓名\s*[:：]|name\s*:)/i.test(firstLine)
     || /^[\p{Script=Han}·]{2,5}(?:[（(][^）)]{0,40}[）)])?$/u.test(firstLine);
-  if (identitySection.test(section.trim()) || (contact.test(before)&&!preservesMixedHeader(before,after,firstLine))
-    || (nameLine && before.replace(/^#+\s*/, "").trim() === firstLine)) return ["姓名与联系方式保留原文，不由自动改稿更改；需要时可手动编辑"];
+  const contactTokens = (text:string) => text.match(/[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?<!\d)1[3-9]\d{9}(?!\d)|https?:\/\/[^\s)）]+/gi) || [];
+  const sameContacts = JSON.stringify(contactTokens(before).sort()) === JSON.stringify(contactTokens(after).sort());
+  const keptName = !nameLine || !before.includes(firstLine) || after.split('\n').some(line=>line.replace(/^#+\s*/,'').replace(/\*\*/g,'').trim()===firstLine);
+  const intactDocumentIdentity = documentRewrite && sameContacts && keptName;
+  if (identitySection.test(section.trim()) || (contact.test(before)&&!preservesMixedHeader(before,after,firstLine)&&!intactDocumentIdentity)
+    || (nameLine && before.replace(/^#+\s*/, "").trim() === firstLine && !intactDocumentIdentity)) return ["姓名与联系方式保留原文，不由自动改稿更改；需要时可手动编辑"];
   const educationStatus = ["在读", "预计", "肄业", "结业", "未毕业", "未获得学位", "未取得学位"];
   const markers = ["虚构", "示例", "练习", "模拟", "教学", "个人项目", "课程项目", ...educationStatus];
   const at = resume.indexOf(before);

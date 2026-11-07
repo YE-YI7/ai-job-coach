@@ -104,11 +104,12 @@ describe("resume draft source mapping", () => {
     const result=await response.json();
     expect(writerAndReview()).toEqual(["resume_draft","resume_review"]);
     expect(callLLM).toHaveBeenCalledTimes(2);
-    expect((callLLM as jest.Mock).mock.calls[0][0][0].content).toContain('你是 F6 简历作者');
+    expect((callLLM as jest.Mock).mock.calls[0][0][0].content).toContain('你是简历编辑 Agent');
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({resumeF6Tools:true});
     expect(reserveQuota).toHaveBeenCalledTimes(1);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),pass);
     if (pass) {
-      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:1,maxRepairs:0,writer:'f6-editorial-v1'});
+      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:2,maxRepairs:1,writer:'f6-accepted-document-v2'});
       expect(finishResumeTask).toHaveBeenCalledTimes(1);
       expect((finishResumeTask as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((finalizeQuota as jest.Mock).mock.invocationCallOrder[0]);
       expect(response.status).toBe(200);
@@ -152,7 +153,8 @@ describe("resume draft source mapping", () => {
     expect((await POST(await trialRequest())).status).toBe(503);
     expect(getContextBundleForUser).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
     const prompts=JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);expect(prompts).toContain('甲门店');expect(prompts).not.toContain('乙门店');
-    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:75000,firstTokenTimeoutMs:30000,maxRetries:0,onDelta:expect.any(Function)});
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:75000,firstTokenTimeoutMs:30000,maxRetries:0,resumeF6Tools:true});
+    expect((callLLM as jest.Mock).mock.calls[0][1].onDelta).toBeUndefined();
     expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].userId).toBe('user-1');
     expect((callLLM as jest.Mock).mock.calls[0][1].siteFunded).toBe(true);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({id:'trial-r'}),false);expect(createArtifactWithClaims).not.toHaveBeenCalled();
@@ -191,7 +193,9 @@ describe("resume draft source mapping", () => {
   });
 
   test("F6 author can read an allowlisted case while reviewer keeps admitted methods", async () => {
-    (callLLM as jest.Mock).mockResolvedValueOnce('{"read_file":["S007"]}')
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({type:'native_tool_calls',content:'',tool_calls:[
+      {id:'read-s007',type:'function',function:{name:'read_file',arguments:'{"file":"S007"}'}},
+    ]}))
       .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
       .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});
@@ -203,7 +207,7 @@ describe("resume draft source mapping", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
     const [menu,writer,reviewer]=(callLLM as jest.Mock).mock.calls.map(call=>JSON.stringify(call[0]));
     expect(menu).not.toContain('弱稿');
-    expect(writer).toContain('将每次全量注入改为按需加载');
+    expect(writer).toContain('把约 580 行上下文从每次全量注入改为按需加载');
     expect(writer).not.toContain('补丁评测识别失败');
     for (const id of RESUME_METHOD_IDS) expect(reviewer).toContain(`[参考 ${id}]`);
   });

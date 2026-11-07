@@ -18,7 +18,9 @@ export function nativeToolEnvelope(
   message: {content?: string | null; tool_calls?: unknown[]} | undefined,
   finishReason: string | null | undefined,
   tools: NativeTool[],
+  allowFinalText = false,
 ) {
+  if (allowFinalText && finishReason === 'stop' && !message?.tool_calls?.length && message?.content?.trim()) return message.content;
   if (finishReason !== 'tool_calls' || !message?.tool_calls?.length) throw Error('NATIVE_TOOL_RESPONSE_REQUIRED');
   if (message.tool_calls.length > 12) throw Error('NATIVE_TOOL_CALL_LIMIT');
   const allowed = new Set(tools.map(t => t.function.name)), ids = new Set<string>();

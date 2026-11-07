@@ -104,7 +104,7 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
         try { await reference.quote(change.id); setActive(null); setEditing(false); }
         catch (cause) { setEditError(cause instanceof Error ? cause.message : '引用失败，请重新点选。'); }
       }}><MessageSquareQuote size={16} aria-hidden="true" />引用到对话</button>}
-      {editing?<form onSubmit={event=>{event.preventDefault();if(!value.trim())return;onEdit(change.id,value.trim());setEditing(false);setActive(null);}}><textarea aria-label="自己修改简历文字" rows={4} maxLength={2000} value={value} onChange={event=>setValue(event.target.value)} autoFocus/><button type="submit">保存文字</button></form>:<p>{change.reason}</p>}
+      {editing?<form onSubmit={event=>{event.preventDefault();if(!value.trim())return;onEdit(change.id,value.trim());setEditing(false);setActive(null);}}><textarea aria-label="自己修改简历文字" rows={4} maxLength={30000} value={value} onChange={event=>setValue(event.target.value)} autoFocus/><button type="submit">保存文字</button></form>:<p>{change.reason}</p>}
     </div>,document.body)}
   </div>;
 }

@@ -34,6 +34,13 @@ function opportunity(): Opportunity {
 }
 
 describe("applyUserResumeEdit", () => {
+  test('whole-document edits are saved intact rather than silently truncated',()=>{
+    const text='整稿有据重写。'.repeat(400);
+    const saved=applyUserResumeEdit(opportunity(),'change-1',text);
+    const restored=JSON.parse(JSON.stringify(saved));
+    expect(restored.resumeChanges[0].after).toBe(text);
+    expect(()=>applyUserResumeEdit(opportunity(),'change-1','字'.repeat(30001))).toThrow('未被截断');
+  });
   test("lets the user revise an accepted AI suggestion and requires revalidation", () => {
     const result = applyUserResumeEdit(opportunity(), "change-1", "  设计评测方案并复盘 badcase  ", 100);
 

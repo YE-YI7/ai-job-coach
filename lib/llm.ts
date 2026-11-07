@@ -15,6 +15,8 @@ type LlmOptions = {
   requireExactConnectedModel?: boolean;
   /** Bounded administrator experiments only; no implicit protocol or provider fallback. */
   nativeTools?: NativeTool[];
+  /** Server-only F6 writer: bounded read_file/write_output, automatic choice. */
+  resumeF6Tools?: true;
   /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
   siteFunded?: boolean;
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
@@ -66,7 +68,7 @@ export function buildChatCompletionRequest(messages: Message[], provider: "deeps
   if (options?.responseFormat) request.response_format = { type: options.responseFormat };
   if (options?.nativeTools) {
     request.tools = options.nativeTools;
-    request.tool_choice = 'required';
+    request.tool_choice = options.resumeF6Tools ? 'auto' : 'required';
     delete request.response_format;
   }
   // Step's API may return reasoning even with a thinking-disable flag. Use a
@@ -177,8 +179,10 @@ export async function callLLM(
   if (!Array.isArray(messages)) {
     throw new Error("Invalid messages");
   }
-  if (options?.nativeTools && (!options.requireExactConnectedModel || options.onDelta
-    || !options.nativeTools.length)) throw Error('NATIVE_TOOLS_EXPERIMENT_ONLY');
+  if (options?.nativeTools && (options.onDelta || !options.nativeTools.length
+    || (!options.requireExactConnectedModel && !options.resumeF6Tools))) throw Error('NATIVE_TOOLS_EXPERIMENT_ONLY');
+  if (options?.resumeF6Tools && (!options.nativeTools?.length
+    || options.nativeTools.some(tool => !['read_file', 'write_output'].includes(tool.function.name)))) throw Error('F6_TOOL_SCOPE_INVALID');
 
   const trace = getGenerationContext();
   let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
@@ -349,7 +353,7 @@ export async function callLLM(
     );
     receivedUsage = completion.usage;
     const content = options?.nativeTools
-      ? nativeToolEnvelope(completion.choices[0]?.message, completion.choices[0]?.finish_reason, options.nativeTools)
+      ? nativeToolEnvelope(completion.choices[0]?.message, completion.choices[0]?.finish_reason, options.nativeTools, options.resumeF6Tools)
       : completion.choices[0]?.message?.content;
     const finishReason = completion.choices[0]?.finish_reason;
     diagnostic.finishReason = finishReason || 'missing';

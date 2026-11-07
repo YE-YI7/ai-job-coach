@@ -1,144 +1,116 @@
-/** F6 editorial map and optional teaching cards, adapted to the product's
- * anchored suggestion contract. The author reads; only the existing host
- * can validate, present or save the suggested text. */
-export const F6_RESUME_WRITER = 'f6-editorial-v1';
+import accepted from './f6-accepted.json';
+import { projectF6Document } from './resume-f6-projection';
+import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 
-const resources = {
-  'spec.md': {
-    description: '首屏扫读、贡献选材、事实边界及结构重排的详细方法。',
-    text: [
-      '只做会改变招聘方判断的改动。先从岗位和已有材料辨认最有区分度的能力；没 JD 不猜公司标准。',
-      '扫读首屏、标题和领头句，确保能读出方向、准确身份和最强真实信号；不要为了钩子新写一个故事。',
-      '细读时用具体判断、本人干预和验证支撑主张。只取读者需要的细节，不把工具、步骤或产出全列出来。',
-      '保留归属、阶段、因果、数据方向和单位。不能把一个项目的做法、指标或推测拿来解释另一个项目。',
-      '把无法证实的动机、候选解释和补问留在对话，正文只写已有证据；不删会改变主张的限定。',
-      '能安全改的先交付。缺关键事实时只问一个可回答的问题；不要为了凑条数阻断或制造内容。',
-    ].join('\n'),
-  },
-  S006: {
-    description: '本人做了失败接续、又有对照口径时，取代工程模块清单；缺本人责任或验证就不套用。',
-    text: [
-      '教学案例（非候选人事实）。材料：难题失败后整轮重跑有重复开销；本人设计模型接力，失败时从检查点续跑。',
-      '弱稿：搭建多模型协同流水线，接入截断、压缩、信息传递、检查点与增量恢复，实现降本增效。',
-      '参考：为避免难题失败后整轮重跑，用补丁评测识别失败，再把失败证据交给下一模型从检查点续跑；',
-      '以全量重跑作对照，比较难题通过率和单任务开销。',
-      '保留能解释换手和恢复的细节；没证据就不写具体增幅，不搬用案例的项目、验证或结果。',
-    ].join('\n'),
-  },
-  S007: {
-    description: '有前后方案和单项结果时，写清改动与口径；没有数据时只学对比结构，不补结果。',
-    text: [
-      '教学案例（非候选人事实）。材料：从每次全量注入上下文改为按需注入，记录了 token 用量变化，没测质量和时延。',
-      '弱稿：通过上下文工程优化，在保证质量的前提下降本增效。',
-      '参考：将每次全量注入改为按需加载；记录到 token 用量下降。原始记录若确认了幅度，才可带入准确数字。',
-      '写清选择了什么、实测了什么。不能从 token 用量变化推出质量、时延、业务或整站成本改善。',
-    ].join('\n'),
-  },
-} as const;
-type Id = keyof typeof resources;
-const hasResource = (id: unknown): id is Id => typeof id === 'string' && Object.hasOwn(resources, id);
-type Message = { role:'system'|'user'|'assistant'; content:string };
+export const F6_RESUME_WRITER = 'f6-accepted-document-v2';
+export const F6_MAX_AUTHOR_CALLS = 6;
+type Id = keyof typeof accepted.resources;
 type Input = {
-  resume:string; jd:string; facts:Array<{id:string;text:string}>; request:string; answers:unknown;
-  decisions:unknown; scope:'whole'|'single'; format:unknown;
+  resume: string; jd: string; facts: Array<{ id: string; text: string }>;
+  request: string; answers: unknown; decisions: unknown; scope: 'whole' | 'single'; format: unknown;
+  previousDraft?: string; reviewFeedback?: string[];
 };
-type Call = (messages:Message[], phase:'read_or_write'|'write', readIds:Id[])=>Promise<string>;
+type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
+const fields = (properties: Record<string, unknown>) => ({
+  type: 'object', properties, required: Object.keys(properties), additionalProperties: false,
+});
+const tool = (name: string, description: string, parameters: Record<string, unknown>): NativeTool => ({
+  type: 'function', function: { name, description, parameters },
+});
+const tools = [
+  tool('read_file', 'Read the complete F6 task spec or an optional teaching case by catalogue ID. Cases are not candidate facts.',
+    fields({ file: { type: 'string', enum: Object.keys(accepted.resources) } })),
+  tool('write_output', 'Deliver the COMPLETE rewritten authorised résumé and optional selection receipt. The host derives reversible changes afterwards.',
+    fields({ files: { type: 'array', minItems: 1, maxItems: 2, items: fields({
+      name: { type: 'string', enum: ['resume-new.md', 'notes.md'] }, text: { type: 'string' },
+    }) } })),
+];
 
-const map = [
-  '你是 F6 简历作者。目标是增加面试机会：首屏要看清什么人、能做什么、凭什么信。只有会改变招聘方判断的改动才值得做。',
-  '先通读整份授权材料。分清首屏扫读、细读、风险、面试追问四层。优先重写能说明本人判断、干预、交付及验证的经历，压缩重复动作、通用说法和清单。',
-  '有 JD 才做岗位画像，区分硬门槛、加分项、未知。没有目标 JD 时按材料明确的方向优化，不猜公司偏好。',
-  '案例是写法，不是事实。每个陈述只用同一经历的原文或明确属于该经历的本人补充。',
-  '不得为写动机、反差或取舍而串项目、补因果、角色或结果。指标的方向、单位、比较基准和阶段与原文保持一致。',
-  '把最能区分这个人的证据放在对应经历的领头位置。围绕一个贡献重新写，不保留原句的流水账。身份、联系方式和必要责任/阶段限定不动。',
-  '段落式原稿用短句重写，不必逐句对应；已有列表保持列表与领头。用户明确范围优先，已采纳或拒绝的旧决定不悄悄改。',
-  '若缺证据，一次只问一个确实会改变主张的细节。先改其他有证据的部分；不得给候选正文添加编造数字或占位符。',
-].join('\n');
-const writeContract = [
-  '交稿工具 write_output：一个 JSON 对象，返回 {write_output:[{id,section,after,reason,sourceIds}],selectionReceipt?:string,recovery?:{sourceExcerpt,field,question}}。',
-  '用下方 resume 的段落 id 交一段从头写成的可投递 after，不返回 before。不要提交未改段落、纠错清单或原句的缩写版。',
-  '每条 sourceIds 为实际支持该 after 的事实编号，不能引用案例或别的项目。不得更换身份、联系方式、单列日期、章节标题和经历归属。',
-  '按优先级给 0–6 个可独立确认的高价值修改，同一 id 只交一次。确无内容可改时 status:unchanged；确实缺关键事实且无可改时 status:needs_detail。',
-  '选材回执只说明优先的贡献、验证依据与省掉的弱细节，不进入简历正文。recovery 的 sourceExcerpt 必须是原稿中 12–260 字连续原句。',
-].join('\n');
-const menu = JSON.stringify(Object.entries(resources).map(([id,value])=>({id,description:value.description})));
-
-function parse(reply:string):Record<string,unknown>{
-  const cleaned=reply.trim().replace(/^```(?:json)?\s*|\s*```$/g,'');
-  const value=JSON.parse(cleaned);
-  if(!value || typeof value!=='object' || Array.isArray(value))throw Error('F6_WRITER_PROTOCOL_INVALID');
+function parse(reply: string): Record<string, unknown> {
+  const value = JSON.parse(reply.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('F6_WRITER_PROTOCOL_INVALID');
   return value;
 }
 
-type Anchor={text:string; sourceIds:string[]};
-function toProductChanges(value:Record<string,unknown>, anchors:Map<string,Anchor>, originalReply:string) {
-  // The older anchored shape remains readable during migration; newer F6
-  // authors do not need to reproduce the original in a separate output field.
-  if(!Object.hasOwn(value,'write_output'))return originalReply;
-  if(Object.hasOwn(value,'changes') || !Array.isArray(value.write_output) || value.write_output.length>6){
-    throw Error('F6_WRITE_OUTSIDE_SCOPE');
-  }
-  const used=new Set<string>();
-  const changes=value.write_output.map((entry:unknown)=>{
-    if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('F6_WRITE_OUTSIDE_SCOPE');
-    const {id,section,after,reason,sourceIds}=entry as Record<string,unknown>;
-    if(typeof id!=='string'||!anchors.has(id)||used.has(id)||typeof after!=='string'||!after.trim()||after.length>2000){
-      throw Error('F6_WRITE_OUTSIDE_SCOPE');
-    }
-    used.add(id);
-    const anchor=anchors.get(id)!;
-    const modelIds=Array.isArray(sourceIds)?sourceIds.filter((item):item is string=>typeof item==='string'):[];
-    return {
-      section,before:anchor.text,after,reason,
-      sourceIds:[...new Set([...anchor.sourceIds,...modelIds.filter(item=>item!==id)])],
-    };
-  });
-  const rest={...value};
-  delete rest.write_output;
-  return JSON.stringify({...rest,changes});
-}
-
-export async function runF6ResumeWriter(input:Input, call:Call, onRead:(ids:Id[])=>void) {
-  const counts=new Map<string,number>();
-  const lines=input.resume.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-  for(const line of lines)counts.set(line,(counts.get(line) ?? 0)+1);
-  const sameFact=(fact:string,line:string)=>fact.trim()===line;
-  const anchors=new Map<string,Anchor>(lines.flatMap((line,index)=>
-    counts.get(line)===1 && line.length>=8 && line.length<=2000 && !/^#{1,6}\s/.test(line)
-      ? [[`p${index+1}`,{text:line,sourceIds:input.facts.filter(fact=>sameFact(fact.text,line)).map(fact=>fact.id)}] as const] : []));
-  const messages:Message[]=[
-    {role:'system',content:map},
-    {role:'user',content:JSON.stringify({
-      resume:lines.map((text,index)=>{
-        const id=`p${index+1}`, anchor=anchors.get(id);
-        return anchor?{id,...anchor}:{text};
-      }),
-      jd:input.jd,facts:input.facts.filter(fact=>!lines.some(line=>sameFact(fact.text,line))),
-      editingRequest:input.request,answers:input.answers,priorDecisions:input.decisions,format:input.format,
-      scope:input.scope==='single'?'只改本次授权经历，不得改其他段落。':'整份简历选材，按经历分别交付。',
-    })},
-    {role:'system',content:[
-      '此步只做编辑准备，不写简历正文。决定是否需要可选资源，只返回 JSON：{"read_file":["资源 ID"]}。',
-      '最多选两个；如果无需参考可返回 {"read_file":[]}。不要承诺已经完成改稿。',
-      '目录：'+menu,
-    ].join('\n')},
+/** Exact accepted F6 map/resources; only company, task scope and host delivery
+ * are parameterised. There is no mandatory selection turn or per-line limit. */
+export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void) {
+  const scope = input.scope === 'single' ? '本次只改本次授权的那一段经历。' : '本次改整份授权简历，按已有方向优化。';
+  const system = accepted.system
+    .replace('本次只写 Manus「Agent 产品经理」投递稿的「益职 AI」项目段。', scope)
+    .replace('在该项目段取舍、重排和编辑。', '在授权范围内取舍、重排和编辑。')
+    .replace('本次交付只有项目段正文，以「### 益职 AI」开头，可直接回复或通过 write_output 保存为 resume-new.md。',
+      '本次交付完整的授权范围正文，可直接回复或通过 write_output 保存为 resume-new.md。');
+  const messages: LlmMessage[] = [
+    { role: 'system', content: system },
+    { role: 'user', content: JSON.stringify({
+      task: scope, 'resume.md': input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
+      answers: input.answers, editingRequest: input.request, priorDecisions: input.decisions,
+      ...(input.previousDraft ? {previousDraft:input.previousDraft,reviewFeedback:input.reviewFeedback,
+        repairInstruction:'这是独立检查给原作者的诊断，不是候选人事实或正确答案。逐项对照原稿与候选核实；修正有依据的问题，不照单补写新事实。交回完整修订稿。'} : {}),
+      public_hiring_case_notes: accepted.publicHiringCases,
+      optional_read_file_examples: accepted.catalogue,
+    }) },
+    { role: 'system', content: [
+      '这是 F6 的产品交付适配，不是逐句纠错接口。交付完整新稿，不要求逐句对应，不要求六条修改，不把原句当作不可重构的模板。',
+      '工具目录：read_file 可按需读 spec.md、S006、S007；write_output 交整稿与选材回执。是否读、读哪项及何时交稿由你决定。',
+      '当前未提供公开搜索或渲染工具，不声称搜索、实测页数或完成了不存在的验证；没有目标 JD 不猜公司门槛。',
+      '每个重要主张、动机和判断只用同一经历的原文或明确归属的本人补充，不能把其他项目做法、验证或指标移植过去。',
+      '原有姓名与联系方式原样保留。尊重用户已采纳/拒绝的决定。结构调整可作为整体建议供用户拒绝；不自动应用或删除。',
+      '保持指标方向、单位、基准、责任和阶段。事实不等于全文照抄；从已有证据选择最能改变招聘判断的贡献。',
+    ].join('\n') },
   ];
-  const first=await call(messages,'read_or_write',[]);
-  const parsed=parse(first);
-  if(!Object.hasOwn(parsed,'read_file'))return toProductChanges(parsed,anchors,first);
-  if(Object.keys(parsed).length!==1 || !Array.isArray(parsed.read_file)
-    || parsed.read_file.length>2 || !parsed.read_file.every(hasResource)
-    || new Set(parsed.read_file).size!==parsed.read_file.length)throw Error('F6_READ_OUTSIDE_CATALOGUE');
-  const ids=parsed.read_file;
-  if(ids.length)onRead(ids);
-  const final=await call([...messages,
-    {role:'assistant',content:first},
-    ...(ids.length?[{role:'user' as const,content:JSON.stringify({read_file:ids.map(id=>({id,text:resources[id].text}))})}]:[]),
-    {role:'system',content:'现在写一版能交给招聘方的改稿，案例不是候选人经历。\n'+writeContract},
-  ],'write',ids);
-  const written=parse(final);
-  if(Object.hasOwn(written,'read_file'))throw Error('F6_READ_BUDGET_EXHAUSTED');
-  return toProductChanges(written,anchors,final);
+  const readIds: Id[] = [];
+  for (let turn = 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
+    const reply = await call([...messages], turn ? 'write' : 'read_or_write', [...readIds], tools);
+    let value: Record<string, unknown>;
+    try { value = parse(reply); } catch {
+      if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
+      return deliver(reply.trim());
+    }
+    // Read compatibility for already queued responses only. New F6 requests
+    // contain no per-line suggestion schema and never ask for this shape.
+    if (Array.isArray(value.changes)) return reply;
+    if (value.type !== 'native_tool_calls' || !Array.isArray(value.tool_calls)) throw Error('F6_WRITER_PROTOCOL_INVALID');
+    const calls = value.tool_calls as NativeToolCall[];
+    messages.push({ role: 'assistant', content: String(value.content || ''), tool_calls: calls });
+    let body: string | undefined, receipt: string | undefined;
+    for (const request of calls) {
+      const args = parse(request.function.arguments);
+      let result: Record<string, unknown>;
+      if (request.function.name === 'read_file') {
+        if (typeof args.file !== 'string' || !Object.hasOwn(accepted.resources, args.file)) throw Error('F6_READ_OUTSIDE_CATALOGUE');
+        const id = args.file as Id;
+        readIds.push(id); onRead([id]);
+        result = { file: id, text: accepted.resources[id], personalFacts: false };
+      } else if (request.function.name === 'write_output') {
+        if (!Array.isArray(args.files) || !args.files.length || args.files.length > 2) throw Error('F6_WRITE_OUTSIDE_SCOPE');
+        const names = new Set<string>();
+        for (const file of args.files) {
+          if (!file || !['resume-new.md', 'notes.md'].includes(file.name) || names.has(file.name)
+            || typeof file.text !== 'string' || !file.text.trim() || file.text.length > 30_000) throw Error('F6_WRITE_OUTSIDE_SCOPE');
+          names.add(file.name);
+          if (file.name === 'resume-new.md') body = file.text.trim();
+          else receipt = file.text.trim();
+        }
+        result = { saved: [...names], applied: false, requiresReviewAndUserConfirmation: true };
+      } else throw Error('F6_UNKNOWN_TOOL');
+      messages.push({ role: 'tool', tool_call_id: request.id, content: JSON.stringify(result) });
+    }
+    if (body) return deliver(body, receipt);
+  }
+  throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
+
+  function deliver(body: string, receipt?: string) {
+    if (!body.trim() || body.length > 30_000) throw Error('F6_WRITE_OUTSIDE_SCOPE');
+    const changes = projectF6Document(input.resume, body).map(change => ({
+      ...change, section: input.scope === 'single' ? '经历整体重写' : '整稿选材与重构',
+      reason: 'F6 先交完整重写稿，宿主回指原文生成可确认的差异块；需通过独立事实与语义检查。',
+      sourceIds: input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
+    }));
+    return JSON.stringify({ changes, fullDocument: body, ...(receipt ? { selectionReceipt: receipt } : {}),
+      ...(!changes.length ? { status: 'unchanged' } : {}) });
+  }
 }
 
 /** Losing the verb around the same number changes a measured delta into a

@@ -1,4 +1,12 @@
 import { resumeSourceProtection } from "./resume-source-protection";
+test('whole-document structure changes do not disable identity or contact protection',()=>{
+  const original='张三\n13800000000 | demo@example.com\n教育背景\n示例大学 本科在读\n项目经历\n参与整理评测材料。';
+  const candidate='# 张三\n13800000000 | demo@example.com\n项目经历\n参与整理评测材料。\n教育背景\n示例大学 本科在读';
+  expect(resumeSourceProtection(original,candidate,'整稿',original,true)).toEqual([]);
+  expect(resumeSourceProtection(original,candidate.replace('张三','李四'),'整稿',original,true)).not.toEqual([]);
+  expect(resumeSourceProtection(original,candidate.replace('13800000000','13900000000'),'整稿',original,true)).not.toEqual([]);
+  expect(resumeSourceProtection(original,candidate.replace('在读',''),'整稿',original,true)).not.toEqual([]);
+});
 test.each(['在读','预计毕业','肄业','结业','未毕业','未获得学位','未取得学位'])('education status %s cannot disappear behind dates',status=>{
   const before=`示例大学｜信息管理｜本科${status}｜2023.09–2027.06`;
   expect(resumeSourceProtection(before,'示例大学 信息管理 本科 2023.09–2027.06','教育背景',`## 教育背景\n${before}`)).not.toEqual([]);

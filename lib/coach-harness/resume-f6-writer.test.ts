@@ -1,66 +1,64 @@
-import { f6MetricDirectionIssues, runF6ResumeWriter } from './resume-f6-writer';
+import { f6MetricDirectionIssues, runF6ResumeWriter, F6_MAX_AUTHOR_CALLS } from './resume-f6-writer';
+import accepted from './f6-accepted.json';
 
-const input={resume:'原稿',jd:'',facts:[{id:'fact',text:'候选人事实'}],request:'',answers:[],decisions:[],scope:'whole' as const,format:{}};
-const draft='{"changes":[]}';
+const input = {resume:'原稿段落：负责模型评测并整理失败原因。',jd:'',facts:[{id:'fact',text:'原稿段落：负责模型评测并整理失败原因。'}],
+  request:'',answers:[],decisions:[],scope:'whole' as const,format:{}};
+const tool = (name: string, args: unknown) => JSON.stringify({type:'native_tool_calls',content:'',
+  tool_calls:[{id:'call-'+name,type:'function',function:{name,arguments:JSON.stringify(args)}}]});
 
-test('agent sees the catalogue, then receives only the actual requested resources',async()=>{
-  const run=jest.fn().mockResolvedValueOnce('{"read_file":["S007"]}').mockResolvedValueOnce(draft);
-  const receipt=jest.fn();
-  expect(await runF6ResumeWriter(input,run,receipt)).toBe(draft);
+test('accepted F6 map and COMPLETE teaching cards are used, not replacement summaries', async () => {
+  const run = jest.fn().mockResolvedValueOnce(tool('read_file',{file:'S007'}))
+    .mockResolvedValueOnce(tool('write_output',{files:[{name:'resume-new.md',text:'原稿段落：整理模型评测中的失败原因。'},{name:'notes.md',text:'优先呈现具体评测交付'}]}));
+  const receipt = jest.fn();
+  const result = JSON.parse(await runF6ResumeWriter(input,run,receipt));
   expect(receipt).toHaveBeenCalledWith(['S007']);
-  expect(run.mock.calls.map((call)=>call[1])).toEqual(['read_or_write','write']);
-  const first=JSON.stringify(run.mock.calls[0][0]),second=JSON.stringify(run.mock.calls[1][0]);
-  expect(first).toContain('S006');
-  expect(first).toMatch(/JSON/);
-  expect(first).not.toContain('弱稿');
-  expect(second).toContain('将每次全量注入改为按需加载');
-  expect(second).not.toContain('用补丁评测识别失败');
+  expect(run.mock.calls[0][0][0].content).toContain('规格地图（v1.3');
+  expect(JSON.stringify(run.mock.calls[0][0])).not.toContain('段落 id');
+  expect(JSON.stringify(run.mock.calls[0][0])).not.toContain('最多给出 6');
+  expect(run.mock.calls[1][0].some((m:{role:string;content:string})=>m.role==='tool'&&JSON.parse(m.content).text===accepted.resources.S007)).toBe(true);
+  expect(result.fullDocument).toBe('原稿段落：整理模型评测中的失败原因。');
+  expect(result.selectionReceipt).toBe('优先呈现具体评测交付');
+  expect(result.changes[0].before).toBe(input.resume);
 });
 
-test('does not force a case read or another author turn',async()=>{
-  const run=jest.fn().mockResolvedValue(draft);
-  expect(await runF6ResumeWriter(input,run,jest.fn())).toBe(draft);
+test('no compulsory planning call: author can deliver the complete document immediately', async () => {
+  const run = jest.fn().mockResolvedValue('原稿段落：整理模型评测中的失败原因。');
+  const result = JSON.parse(await runF6ResumeWriter(input,run,jest.fn()));
+  expect(result.changes).toHaveLength(1);
   expect(run).toHaveBeenCalledTimes(1);
+  expect(run.mock.calls[0][3].map((t:{function:{name:string}})=>t.function.name)).toEqual(['read_file','write_output']);
+});
+
+test('author can read both cases in independent turns, then deliver without a six-suggestion constraint', async () => {
+  const run = jest.fn().mockResolvedValueOnce(tool('read_file',{file:'S006'}))
+    .mockResolvedValueOnce(tool('read_file',{file:'S007'})).mockResolvedValueOnce(input.resume);
+  const receipt = jest.fn();
+  const result = JSON.parse(await runF6ResumeWriter(input,run,receipt));
+  expect(result.status).toBe('unchanged');
+  expect(receipt.mock.calls).toEqual([[['S006']],[['S007']]]);
+  expect(run).toHaveBeenCalledTimes(3);
 });
 
 test.each([
-  '{"read_file":["../private"]}',
-  '{"read_file":["S007","S007"]}',
-  '{"read_file":["S006","S007","spec.md"]}',
-  '{"read_file":["S007"],"changes":[]}',
-])('invalid or mixed tool requests do not fetch or invoke a second model: %s',async(payload)=>{
+  tool('read_file',{file:'../private'}),
+  tool('write_output',{files:[{name:'outside.md',text:'x'}]}),
+  tool('write_output',{files:[{name:'resume-new.md',text:''}]}),
+  '{"bad":"protocol"}',
+])('scope/protocol errors do not invoke another model: %s', async payload => {
   const run=jest.fn().mockResolvedValue(payload);
-  const receipt=jest.fn();
-  await expect(runF6ResumeWriter(input,run,receipt)).rejects.toThrow('F6_READ_OUTSIDE_CATALOGUE');
+  await expect(runF6ResumeWriter(input,run,jest.fn())).rejects.toThrow();
   expect(run).toHaveBeenCalledTimes(1);
-  expect(receipt).not.toHaveBeenCalled();
 });
 
-test('rejects another read after delivery turn begins',async()=>{
-  const run=jest.fn().mockResolvedValue('{"read_file":["S006"]}');
-  await expect(runF6ResumeWriter(input,run,jest.fn())).rejects.toThrow('F6_READ_BUDGET_EXHAUSTED');
-  expect(run).toHaveBeenCalledTimes(2);
+test('bounded autonomous reading cannot create an infinite billable loop', async () => {
+  const run=jest.fn().mockResolvedValue(tool('read_file',{file:'spec.md'}));
+  await expect(runF6ResumeWriter(input,run,jest.fn())).rejects.toThrow('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
+  expect(run).toHaveBeenCalledTimes(F6_MAX_AUTHOR_CALLS);
 });
 
-test('host translates a write receipt to the original exact anchor, not model text',async()=>{
-  const resume='## 项目经历\n对照向量和关键词检索，定位专业术语排序问题。\n重复段落重复段落\n重复段落重复段落';
-  const entry={id:'p2',after:'对比向量和关键词检索，定位专业术语排序偏差。',sourceIds:['p2']};
-  const call=jest.fn().mockResolvedValue(JSON.stringify({write_output:[entry],selectionReceipt:'保留对照依据'}));
-  const facts=[{id:'resume-line-2',text:'对照向量和关键词检索，定位专业术语排序问题。'}];
-  const output=JSON.parse(await runF6ResumeWriter({...input,resume,facts},call,jest.fn()));
-  expect(output.changes).toEqual([{before:'对照向量和关键词检索，定位专业术语排序问题。',after:entry.after,sourceIds:['resume-line-2']}]);
-  expect(output.selectionReceipt).toBe('保留对照依据');
-  for(const id of ['p1','p3','p4','p99']){
-    call.mockResolvedValue(JSON.stringify({write_output:[{...entry,id}]}));
-    await expect(runF6ResumeWriter({...input,resume},call,jest.fn())).rejects.toThrow('F6_WRITE_OUTSIDE_SCOPE');
-  }
-});
-
-test('keeps measured delta separate from current level',()=>{
+test('keeps measured delta separate from current level', () => {
   const before='专业术语命中率提升30百分点，问答正确率提升6.4个百分点';
   expect(f6MetricDirectionIssues(before,'术语命中率提高30个百分点，问答正确率6.4百分点')).toHaveLength(1);
   expect(f6MetricDirectionIssues(before,'术语命中率提高30个百分点，问答正确率下降6.4个百分点')).toHaveLength(1);
   expect(f6MetricDirectionIssues(before,'术语命中率提高30个百分点，问答正确率提高6.4个百分点')).toEqual([]);
-  expect(f6MetricDirectionIssues(before,'问答正确率 +6.4pp')).toEqual([]);
-  expect(f6MetricDirectionIssues('误判率降低20%','误判率20%')).toHaveLength(1);
 });

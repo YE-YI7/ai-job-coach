@@ -53,6 +53,17 @@ describe("coach harness consistency", () => {
     expect(report.issues.map((item) => item.code)).toContain("unsupported_number");
   });
 
+  test('Chinese metrics are checked equally with or without surrounding spaces',()=>{
+    const bundle=compileContextBundle({task:'resume_workshop',userId:'user-1',claims:[claim({
+      displayText:'问答正确率提升6.4个百分点，合格率75%至83%。每周5天，实习6个月。',
+      sourceExcerpt:'问答正确率提升6.4个百分点，合格率75%至83%。每周5天，实习6个月。',value:'问答正确率提升6.4个百分点，合格率75%至83%。每周5天，实习6个月。',
+    })]});
+    const report=(content:string)=>validateArtifactDraft({artifactType:'resume',sections:[{path:'experience.0',content,claimIds:['claim-1']}]},bundle);
+    expect(report('问答正确率提升 6.4 个百分点，合格率 75%→83%。').ok).toBe(true);
+    expect(report('每周 5 天，实习 6 个月。').ok).toBe(true);
+    expect(report('问答正确率提升7.4个百分点').issues.some(i=>i.code==='unsupported_number')).toBe(true);
+  });
+
   test("blocks model-extracted facts from becoming experience", () => {
     // PRD §3.5：没有做过 → 说明缺口并给可完成的小实验，而不是编造项目。
     const bundle = compileContextBundle({ task: "resume_workshop", userId: "user-1", claims: [] });

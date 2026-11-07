@@ -33,9 +33,13 @@ export async function POST(request: Request) {
     const opportunityId = String(body.opportunityId || "").trim();
     const resumeText = String(body.resumeText || "").trim().slice(0, 30_000);
     const jobDescription = String(body.jobDescription || "").trim().slice(0, 30_000);
-    const incoming = (Array.isArray(body.changes) ? body.changes : []).slice(0, 20) as ResumeChange[];
-    if (!opportunityId || !resumeText || !jobDescription || !incoming.length) {
+    const generalResume = body.mode === 'general_resume';
+    const incoming = (Array.isArray(body.changes) ? body.changes : []) as ResumeChange[];
+    if (!opportunityId || !resumeText || (!jobDescription&&!generalResume) || !incoming.length) {
       return NextResponse.json({ ok: false, error: "缺少待检查的简历修改" }, { status: 400 });
+    }
+    if(incoming.length>100 || incoming.some(change=>String(change.before||'').length>30_000||String(change.after??'').length>30_000)){
+      return NextResponse.json({ok:false,error:'待检查内容超出可处理长度；未截断或覆盖原稿，请缩小范围后检查。'},{status:400});
     }
 
     // 与 resume-draft 保持一致：JD 走 questionSource 纳入预算，装不下就 fail-loud。
@@ -58,19 +62,16 @@ export async function POST(request: Request) {
       return {
         ...change,
         section: String(change.section || "经历表述").slice(0, 100),
-        before: String(change.before || "").trim().slice(0, 2_000),
-        after: String(change.after || "").trim().slice(0, 2_000),
+        before: String(change.before || ""),
+        after: String(change.after ?? ""),
         reason: String(change.reason || "用户调整后的岗位版本").slice(0, 500),
         evidenceId: evidenceIds[0] || null,
         evidenceIds,
       };
     });
     const activeChanges = changes.filter((change) => change.status !== "rejected");
-    if (activeChanges.some((change) => !change.after)) {
-      return NextResponse.json({ ok: false, error: "修改后的内容不能为空" }, { status: 400 });
-    }
-
     const applied = applyResumeChanges(resumeText, activeChanges);
+    if(!applied.text.trim())return NextResponse.json({ok:false,error:'修改后整份简历为空，原稿已保留。'},{status:400});
     const sections = activeChanges.map((change, index) => ({
       path: `changes.${index}.after`,
       content: change.after,
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
       }, () => callLLM([
         { role: "system", content: "你是独立简历质检员。检查用户修改后的每条表述是否被引用事实完整支持，是否扩大职责、结果、技能、数字或时间，以及是否仍对目标 JD 有明确价值。只返回 JSON：{\"status\":\"passed|failed\",\"summary\":\"一句话\",\"findings\":[{\"changeId\":\"...\",\"severity\":\"warning|error\",\"message\":\"...\"}]}" },
         { role: "user", content: `目标 JD：\n${wrapExternalMaterial(jobDescription)}\n\n原简历：\n${wrapExternalMaterial(resumeText)}\n\n引用事实：\n${source}\n\n用户修改后的内容：\n${JSON.stringify(activeChanges)}` },
-      ], { provider: "deepseek", temperature: 0, maxTokens: 1_800, timeoutMs: 45_000, maxRetries: 1, responseFormat: "json_object" }));
+      ], { provider: "deepseek", temperature: 0, maxTokens: 2200, timeoutMs: 45_000, maxRetries: 0, responseFormat: "json_object" }));
       const parsed = parseJson(output);
       reviewer = {
         status: parsed.status === "passed" ? "passed" : "failed",
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
     const reviews = await Promise.all([
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsPassed ? "passed" : "failed", summary: factSummary, findings: factFindings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewer.status === "not_run" ? "not_run" : reviewerPassed ? "passed" : "failed", summary: reviewer.summary, findings: reviewer.findings, contextFingerprint: context.fingerprint }),
-      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
+      recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? jobDescription ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : '文本可解析；未提供 JD，不计算岗位词覆盖。' : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
       recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
     ]);
 

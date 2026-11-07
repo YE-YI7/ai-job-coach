@@ -72,6 +72,7 @@ import {getTodayMentorPlan} from "@/lib/coach-harness/next-action";
 import type { TodayTab, TodayTask } from "@/lib/coach-harness/today-view";
 import { applyResumeChanges } from "@/lib/coach-harness/application-quality";
 import ResumeBlockBoard from "./ResumeInlineReview";
+import {canRequestResumeReview,resumeReviewRequest} from '@/lib/opportunities/resume-review-request';
 import { ResumeDraftSession } from "./ResumeDraftSession";
 import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
@@ -809,7 +810,7 @@ function CockpitWorkspace({
   };
 
   const validateResumeChanges = async () => {
-    if (!active?.resumeText || !active.jdText || !active.resumeChanges.length || validatingResume) return;
+    if (!canRequestResumeReview(active) || validatingResume) return;
     setValidatingResume(true);
     try {
       if (dataMode === "demo" && !localIds.includes(active.id)) {
@@ -831,7 +832,7 @@ function CockpitWorkspace({
       const response = await fetch("/api/coach/resume-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunityId: active.id, resumeText: active.resumeText, jobDescription: active.jdText, changes: active.resumeChanges, requestId: crypto.randomUUID() }),
+        body: JSON.stringify(resumeReviewRequest(active,crypto.randomUUID())),
       });
       const result = await response.json();
       if (!response.ok || !result.ok || !result.applicationQuality) throw apiResponseError(response, result, "简历修改检查失败");

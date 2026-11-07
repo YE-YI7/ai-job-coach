@@ -35,6 +35,18 @@ test("质检模型真的调用时扣一次额度，成功提交", async () => {
   expect(reserveQuota).toHaveBeenCalledWith("user", "resume", expect.stringContaining("resume-review:"));
   expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({ id: "reservation-1" }), true);
 });
+test('explicit general-resume check reviews the complete long draft without a target JD',async()=>{
+  const before='整理项目材料，供同事每周核对。'.repeat(180);
+  const after='整理项目材料与评测记录，供同事每周核对。'.repeat(180);
+  const response=await POST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({
+    opportunityId:'job',mode:'general_resume',resumeText:before,jobDescription:'',changes:[{...change,before,after}],
+  })}));
+  const body=await response.json();
+  expect(response.status).toBe(200);expect(body.previewText).toBe(after);expect(body.changes[0].after).toBe(after);
+  expect(callLLM).toHaveBeenCalledTimes(1);
+  expect(body.applicationQuality.reviews.find((r:{reviewerType:string})=>r.reviewerType==='independent_ai').status).toBe('passed');
+  expect(body.applicationQuality.reviews.find((r:{reviewerType:string})=>r.reviewerType==='ats').summary).not.toContain('100%');
+});
 test("额度不足时不调模型、不落产物", async () => {
   (reserveQuota as jest.Mock).mockResolvedValue(null);
   const response = await POST(request([change]));

@@ -46,6 +46,7 @@ import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
 import {F6_RESUME_WRITER, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
+import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -65,11 +66,13 @@ function parseJson(text: string) {
 export type ResumeExecutionOptions = {
   strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard";
   isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2; writer?: typeof F6_RESUME_WRITER;
+  reviewPolicy?: 'automatic' | 'on_demand';
 };
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
   const useF6 = options.writer === F6_RESUME_WRITER;
-  const maxDraftAttempts = options.maxDraftAttempts ?? 2;
+  const onDemandReview = useF6 && options.reviewPolicy === 'on_demand';
+  const maxDraftAttempts = onDemandReview ? 1 : options.maxDraftAttempts ?? 2;
   let siteFunded = false;
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
@@ -89,7 +92,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const jobDescription = String(body.jobDescription || "").trim().slice(0, 30_000);
     if(options.isolated && (body.opportunityId || body.resumeTaskId || body.resumeTaskLease)) throw Error("实验只允许独立样本，禁止读取旧岗位或作答");
     const opportunityId = String(body.opportunityId || "").trim();
-    const strategy = options.strategy || "independent";
+    const strategy = onDemandReview ? 'format_only' : options.strategy || 'independent';
     const formatPolicy = options.formatPolicy || "preserve";
     const styleContract = {...resumeStyleContract(resumeText,formatPolicy),...(useF6?{
       documentRewrite:true,
@@ -271,14 +274,15 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
       const check=parseJson(checkOutput);
       if(check.status!=='passed'||check.unchanged!==true||String(check.summary||'').length<8){repairFeedback.push('独立检查认为仍有值得处理的内容：'+String(check.summary||'请先精简已有事实或对模糊经历问一个问题'));return null;}
-      const summary=`已检查，本轮没有新增修改，原文保留。原因：${String(check.summary).trim()} 仍可直接编辑或导出。`;
+      const summary=onDemandReview ? 'F6 本轮没有提出新增修改，原文保留。未运行独立审稿，可主动点“检查修改”。'
+        : `已检查，本轮没有新增修改，原文保留。原因：${String(check.summary).trim()} 仍可直接编辑或导出。`;
       trace!.step('review','original_document_checked_unchanged');
       const kept=generationSource?.changes||[];
       const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:kept,unchanged:true,summary,applicationQuality:generationSource.applicationQuality}):undefined;
       if(task&&task.state!=='ready')throw Error('简历已更新，本次检查未覆盖你的编辑，请刷新核对');
       await finalizeQuota(reservation,false);reservation=null;outcome='unchanged';
       trace!.data.editingValue={reviewed:0,useful:0,rejected:rejected.length,kinds:[],personalDisclaimersOmitted,disposition:'unchanged'};
-      trace!.step('save','independently_checked_unchanged');
+      trace!.step('save',onDemandReview?'author_kept_unchanged':'independently_checked_unchanged');
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
     trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy, writer:options.writer ?? 'legacy'}});
@@ -518,6 +522,15 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
     const reviewCandidate = applyResumeChanges(resumeText, reviewMergedChanges);
     const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy,fullF6Document);
+    if(onDemandReview){
+      finalChanges=changes;
+      reviewer={status:'not_run',summary:F6_DEFERRED_REVIEW_SUMMARY,findings:[]};
+      documentReview=deferredF6DocumentReview(formatFindings);
+      trace.step('review','independent_review_deferred',changes.length,{input:null,output:{
+        policy:'on_demand',independentReview:'not_run',programmaticReview:documentReview,
+      }});
+      break;
+    }
     // Deterministic format violations are already actionable. Return directly
     // to the editor once, rather than spend a review call rediscovering them.
     if(canRepairDraft&&formatFindings.some(f=>f.severity==='error')){
@@ -669,7 +682,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const retainedIds=new Set(finalChanges.map(change=>change.id));
     const discardedReviewFindings=reviewerFindings.filter(finding=>!retainedIds.has(String((finding as Record<string,unknown>)?.changeId||'')));
     reviewerFindings=reviewerFindings.filter(finding=>retainedIds.has(String((finding as Record<string,unknown>)?.changeId||'')));
-    if(finalChanges.length){reviewerPassed=true;if(discardedReviewFindings.length)reviewer.summary='保留的修改已通过事实与修改价值检查，未通过的候选没有写入本稿。';}
+    if(finalChanges.length&&!onDemandReview){reviewerPassed=true;if(discardedReviewFindings.length)reviewer.summary='保留的修改已通过事实与修改价值检查，未通过的候选没有写入本稿。';}
     if(generationSource){
       finalChanges=mergeResumeAgentChanges(resumeText,generationSource.changes,finalChanges,latestAnswer?[latestAnswer.sourceExcerpt]:[]);
       if(!finalChanges.some(c=>c.status==='pending')){
@@ -710,9 +723,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const ats = reviewAtsText(preview.text, jobDescription);
     const shortBullets = finalChanges.every(change => change.after.split(/\n+/).every(line => line.replace(/^\s*[-•*]\s*/, "").length <= 100));
     const grounding = preview.findings.length === 0;
-    trace.data.quality = { subject: "draft_quality_not_candidate", score: (grounding ? 40 : 0) + (reviewerPassed ? 30 : 0) + (shortBullets ? 20 : 0) + (ats.ok ? 10 : 0),
+    trace.data.quality = onDemandReview ? null : { subject: "draft_quality_not_candidate", score: (grounding ? 40 : 0) + (reviewerPassed ? 30 : 0) + (shortBullets ? 20 : 0) + (ats.ok ? 10 : 0),
       grounding, independentReview: reviewerPassed, shortBullets, ats: ats.ok, proposed: rawChanges.length, retained: finalChanges.length };
-    trace.data.editingValue={reviewed:changes.length,useful:finalChanges.filter(change=>change.status==='pending').length,rejected:rejected.length+errorChangeIds.size,kinds:[...new Set(valueChecks.filter(check=>check.useful).map(check=>check.kind))],personalDisclaimersOmitted,disposition:'revised'};
+    if(!onDemandReview)trace.data.editingValue={reviewed:changes.length,useful:finalChanges.filter(change=>change.status==='pending').length,rejected:rejected.length+errorChangeIds.size,kinds:[...new Set(valueChecks.filter(check=>check.useful).map(check=>check.kind))],personalDisclaimersOmitted,disposition:'revised'};
     trace.step("review", reviewerPassed ? "review_passed" : "partial_changes_retained", finalChanges.length, {input:{changes},output:{reviewer,finalChanges,discardedReviewFindings,valueChecks}});
     let applicationQuality: import('@/lib/opportunities/types').Opportunity['applicationQuality'];
     if (opportunityId) {
@@ -728,13 +741,13 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const factsStatus = preview.findings.length === 0 ? "passed" : "failed";
       const reviews = await Promise.all([
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "保留的改写引用已提供材料；被过滤的建议不在本版本中，不代表经历已核实。" : "当前预览存在无法定位或未通过事实校验的改写。", findings: preview.findings, contextFingerprint: context.fingerprint }),
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: onDemandReview ? 'not_run' : reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? jobDescription ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : '文本可解析；未提供 JD，不计算岗位词覆盖。' : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
       ]);
       applicationQuality = {
         artifactId: String(artifact.id), version: Number(artifact.version),
-        status: factsStatus === "passed" && reviewerPassed && ats.ok ? "ready" : "blocked",
+        status: onDemandReview ? 'draft' : factsStatus === "passed" && reviewerPassed && ats.ok ? "ready" : "blocked",
         reviews: reviews.map((review) => ({ reviewerType: review.reviewer_type, status: review.status, summary: review.summary })),
       };
     }
@@ -755,7 +768,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const deliverySummary=resumeDeliverySummary(newSuggestions,[...unresolvedGrounding.values(),...(requestCoverage?.unaddressed||[])]);
     const explanation=correctionOnly?'本轮只完成文字校对，尚未完成内容优化。':partialRecoveryReason?'部分返修暂未完成，对应原文仍保留。'
       :!coversSupplement(finalChanges)?'刚才补充的那段暂未形成可靠改写，仍保留原文。':partial?'这是部分交付，不代表本轮要求已全部完成。':'';
-    const summary=deliverySummary+explanation;
+    const summary=deliverySummary+explanation+(onDemandReview?F6_DEFERRED_REVIEW_SUMMARY:'');
     const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...partialFields}):undefined;
     if(task&&task.state!=='ready')throw Error('简历在修改期间发生变化，新结果未覆盖你的编辑，本次未扣额度');
     await finalizeQuota(reservation, true);
@@ -772,10 +785,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ...(task?{task}:{}),
       ...(followUp ? { followUp } : {}),
       rejectedCount: rejected.length + errorChangeIds.size,
-      reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
+      reviewer: { status:onDemandReview?'not_run':reviewerPassed?'passed':'failed',passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       documentReview,
-      workflow:{version:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
-        maxReviewContractRepairs:1,...(useF6?{writer:F6_RESUME_WRITER}:{})},
+      workflow:{version:onDemandReview?F6_NATIVE_WORKFLOW:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
+        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:F6_RESUME_WRITER}:{})},
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

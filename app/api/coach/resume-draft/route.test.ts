@@ -1,4 +1,5 @@
-import { POST } from "./route";
+import { POST as productionPOST } from "./route";
+import { F6_RESUME_WRITER } from '@/lib/coach-harness/resume-f6-writer';
 import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
 import { isTrivialRewrite } from "@/lib/coach-harness/resume-diff";
 import { getCurrentUserFromRequest } from "@/lib/auth";
@@ -41,8 +42,14 @@ const usefulValueChecks=[0,1].map(index=>({index,useful:true,kind:'clarity',reas
 // Keep the frozen repair policy testable as a comparison baseline. The
 // actual POST is exercised separately with the single-writer policy below.
 const legacyDraft = async (request: Request) => runResumeDraft(request, (await getCurrentUserFromRequest())!, {maxDraftAttempts:2});
+// Keep the former automatic-review contract as an explicit regression arm.
+// The shipped on-demand route is exercised separately below, not substituted
+// with passing review fixtures or silently treated as independently reviewed.
+const POST = async (request:Request) => runResumeDraft(request,(await getCurrentUserFromRequest())!,{
+  writer:F6_RESUME_WRITER,maxDraftAttempts:2,reviewPolicy:'automatic',
+});
 
-describe("resume draft source mapping", () => {
+describe("resume draft source mapping and automatic-review baseline", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (callLLM as jest.Mock).mockReset();
@@ -70,6 +77,49 @@ describe("resume draft source mapping", () => {
     opportunityId:"opp-1", resumeText:"负责模型评测", mode:"general_resume", resumeTaskId:"task", resumeTaskLease:"lease", ...extra,
   })});
   const writerAndReview = () => (runWithGenerationContext as jest.Mock).mock.calls.map(([context]) => context.operation);
+  test('shipped F6 delivers the complete body without an automatic judge or fabricated approval',async()=>{
+    const before='整理评测记录，整理后交给同事每周核对。';
+    const after='整理评测记录，交给同事每周核对。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:before,jd:'',revision:'r',changes:[]});
+    (getContextBundleForUser as jest.Mock).mockResolvedValue({allowedClaimIds:['claim-1'],unverifiedClaimIds:[],
+      selection:{included:[],excluded:[]},budget:{maxInputTokens:12000},usage:{truncated:false},
+      claims:[{id:'claim-1',displayText:before}],artifacts:[],knowledge:[],attachments:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(after);
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact',version:1});
+    (recordArtifactReview as jest.Mock).mockImplementation(async data=>({reviewer_type:data.reviewerType,status:data.status,summary:data.summary}));
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    const result=await productionPOST(oneShotInput({resumeText:before,reviewPolicy:'automatic',strategy:'independent'}));
+    const body=await result.json();
+    expect(result.status).toBe(200);
+    expect(writerAndReview()).toEqual(['resume_draft']);
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(body.workflow).toMatchObject({writer:F6_RESUME_WRITER,reviewPolicy:'on_demand',maxDraftAttempts:1,maxReviewContractRepairs:0});
+    expect(body.reviewer).toMatchObject({status:'not_run',passed:false});
+    expect(body.applicationQuality.status).toBe('draft');
+    expect(body.applicationQuality.reviews.find((r:{reviewerType:string})=>r.reviewerType==='independent_ai').status).toBe('not_run');
+    expect(body.summary).toContain('未自动运行独立审稿');
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    expect(finishResumeTask).toHaveBeenCalledTimes(1);
+  });
+
+  test('shipped route still blocks a changed numeric direction before saving or charging success',async()=>{
+    const before='评测正确率提升6.4个百分点。';
+    (callLLM as jest.Mock).mockResolvedValueOnce('评测正确率6.4个百分点。');
+    const response=await productionPOST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
+    expect(response.ok).toBe(false);
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(callLLM).toHaveBeenCalledTimes(1);
+  });
+
+  test('shipped F6 requires authentication before any tool, model or quota use',async()=>{
+    (getCurrentUserFromRequest as jest.Mock).mockResolvedValue(null);
+    expect((await productionPOST(oneShotInput())).status).toBe(401);
+    expect(callLLM).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
+  });
   test.each(["truncated", "malformed", "unanchored"] as const)("production writer fails closed without another generation: %s", async kind => {
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:"opp-1", answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:"负责模型评测",jd:"",revision:"r",changes:[]});

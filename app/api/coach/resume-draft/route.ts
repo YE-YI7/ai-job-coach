@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { recordWorkspaceResume } from "@/lib/coach-harness/workspace-eval";
 import { runResumeDraft } from "@/lib/coach-harness/resume-execution";
+import { F6_RESUME_WRITER } from "@/lib/coach-harness/resume-f6-writer";
 import {observeDirectResume} from '@/lib/coach-harness/resume-direct-delivery';
 
 export const runtime = "nodejs";
@@ -10,5 +11,6 @@ export async function POST(request: Request) {
   const user = await getCurrentUserFromRequest();
   if (!user) return NextResponse.json({ ok: false, error: "未认证" }, { status: 401 });
   // Strategies/billing isolation are server-only execution options, never request-body flags.
-  return observeDirectResume(user.id,request,input=>recordWorkspaceResume(user,input, core => runResumeDraft(core, user, {maxDraftAttempts:1})));
+  return observeDirectResume(user.id,request,input=>recordWorkspaceResume(user,input,
+    core=>runResumeDraft(core,user,{writer:F6_RESUME_WRITER,maxDraftAttempts:1})));
 }

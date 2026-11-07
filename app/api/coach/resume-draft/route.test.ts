@@ -104,10 +104,11 @@ describe("resume draft source mapping", () => {
     const result=await response.json();
     expect(writerAndReview()).toEqual(["resume_draft","resume_review"]);
     expect(callLLM).toHaveBeenCalledTimes(2);
+    expect((callLLM as jest.Mock).mock.calls[0][0][0].content).toContain('你是 F6 简历作者');
     expect(reserveQuota).toHaveBeenCalledTimes(1);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),pass);
     if (pass) {
-      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:1,maxRepairs:0});
+      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:1,maxRepairs:0,writer:'f6-editorial-v1'});
       expect(finishResumeTask).toHaveBeenCalledTimes(1);
       expect((finishResumeTask as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((finalizeQuota as jest.Mock).mock.invocationCallOrder[0]);
       expect(response.status).toBe(200);
@@ -162,15 +163,16 @@ describe("resume draft source mapping", () => {
     const response=await POST(await trialRequest());expect(response.ok).toBe(false);expect(createArtifactWithClaims).not.toHaveBeenCalled();expect(finalizeQuota).toHaveBeenCalledWith(expect.objectContaining({id:'trial-r'}),false);
   });
 
-  test.each(["opp-1", ""])("no-JD draft includes reviewed methods with opportunity %s", async opportunityId => {
+  test.each(["opp-1", ""])("F6 no-JD author sees its catalogue while reviewer methods are compiled: %s", async opportunityId => {
     // Use the real compiler here so the direct/no-opportunity branch is covered.
     const { compileContextBundle: realCompile } = jest.requireActual("@/lib/coach-harness/context");
     (compileContextBundle as jest.Mock).mockImplementation(input => realCompile({ task: "resume_workshop", userId: "user-1", claims: [], ...input }));
     (callLLM as jest.Mock).mockRejectedValueOnce(new Error("isolated transport fixture"));
     await POST(new Request("https://example.com", {method:"POST",body:JSON.stringify({ opportunityId, resumeText:"门店运营：核对库存差异，整理盘点表交给店长。", mode:"general_resume" })}));
     const prompt = JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);
-    for (const id of RESUME_METHOD_IDS) expect(prompt).toContain(`[参考 ${id}]`);
-    expect(prompt).toContain("不是用户事实");
+    for (const id of RESUME_METHOD_IDS) expect(prompt).not.toContain(`[参考 ${id}]`);
+    expect(prompt).toContain("S007");
+    expect(prompt).not.toContain("弱稿");
     const trace = await (startResumeTrace as jest.Mock).mock.results[0].value;
     expect(trace.data.retrieval.includedMethodIds).toEqual(RESUME_METHOD_IDS);
     expect(trace.data.retrieval.matches).toEqual([]);
@@ -188,8 +190,9 @@ describe("resume draft source mapping", () => {
     expect(trace.data.retrieval.excludedByBudgetIds).toEqual(RESUME_METHOD_IDS);
   });
 
-  test("draft and independent reviewer receive the same admitted methods", async () => {
-    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
+  test("F6 author can read an allowlisted case while reviewer keeps admitted methods", async () => {
+    (callLLM as jest.Mock).mockResolvedValueOnce('{"read_file":["S007"]}')
+      .mockResolvedValueOnce(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}]}))
       .mockResolvedValueOnce(JSON.stringify({document:passedDocument,status:'passed', valueChecks: usefulValueChecks,findings:[]}));
     (applyResumeChanges as jest.Mock).mockReturnValue({text:'模型评测覆盖准确率口径',findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:0,findings:[]});
@@ -197,10 +200,12 @@ describe("resume draft source mapping", () => {
     (recordArtifactReview as jest.Mock).mockResolvedValue({});
     const response=await POST(new Request('https://example.com',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}));
     expect(response.status).toBe(200);
-    expect(callLLM).toHaveBeenCalledTimes(2);
-    for (const [messages] of (callLLM as jest.Mock).mock.calls) {
-      for (const id of RESUME_METHOD_IDS) expect(JSON.stringify(messages)).toContain(`[参考 ${id}]`);
-    }
+    expect(callLLM).toHaveBeenCalledTimes(3);
+    const [menu,writer,reviewer]=(callLLM as jest.Mock).mock.calls.map(call=>JSON.stringify(call[0]));
+    expect(menu).not.toContain('弱稿');
+    expect(writer).toContain('将每次全量注入改为按需加载');
+    expect(writer).not.toContain('补丁评测识别失败');
+    for (const id of RESUME_METHOD_IDS) expect(reviewer).toContain(`[参考 ${id}]`);
   });
 
   test.each([
@@ -948,7 +953,8 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
     expect(callLLM).toHaveBeenCalledTimes(3);expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
   test('isolated execution refuses old data targets before read, quota or model',async()=>{
-    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'old',resumeText:'负责模型评测',mode:'general_resume'})}),{id:'admin'} as any,{isolated:true});
+    const actor={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
+    const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'old',resumeText:'负责模型评测',mode:'general_resume'})}),actor,{isolated:true});
     expect(response.status).toBe(500);expect(startResumeTrace).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();expect(callLLM).not.toHaveBeenCalled();
   });
   test('self-review and format-only are real alternative execution paths, not renamed independent calls',async()=>{
@@ -957,7 +963,8 @@ await expect(response.json()).resolves.toEqual(expect.objectContaining({ ok: fal
       (callLLM as jest.Mock).mockResolvedValue(JSON.stringify({changes:[{before:'负责模型评测',after:'模型评测覆盖准确率口径',sourceIds:['claim-1']}],selfReview:{status:'passed',summary:'原编辑自查',valueChecks:usefulValueChecks,findings:[],document:passedDocument}}));
       (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
       (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'art'});(recordArtifactReview as jest.Mock).mockResolvedValue({});
-      const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}),{id:'admin'} as any,{strategy});
+      const actor={id:'admin'} as NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>;
+      const response=await runResumeDraft(new Request('https://eval.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:'负责模型评测',mode:'general_resume'})}),actor,{strategy});
       expect(response.status).toBe(200);expect(callLLM).toHaveBeenCalledTimes(1);
       expect((await response.json()).reviewer.passed).toBe(false);
     }

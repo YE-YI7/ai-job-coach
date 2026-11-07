@@ -45,6 +45,7 @@ import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint}
 import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired, resumeTransportCanKeepCheckpoint, type ResumeModelPhase } from './resume-execution-policy';
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
+import {F6_RESUME_WRITER, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -61,10 +62,14 @@ function parseJson(text: string) {
 // 一处维护，本模块不再自带第二把正则）；断词/错字这类只有语义层能看出来的，
 // 交给下面的独立质检员，error 级发现的建议不再下发。
 
-export type ResumeExecutionOptions = {strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard"; isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2};
+export type ResumeExecutionOptions = {
+  strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard";
+  isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2; writer?: typeof F6_RESUME_WRITER;
+};
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
-  const maxDraftAttempts = options.maxDraftAttempts ?? 2;
+  const useF6 = options.writer === F6_RESUME_WRITER;
+  const maxDraftAttempts = useF6 ? 1 : options.maxDraftAttempts ?? 2;
   let siteFunded = false;
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
@@ -270,13 +275,27 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       trace!.step('save','independently_checked_unchanged');
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
-    trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy}});
+    trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy, writer:options.writer ?? 'legacy'}});
+    if(useF6)trace.step('draft','f6_editor_selected',1,{input:null,output:{writer:F6_RESUME_WRITER}});
     for(let attempt=0;attempt<maxDraftAttempts;attempt++){
     // A failed writer attempt never spends the remaining quality-check budget
     // on a new draft when the caller has opted for one generation.
     const canRepairDraft=attempt+1<maxDraftAttempts;
     let output:string;
-    try { output = await runWithGenerationContext({
+    try { output = useF6 ? await runF6ResumeWriter({
+      resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
+      answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
+      decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
+      scope:trialScope?'single':'whole',format:styleContract,
+    }, (messages,stage,readIds)=>runWithGenerationContext({
+      userId:modelUserId,operation:'resume_draft',requestId:stage==='write'?`${requestId}:f6-write`:requestId,
+      knowledgeDocumentIds:readIds,
+    },()=>callLLM(messages,{
+      provider:'deepseek',temperature:0.3,maxTokens:trialScope?1400:3200,reasoningBudgetTokens:4096,
+      timeoutMs:75_000,maxRetries:0,responseFormat:'json_object',
+    },'draft')),ids=>trace!.step('retrieval','f6_read_file',ids.length,{
+      input:{requested:ids},output:{read:ids,personalFacts:false},
+    })) : await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
@@ -320,6 +339,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       if(restoreCheckpoint(attempt,error))break;
       if(agentTask&&canRepairDraft){repairFeedback=['上次返回的 JSON 无法解析。请重新给出完整、合法的 JSON，字符串换行使用转义，不用 Markdown 围栏；减少修改条数，确保每一条完整。'];trace.step('draft','invalid_format_bounded_repair');continue;}
       throw error;
+    }
+    if(useF6&&typeof parsed.selectionReceipt==='string'&&parsed.selectionReceipt.trim()){
+      trace.step('draft','f6_selection_receipt',1,{input:null,output:{receipt:parsed.selectionReceipt.slice(0,600)}});
     }
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
     // Preserve both legitimate same-call JSON layouts; record raw output above.
@@ -386,11 +408,13 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const sourceIssues = resumeSourceProtection(before, after, String(raw.section || ""), resumeText);
       const valueIssues = resumeEditValueIssues(before,after);
+      const metricIssues = useF6 ? f6MetricDirectionIssues(before,after) : [];
       const mappingIssues = [
         ...(trialScope&&!inResumeTrialScope(trialScope,before,resumeText)?['修改越过本次体验所选经历，不能保存']:[]),
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
         ...sourceIssues,
         ...valueIssues,
+        ...metricIssues,
         ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement?['原文只有模糊职责，没有具体动作；拆成空泛bullet或把参与换成梳理不是有效改稿，需先补问这段本人实际做的事，不能阻断其他有事实段落']:[]),
       ];
       // Edit distance cannot distinguish cosmetic churn from correcting OCR
@@ -401,7 +425,15 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       // 不该花一次模型调用去发现一句没有出处的话。拦哪些类别由守卫裁定
       // （残缺/扩大动作/丢限定 = block，换措辞 = annotate 记账），本模块只认 outcome，
       // 不复算任何一条正则或词表。
-      const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, { citation: { candidateText: after, sources: citationSources } }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
+      const localSources = !useF6 ? citationSources : [
+        {id:'base-resume',text:before},
+        ...(agentTask?.answers ?? []).flatMap(answer=>answer.claimId && sourceIds.includes(answer.claimId)
+          && answer.sourceExcerpt && (before.includes(answer.sourceExcerpt) || answer.sourceExcerpt.includes(before))
+          ? citationSources.filter(entry=>entry.id===answer.claimId) : []),
+      ];
+      const citationVerdict = after ? runSlot<Slot3Input>(GUARD_SLOTS.prePersistenceVerification, {
+        citation: { candidateText: after, sources: localSources },
+      }).find((d) => d.guardId === CITATION_GROUNDING_GUARD_ID) : undefined;
       if (citationVerdict) citationVerdicts.push({ index, outcome: citationVerdict.outcome, code: citationVerdict.reason.code, message: citationVerdict.reason.message });
       if (citationVerdict?.outcome === "block") mappingIssues.push(citationVerdict.reason.message);
       if ((!after && !disclaimerDeletion) || !before || !report.ok || mappingIssues.length) {
@@ -411,6 +443,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
           ...(!report.ok ? ['claim_validation'] : []), ...(sourceIssues.length ? ['source_identity_or_marker'] : []),
           ...report.issues.filter(issue=>issue.severity==='error').map(issue=>`claim_${issue.code}`),
           ...(valueIssues.length ? ['editorial_value'] : []),
+          ...(metricIssues.length ? ['metric_direction_changed'] : []),
           ...(isVagueResumeResponsibility(before)&&!hasPositiveSupplement ? ['vague_without_supplement'] : []),
           ...(mappingIssues.some(issue=>issue.includes('仅同义换词')) ? ['cosmetic_rewrite'] : []),
           ...(before&&after&&isResumeTextUnchanged(before,after) ? ['no_op_change'] : []),
@@ -476,6 +509,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const requestIndependentReview = (contractIssue?:string) => runWithGenerationContext({userId:modelUserId,operation:"resume_review",requestId:`${requestId}:review${attempt?':repair':''}${contractIssue?':contract-repair':''}`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
       {role:'system',content:RESUME_EDITORIAL_STANDARD},
       {role:'system',content:WHOLE_DOCUMENT_REVIEW_PROMPT},
+      ...(useF6?[{role:'system' as const,content:[
+        '核验 F6 选材时，逐条核对原句及同一经历的有据补充，不要用全文别的项目为该 after 背书。',
+        '新加的原因、选择依据、人物身份、指标方向和阶段都需要依据。无依据的反差和跨项目移植必须给 error。',
+        '同一个数字不能丢掉上升/下降、百分比/百分点或基准。只做文字纠错时按 correction 如实标明。',
+      ].join('\n')}]:[]),
       {role:'user',content:JSON.stringify({appliedCandidate:reviewCandidate.text,styleContract,mappingFindings:reviewCandidate.findings,
         resume:resumeText,jobDescription,facts:source,editingRequest:editingRequest||null})},
       ...(editingRequest?[{role:'system' as const,content:RESUME_REQUEST_REVIEW_PROMPT}]:[]),
@@ -708,7 +746,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       documentReview,
-      workflow:{version:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,maxReviewContractRepairs:1},
+      workflow:{version:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
+        maxReviewContractRepairs:1,...(useF6?{writer:F6_RESUME_WRITER}:{})},
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

@@ -26,3 +26,11 @@
 只发布本 F6 接入与按需检查接线，不合并备份恢复或其他实验包，不执行 SQL、迁移、充值、旧作答或积分数据修改。当前正式基座 `8dd5094`，完整移植提交 `902fdd3`；远端 `backend` 分叉，不覆盖或强推。通过隔离 production 构建后再 promote，正式别名和访问保护核验结果追加于下。
 
 回滚目标：`dpl_A1dr5KU2EoqT941m8ndTz8BHrqSd`（原正式版）。本机三列与真实 Trace：`http://127.0.0.1:3438/compare`，仅 loopback 只读。
+
+### 已完成正式发布
+
+- 发布源码提交 `620590f3e4ba1b8a1081cbc98471e5e43cd99e28`，干净工作树由 CLI 上传；分支 `codex/f6-resume-production-1106` 已推送，未覆盖 `backend`。
+- 先 `--prod --skip-domain` 构建 READY；候选 `/api/health` 实际 JSON 为 `{ok:true,database:"ok"}`、匿名 POST 改稿 401，之后 promote。
+- 正式部署 `dpl_3zjewMfqqxsQNRQDzpE8dUKDBzaA`，URL `https://ai-job-coach-oqb3c97kj-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+- `vercel inspect yizhioffer.com` 与 `www.yizhioffer.com` 均回指该 READY 部署。正式域健康 JSON 200；首页/登录 200，匿名工作台 307 至登录，匿名 POST `resume-draft` / `resume-review` / `resume-agent` 均 401。发布后短窗错误日志查询返回 0 行，不外推长期可靠性。
+- 未在生产触发真实模型或真人保存刷新；本机实跑、单测和线上匿名检查分别记录，不声称真人端到端已测通。原稿、旧作答、积分和冻结 F6 原实验不修改。

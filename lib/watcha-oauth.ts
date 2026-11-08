@@ -9,6 +9,7 @@
  */
 
 import { getWatchaOAuthConfig } from "./watcha-oauth-config";
+import {watchaOAuthJson, WatchaOAuthRequestError} from './watcha-oauth-request';
 
 const WATCHA_BASE_URL = "https://watcha.cn";
 
@@ -51,19 +52,17 @@ export async function exchangeCodeForToken(code: string, baseUrl?: string): Prom
     client_secret: clientSecret,
   });
 
-  const res = await fetch(`${WATCHA_BASE_URL}/oauth/api/token`, {
+  const data = await watchaOAuthJson('token', `${WATCHA_BASE_URL}/oauth/api/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
 
-  const data = await res.json();
-
-  if (data.error) {
-    throw new Error(`Token 交换失败: ${data.error_description || data.error}`);
+  if (data.error) throw new WatchaOAuthRequestError('token', 'rejected');
+  if (typeof data.access_token !== 'string' || !data.access_token.trim()) {
+    throw new WatchaOAuthRequestError('token', 'invalid_response');
   }
-
-  return data;
+  return data as {access_token:string;token_type:string;expires_in:number;refresh_token:string;scope:string};
 }
 
 /**
@@ -74,18 +73,17 @@ export async function getWatchaUserInfo(accessToken: string): Promise<{
   nickname: string;
   avatar_url?: string;
 }> {
-  const res = await fetch(
+  const data = await watchaOAuthJson('userinfo',
     `${WATCHA_BASE_URL}/oauth/api/userinfo?access_token=${encodeURIComponent(accessToken)}`,
     { method: "GET" }
   );
 
-  const data = await res.json();
-
-  if (data.statusCode !== 200 || !data.data) {
-    throw new Error(`获取用户信息失败: ${data.message || "未知错误"}`);
+  const user = data.data as {user_id:number;nickname:string;avatar_url?:string} | undefined;
+  if (data.statusCode !== 200 || !user || !Number.isSafeInteger(user.user_id) || user.user_id <= 0) {
+    throw new WatchaOAuthRequestError('userinfo', 'invalid_response');
   }
 
-  return data.data;
+  return user;
 }
 
 /**
@@ -103,19 +101,17 @@ export async function refreshWatchaToken(refreshToken: string): Promise<{
     refresh_token: refreshToken,
   });
 
-  const res = await fetch(`${WATCHA_BASE_URL}/oauth/api/token`, {
+  const data = await watchaOAuthJson('refresh', `${WATCHA_BASE_URL}/oauth/api/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
   });
 
-  const data = await res.json();
-
-  if (data.error) {
-    throw new Error(`Token 刷新失败: ${data.error_description || data.error}`);
+  if (data.error) throw new WatchaOAuthRequestError('refresh', 'rejected');
+  if (typeof data.access_token !== 'string' || !data.access_token.trim()) {
+    throw new WatchaOAuthRequestError('refresh', 'invalid_response');
   }
-
-  return data;
+  return data as {access_token:string;token_type:string;expires_in:number;refresh_token:string;scope:string};
 }
 
 /**

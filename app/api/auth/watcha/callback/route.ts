@@ -3,6 +3,7 @@ import { getDbClient } from "@/lib/db";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 import { createSessionToken, sessionCookie, verifySessionToken } from "@/lib/session";
 import { normalizeRedirectPath, postLoginTarget, readCookieValue } from "@/lib/auth-redirect";
+import {WatchaOAuthRequestError} from '@/lib/watcha-oauth-request';
 
 export const runtime = "nodejs";
 
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
     // 用户拒绝授权或出错
     if (error) {
-      console.warn(`[WATCHA OAuth] 授权失败: ${error} - ${errorDescription}`);
+      console.warn('[WATCHA OAuth] 授权未完成');
       return NextResponse.redirect(
         buildLoginRedirectUrl(baseUrl, errorDescription || "授权失败", requestedRedirect)
       );
@@ -105,10 +106,7 @@ export async function GET(request: Request) {
     // Step 2: 获取用户信息
     console.log("[WATCHA OAuth] 获取用户信息...");
     const watchaUser = await getWatchaUserInfo(tokenData.access_token);
-    console.log("[WATCHA OAuth] 用户信息:", { 
-      user_id: watchaUser.user_id, 
-      nickname: watchaUser.nickname 
-    });
+    console.log('[WATCHA OAuth] 已取得用户身份');
 
     // Step 3: 在数据库中查找或创建用户
     const client = await getDbClient();
@@ -131,9 +129,8 @@ export async function GET(request: Request) {
       .single();
 
     console.log("[WATCHA OAuth] 查找用户:", { 
-      email: watchaEmail, 
       found: !!existingUser,
-      findError: findError?.message 
+      lookupError: !!findError,
     });
 
     if (!existingUser && readCookieValue(cookieHeader, "watcha_oauth_existing_only") === "1") {
@@ -229,9 +226,7 @@ export async function GET(request: Request) {
 
     const redirectPath = postLoginTarget(requestedRedirect);
 
-    console.log(
-      `[WATCHA OAuth] 登录成功: watchaUserId=${watchaUser.user_id}, userId=${userId}, isNew=${isNewUser}, redirect=${redirectPath}`
-    );
+    console.log('[WATCHA OAuth] 登录成功', {isNewUser});
 
     const response = NextResponse.redirect(new URL(redirectPath, baseUrl));
     response.cookies.set(sessionCookie.name, sessionToken, sessionCookie.options);
@@ -242,14 +237,19 @@ export async function GET(request: Request) {
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   } catch (err) {
-    console.error("[WATCHA OAuth] 回调处理失败:", err);
+    console.error('[WATCHA OAuth] 回调处理失败', err instanceof WatchaOAuthRequestError
+      ? {stage:err.stage, reason:err.reason} : {reason:'internal_error'});
     const cookieHeader = request.headers.get("cookie") || "";
     const requestedRedirect = normalizeRedirectPath(
       readCookieValue(cookieHeader, "watcha_oauth_redirect")
     );
 
-    return NextResponse.redirect(
-      buildLoginRedirectUrl(baseUrl, "登录失败，请重试", requestedRedirect)
-    );
+    const response = NextResponse.redirect(buildLoginRedirectUrl(baseUrl,
+      err instanceof WatchaOAuthRequestError ? err.message : '登录失败，请重试', requestedRedirect));
+    response.headers.set('Cache-Control', 'private, no-store');
+    for (const name of ['watcha_oauth_state', 'watcha_oauth_redirect', 'watcha_oauth_existing_only']) {
+      response.cookies.set(name, '', {...sessionCookie.options, maxAge:0});
+    }
+    return response;
   }
 }

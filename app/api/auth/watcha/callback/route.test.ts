@@ -2,6 +2,7 @@ import { GET } from "./route";
 import { createSessionToken } from "@/lib/session";
 import { exchangeCodeForToken, getWatchaUserInfo } from "@/lib/watcha-oauth";
 import { getDbClient } from "@/lib/db";
+import {WatchaOAuthRequestError} from '@/lib/watcha-oauth-request';
 
 jest.mock("@/lib/watcha-oauth", () => ({exchangeCodeForToken:jest.fn(),getWatchaUserInfo:jest.fn()}));
 jest.mock("@/lib/db", () => ({getDbClient:jest.fn()}));
@@ -75,4 +76,22 @@ test("迁移匹配同一已有 user_id 才建立正常会话，不触及简历�
  expect(query.insert).not.toHaveBeenCalled();
  expect(db.from.mock.calls.map(([table])=>table)).toEqual(["users","users","watcha_tokens"]);
  expect(response.headers.get("set-cookie")).toContain("sb-access-token=");
+});
+
+test.each(['token','userinfo'] as const)('upstream %s timeout returns safe error to original destination without DB or session changes',async stage=>{
+ existingAccountDb(true);
+ if(stage==='token')jest.mocked(exchangeCodeForToken).mockRejectedValue(new WatchaOAuthRequestError(stage,'timeout'));
+ else jest.mocked(getWatchaUserInfo).mockRejectedValue(new WatchaOAuthRequestError(stage,'timeout'));
+ const response=await GET(new Request('https://yizhioffer.com/api/auth/watcha/callback?code=synthetic&state=synthetic-state',{
+  headers:{cookie:'watcha_oauth_state=synthetic-state; watcha_oauth_redirect=%2Fadmin%2Fevals; sb-access-token=existing-session'},
+ }));
+ const url=new URL(response.headers.get('location')!);
+ expect(url.pathname).toBe('/login');expect(url.searchParams.get('redirect')).toBe('/admin/evals');
+ expect(url.searchParams.get('error')).toContain('响应超时');
+ expect(getDbClient).not.toHaveBeenCalled();
+ expect(exchangeCodeForToken).toHaveBeenCalledTimes(1);
+ expect(getWatchaUserInfo).toHaveBeenCalledTimes(stage==='token'?0:1);
+ const cookie=response.headers.get('set-cookie');
+ expect(cookie).toContain('watcha_oauth_state=;');expect(cookie).not.toContain('sb-access-token=');
+ expect(response.headers.get('cache-control')).toBe('private, no-store');
 });

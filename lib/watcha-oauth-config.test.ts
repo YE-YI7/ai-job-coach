@@ -52,7 +52,7 @@ test("授权 URL 只含当前客户端 ID，不含任何 Secret", () => {
   expect(url.href).not.toContain("secret");
 });
 test.each(["https://www.ai-job-coach.xin", "https://yizhioffer.com"])("换 token 与授权选择同一套配对，且只发观猹端点：%s", async base => {
-  const mocked = jest.fn().mockResolvedValue({ json: async () => ({ access_token: "synthetic-token" }) });
+  const mocked = jest.fn().mockResolvedValue({ ok:true, json: async () => ({ access_token: "synthetic-token" }) });
   globalThis.fetch = mocked;
   await exchangeCodeForToken("synthetic-code", base);
   const [target, options] = mocked.mock.calls[0];
@@ -74,7 +74,7 @@ test("移除旧应用凭据后，新域授权与 token 交换仍独立工作", a
   delete process.env.WATCHA_CLIENT_SECRET;
   const url = new URL(getWatchaAuthorizeUrl("synthetic-state", "https://yizhioffer.com"));
   expect(url.searchParams.get("redirect_uri")).toBe("https://yizhioffer.com/api/auth/watcha/callback");
-  const mocked = jest.fn().mockResolvedValue({ json: async () => ({ access_token: "synthetic-token" }) });
+  const mocked = jest.fn().mockResolvedValue({ ok:true, json: async () => ({ access_token: "synthetic-token" }) });
   globalThis.fetch = mocked;
   await exchangeCodeForToken("synthetic-code", "https://yizhioffer.com");
   const body = new URLSearchParams(mocked.mock.calls[0][1].body);

@@ -23,3 +23,16 @@ Chrome 实际显示观猹 `/oauth/authorize` 的 `ERR_TIMED_OUT`，没有到益�
 ## 发布
 
 范围仅本次请求 helper、既有 OAuth 接线及必要测试；F6、模型选择、聊天、保存和计费代码不改。预定按现有 skip-domain → READY → 匿名安全冒烟 → promote 流程，完成后补准确部署 ID。回滚为原正式 `dpl_3zjewMfqqxsQNRQDzpE8dUKDBzaA`。
+
+### Deploy Result
+
+- URL: https://yizhioffer.com
+- Target: production
+- Status: READY，`dpl_CG284ZPj3ef6kKm1AJurXmrSA3ip`
+- Commit: `bacae4b226eea32e16a10788e093ba59ae075683`，分支 `codex/watcha-login-timeout-1108`
+- Framework: Next.js 16.3.0
+- Build Duration: 云端日志约 2 分钟（不含排队），本地生产构建也通过。
+
+先对暂存生产部署验证健康 JSON 200、伪造/缺 Cookie state 的回调 307 回登录且不发站点会话，再 promote。正式与 www 两个别名已核对到同一 READY 部署；正式健康/登录 200、authorize 307 到既有观猹域名、无有效 state 的回调被拒且无会话、匿名改稿 401。F6/聊天/模型相关文件与发布前版本无差异，未覆盖协作者提交或改远端 backend。
+
+Post-Deploy Observability：发布短窗 error 日志查询 0 行，只代表当前查询窗口；未另查/配置 drains，未新建监控。**未跑真人完整 OAuth 成功回跳，观猹授权页的实际网络超时仍未解决**。本人最终拒绝代理重启，未执行或试图通过其他方式变更代理。

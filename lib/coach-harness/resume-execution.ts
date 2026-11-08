@@ -31,6 +31,7 @@ import {resolveResumeSourceIds} from './resume-source-ids';
 import { resumeTaskInput, persistResumeAnswerClaims, persistResumeTrialClaims, ownedResumeTaskSource, finishResumeTask } from "@/lib/coach-harness/resume-task";
 import { coversCurrentResumeAnswer, currentResumeAnswer } from '@/lib/coach-harness/resume-supplement';
 import { mergeResumeAgentChanges } from '@/lib/opportunities/resume-agent-merge';
+import {mergeResumeDocumentChanges} from '@/lib/opportunities/resume-document-merge';
 import { factualResumeAnswers, nextResumeQuestion, fallbackResumeQuestion, explicitMissingResumeQuestion, anchoredResumeExcerpt, isVagueResumeResponsibility, type ResumeAgentQuestion, type ResumeAgentAnswer } from "@/lib/coach-harness/resume-task-types";
 import {
   CITATION_GROUNDING_GUARD_ID,
@@ -47,6 +48,8 @@ import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
 import {F6_RESUME_WRITER, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
+import {f6DocumentPreflight} from './resume-f6-preflight';
+import {resumeResultCaveatIssues} from './resume-result-caveats';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -309,7 +312,16 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       timeoutMs:75_000,maxRetries:0,nativeTools,resumeF6Tools:true,
     },attempt?'repair':'draft'));},ids=>trace!.step('retrieval','f6_read_file',ids.length,{
       input:{requested:ids},output:{read:ids,personalFacts:false},
-    })) : await runWithGenerationContext({
+    }),candidate=>{
+      const supplements=(agentTask?.answers||[]).flatMap(answer=>
+        answer.kind!=='instruction'&&answer.claimId&&answer.sourceExcerpt
+          ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
+      const issues=f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements});
+      if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
+        input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:6},
+      });
+      return issues;
+    }) : await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
@@ -431,7 +443,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const report = validateArtifactDraft({ artifactType: "target_resume", visibility: "recruiter_safe", sections: [{ path: `changes.${index}.after`, content: after, claimIds: sourceIds }] }, context);
       const sourceIssues = resumeSourceProtection(before, after, String(raw.section || ""), resumeText,fullF6Document);
       const valueIssues = resumeEditValueIssues(before,after);
-      const metricIssues = useF6 ? f6MetricDirectionIssues(before,after) : [];
+      const metricIssues = useF6 ? [...f6MetricDirectionIssues(before,after),...resumeResultCaveatIssues(before,after)] : [];
       const mappingIssues = [
         ...(trialScope&&!inResumeTrialScope(trialScope,before,resumeText)?['修改越过本次体验所选经历，不能保存']:[]),
         ...(before && !resumeText.includes(before) ? ["AI 建议的原文无法在当前简历中定位"] : []),
@@ -519,7 +531,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // Step completion caps include private reasoning; 1800 alone can end with
     // finish_reason=length and no final JSON even after a successful draft.
     const reviewMergedChanges = generationSource
-      ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
+      ? useF6&&fullF6Document?mergeResumeDocumentChanges(resumeText,generationSource.changes,changes)
+        : mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes;
     const reviewCandidate = applyResumeChanges(resumeText, reviewMergedChanges);
     const formatFindings = checkResumeFormat(resumeText,reviewCandidate.text,changes,formatPolicy,fullF6Document);
     if(onDemandReview){
@@ -684,7 +697,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     reviewerFindings=reviewerFindings.filter(finding=>retainedIds.has(String((finding as Record<string,unknown>)?.changeId||'')));
     if(finalChanges.length&&!onDemandReview){reviewerPassed=true;if(discardedReviewFindings.length)reviewer.summary='保留的修改已通过事实与修改价值检查，未通过的候选没有写入本稿。';}
     if(generationSource){
-      finalChanges=mergeResumeAgentChanges(resumeText,generationSource.changes,finalChanges,latestAnswer?[latestAnswer.sourceExcerpt]:[]);
+      finalChanges=useF6&&lastF6Document?mergeResumeDocumentChanges(resumeText,generationSource.changes,finalChanges)
+        :mergeResumeAgentChanges(resumeText,generationSource.changes,finalChanges,latestAnswer?[latestAnswer.sourceExcerpt]:[]);
       if(!finalChanges.some(c=>c.status==='pending')){
         await finalizeQuota(reservation,false);reservation=null;outcome='blocked';
         return NextResponse.json({ok:false,reasonCode:'resume_no_deliverable_change',retryable:true,error:'这次没有形成可应用的新修改，已有成稿和补充仍保留，本次未扣额度。可以选择具体段落继续。'},{status:422});
@@ -699,7 +713,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // Re-check the actually retained/merged document. Removing rejected proposals
     // must not silently turn a failed whole-document verdict into a pass.
     const lastReviewInput = applyResumeChanges(resumeText,generationSource
-      ? mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes).text;
+      ? useF6&&lastF6Document?mergeResumeDocumentChanges(resumeText,generationSource.changes,changes)
+        : mergeResumeAgentChanges(resumeText,generationSource.changes,changes,latestAnswer?[latestAnswer.sourceExcerpt]:[]) : changes).text;
     if(strategy==="independent" && (partialRecoveryReason || (preview.text!==lastReviewInput && documentReview?.status==="passed"))){
       const retainedReviewOutput=await runWithGenerationContext({userId:modelUserId,operation:"resume_review",requestId:`${requestId}:retained-document`,knowledgeDocumentIds:includedKnowledge.map(item=>item.id)},()=>callLLM([
         {role:'system',content:RESUME_EDITORIAL_STANDARD},
@@ -732,7 +747,10 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const claimLinks = finalChanges.flatMap((change, index) => (change.evidenceIds || (change.evidenceId ? [change.evidenceId] : [])).map((claimId) => ({ claimId, usagePath: `changes.${index}.after` })));
       const artifact = await createArtifactWithClaims({
         userId: user.id, opportunityId, artifactType: "target_resume", title: generalResume ? "简历修改候选版本" : "岗位简历候选版本",
-        content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text, discardedSuggestions: rejected, discardedReviewFindings },
+        content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text,
+          discardedSuggestions: rejected, discardedReviewFindings,
+          ...(useF6&&generationSource?{previousResumeChanges:generationSource.changes}:{}),
+        },
         status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
         createdBy: "hosted_ai", claimLinks,
       });

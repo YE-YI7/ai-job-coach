@@ -22,6 +22,7 @@ import { uploadOriginalResume } from "@/lib/resume-original";
 import { deleteResumePhoto, prepareResumePhotoFile, uploadResumePhoto, type ResumePhoto } from "@/lib/resume-photo";
 import { companyLogo } from "@/lib/jobs/company-logos";
 import ResumeRecovery from "./ResumeRecovery";
+import ResumeGenerationNotice from './ResumeGenerationNotice';
 import { appendResumeSupplement, type ResumeRecovery as Recovery } from "@/lib/coach-harness/resume-recovery";
 import {tutorInvitation} from "@/lib/interview/tutor-invitation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
@@ -78,7 +79,7 @@ import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
 import ResumeExperienceTrial from './ResumeExperienceTrial';
 import { readChatResponse } from '@/lib/coach-harness/chat-stream';
-import {decideResumeChange} from "@/lib/opportunities/resume-agent-merge";
+import {decideResumeChanges} from "@/lib/opportunities/resume-agent-merge";
 import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHistory} from "@/lib/opportunities/resume-edit-history";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
 import VoiceControls from "./VoiceControls";
@@ -776,7 +777,8 @@ function CockpitWorkspace({
 
   const updateResumeChange = (changeId: string, status: "accepted" | "rejected") => {
     if (!active) return;
-    setOpportunities((current) => current.map((item) => item.id === active.id ? rememberResumeEdit(item,{ ...item, resumeChanges: item.resumeChanges.map((change) => change.id === changeId ? decideResumeChange(change,status) : change) }) : item));
+    setOpportunities(current=>current.map(item=>item.id===active.id
+      ? rememberResumeEdit(item,{...item,resumeChanges:decideResumeChanges(item.resumeChanges,changeId,status)}) : item));
     if (dataMode === "live") trackProductEvent("resume_change_reviewed", { opportunity_id: active.id, decision: status });
     // The saved document already owns this generation. A fast click may precede
     // the task readback; the server validates its receipt and change ownership.
@@ -1959,6 +1961,7 @@ function ResumeTab({ onReplaceResume,onEditBlock,onUndo,onRedo,onFocusMentor, op
     <section className={styles.resumeStudio}>
       <ResumeToolbar busy={generating||agentTask?.state==='running'} canGenerate={Boolean(opportunity.resumeText&&(opportunity.jdText||opportunity.workspaceType==='preparation'))} needsDetail={agentTask?.state==='needs_detail'} hasChanges={Boolean(opportunity.resumeChanges.length)} pendingCount={pendingCount} fee={quotaLabel} canUndo={Boolean(currentResumeEditHistory(opportunity)?.past.length)} canRedo={Boolean(currentResumeEditHistory(opportunity)?.future.length)} onGenerate={agentTask?.state==='needs_detail'?onFocusMentor:onGenerate} onUndo={onUndo} onRedo={onRedo} showMarks={showMarks} onShowMarks={value=>{setShowMarks(value);setShowOriginal(false);}} showOriginal={showOriginal} onShowOriginal={()=>setShowOriginal(value=>!value)} template={template} onTemplate={chooseTemplate} onReplace={onReplaceResume} deliveryAction={deliveryAction} photo={opportunity.resumePhoto} photoBusy={photoBusy} onPhoto={onPhotoChange?chooseResumePhoto:undefined} onPhotoRemove={onPhotoChange?removeResumePhoto:undefined} exportControl={<ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text} photo={opportunity.resumePhoto} pendingCount={pendingCount} disabledReason={currentExport.findings.length?'有修改无法定位，请先核对或保留原文':undefined}/>}/>
       {photoError&&<p role="alert">{photoError}</p>}
+      <ResumeGenerationNotice task={agentTask} hasSavedChanges={Boolean(opportunity.resumeChanges.length)}/>
       {onGenerateTrial&&<ResumeExperienceTrial key={opportunity.id} resume={opportunity.resumeText||''} busy={generating||agentTask?.state==='running'} onStart={onGenerateTrial}/>}
       {agentTask?.question&&<button type="button" className={styles.resumeContinueLink} onClick={onFocusMentor}>导师有一个补充问题 <ArrowRight size={14}/></button>}
       {!agentTask&&recovery && <details open className={styles.resumeCheckDetails}><summary>{recovery.detailSaved ? "补充已保存" : "补充一个真实细节"}</summary><ResumeRecovery key={opportunity.id} recovery={recovery} onSave={onSupplement} onKeep={() => document.getElementById(`resume-current-${opportunity.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" })} onRetry={onGenerate} busy={generating}/></details>}

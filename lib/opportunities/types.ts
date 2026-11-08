@@ -53,7 +53,12 @@ export interface ResumeChange {
   evidenceIds?: string[];
   editedByUser?: boolean;
   /** A targeted follow-up may revise an accepted paragraph; rejecting it restores this version. */
-  previousDecision?: { after: string; status: "accepted" | "rejected"; reason: string; evidenceId: string | null; evidenceIds?: string[]; editedByUser?: boolean };
+  previousDecision?: {
+    after: string; status: "accepted" | "rejected"; reason: string; evidenceId: string | null;
+    evidenceIds?: string[]; editedByUser?: boolean;
+    /** Rejecting an atomic document proposal restores the exact saved choices. */
+    documentChanges?: ResumeChange[];
+  };
   status: "accepted" | "pending" | "rejected";
 }
 

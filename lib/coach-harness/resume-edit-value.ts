@@ -69,14 +69,30 @@ export function proposeStandaloneDisclaimerDeletions(resume:string,proposals:Arr
 const normalize=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
 const removeLabels=(text:string)=>text.replace(/(?:办公软件|办公工具|专业技能|个人技能|技能清单|掌握技能|技能|工具|软件|技术栈|常用工具|使用工具|工作内容|主要职责|项目职责|职责|个人简介|项目经历)\s*[:：]/g,'');
 
+/** A carried-over phrase is not a newly introduced editorial defect. Count
+ * occurrences so copying that phrase into another bullet is still rejected. */
+function introducesImportanceClaim(before:string,after:string){
+  const pattern=/(?:提出|认识到|意识到|强调)[^。！？!?；;\n]{0,28}(?:的)?重要性/g;
+  const existing=(before.match(pattern)||[]).map(normalize);
+  return (after.match(pattern)||[]).some(match=>{
+    const at=existing.indexOf(normalize(match));
+    if(at<0)return true;
+    existing.splice(at,1);
+    return false;
+  });
+}
+
 export function resumeEditValueIssues(before:string,after:string):string[]{
+  // The caller handles no-op delivery separately. Unchanged original prose
+  // is not a defect introduced by this generation.
+  if(before===after)return [];
   const issues:string[]=[];
   const skillSentenceStyle=(text:string)=>text.replace(/[。；;]/g,';').replace(/和|与/g,'和').replace(/\s/g,'');
   if(before!==after&&!/负责|参与|协助|整理|制作|开发|编写|设计|维护|处理|交付|分析|记录|完成/.test(before)
     &&skillSentenceStyle(before)===skillSentenceStyle(after))issues.push('技能说明仅更换句号/分号或连接词，没有内容改善，不作为修改交付');
   if(before!==after&&before.replace(/[ \t|｜]/g,'')===after.replace(/[ \t|｜]/g,''))issues.push('仅改空白或字段分隔符，不作为内容改稿交付');
   if(/^(?:删除|删去|移除)(?:该|此|这)(?:条|段)$/.test(clean(after).replace(/[（）()。.!！]/g,'').trim()))issues.push('编辑指令不能作为简历正文；删除必须返回空 after，且不能删除真实贡献');
-  if(/(?:提出|认识到|意识到|强调).{0,28}(?:的)?重要性/.test(after))issues.push('“提出/认识到重要性”仍是随笔口吻；用来源已有的具体问题和提案重写，保留提案阶段，不冒称实施成果');
+  if(introducesImportanceClaim(before,after))issues.push('“提出/认识到重要性”仍是随笔口吻；用来源已有的具体问题和提案重写，保留提案阶段，不冒称实施成果');
   if(isPersonalDisclaimer(after))issues.push('个人未负责/未参与/未统计的说明只作事实边界，不写进简历正文；只写实际做过的动作与交付，仍不得暗示承担被否定的工作');
   if(/由(?:其他|别的|另外的)(?:同学|同事|成员|团队)(?:负责|开发|完成|承担)/.test(after))issues.push('其他人的分工只作内部归属边界，不作为本人的经历bullet；保留本人实际动作，不得把他人的开发或成果写成本人负责');
   if((removeLabels(before)!==before||removeLabels(after)!==after)&&normalize(removeLabels(before))===normalize(removeLabels(after)))issues.push('仅改标签、标点或前缀，没有改善内容，不作为修改交付');

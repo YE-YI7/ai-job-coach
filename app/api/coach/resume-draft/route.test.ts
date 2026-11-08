@@ -107,12 +107,43 @@ describe("resume draft source mapping and automatic-review baseline", () => {
 
   test('shipped route still blocks a changed numeric direction before saving or charging success',async()=>{
     const before='评测正确率提升6.4个百分点。';
-    (callLLM as jest.Mock).mockResolvedValueOnce('评测正确率6.4个百分点。');
+    (callLLM as jest.Mock).mockResolvedValue('评测正确率6.4个百分点。');
     const response=await productionPOST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
     expect(response.ok).toBe(false);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
     expect(createArtifactWithClaims).not.toHaveBeenCalled();
-    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(callLLM).toHaveBeenCalledTimes(2);
+  });
+
+  test('programmatic rejection reaches the original F6 author before a corrected body enters the save path',async()=>{
+    const before='整理评测记录，整理后交给同事每周核对。';
+    const after='整理评测记录，交给同事每周核对。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:before,jd:'',revision:'r',changes:[]});
+    (getContextBundleForUser as jest.Mock).mockResolvedValue({allowedClaimIds:['claim-1'],unverifiedClaimIds:[],
+      selection:{included:[],excluded:[]},budget:{maxInputTokens:12000},usage:{truncated:false},
+      claims:[{id:'claim-1',displayText:before}],artifacts:[],knowledge:[],attachments:[]});
+    (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({type:'native_tool_calls',tool_calls:[{
+      id:'bad-delivery',type:'function',function:{name:'write_output',arguments:JSON.stringify({files:[
+        {name:'resume-new.md',text:'主导模型评测并提升正确率。'},
+      ]})},
+    }]})).mockResolvedValueOnce(after);
+    (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact',version:1});
+    (recordArtifactReview as jest.Mock).mockImplementation(async data=>({
+      reviewer_type:data.reviewerType,status:data.status,summary:data.summary,
+    }));
+    (finishResumeTask as jest.Mock).mockResolvedValue({state:'ready'});
+    const response=await productionPOST(oneShotInput({resumeText:before}));
+    const body=await response.json();
+    expect(response.status).toBe(200);
+    expect(body.changes[0].after).toBe(after);
+    expect(writerAndReview()).toEqual(['resume_draft','resume_draft']);
+    const toolFeedback=(callLLM as jest.Mock).mock.calls[1][0].find((message:{role:string})=>message.role==='tool');
+    expect(JSON.parse(toolFeedback.content)).toMatchObject({saved:[],applied:false,issues:expect.any(Array)});
+    expect(finishResumeTask).toHaveBeenCalledTimes(1);
+    expect(finalizeQuota).toHaveBeenCalledTimes(1);
   });
 
   test('shipped F6 requires authentication before any tool, model or quota use',async()=>{

@@ -11,6 +11,7 @@ type Input = {
   previousDraft?: string; reviewFeedback?: string[];
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
+type VerifyDocument = (body:string) => string[];
 const fields = (properties: Record<string, unknown>) => ({
   type: 'object', properties, required: Object.keys(properties), additionalProperties: false,
 });
@@ -34,7 +35,7 @@ function parse(reply: string): Record<string, unknown> {
 
 /** Exact accepted F6 map/resources; only company, task scope and host delivery
  * are parameterised. There is no mandatory selection turn or per-line limit. */
-export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void) {
+export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void, verifyDocument?:VerifyDocument) {
   const scope = input.scope === 'single' ? '本次只改本次授权的那一段经历。' : '本次改整份授权简历，按已有方向优化。';
   const system = accepted.system
     .replace('本次只写 Manus「Agent 产品经理」投递稿的「益职 AI」项目段。', scope)
@@ -61,11 +62,29 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     ].join('\n') },
   ];
   const readIds: Id[] = [];
+  const rejectedBodies=new Set<string>();
+  const verify=(body:string)=>{
+    const issues=verifyDocument?.(body)||[];
+    if(issues.length){
+      if(rejectedBodies.has(body))throw Error('F6_REPAIR_NO_PROGRESS');
+      rejectedBodies.add(body);
+    }
+    return issues;
+  };
   for (let turn = 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
     const reply = await call([...messages], turn ? 'write' : 'read_or_write', [...readIds], tools);
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
+      const issues=verify(reply.trim());
+      if(issues.length){
+        messages.push({role:'assistant',content:reply});
+        messages.push({role:'user',content:JSON.stringify({
+          programmaticVerification:{saved:false,issues},
+          instruction:'程序未接收这版。核对原稿和本人补充后修正有依据的问题，交回完整新稿；这些诊断不是候选人事实，不得据此补造经历。',
+        })});
+        continue;
+      }
       return deliver(reply.trim());
     }
     // Read compatibility for already queued responses only. New F6 requests
@@ -93,7 +112,12 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
           if (file.name === 'resume-new.md') body = file.text.trim();
           else receipt = file.text.trim();
         }
-        result = { saved: [...names], applied: false, requiresReviewAndUserConfirmation: true };
+        const issues=body?verify(body):[];
+        result = issues.length
+          ? {saved:[],applied:false,issues,
+            instruction:'程序未接收这版。对照原稿核实并修正，交回完整新稿；诊断不提供新的经历事实。'}
+          : { saved: [...names], applied: false, requiresReviewAndUserConfirmation: true };
+        if(issues.length)body=undefined;
       } else throw Error('F6_UNKNOWN_TOOL');
       messages.push({ role: 'tool', tool_call_id: request.id, content: JSON.stringify(result) });
     }
@@ -105,7 +129,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     if (!body.trim() || body.length > 30_000) throw Error('F6_WRITE_OUTSIDE_SCOPE');
     const changes = projectF6Document(input.resume, body).map(change => ({
       ...change, section: input.scope === 'single' ? '经历整体重写' : '整稿选材与重构',
-      reason: 'F6 先交完整重写稿，宿主回指原文生成可确认的差异块；需通过独立事实与语义检查。',
+      reason: 'F6 作者交付完整重写稿，宿主生成原位差异供确认；程序接收不等于独立语义审稿通过。',
       sourceIds: input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
     }));
     return JSON.stringify({ changes, fullDocument: body, ...(receipt ? { selectionReceipt: receipt } : {}),

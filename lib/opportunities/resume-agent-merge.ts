@@ -29,3 +29,13 @@ export function decideResumeChange(change:ResumeChange,status:'accepted'|'reject
   const {previousDecision,...current}=change;
   return status==='rejected'&&previousDecision?{...current,...previousDecision}:{...current,status};
 }
+
+/** Whole-document refusal is a rollback to saved choices, not acceptance of
+ * a synthetic old document or loss of the user's pending suggestions. */
+export function decideResumeChanges(changes:ResumeChange[],id:string,status:'accepted'|'rejected'):ResumeChange[]{
+  return changes.flatMap(change=>{
+    if(change.id!==id)return [change];
+    const previous=change.previousDecision?.documentChanges;
+    return status==='rejected'&&previous?structuredClone(previous):[decideResumeChange(change,status)];
+  });
+}

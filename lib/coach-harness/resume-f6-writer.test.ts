@@ -56,6 +56,27 @@ test('bounded autonomous reading cannot create an infinite billable loop', async
   expect(run).toHaveBeenCalledTimes(F6_MAX_AUTHOR_CALLS);
 });
 
+test('failed programmatic delivery returns to the same author within the existing budget',async()=>{
+  const bad='原稿段落：主导所有评测并提升结果。';
+  const good='原稿段落：整理模型评测中的失败原因。';
+  const run=jest.fn().mockResolvedValueOnce(tool('write_output',{files:[{name:'resume-new.md',text:bad}]}))
+    .mockResolvedValueOnce(tool('write_output',{files:[{name:'resume-new.md',text:good}]}));
+  const verify=jest.fn((body:string)=>body===bad?['来源没有主导或提升的依据']:[]);
+  const result=JSON.parse(await runF6ResumeWriter(input,run,jest.fn(),verify));
+  expect(result.fullDocument).toBe(good);
+  expect(run).toHaveBeenCalledTimes(2);
+  const feedback=run.mock.calls[1][0].filter((message:{role:string})=>message.role==='tool').at(-1);
+  expect(JSON.parse(feedback.content)).toMatchObject({saved:[],applied:false,issues:['来源没有主导或提升的依据']});
+  expect(run.mock.calls[1][0][0]).toEqual(run.mock.calls[0][0][0]);
+});
+
+test('plain-text delivery uses the same verification and stops repeated failed bodies without spending the remaining budget',async()=>{
+  const run=jest.fn().mockResolvedValue('无依据的整稿');
+  await expect(runF6ResumeWriter(input,run,jest.fn(),()=>['事实不通过']))
+    .rejects.toThrow('F6_REPAIR_NO_PROGRESS');
+  expect(run).toHaveBeenCalledTimes(2);
+});
+
 test('keeps measured delta separate from current level', () => {
   const before='专业术语命中率提升30百分点，问答正确率提升6.4个百分点';
   expect(f6MetricDirectionIssues(before,'术语命中率提高30个百分点，问答正确率6.4百分点')).toHaveLength(1);

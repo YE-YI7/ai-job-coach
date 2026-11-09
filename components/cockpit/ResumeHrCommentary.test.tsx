@@ -15,4 +15,7 @@ test('historical reviews or stale commentary after manual edits do not masquerad
   expect(renderToStaticMarkup(<ResumeHrCommentary quality={undefined}/>)).toBe('');
   expect(renderToStaticMarkup(<ResumeHrCommentary quality={{...quality,
     reviews:[{...quality.reviews[0],status:'not_run'}]}}/>)).toBe('');
+  const restored=renderToStaticMarkup(<ResumeHrCommentary quality={quality} stale/>);
+  expect(restored).toContain('查看修改前 HR 点评');
+  expect(restored).toContain('不覆盖你后来的修改');
 });

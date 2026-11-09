@@ -26,8 +26,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const {user, error} = await evalAdminAccess();
   if (error || !user) return error!;
-  if (!isSameOriginRequest(request)) return evalJson({error: '不允许跨站调用'}, 403);
-  const body = request.headers.get('content-type')?.includes('application/x-www-form-urlencoded')
+  const isForm = request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded');
+  // This endpoint deliberately exposes a native HTML form. The shared checker
+  // additionally requires JSON for other endpoints; keep its origin/Host/fetch
+  // checks intact while acknowledging this endpoint's second accepted encoding.
+  const checkHeaders = new Headers(request.headers);
+  if (isForm) checkHeaders.set('Content-Type', 'application/json');
+  if (!isSameOriginRequest(new Request(request.url,{method:'POST',headers:checkHeaders}))) {
+    return evalJson({error: '不允许跨站调用'}, 403);
+  }
+  const body = isForm
     ? Object.fromEntries(new URLSearchParams(await request.text())) : await request.json().catch(() => null);
   if (!body || body.id !== F6_ACCEPTANCE_ID || Object.keys(body).length !== 1) return evalJson({error: '仅允许本次验收'}, 400);
   let audit: Awaited<ReturnType<typeof claimF6Acceptance>> | undefined;

@@ -30,3 +30,13 @@ test('real server execution gets only the claimed frozen request and server-fund
   expect(await (runResumeDraft as jest.Mock).mock.calls[0][0].json()).toEqual({resumeText:'frozen',opportunityId:'clone'});
   expect(save).toHaveBeenCalled();
 });
+test('native same-origin form is accepted, but cross-origin form still cannot claim or spend',async()=>{
+  const form=(origin:string)=>new Request('https://example.com/api/admin/f6-acceptance',{
+    method:'POST',headers:{origin,'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({id:F6_ACCEPTANCE_ID})});
+  expect((await POST(form('https://evil.invalid'))).status).toBe(403);
+  expect(claimF6Acceptance).not.toHaveBeenCalled();
+  (claimF6Acceptance as jest.Mock).mockRejectedValue(new Error('PREPARED_TEST_STOP_NO_MODEL'));
+  expect((await POST(form('https://example.com'))).status).toBe(409);
+  expect(claimF6Acceptance).toHaveBeenCalledTimes(1);expect(runResumeDraft).not.toHaveBeenCalled();
+});

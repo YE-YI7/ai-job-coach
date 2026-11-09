@@ -5,6 +5,7 @@ import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import { resumeMessageExpired } from '@/lib/coach-harness/resume-conversation-recovery';
 import styles from "./ResumeAgentConversation.module.css";
 import TutorMarkdown from './TutorMarkdown';
+import ResumeMentorOutcome from './ResumeMentorOutcome';
 import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 import ResumeComposerModel from './ResumeComposerModel';
 import type {ChatMode} from '@/lib/coach-harness/chat-options';
@@ -13,8 +14,8 @@ import { sameResumeReference, type ResumeReference, type ResolvedResumeReference
 
 const readableError=(cause:unknown)=>cause instanceof Error?/Failed to fetch|NetworkError|Load failed/i.test(cause.message)?'网络暂时断开，输入已保留。恢复后可以重试。':cause.message:'暂未保存，输入仍在，请重试';
 
-export default function ResumeAgentConversation({task,busy,onMessage,onContinue,onSkip}:{
-  task:ResumeAgentTask;busy:boolean;
+export default function ResumeAgentConversation({task,busy,pendingCount,onMessage,onContinue,onSkip}:{
+  task:ResumeAgentTask;busy:boolean;pendingCount?:number;
   onMessage:(message:string,requestId:string,onReply?:(text:string)=>void,onReceipt?:(task:ResumeAgentTask)=>void,modelMode?:ChatMode,reference?:ResumeReference)=>Promise<void>;
   onContinue:()=>Promise<void>;onSkip:()=>Promise<void>;
 }){
@@ -125,8 +126,7 @@ export default function ResumeAgentConversation({task,busy,onMessage,onContinue,
           </div>
         </div>}
         {task.state==='ready'&&showOutcome&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
-          <p role="status">{task.result?.unchanged?'本轮未新增修改，原文保留。':task.result?.partial?'本轮只完成了部分修改建议。':'本轮修改建议已保存，等待你确认。'}</p>
-          {task.result?.summary&&<TutorMarkdown className={styles.reply}>{task.result.summary}</TutorMarkdown>}
+          <ResumeMentorOutcome result={task.result} pendingCount={pendingCount}/>
         </div>}
         {question&&!incoming&&(!latest||latest.status!=='completed'||latest.decision==='revise')&&<div className={`${styles.message} ${styles.mentorMessage}`} aria-label="导师">
           <TutorMarkdown className={styles.reply}>{question.question}</TutorMarkdown>

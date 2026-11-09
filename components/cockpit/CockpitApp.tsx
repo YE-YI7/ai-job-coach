@@ -1487,6 +1487,7 @@ function CockpitWorkspace({
                 resumeAgentTasks[active.id]!.conversation?.at(-1)?.reply+":"+resumeFocus,
               content:<ResumeAgentConversation
                 key={resumeAgentTasks[active.id]!.id} task={resumeAgentTasks[active.id]!} busy={generatingResume||resumeMessageBusy}
+                pendingCount={active.resumeChanges.filter(change => change.status === 'pending').length}
                 onMessage={(message,requestId,onReply,onReceipt,modelMode,reference)=>
                   runResumeAgent("message",message,active,requestId,onReply,undefined,onReceipt,modelMode,reference)}
                 onContinue={()=>runResumeAgent("retry")} onSkip={()=>runResumeAgent("skip")}

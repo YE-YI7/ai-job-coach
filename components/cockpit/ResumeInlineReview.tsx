@@ -74,6 +74,9 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
     return original.length===shown.length&&original.every((id,index)=>id===shown[index])?original:[];
   },[opportunity.resumeText,projection.text]);
   const change=opportunity.resumeChanges.find(item=>item.id===active?.id&&item.status==='pending');
+  const wholeDocument = Boolean(change && change.before === opportunity.resumeText && change.before.includes('\n'));
+  const acceptLabel = wholeDocument ? '采纳整份建议' : '采纳这处修改';
+  const rejectLabel = wholeDocument ? '保留修改前整稿' : '拒绝这处修改，保留原文';
   useLayoutEffect(()=>{
     const element=bubble.current;
     if(!active||!element)return;
@@ -98,7 +101,7 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
     const top=below+height<=window.innerHeight-12?below:active.top-height-8;
     bubble.current.style.top=`${Math.max(12,Math.min(top,window.innerHeight-height-12))}px`;
   },[active,editing]);
-  useEffect(()=>{if(active?.keyboard)bubble.current?.querySelector<HTMLButtonElement>('button')?.focus();},[active]);
+  useEffect(()=>{if(active?.keyboard)bubble.current?.querySelector<HTMLButtonElement>('button')?.focus({preventScroll:true});},[active]);
   useEffect(()=>{
     const close=(event:Event)=>{if(event instanceof KeyboardEvent&&event.key!=='Escape')return;if((event.type==='pointerdown'||event.type==='scroll')&&event.target instanceof Node&&bubble.current?.contains(event.target))return;if(event instanceof KeyboardEvent)active?.restoreFocus();setActive(null);setEditing(false);};
     window.addEventListener('pointerdown',close);window.addEventListener('keydown',close);window.addEventListener('resize',close);window.addEventListener('scroll',close,true);
@@ -111,7 +114,16 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
     {editError&&!blockEdit&&<p role="alert">{editError}</p>}
     {projection.findings.length>0&&<details className={styles.unlocated}><summary>有 {projection.findings.length} 处建议无法定位，原文未变</summary>{projection.findings.map(finding=><p key={finding.changeId}>{finding.message}<button type="button" onClick={()=>onUpdate(finding.changeId!,"rejected")}>保留原文</button></p>)}</details>}
     {active&&change&&showMarks&&!disabled&&createPortal(<div ref={bubble} role="dialog" aria-label="处理这处修改" className={styles.bubble} style={{left:Math.max(12,Math.min(active.left,window.innerWidth-332)),top:Math.max(12,Math.min(active.bottom+8,window.innerHeight-(editing?300:150)))}}>
-      <div className={styles.decisions}><button type="button" aria-label="采纳这处修改" title="采纳" onClick={()=>{active.restoreFocus();reportDecision('已采纳 · 可以撤销');onUpdate(change.id,"accepted");dismissHint();setActive(null);}}><Check size={16}/><span>采纳</span></button><button type="button" aria-label="拒绝这处修改，保留原文" title="保留原文" onClick={()=>{active.restoreFocus();reportDecision('已保留原文 · 可以撤销');onUpdate(change.id,"rejected");dismissHint();setActive(null);}}><X size={16}/><span>保留原文</span></button><button type="button" aria-label="自己修改这处文字" title="自己改" onClick={()=>{setValue(change.after);setEditing(true);}}><Pencil size={15}/></button></div>
+      {wholeDocument && <p>这些标记属于同一份整稿建议。采纳后保留新稿、清除整份标记；不会退回原稿。</p>}
+      <div className={styles.decisions}>
+        <button type="button" aria-label={acceptLabel} title={acceptLabel} onClick={()=>{
+          active.restoreFocus();reportDecision('已保留新稿 · 可以撤销');onUpdate(change.id,'accepted');dismissHint();setActive(null);
+        }}><Check size={16}/><span>{wholeDocument ? '采纳整份' : '采纳'}</span></button>
+        <button type="button" aria-label={rejectLabel} title={rejectLabel} onClick={()=>{
+          active.restoreFocus();reportDecision('已保留原文 · 可以撤销');onUpdate(change.id,'rejected');dismissHint();setActive(null);
+        }}><X size={16}/><span>{wholeDocument ? '保留上一稿' : '保留原文'}</span></button>
+        <button type="button" aria-label="自己修改这处文字" title="自己改" onClick={()=>{setValue(change.after);setEditing(true);}}><Pencil size={15}/></button>
+      </div>
       {reference && <button type="button" className={styles.quote} aria-label="引用这处修改到对话" onClick={async () => {
         try { await reference.quote(change.id); setActive(null); setEditing(false); }
         catch (cause) { setEditError(cause instanceof Error ? cause.message : '引用失败，请重新点选。'); }

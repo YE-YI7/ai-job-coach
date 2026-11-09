@@ -570,6 +570,8 @@ Agent 执行手册继续保留其既有路由色调校准：行动橙（#e9672d�
 
 ## Do's and Don'ts
 
+2026-11-09 简历阅读修订：长稿差异按真实变化分段着色；整稿原子建议的按钮明确“采纳整份 / 保留上一稿”，不冒充单句操作。导师先给短状态，原修改说明和 HR 主题就近展开；沿用铜色入口、44px disclosure、正文中性墨色与原有加粗，长段在完整句边界分段。原文不丢，输入/模型选择保留，不新增推断式摘要或审稿拒收。虚构桌面/手机截图和只读真实记录回放见本轮 operations 报告。
+
 ### 2026-10-18 Qoder-directed local refinement
 
 The user delegated frontend adjustments to Qoder, then requested review and release. Retain that implementation's warm beige/cocoa workspace and smaller controls; do not reinterpret this review as permission to redesign the left navigation or change résumé template colours. The mentor header is one line without a repeated logo; send remains a compact up-arrow with an accessible label. Stage navigation is expanded and wraps within the mobile viewport. Low-frequency résumé settings stay under More, with the original file unchanged.

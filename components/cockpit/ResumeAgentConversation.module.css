@@ -16,6 +16,14 @@
 .message .reply li>p{margin:.35em 0}
 .message .reply> :first-child{margin-top:0}
 .message .reply> :last-child{margin-bottom:0}
+.outcomeDetails{margin-top:8px}
+.conversation .outcomeDetails>summary{min-height:44px;align-content:center;font-weight:600;color:var(--workbench-focus,#984320)}
+.outcomeDetails[open]>summary{margin-bottom:12px}
+.reportSection{border-top:1px solid var(--cockpit-studio-line,#e5e6e0);margin-top:8px;padding-top:4px}
+.reportSection>summary{min-height:44px;align-content:center;font-weight:600;cursor:pointer}
+.reportSection>summary:focus-visible{outline:2px solid var(--workbench-focus,#984320);outline-offset:2px}
+.reportSection[open]>summary{margin-bottom:12px}
+.message .reply p+p{margin-top:1em}
 .message .reply a{color:inherit;text-underline-offset:3px}
 .message .reply blockquote{font:inherit;color:inherit;border-inline-start:1px solid currentColor;margin:1em 0;padding-inline-start:12px}
 .turn .message{margin-bottom:0}

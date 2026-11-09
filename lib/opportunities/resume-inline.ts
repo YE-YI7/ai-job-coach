@@ -8,7 +8,31 @@ type Piece = { text: string; kind: "same" | "added" | "removed" | "reworded" };
 export function resumeInkDiff(before: string, after: string): Piece[] {
   if (before === after) return [{ text: after, kind: "same" }];
   const a = Array.from(before), b = Array.from(after);
-  if (a.length * b.length > 500_000) return [{ text: before, kind: "removed" }, { text: after, kind: "reworded" }].filter(p => p.text) as Piece[];
+  if (a.length * b.length > 500_000) {
+    // Trim identical edges before applying the memory cap. A long document
+    // with one small edit must not become two fully red/yellow documents.
+    let start = 0, end = 0;
+    while (start < a.length && start < b.length && a[start] === b[start]) start++;
+    while (end < a.length - start && end < b.length - start && a[a.length - end - 1] === b[b.length - end - 1]) end++;
+    if (start || end) return [
+      ...(start ? [{ text: a.slice(0, start).join(''), kind: 'same' as const }] : []),
+      ...resumeInkDiff(a.slice(start, a.length - end).join(''), b.slice(start, b.length - end).join('')),
+      ...(end ? [{ text: a.slice(a.length - end).join(''), kind: 'same' as const }] : []),
+    ];
+    // Unchanged lines are safe anchors even when edits occur far apart. Pick
+    // a central unique anchor; never align duplicate résumé sentences by guess.
+    const lines = before.match(/[^\n]+\n/g) || [];
+    const anchor = [...lines].sort((x, y) =>
+      Math.abs(before.indexOf(x) - before.length / 2) - Math.abs(before.indexOf(y) - before.length / 2)
+    ).find(line => line.length > 8 && before.indexOf(line) === before.lastIndexOf(line)
+      && after.includes(line) && after.indexOf(line) === after.lastIndexOf(line));
+    if (anchor) {
+      const left = before.indexOf(anchor), right = after.indexOf(anchor);
+      return [...resumeInkDiff(before.slice(0, left), after.slice(0, right)),
+        { text: anchor, kind: 'same' }, ...resumeInkDiff(before.slice(left + anchor.length), after.slice(right + anchor.length))];
+    }
+    return [{ text: before, kind: 'removed' }, { text: after, kind: 'reworded' }].filter(p => p.text) as Piece[];
+  }
   const stride = b.length + 1, dp = new Uint16Array((a.length + 1) * stride);
   for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--)
     dp[i * stride + j] = a[i] === b[j] ? dp[(i + 1) * stride + j + 1] + 1 : Math.max(dp[(i + 1) * stride + j], dp[i * stride + j + 1]);

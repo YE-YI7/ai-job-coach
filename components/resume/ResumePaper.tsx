@@ -114,7 +114,11 @@ export default function ResumePaper({ text, template, title = "简历成稿", sh
         if(event.type==='keydown'&&!['Enter',' '].includes((event as KeyboardEvent).key))return;
         if(event.type==='click'||event.type==='keydown')event.preventDefault();
         const outer=frame.current!.getBoundingClientRect(),r=mark.getBoundingClientRect(),ratio=outer.width/(document.documentElement.clientWidth||RESUME_PAPER_WIDTH);
-        const restoreFocus=()=>{returningFocus=true;if(mark.isConnected)mark.focus();else frame.current?.focus();returningFocus=false;};
+        const restoreFocus=()=>{
+          returningFocus=true;
+          if(mark.isConnected)mark.focus({preventScroll:true});else frame.current?.focus({preventScroll:true});
+          returningFocus=false;
+        };
         reviewRef.current?.onMark(mark.dataset.changeId!,{left:outer.left+r.left*ratio,top:outer.top+r.top*ratio,bottom:outer.top+r.bottom*ratio},{keyboard:event.type==='focusin'||event.type==='keydown',restoreFocus});
       };
       for(const name of ['mouseover','focusin','click','keydown'])main.addEventListener(name,activate);

@@ -22,7 +22,8 @@ export class F6ToolSession {
   readonly resources: Record<string, string>;
   private services: F6ToolServices;
   constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string},
-    private verify: (body: string) => string[], services?: F6ToolServices) {
+    private verify: (body: string) => string[], services?: F6ToolServices,
+    publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>) {
     this.resources = {...origin.resources, 'resume.md': input.resume, 'jd.txt': input.jd,
       'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts)};
     const company = input.company || '';
@@ -31,6 +32,7 @@ export class F6ToolSession {
     const domain = input.domain || (company.toLowerCase() === origin.researchTarget.company.toLowerCase()
       ? origin.researchTarget.domain : '');
     const research = new F6PublicTools(company, domain);
+    if (publicCheckpoint) research.restoreCompletedCalls(publicCheckpoint);
     this.services = services || {
       search: topic => research.search(topic), fetch: urls => research.read(urls),
       render: async text => (await import('./f6-render-pdf')).renderF6Pdf(text),
@@ -55,11 +57,11 @@ export class F6ToolSession {
         names.add(file.name);
       }
       const candidate = files.find(file => file.name === 'resume-new.md');
-      const issues = candidate ? this.verify(candidate.text.trim()) : [];
+      const issues = candidate ? this.verify(candidate.text) : [];
       if (issues.length) return {saved: [], applied: false, issues,
         instruction: '程序未接收这版。对照原稿核实并修正，交回完整新稿；诊断不提供新的经历事实。'};
       for (const file of files) {
-        const text = file.text.trim();
+        const text = file.text;
         if (file.name === 'resume-new.md' && this.outputs.get(file.name) !== text) this.revision++;
         this.outputs.set(file.name, text);
       }
@@ -74,6 +76,10 @@ export class F6ToolSession {
       return {...result.receipt, renderedRevision: this.renderedRevision};
     }
     throw Error('F6_UNKNOWN_TOOL');
+  }
+  captureVisibleBody(text: string) {
+    if (this.outputs.get('resume-new.md') !== text) this.revision++;
+    this.outputs.set('resume-new.md', text);
   }
   deliverables(): F6Deliverables {
     return {files: Object.fromEntries(this.outputs), resumeRevision: this.revision,

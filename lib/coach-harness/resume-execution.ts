@@ -86,7 +86,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
   const originF6 = useF6 && (Boolean(options.acceptance) || process.env.F6_ORIGIN_RUNTIME !== 'legacy-v2');
   const activeF6Writer = originF6 ? F6_RESUME_WRITER : LEGACY_F6_WRITER;
   const activeF6Calls = originF6 ? F6_MAX_AUTHOR_CALLS : LEGACY_F6_CALLS;
-  const author = originF6 ? runF6ResumeWriter : runLegacyF6Writer;
+  const author: typeof runF6ResumeWriter = originF6 ? runF6ResumeWriter : runLegacyF6Writer;
   const onDemandReview = useF6 && options.reviewPolicy === 'on_demand';
   const maxDraftAttempts = onDemandReview ? 1 : options.maxDraftAttempts ?? 2;
   let siteFunded = false;
@@ -251,7 +251,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let reviewContractRepairUsed=false;
     let lastF6Document: string | undefined;
     let f6Deliverables: F6Deliverables | undefined;
-    let f6AuthorCalls=0;
+    let f6AuthorCalls=options.acceptance?.checkpoint?.completedAuthorCalls || 0;
     let partialRecoveryReason: 'resume_repair_timeout' | 'resume_repair_incomplete' | null = null;
     let checkpoint: { changes:ResumeChange[]; retained:ResumeChange[]; reviewer:typeof reviewer; documentReview:DocumentReview|null;
       reviewerFindings:unknown[]; valueChecks:ResumeValueCheck[]; rejected:typeof rejected; followUp:ResumeAgentQuestion|null } | null = null;
@@ -345,7 +345,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:activeF6Calls},
       });
       return issues;
-    }) : await runWithGenerationContext({
+    }, undefined, options.acceptance?.checkpoint) : await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,

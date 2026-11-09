@@ -4,6 +4,7 @@ import {claimF6Acceptance, F6_ACCEPTANCE_ID} from '@/lib/coach-harness/f6-accept
 import {runResumeDraft} from '@/lib/coach-harness/resume-execution';
 import {F6_RESUME_WRITER} from '@/lib/coach-harness/resume-f6-writer';
 import {withEvalObserver} from '@/lib/coach-harness/eval-scope';
+import {getDbClient} from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -14,9 +15,14 @@ export async function GET(request: Request) {
     try { return evalJson(await (await import('@/lib/coach-harness/f6-runtime-verification')).verifyDeployedF6Runtime()); }
     catch (failure) { return evalJson({error: failure instanceof Error ? failure.message : '工具验证失败',modelCalls:0},503); }
   }
+  const db = await getDbClient();
+  const saved = db ? await db.from('coach_eval_runs').select('run,status').eq('id',F6_ACCEPTANCE_ID).eq('user_id',user.id).maybeSingle() : null;
+  const cost = saved?.data?.run?.cost;
+  const used = Number(cost?.priorCalls || 3) + (Array.isArray(cost?.newCalls) ? cost.newCalls.length : 0);
+  const upper = Number(cost?.cumulativeUpperCny ?? cost?.priorUpperCny ?? 0.110348);
   return new Response(`<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <title>F6 隔离验收</title><h1>F6 原版完整运行环境验收</h1>
-<p>原预算累计最多 ¥0.30 / 6 次，已用 3 次 / 上界估算 ¥0.110348。本次只用剩余额度，不扣个人钱包或积分。</p>
+<p>本人已授权累计最多 ¥0.30 / 9 次；已用 ${used} 次，上界估算 ¥${upper.toFixed(6)}。只用剩余额度，不扣个人钱包或积分。</p>
 <p>使用失败记录的冻结输入，只保存到本次隔离副本。重复提交不会重复运行。</p>
 <p><a href="?verify=runtime">零模型调用：检查候选服务器实际工具</a></p>
 <form method="post"><input type="hidden" name="id" value="${F6_ACCEPTANCE_ID}">
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
     }), user, {writer: F6_RESUME_WRITER, maxDraftAttempts: 1, reviewPolicy: 'on_demand', acceptance: claimed.execution}));
     const output = await response.clone().json();
     audit.run.status = output.ok ? 'completed' : 'failed';
-    audit.run.durationMs = Date.now() - Date.parse(audit.run.startedAt);
+    audit.run.durationMs = (audit.run.priorDurationMs || 0) + Date.now() - Date.parse(audit.run.startedAt);
     audit.run.result = {status: audit.run.status, output, httpStatus: response.status};
     await audit.save();
     response.headers.set('x-yizhi-eval-id', F6_ACCEPTANCE_ID);
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
   } catch (failure) {
     if (audit) {
       audit.run.status = 'failed';
-      audit.run.durationMs = Date.now() - Date.parse(audit.run.startedAt);
+      audit.run.durationMs = (audit.run.priorDurationMs || 0) + Date.now() - Date.parse(audit.run.startedAt);
       audit.run.result = {error: failure instanceof Error ? failure.message : 'ACCEPTANCE_FAILED'};
       await audit.save();
     }

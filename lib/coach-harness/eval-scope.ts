@@ -13,6 +13,7 @@ export interface EvalSpan {
   input: unknown;
   output: unknown;
   model?: string;
+  servedModel?: string;
   transport?: LlmTransportDiagnostic;
   usage?: {inputTokens:number;outputTokens:number;cacheHitTokens:number|null;estimatedCostUsd:number|null;pricingVersion:string|null;provider:string|null;retryCount:number|null};
   code?: string;

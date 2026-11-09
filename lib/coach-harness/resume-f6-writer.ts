@@ -19,6 +19,8 @@ type Input = {
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
+export type F6Checkpoint = {messages: LlmMessage[]; readIds: Id[]; completedAuthorCalls: number;
+  publicCalls: Array<{name: string; output: Record<string, unknown>}>};
 
 function parse(reply: string): Record<string, unknown> {
   const value = JSON.parse(reply.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
@@ -51,9 +53,14 @@ export function f6InitialMessages(input: Input): LlmMessage[] {
 /** Accepted loop: native choices -> actual tool result -> next choice. Saving a
  * valid body completes the task, exactly as the original experiment did. */
 export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void,
-  verifyDocument?: VerifyDocument, services?: F6ToolServices) {
-  const messages = f6InitialMessages(input);
-  const readIds: Id[] = [];
+  verifyDocument?: VerifyDocument, services?: F6ToolServices, checkpoint?: F6Checkpoint) {
+  const initial = f6InitialMessages(input);
+  if (checkpoint && (JSON.stringify(checkpoint.messages.slice(0, 2)) !== JSON.stringify(initial)
+    || checkpoint.completedAuthorCalls < 1 || checkpoint.completedAuthorCalls >= F6_MAX_AUTHOR_CALLS)) {
+    throw Error('F6_CHECKPOINT_INPUT_CHANGED');
+  }
+  const messages = checkpoint ? structuredClone(checkpoint.messages) : initial;
+  const readIds: Id[] = checkpoint ? [...checkpoint.readIds] : [];
   const rejectedBodies=new Set<string>();
   const verify=(body:string)=>{
     const issues=verifyDocument?.(body)||[];
@@ -63,7 +70,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     }
     return issues;
   };
-  const session = new F6ToolSession(input, verify, services);
+  const session = new F6ToolSession(input, verify, services, checkpoint?.publicCalls);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
     messages, tools: F6_ORIGIN_TOOLS,
@@ -72,14 +79,15 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     actualSystemHash: createHash('sha256').update(messages[0].content).digest('hex'),
     taskParameterChanges: ['authorised scope', 'owned résumé/JD/facts/answers/decisions'],
     resourceHashes: origin.resourceHashes, maxAuthorCalls: F6_MAX_AUTHOR_CALLS,
+    resumedFromAuthorCall: checkpoint?.completedAuthorCalls || 0,
     orderedWorkflow: false, extraAutomaticJudge: false,
   }}, started, 0);
-  for (let turn = 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
+  for (let turn = checkpoint?.completedAuthorCalls || 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
     const reply = await call(structuredClone(messages), turn ? 'write' : 'read_or_write', [...readIds], F6_ORIGIN_TOOLS);
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
-      const issues=verify(reply.trim());
+      const issues=verify(reply);
       if(issues.length){
         messages.push({role:'assistant',content:reply});
         messages.push({role:'user',content:JSON.stringify({
@@ -88,7 +96,10 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         })});
         continue;
       }
-      return deliver(reply.trim());
+      session.captureVisibleBody(reply);
+      captureEvalStage('draft','host_capture_visible_body',{input:'ordinary visible model reply',
+        output:{characters:reply.length,bytePreserved:true}},Date.now(),0);
+      return deliver(reply);
     }
     // Explicit former automatic-review comparison only. The production F6
     // route cannot fall back to the old per-suggestion response protocol.

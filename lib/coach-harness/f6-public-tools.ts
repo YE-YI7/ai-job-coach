@@ -25,6 +25,19 @@ export class F6PublicTools {
   private indexed = new Map<string, {title: string; sourceType: string}>();
   constructor(private company: string, private domain: string, private transport: typeof fetch = fetch) {}
 
+  restoreCompletedCalls(calls: Array<{name: string; output: Record<string, unknown>}>) {
+    if (this.requests || calls.length > 4) throw Error('PUBLIC_CHECKPOINT_INVALID');
+    for (const call of calls) {
+      if (!['search', 'fetch'].includes(call.name) || call.output.error) throw Error('PUBLIC_CHECKPOINT_INVALID');
+      if (call.name === 'search') {
+        const results = call.output.results;
+        if (!Array.isArray(results)) throw Error('PUBLIC_CHECKPOINT_INVALID');
+        for (const item of results) this.indexed.set(f6PublicUrl(item.url), item);
+      }
+    }
+    this.requests = calls.length;
+  }
+
   private async mcp(name: string, args: Record<string, unknown>): Promise<string> {
     if (this.requests >= 4) throw Error('PUBLIC_REQUEST_BUDGET');
     this.requests++;
@@ -85,7 +98,8 @@ export class F6PublicTools {
     const chunks = rawText.split(/(?=(?:^|\n)URL:\s*https:\/\/)/);
     const pages = urls.flatMap(url => {
       const text = chunks.filter(c => c.match(/^\s*URL:\s*(https:\/\/[^\s]+)/)?.[1] === url).join('\n');
-      return text ? [{url, ...this.indexed.get(url)!, text: text.slice(0, 2200)}] : [];
+      const meta = this.indexed.get(url)!;
+      return text ? [{url, title: meta.title, sourceType: meta.sourceType, text: text.slice(0, 2200)}] : [];
     });
     if (!pages.length) throw Error('PUBLIC_READER_DID_NOT_IDENTIFY_SOURCE');
     return {pages};

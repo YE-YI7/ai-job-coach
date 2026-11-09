@@ -2,6 +2,7 @@ import {F6ToolSession, F6_ORIGIN_TOOLS} from './f6-tool-session';
 import origin from './f6-origin.json';
 import {f6InitialMessages, runF6ResumeWriter} from './resume-f6-writer';
 import {withEvalObserver} from './eval-scope';
+import type {F6Checkpoint} from './resume-f6-writer';
 
 const input = {resume: '已有工作：排查指令传递失败并修复。', jd: 'Manus Agent 产品经理',
   facts: [{id: 'own', text: '排查指令传递失败并修复。'}], answers: [], decisions: [], request: '',
@@ -74,4 +75,15 @@ test('production cannot silently fall back to the old per-suggestion author inte
   const run=jest.fn().mockResolvedValue(JSON.stringify({changes:[{before:input.resume,after:'only typos'}]}));
   await expect(runF6ResumeWriter(input,run,jest.fn())).rejects.toThrow('F6_WRITER_PROTOCOL_INVALID');
   expect(run).toHaveBeenCalledTimes(1);
+});
+test('continue the same author after a checkpoint without replaying paid calls or rereading tools',async()=>{
+  const checkpoint:F6Checkpoint={messages:[...f6InitialMessages(input),{role:'assistant',content:'',tool_calls:[]},
+    {role:'tool',tool_call_id:'old',content:'actual old receipt'}],readIds:['spec.md'],completedAuthorCalls:3,publicCalls:[]};
+  const run=jest.fn().mockResolvedValue(input.resume+'\n'),read=jest.fn(),hooks=services();
+  const result=JSON.parse(await runF6ResumeWriter(input,run,read,()=>[],hooks,checkpoint));
+  expect(run).toHaveBeenCalledTimes(1);expect(run.mock.calls[0][0]).toEqual(checkpoint.messages);
+  expect(read).not.toHaveBeenCalled();expect(hooks.search).not.toHaveBeenCalled();expect(hooks.fetch).not.toHaveBeenCalled();
+  expect(result.fullDocument).toBe(input.resume+'\n');
+  expect(result.f6Deliverables.files['resume-new.md']).toBe(input.resume+'\n');
+  await expect(runF6ResumeWriter({...input,resume:'changed'},run,read,()=>[],hooks,checkpoint)).rejects.toThrow('F6_CHECKPOINT_INPUT_CHANGED');
 });

@@ -22,3 +22,14 @@ test('a failed public service is not retried or replaced by a paid service', asy
   await expect(new F6PublicTools('Manus','manus.im',network).search('role')).rejects.toThrow();
   expect(network).toHaveBeenCalledTimes(1);
 });
+test('resuming keeps search provenance and the already-used public budget without repeating requests',async()=>{
+  const network=jest.fn().mockImplementation(async()=>result('URL: https://manus.im/docs\nActual source text'));
+  const tools=new F6PublicTools('Manus','manus.im',network);
+  tools.restoreCompletedCalls([{name:'search',output:{results:[{url:'https://manus.im/docs',title:'Manus',sourceType:'official_self_description'}]}},
+    {name:'search',output:{results:[]}},{name:'fetch',output:{pages:[]}}]);
+  expect(network).not.toHaveBeenCalled();
+  const fetched=await tools.read(['https://manus.im/docs']);
+  expect(Object.keys(fetched.pages[0]).sort()).toEqual(['sourceType','text','title','url']);
+  await expect(tools.search('role')).rejects.toThrow('PUBLIC_REQUEST_BUDGET');
+  expect(network).toHaveBeenCalledTimes(1);
+});

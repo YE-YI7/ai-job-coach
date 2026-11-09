@@ -1,4 +1,4 @@
-import {claimF6Acceptance, F6_ACCEPTANCE_ID, F6_FAILURE_ID} from './f6-acceptance';
+import {claimF6Acceptance, F6_ACCEPTANCE_ID, F6_FAILURE_ID, f6UsageUpperCny} from './f6-acceptance';
 import {getDbClient} from '@/lib/db';
 import {FakeDb} from './run-ledger/testing/fake-db';
 import {F6_ORIGIN_TOOLS as tools} from './f6-tool-session';
@@ -23,7 +23,7 @@ test('one atomic claim only; duplicate submission cannot start another model run
 });
 test('remaining call budget is cumulative, usage settles reserves, and ledger precedes calls',async()=>{
   const audit=await claimF6Acceptance('owner');
-  for(let i=0;i<3;i++){
+  for(let i=0;i<6;i++){
     await audit.execution.beforeCall(messages,tools);
     expect(audit.run.cost.newCalls).toHaveLength(i+1);
     expect(audit.run.cost.newCalls[i].requestHash).toHaveLength(64);
@@ -50,4 +50,11 @@ test('changed facts, omitted tools or extra system instructions fail before spen
 test('expires or non-clone target cannot spend',async()=>{
   (db.rows('coach_eval_runs')[0].run as {expiresAt:string}).expiresAt='2020-01-01';
   await expect(claimF6Acceptance('owner')).rejects.toThrow('MANIFEST_INVALID');
+});
+test('reported cache hits use official peak cache price; missing/invalid counts remain cold',()=>{
+  expect(f6UsageUpperCny({inputTokens:1000,outputTokens:100,cacheHitTokens:900}))
+    .toEqual({coldUpperCny:.0028,settledCny:.001036,cacheHitTokens:900});
+  for(const cacheHitTokens of [undefined,null,-1,1001]){
+    expect(f6UsageUpperCny({inputTokens:1000,outputTokens:100,cacheHitTokens}).settledCny).toBe(.0028);
+  }
 });

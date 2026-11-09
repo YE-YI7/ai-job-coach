@@ -41,6 +41,12 @@ export async function claimF6Acceptance(userId: string) {
     actualSupplierChargeCny: null, newCalls: ledger,
   }});
   const save = async () => {
+    run.cost.newUpperCny = ledger.reduce((sum, entry) => sum + (entry.settledCny ?? entry.reservedCny), 0);
+    run.cost.cumulativeUpperCny = PRIOR_UPPER_CNY + run.cost.newUpperCny;
+    const calls = spans.filter(span => span.kind === 'agent');
+    run.metrics = {calls: ledger.length, inputTokens: calls.reduce((sum, span) => sum + (span.usage?.inputTokens || 0), 0),
+      outputTokens: calls.reduce((sum, span) => sum + (span.usage?.outputTokens || 0), 0),
+      modelMs: calls.reduce((sum, span) => sum + span.durationMs, 0), referenceCnyUpper: run.cost.newUpperCny};
     const result = await db.from('coach_eval_runs').update({run: redactEval(run), status: run.status,
       updated_at: new Date().toISOString()}).eq('id', F6_ACCEPTANCE_ID).eq('user_id', userId);
     if (result.error) throw Error('ACCEPTANCE_LEDGER_SAVE_FAILED');

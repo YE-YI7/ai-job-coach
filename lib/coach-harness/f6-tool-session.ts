@@ -10,6 +10,10 @@ export type F6ToolServices = {
   fetch: (urls: unknown) => Promise<unknown>;
   render: (text: string) => Promise<{bytes: Uint8Array; receipt: Record<string, unknown>}>;
 };
+export type F6Deliverables = {
+  files: Record<string, string>; resumeRevision: number; renderedRevision: number;
+  pdf?: {revision: number; receipt: Record<string, unknown>; base64: string; current: boolean};
+};
 export class F6ToolSession {
   readonly outputs = new Map<string, string>();
   private revision = 0;
@@ -71,7 +75,7 @@ export class F6ToolSession {
     }
     throw Error('F6_UNKNOWN_TOOL');
   }
-  deliverables() {
+  deliverables(): F6Deliverables {
     return {files: Object.fromEntries(this.outputs), resumeRevision: this.revision,
       renderedRevision: this.renderedRevision,
       ...(this.pdf ? {pdf: {...this.pdf, current: this.pdf.revision === this.revision}} : {})};

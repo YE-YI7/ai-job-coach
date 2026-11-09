@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     }), user, {writer: F6_RESUME_WRITER, maxDraftAttempts: 1, reviewPolicy: 'on_demand', acceptance: claimed.execution}));
     const output = await response.clone().json();
     audit.run.status = output.ok ? 'completed' : 'failed';
+    audit.run.durationMs = Date.now() - Date.parse(audit.run.startedAt);
     audit.run.result = {status: audit.run.status, output, httpStatus: response.status};
     await audit.save();
     response.headers.set('x-yizhi-eval-id', F6_ACCEPTANCE_ID);
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
   } catch (failure) {
     if (audit) {
       audit.run.status = 'failed';
+      audit.run.durationMs = Date.now() - Date.parse(audit.run.startedAt);
       audit.run.result = {error: failure instanceof Error ? failure.message : 'ACCEPTANCE_FAILED'};
       await audit.save();
     }

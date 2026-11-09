@@ -27,7 +27,9 @@ export interface ResumeAgentTask {
   updatedAt: string;
   conversation?: ResumeConversationTurn[];
   error?: string;
-  result?: { changes: ResumeChange[]; previousChanges?: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"]; resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean; partial?:boolean; reasonCode?:string|null };
+  result?: { changes: ResumeChange[]; previousChanges?: ResumeChange[]; applicationQuality?: Opportunity["applicationQuality"];
+    resumeGenerationId?: string; resumeCheckStale?:boolean; summary?:string; unchanged?:boolean; partial?:boolean;
+    reasonCode?:string|null; f6Deliverables?: import('./f6-tool-session').F6Deliverables };
 }
 
 export interface ResumeConversationTurn {

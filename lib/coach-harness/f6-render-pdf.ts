@@ -54,7 +54,14 @@ export async function renderF6Pdf(markdown: string) {
     await page.evaluate(() => document.fonts.ready);
     const height = await page.evaluate(() => document.body.scrollHeight);
     const bytes = await page.pdf({format: 'A4', printBackground: true, timeout: 20_000});
-    const {PDFParse} = await import('pdf-parse');
+    // PDF.js loads canvas via a dynamic createRequire that serverless tracing
+    // cannot discover. Import it explicitly before loading the parser.
+    const canvas = await import('@napi-rs/canvas');
+    for (const name of ['DOMMatrix', 'ImageData', 'Path2D'] as const) {
+      if (!(name in globalThis)) Object.assign(globalThis, {[name]: canvas[name]});
+    }
+    const [{PDFParse}, {getData}] = await Promise.all([import('pdf-parse'), import('pdf-parse/worker')]);
+    PDFParse.setWorker(getData());
     // PDF.js transfers its input buffer to the worker. Give it an independent
     // copy or the downloadable bytes become detached after page inspection.
     const parser = new PDFParse({data: new Uint8Array(bytes)});

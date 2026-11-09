@@ -53,6 +53,7 @@ import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
 import {runF6ResumeWriter as runLegacyF6Writer, F6_RESUME_WRITER as LEGACY_F6_WRITER,
   F6_MAX_AUTHOR_CALLS as LEGACY_F6_CALLS} from './resume-f6-legacy-v2';
+import type {F6Deliverables} from './f6-tool-session';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -249,6 +250,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const unresolvedGrounding=new Map<string,string>();
     let reviewContractRepairUsed=false;
     let lastF6Document: string | undefined;
+    let f6Deliverables: F6Deliverables | undefined;
     let f6AuthorCalls=0;
     let partialRecoveryReason: 'resume_repair_timeout' | 'resume_repair_incomplete' | null = null;
     let checkpoint: { changes:ResumeChange[]; retained:ResumeChange[]; reviewer:typeof reviewer; documentReview:DocumentReview|null;
@@ -391,6 +393,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if(useF6&&typeof parsed.selectionReceipt==='string'&&parsed.selectionReceipt.trim()){
       trace.step('draft','f6_selection_receipt',1,{input:null,output:{receipt:parsed.selectionReceipt.slice(0,600)}});
     }
+    if (originF6 && parsed.f6Deliverables) f6Deliverables = parsed.f6Deliverables;
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
     // Preserve both legitimate same-call JSON layouts; record raw output above.
     lastDraftReview={...(parsed.selfReview || {}),document:parsed.selfReview?.document || parsed.document};
@@ -771,6 +774,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         userId: user.id, opportunityId, artifactType: "target_resume", title: generalResume ? "简历修改候选版本" : "岗位简历候选版本",
         content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text,
           discardedSuggestions: rejected, discardedReviewFindings,
+          ...(f6Deliverables?{f6Deliverables}:{}),
           ...(useF6&&generationSource?{previousResumeChanges:generationSource.changes}:{}),
         },
         status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
@@ -809,7 +813,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const explanation=correctionOnly?'本轮只完成文字校对，尚未完成内容优化。':partialRecoveryReason?'部分返修暂未完成，对应原文仍保留。'
       :!coversSupplement(finalChanges)?'刚才补充的那段暂未形成可靠改写，仍保留原文。':partial?'这是部分交付，不代表本轮要求已全部完成。':'';
     const summary=deliverySummary+explanation+(onDemandReview?F6_DEFERRED_REVIEW_SUMMARY:'');
-    const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...partialFields}):undefined;
+    const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...partialFields,
+      ...(f6Deliverables?{f6Deliverables}:{})}):undefined;
     if(task&&task.state!=='ready')throw Error('简历在修改期间发生变化，新结果未覆盖你的编辑，本次未扣额度');
     await finalizeQuota(reservation, true);
     const quota = { source: reservation.source, remaining: reservation.remaining };
@@ -820,6 +825,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     return NextResponse.json({
       ok: true,
       changes: finalChanges,
+      ...(f6Deliverables?{f6Deliverables}:{}),
       ...partialFields,
       ...(summary?{summary}:{}),
       ...(task?{task}:{}),

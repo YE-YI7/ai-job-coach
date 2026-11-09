@@ -4,8 +4,10 @@ const nextConfig: NextConfig = {
   // Keep the PDF parser and its worker available in Vercel's Node.js functions.
   serverExternalPackages: ["pdf-parse", "@napi-rs/canvas", "@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
-    '/api/coach/resume-draft': ['./node_modules/@sparticuz/chromium/bin/**', './public/fonts/resume-serif-400.woff2'],
-    '/api/admin/f6-acceptance': ['./node_modules/@sparticuz/chromium/bin/**', './public/fonts/resume-serif-400.woff2'],
+    '/api/coach/resume-draft': ['./node_modules/@sparticuz/chromium/bin/**', './public/fonts/resume-serif-400.woff2',
+      './node_modules/@napi-rs/canvas/**', './node_modules/@napi-rs/canvas-linux-x64-gnu/**'],
+    '/api/admin/f6-acceptance': ['./node_modules/@sparticuz/chromium/bin/**', './public/fonts/resume-serif-400.woff2',
+      './node_modules/@napi-rs/canvas/**', './node_modules/@napi-rs/canvas-linux-x64-gnu/**'],
   },
 
   // 使用 standalone 输出模式，提高部署稳定性

@@ -42,8 +42,16 @@
 
 ## 费用和未扩大项
 
-新上游调用 0，模型费 ¥0，数据库写入 0。未修改 `app/api/**`、F6 运行时/提示词、HR 协议、模型路由、钱包或旧作答。未重跑新模型质量或新 PDF；正文导出代码未改，原 PDF 验收不冒充本轮再次执行。
+新上游调用 0，模型费 ¥0，无简历/作答/积分写入。核查脚本只允许数据库 GET/HEAD；网页正常加载可能产生原有访问埋点，不将埋点宣称为业务正文变更。未修改 `app/api/**`、F6 运行时/提示词、HR 协议、模型路由、钱包或旧作答。未重跑新模型质量或新 PDF；正文导出代码未改，原 PDF 验收不冒充本轮再次执行。
 
 ## 发布
 
-本地检查已完成，待固定生产候选构建核验后补实际部署 ID 和正式域名回读结果。不能将本段待发布状态当作已上线。
+2026-11-09 14:58 UTC 已发布并核验正式域名：
+
+- 代码 `1dfc951`；仅本轮 21 文件，已推送 `codex/f6-workspace-delivery-1108`。本地 BUILD_ID `ECL0CnfdVBs85sJMSl8OO`。
+- 固定候选先核验后 promote，同一 production 部署 `dpl_2UM4yiNZWiuwb69JvjM88SYmhwjV` / READY；固定 URL `https://ai-job-coach-dtnkes67p-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+- root / www 分别核对均指向此部署；health 数据库 ok，F6 v5 / system hash / 工具 hash / 12 作者、4 公网、1 HR / 原文点评策略逐字段等于前版。
+- 候选及正式匿名 smoke：首页和登录 200，cockpit 307 到登录，匿名改稿 POST 401（无模型调用）。
+- 正式登录态新页回读：当前已采纳稿仍可见，“修改已处理”短状态、生效的 HR 五主题（快速扫读、JD、问题、追问、建议）、导出可用。只展开阅读，没有采纳/生成/保存新业务记录，未刷新或清空用户原标签页的草稿。
+- 私有发布证据：`review-ui-candidate-verified.json`、`review-ui-live-verified.json`、`review-ui-live-mentor.png`；回放第二次只读在 14:54:29 UTC 仍为同一记录哈希。公网健康核验 14:58:35 UTC。
+- 回滚点 `60b5c05`（代码基线 `c5eb1de`）/ `dpl_Dh6kqNWmjsw2RBrywJHmdmVGiB9c`；没有回滚。

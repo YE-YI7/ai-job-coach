@@ -24,4 +24,14 @@
 
 ## 发布边界
 
-候选构建与正式域名核验记录待完成后追加。0 新模型调用、¥0；不改原简历、旧作答和积分。此修复证明启动/回执分支，不宣称新模型稿质或新的真实付费整链路已经验收。
+代码 `1ffc2f5` 已推送原发布分支；本地 Next.js 16.3.0 webpack 构建成功（BUILD_ID `dpXuNP4me6KrZ86IztcrK`），Vercel 云构建约1分钟成功。先以 `--prod --skip-domain` 创建候选并核验，再 promote 固定 URL；没有直接盲切正式。
+
+- 部署 `dpl_BZKFYrFowVQ7iLeKfXdaYR5yyjzT`，production READY。
+- 固定地址：<https://ai-job-coach-1ojd3w0ik-velmavalienteqejimu22-jpgs-projects.vercel.app>。
+- 2026-11-09 15:25 UTC，<https://yizhioffer.com> 与 www 独立 inspect 同部署；部署 Git SHA 确认 `1ffc2f5`，项目 ID 核同。
+- 首页/登录200，匿名工作台307，匿名改稿POST401；开发夹具匿名先被登录保护307，真实登录后404，未开放测试入口。
+- health database ok；F6 v5、原system/工具SHA、五工具、12作者/4公网/1HR及模型选择全与上一正式版相同。
+- 正式登录态只打开“重新修改整份”确认窗并取消，弹窗关闭；DeepSeek V4.1 Flash选择与导师输入存在，没有提交生成。
+- 回滚地址保留上一版 `ai-job-coach-dtnkes67p-velmavalienteqejimu22-jpgs-projects.vercel.app` / `dpl_2UM4yiNZWiuwb69JvjM88SYmhwjV`。
+
+私有 `restart-candidate-verified.json` / `restart-live-verified.json` 为复核结果。0 新模型调用、¥0；不改原简历、旧作答和积分。此修复证明启动/回执分支，不宣称新模型稿质或新的真实付费整链路已经验收。

@@ -9,6 +9,10 @@
   },
   "maxAuthorCalls": 12,
   "maxPublicRequests": 4,
+  "researchTarget": {
+    "company": "Manus",
+    "domain": "manus.im"
+  },
   "tools": [
     {
       "type": "function",

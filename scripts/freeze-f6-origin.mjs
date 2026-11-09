@@ -18,6 +18,7 @@ const manifest = {
   model: original.model, temperature: original.temperature,
   maxTokens: original.max_tokens, thinking: original.thinking,
   maxAuthorCalls: 12, maxPublicRequests: 4,
+  researchTarget: {company: 'Manus', domain: 'manus.im'},
   tools: original.tools,
   resources,
   resourceHashes: Object.fromEntries(Object.entries(resources).map(([id, text]) => [id, sha(text)])),

@@ -21,7 +21,12 @@ export class F6ToolSession {
     private verify: (body: string) => string[], services?: F6ToolServices) {
     this.resources = {...origin.resources, 'resume.md': input.resume, 'jd.txt': input.jd,
       'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts)};
-    const research = new F6PublicTools(input.company || '', input.domain || '');
+    const company = input.company || '';
+    // Preserve the experiment's explicitly identified public research target.
+    // Unknown companies are not silently treated as Manus or called official.
+    const domain = input.domain || (company.toLowerCase() === origin.researchTarget.company.toLowerCase()
+      ? origin.researchTarget.domain : '');
+    const research = new F6PublicTools(company, domain);
     this.services = services || {
       search: topic => research.search(topic), fetch: urls => research.read(urls),
       render: async text => (await import('./f6-render-pdf')).renderF6Pdf(text),

@@ -1,4 +1,8 @@
 import {isIP} from 'node:net';
+import origin from './f6-origin.json';
+
+export const F6_MAX_PUBLIC_REQUESTS = origin.maxPublicRequests;
+export type F6PublicBudget = {limit: number; used: number; remaining: number};
 
 const topics = {
   role: 'Agent product manager hiring job requirements iteration user feedback',
@@ -25,8 +29,13 @@ export class F6PublicTools {
   private indexed = new Map<string, {title: string; sourceType: string}>();
   constructor(private company: string, private domain: string, private transport: typeof fetch = fetch) {}
 
+  budget(): F6PublicBudget {
+    return {limit: F6_MAX_PUBLIC_REQUESTS, used: this.requests,
+      remaining: Math.max(0, F6_MAX_PUBLIC_REQUESTS - this.requests)};
+  }
+
   restoreCompletedCalls(calls: Array<{name: string; output: Record<string, unknown>}>) {
-    if (this.requests || calls.length > 4) throw Error('PUBLIC_CHECKPOINT_INVALID');
+    if (this.requests || calls.length > F6_MAX_PUBLIC_REQUESTS) throw Error('PUBLIC_CHECKPOINT_INVALID');
     for (const call of calls) {
       if (!['search', 'fetch'].includes(call.name) || call.output.error) throw Error('PUBLIC_CHECKPOINT_INVALID');
       if (call.name === 'search') {
@@ -39,7 +48,7 @@ export class F6PublicTools {
   }
 
   private async mcp(name: string, args: Record<string, unknown>): Promise<string> {
-    if (this.requests >= 4) throw Error('PUBLIC_REQUEST_BUDGET');
+    if (this.requests >= F6_MAX_PUBLIC_REQUESTS) throw Error('PUBLIC_REQUEST_BUDGET');
     this.requests++;
     const response = await this.transport('https://mcp.exa.ai/mcp', {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(18_000),

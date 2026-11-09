@@ -119,7 +119,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   for (let turn = checkpoint?.completedAuthorCalls || 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
     let reply:string;
     try{
-      reply=await call(structuredClone(messages),turn?'write':'read_or_write',[...readIds],F6_ORIGIN_TOOLS);
+      reply=await call(structuredClone(messages),turn?'write':'read_or_write',[...readIds],session.availableTools());
     }catch(error){
       if(!hrReview||!reviewedBody)throw error;
       hrReview.interrupted(error instanceof Error?error.message:String(error));
@@ -175,7 +175,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         }
       } catch (error) {
         if (error instanceof Error && error.message === 'F6_REPAIR_NO_PROGRESS') throw error;
-        result = {error: error instanceof Error ? error.message : 'TOOL_FAILED'};
+        result = session.errorReceipt(error);
       }
       captureEvalStage('retrieval', 'f6_tool_' + request.function.name,
         {input: {toolCallId: request.id, arguments: args}, output: result}, toolStarted, Date.now() - toolStarted);

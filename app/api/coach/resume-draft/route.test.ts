@@ -140,6 +140,46 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
   });
 
+  test('production route withdraws exhausted research tools, then delivers author and raw HR response without extra calls', async () => {
+    const before = '整理评测记录，整理后交给同事每周核对。';
+    const after = '整理评测记录，交给同事每周核对。';
+    const hr = '核对记录与交付对象明确，保留原事实。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id: 'opp-1', answers: []});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume: before, jd: '', revision: 'r', changes: [], company: 'Manus'});
+    (applyResumeChanges as jest.Mock).mockReturnValue({text: after, findings: []});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok: true, coverage: 1, findings: []});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id: 'artifact', version: 1});
+    (recordArtifactReview as jest.Mock).mockImplementation(async data => ({
+      reviewer_type: data.reviewerType, status: data.status, summary: data.summary,
+    }));
+    (finishResumeTask as jest.Mock).mockResolvedValue({state: 'ready'});
+    const network = jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(JSON.stringify({
+      result: {content: [{type: 'text', text: 'Title: Manus\nURL: https://manus.im/docs\npublic page'}]},
+    })));
+    const searchCalls = JSON.stringify({type: 'native_tool_calls', tool_calls: Array.from({length: 5}, (_, i) => ({
+      id: 'search-' + i, type: 'function', function: {name: 'search', arguments: '{"topic":"role"}'},
+    }))});
+    (callLLM as jest.Mock).mockResolvedValueOnce(searchCalls).mockResolvedValueOnce(after)
+      .mockResolvedValueOnce(hr).mockResolvedValueOnce(after);
+    const response = await productionPOST(oneShotInput({resumeText: before, company: 'Manus'}));
+    const result = await response.json();
+    expect(response.status).toBe(200);
+    expect(network).toHaveBeenCalledTimes(4);
+    expect(callLLM).toHaveBeenCalledTimes(4); // 3 author + 1 HR, no automatic retry
+    expect(writerAndReview()).toEqual(['resume_draft', 'resume_draft', 'resume_review', 'resume_draft']);
+    const [nextMessages, nextOptions] = (callLLM as jest.Mock).mock.calls[1];
+    expect(nextOptions.nativeTools.map((t: {function: {name: string}}) => t.function.name))
+      .toEqual(['read_file', 'write_output', 'render_pdf']);
+    expect(nextOptions.maxRetries).toBe(0);
+    expect(JSON.parse(nextMessages.at(-1).content)).toMatchObject({
+      error: 'PUBLIC_REQUEST_BUDGET', publicResearch: {status: 'exhausted', retryable: false},
+    });
+    expect(result.hrReview.records[0].commentary).toBe(hr);
+    expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');
+    expect(finishResumeTask).toHaveBeenCalledTimes(1);
+    expect(finalizeQuota).toHaveBeenCalledTimes(1);
+  });
+
   test('shipped F6 preserves first body with notices if author response fails, without content rejection or retry',async()=>{
     const before='整理评测记录，整理后交给同事每周核对。';
     const after='主导模型评测并提升正确率。';

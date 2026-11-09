@@ -1,6 +1,7 @@
 import {F6ToolSession, F6_ORIGIN_TOOLS} from './f6-tool-session';
 import origin from './f6-origin.json';
 import {createHash} from 'node:crypto';
+import {f6RuntimeIdentity} from './f6-runtime-contract';
 
 /** Admin-only, zero LLM, fictional input. Exercise deployed services, not mocks. */
 export async function verifyDeployedF6Runtime() {
@@ -17,6 +18,7 @@ export async function verifyDeployedF6Runtime() {
   await session.invoke('write_output',{files:['portrait.md','battle.md','resume-new.md','changes.md','notes.md']
     .map(name=>({name,text:name==='resume-new.md'?session.resources['resume.md']:'虚构工具接线验收'}))});
   const pdf=await session.invoke('render_pdf',{});
-  return {modelCalls:0,originSystemHash:origin.systemHash,tools:F6_ORIGIN_TOOLS,reads,
-    search,fetched,outputs:Object.keys(session.deliverables().files),pdf};
+  return {modelCalls:0,writerContract:f6RuntimeIdentity(),originSystemHash:origin.systemHash,
+    tools:F6_ORIGIN_TOOLS,reads,search,fetched,
+    outputs:Object.keys(session.deliverables().files),pdf,pdfEvidence:session.deliverables().pdf?.receipt};
 }

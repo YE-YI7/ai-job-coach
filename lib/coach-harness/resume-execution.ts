@@ -51,8 +51,6 @@ import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} 
 import {f6DocumentPreflight} from './resume-f6-preflight';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
-import {runF6ResumeWriter as runLegacyF6Writer, F6_RESUME_WRITER as LEGACY_F6_WRITER,
-  F6_MAX_AUTHOR_CALLS as LEGACY_F6_CALLS} from './resume-f6-legacy-v2';
 import type {F6Deliverables} from './f6-tool-session';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
@@ -80,13 +78,8 @@ export type ResumeExecutionOptions = {
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
   const useF6 = options.writer === F6_RESUME_WRITER;
-  // Rollout only: a staged admin acceptance uses the full origin runtime while
-  // existing customers can remain on the exact preceding release until verified.
-  // This is not a model choice, workflow order, or request-body switch.
-  const originF6 = useF6 && (Boolean(options.acceptance) || process.env.F6_ORIGIN_RUNTIME !== 'legacy-v2');
-  const activeF6Writer = originF6 ? F6_RESUME_WRITER : LEGACY_F6_WRITER;
-  const activeF6Calls = originF6 ? F6_MAX_AUTHOR_CALLS : LEGACY_F6_CALLS;
-  const author: typeof runF6ResumeWriter = originF6 ? runF6ResumeWriter : runLegacyF6Writer;
+  // The production route always runs the accepted runtime. Rollback is a
+  // deployment operation, never a silent switch to a different author.
   const onDemandReview = useF6 && options.reviewPolicy === 'on_demand';
   const maxDraftAttempts = onDemandReview ? 1 : options.maxDraftAttempts ?? 2;
   let siteFunded = false;
@@ -311,13 +304,13 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
     trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy, writer:options.writer ?? 'legacy'}});
-    if(useF6)trace.step('draft','f6_editor_selected',1,{input:null,output:{writer:activeF6Writer}});
+    if(useF6)trace.step('draft','f6_editor_selected',1,{input:null,output:{writer:F6_RESUME_WRITER}});
     for(let attempt=0;attempt<maxDraftAttempts;attempt++){
     // A failed writer attempt never spends the remaining quality-check budget
     // on a new draft when the caller has opted for one generation.
     let canRepairDraft=attempt+1<maxDraftAttempts;
     let output:string;
-    try { output = useF6 ? await author({
+    try { output = useF6 ? await runF6ResumeWriter({
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
       answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
       decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
@@ -326,7 +319,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       company:generationSource?.company,
       ...(attempt?{previousDraft:lastF6Document,reviewFeedback:repairFeedback}:{}),
     }, (messages,stage,readIds,nativeTools)=>{
-      if(f6AuthorCalls>=activeF6Calls)throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
+      if(f6AuthorCalls>=F6_MAX_AUTHOR_CALLS)throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
       f6AuthorCalls++;
       return runWithGenerationContext({
       userId:modelUserId,operation:'resume_draft',requestId:`${requestId}:f6:${f6AuthorCalls}`,
@@ -342,7 +335,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
           ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
       const issues=f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements});
       if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
-        input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:activeF6Calls},
+        input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:F6_MAX_AUTHOR_CALLS},
       });
       return issues;
     }, undefined, options.acceptance?.checkpoint) : await runWithGenerationContext({
@@ -393,7 +386,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if(useF6&&typeof parsed.selectionReceipt==='string'&&parsed.selectionReceipt.trim()){
       trace.step('draft','f6_selection_receipt',1,{input:null,output:{receipt:parsed.selectionReceipt.slice(0,600)}});
     }
-    if (originF6 && parsed.f6Deliverables) f6Deliverables = parsed.f6Deliverables;
+    if (useF6 && parsed.f6Deliverables) f6Deliverables = parsed.f6Deliverables;
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
     // Preserve both legitimate same-call JSON layouts; record raw output above.
     lastDraftReview={...(parsed.selfReview || {}),document:parsed.selfReview?.document || parsed.document};
@@ -833,9 +826,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { status:onDemandReview?'not_run':reviewerPassed?'passed':'failed',passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       documentReview,
-      workflow:{version:onDemandReview?(originF6?F6_NATIVE_WORKFLOW:'f6-native-document-v2-verifiable-delivery'):RESUME_WORKFLOW_VERSION,
+      workflow:{version:onDemandReview?F6_NATIVE_WORKFLOW:RESUME_WORKFLOW_VERSION,
         strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
-        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:activeF6Writer}:{})},
+        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:F6_RESUME_WRITER}:{})},
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

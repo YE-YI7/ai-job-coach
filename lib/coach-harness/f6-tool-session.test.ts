@@ -9,7 +9,8 @@ const input = {resume: '已有工作：排查指令传递失败并修复。', jd
   scope: 'whole' as const, format: {}, company: 'Manus', domain: 'manus.im'};
 const services = () => ({search: jest.fn().mockResolvedValue({results: [{url: 'https://manus.im/a'}]}),
   fetch: jest.fn().mockResolvedValue({pages: [{url: 'https://manus.im/a', text: 'public page'}]}),
-  render: jest.fn().mockResolvedValue({bytes: new Uint8Array([1, 2, 3]), receipt: {pages: 1, actualPageSize: 'A4', textLayer: true}})});
+  render: jest.fn().mockResolvedValue({bytes: new Uint8Array([1, 2, 3]),
+    receipt: {pages: 1, lastPageFill: 0.8, font: 8.5, margin: 10, actualPageSize: 'A4', textLayer: true}})});
 const calls = (items: Array<[string, unknown]>) => JSON.stringify({type: 'native_tool_calls',
   tool_calls: items.map(([name, args], i) => ({id: 't' + i, type: 'function',
     function: {name, arguments: JSON.stringify(args)}}))});
@@ -43,12 +44,16 @@ test('search and fetch receive only their explicit public arguments; tool failur
 test('all five output artifacts survive; PDF requires a saved draft and reports a real renderer receipt', async () => {
   const hooks = services(), session = new F6ToolSession(input, () => [], hooks);
   await expect(session.invoke('render_pdf', {})).rejects.toThrow('NO_SAVED_RESUME_TO_RENDER');
-  await session.invoke('write_output', {files: ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md']
-    .map(name => ({name, text: name === 'resume-new.md' ? input.resume : name + ' output'}))});
-  expect(await session.invoke('render_pdf', {})).toMatchObject({pages: 1, renderedRevision: 1, actualPageSize: 'A4'});
+  const names = ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md'];
+  expect(await session.invoke('write_output', {files: names
+    .map(name => ({name, text: name === 'resume-new.md' ? input.resume : name + ' output'}))}))
+    .toEqual({saved: names, resumeRevision: 1});
+  expect(await session.invoke('render_pdf', {}))
+    .toEqual({pages: 1, lastPageFillEstimate: 0.8, font: 8.5, margin: 10, revision: 1});
   expect(hooks.render).toHaveBeenCalledWith(input.resume);
   expect(Object.keys(session.deliverables().files)).toHaveLength(5);
   expect(session.deliverables().pdf?.current).toBe(true);
+  expect(session.deliverables().pdf?.receipt).toMatchObject({actualPageSize: 'A4', textLayer: true});
   await session.invoke('write_output', {files: [{name: 'resume-new.md', text: input.resume + ' 后续'}]});
   expect(session.deliverables().pdf?.current).toBe(false);
 });

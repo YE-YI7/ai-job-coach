@@ -65,7 +65,7 @@ export class F6ToolSession {
         if (file.name === 'resume-new.md' && this.outputs.get(file.name) !== text) this.revision++;
         this.outputs.set(file.name, text);
       }
-      return {saved: files.map(file => file.name), resumeRevision: this.revision, applied: false};
+      return {saved: files.map(file => file.name), resumeRevision: this.revision};
     }
     if (name === 'render_pdf') {
       const text = this.outputs.get('resume-new.md');
@@ -73,7 +73,15 @@ export class F6ToolSession {
       const result = await this.services.render(text);
       this.pdf = {revision: this.revision, receipt: result.receipt, base64: Buffer.from(result.bytes).toString('base64')};
       this.renderedRevision = this.revision;
-      return {...result.receipt, renderedRevision: this.renderedRevision};
+      // Keep the original author-facing receipt. Rich PDF/storage metadata is
+      // retained in deliverables, not added to the author's decision context.
+      return {
+        pages: result.receipt.pages,
+        lastPageFillEstimate: result.receipt.lastPageFill,
+        font: result.receipt.font,
+        margin: result.receipt.margin,
+        revision: this.renderedRevision,
+      };
     }
     throw Error('F6_UNKNOWN_TOOL');
   }

@@ -1,5 +1,6 @@
 import type {DocumentReview, DocumentFinding} from './resume-document-review';
-export const F6_NATIVE_WORKFLOW = 'f6-origin-runtime-v3';
+import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
+export const F6_NATIVE_WORKFLOW = F6_RUNTIME_VERSION;
 
 export const F6_DEFERRED_REVIEW_SUMMARY = '本轮按 F6 交付整稿建议，未自动运行独立审稿；可确认修改后主动点“检查修改”。';
 

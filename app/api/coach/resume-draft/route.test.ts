@@ -78,6 +78,9 @@ describe("resume draft source mapping and automatic-review baseline", () => {
   })});
   const writerAndReview = () => (runWithGenerationContext as jest.Mock).mock.calls.map(([context]) => context.operation);
   test('shipped F6 delivers the complete body without an automatic judge or fabricated approval',async()=>{
+    // A leftover rollout flag must never send the actual product route back
+    // to the two-tool writer while health reports the accepted runtime.
+    jest.replaceProperty(process,'env',{...process.env,F6_ORIGIN_RUNTIME:'legacy-v2'});
     const before='整理评测记录，整理后交给同事每周核对。';
     const after='整理评测记录，交给同事每周核对。';
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
@@ -96,6 +99,11 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(result.status).toBe(200);
     expect(writerAndReview()).toEqual(['resume_draft']);
     expect(callLLM).toHaveBeenCalledTimes(1);
+    const [messages,settings]=(callLLM as jest.Mock).mock.calls[0];
+    expect(messages.map((message:{role:string})=>message.role)).toEqual(['system','user']);
+    expect(settings.nativeTools.map((tool:{function:{name:string}})=>tool.function.name))
+      .toEqual(['read_file','search','fetch','write_output','render_pdf']);
+    expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,resumeF6Tools:true,maxRetries:0});
     expect(body.workflow).toMatchObject({writer:F6_RESUME_WRITER,reviewPolicy:'on_demand',maxDraftAttempts:1,maxReviewContractRepairs:0});
     expect(body.reviewer).toMatchObject({status:'not_run',passed:false});
     expect(body.applicationQuality.status).toBe('draft');

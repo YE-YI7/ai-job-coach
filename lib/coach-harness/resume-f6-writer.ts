@@ -5,8 +5,9 @@ import { projectF6Document } from './resume-f6-projection';
 import {captureEvalStage} from './eval-scope';
 import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
+import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
 
-export const F6_RESUME_WRITER = 'f6-origin-runtime-v3';
+export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
 type Id = F6ResourceId;
 type Input = {

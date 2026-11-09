@@ -6,7 +6,7 @@ import {captureEvalStage} from './eval-scope';
 import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
-import type {F6ReproSection} from './f6-repro-input';
+import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -151,7 +151,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     const changes = projectF6Document(input.resume, body).map(change => ({
       ...change, section: input.scope === 'single' ? '经历整体重写' : '整稿选材与重构',
       reason: 'F6 作者交付完整重写稿，宿主生成原位差异供确认；程序接收不等于独立语义审稿通过。',
-      sourceIds: input.acceptedSection ? input.acceptedSection.claimIds
+      sourceIds: input.acceptedSection ? f6ReproChangeSourceIds(change.before,input.acceptedSection,input.facts)
         : input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
     }));
     return JSON.stringify({ changes, fullDocument: body, f6Deliverables: session.deliverables(),

@@ -49,7 +49,7 @@ import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,
 import {F6_RESUME_WRITER, F6_MAX_AUTHOR_CALLS, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
 import {f6DocumentPreflight} from './resume-f6-preflight';
-import {f6ReproSources, f6ReproScopeIssues} from './f6-repro-input';
+import {f6ReproSources, f6ReproScopeIssues, f6ReproArtifactIssues} from './f6-repro-input';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
 import type {F6Deliverables} from './f6-tool-session';
@@ -342,7 +342,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const supplements=(agentTask?.answers||[]).flatMap(answer=>
         answer.kind!=='instruction'&&answer.claimId&&answer.sourceExcerpt
           ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
-      const issues=[...(reproSection ? f6ReproScopeIssues(candidate) : []),
+      const issues=[...(reproSection ? [...f6ReproScopeIssues(candidate),
+        ...f6ReproArtifactIssues(editSource,candidate,reproSection,citationSources.slice(1),context)] : []),
         ...f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements,projectSources:reproSources})];
       if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
         input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:F6_MAX_AUTHOR_CALLS},

@@ -5,7 +5,8 @@ import {FakeDb} from './run-ledger/testing/fake-db';
 import {F6_ORIGIN_TOOLS} from './f6-tool-session';
 import {f6InitialMessages,runF6ResumeWriter} from './resume-f6-writer';
 import accepted from './f6-accepted.json';
-import {f6ReproScopeIssues,f6ReproSources} from './f6-repro-input';
+import {f6ReproScopeIssues,f6ReproSources,f6ReproChangeSourceIds,f6ReproArtifactIssues} from './f6-repro-input';
+import {compileContextBundle} from './context';
 import {F6_REPRO_BATCH,F6_REPRO_IDS,reserveF6ReproCall,readF6ReproInput,claimF6Repro,type ReproLedger} from './f6-repro';
 jest.mock('@/lib/db');jest.mock('./repository');
 const facts='原文补充：我核对记录，修复重复计数。\n';
@@ -104,4 +105,19 @@ test('only the linked confirmed-project sources are admitted, and output cannot 
  expect(f6ReproScopeIssues('### 益职 AI\n整理记录。')).toEqual([]);
  expect(f6ReproScopeIssues('### 益职 AI\n整理记录。\n### 别的经历\n另写。')).not.toEqual([]);
  expect(f6ReproScopeIssues('# 整份简历\n内容。')).not.toEqual([]);
+});
+test('original paragraph evidence is not replaced by project notes; invalid new numbers return to the same author',()=>{
+ const original='### 益职 AI\n发起者 | 2025 起\n\n用户 50 人。\n';
+ const note='益职 AI 时间 2025 年 11 月份到至今。';
+ const data={...section,excerpt:original,facts:note};
+ const facts=[{id:'note',text:note},{id:'existing',text:'用户 50 人。'}];
+ const context=compileContextBundle({task:'resume_workshop',userId:'owner',claims:facts.map(f=>({
+  id:f.id,entityType:'experience',entityKey:f.id,claimType:'resume_source',displayText:f.text,value:f.text,
+  sourceExcerpt:f.text,sourceKind:'user_upload',verificationLevel:'self_reported',status:'unverified',visibility:'recruiter_safe',
+ }))});
+ expect(f6ReproChangeSourceIds('用户 50 人。',data,facts)).toEqual(['note','existing']);
+ const issues=(candidate:string)=>f6ReproArtifactIssues(original,candidate,data,facts,context);
+ expect(issues('### 益职 AI\n发起者 | 2025 年 11 月起\n\n产品用户 50 人。\n')).toEqual([]);
+ expect(issues('### 益职 AI\n发起者 | 2025.11 起\n\n产品用户 50 人。\n').some(s=>s.includes('2025.11'))).toBe(true);
+ expect(issues('### 益职 AI\n发起者 | 2025 年 11 月起\n\n产品用户 500 人。\n').some(s=>s.includes('500人'))).toBe(true);
 });

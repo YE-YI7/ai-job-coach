@@ -23,4 +23,15 @@
 
 ## 发布
 
-待填：生产构建、staged production、正式切换及回滚地址。切换前旧正式部署为 `dpl_9KdZ48ou6dFgPbnYk2quYbimkxS9` / `ai-job-coach-81ogy5dla-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+2026-11-09 13:17 UTC 已按本人授权切正式，未混入备份恢复或其他未验收实验包。
+
+- 代码：`e50050efe1e1a7df86cfa24e76c3571ca6627a68`（前一提交 `9c78572`），分支 `codex/f6-workspace-delivery-1108` 已推送。e50050e仅补手写后历史HR点评的失效标识。
+- 最终部署：`dpl_42Cf73nLbuYjZK7LYfgCuCk43YfL`，production / READY；[固定构建](https://ai-job-coach-8nwdpokdp-velmavalienteqejimu22-jpgs-projects.vercel.app)。项目 `prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`、团队 `team_7qIutahimwnjCje1fOtQEPyT`。
+- Next.js 16.3.0，云端构建约2分钟，类型与构建通过；既有middleware/preferredRegion弃用警告保留。先 `--prod --skip-domain`，验证后 promote 同一构建，未将preview重建冒充已验构建。
+- `9c78572` 的第一次staged构建 `dpl_DNMKbRNWmLvm9R6pzTzkCkXnH2wi` 也成功，但被最终版本取代，未切到正式域名。
+- 切换前只读再核正式仍是旧 `9KdZ`；切换后分别inspect `yizhioffer.com` 和 `www.yizhioffer.com`，都回指最终 `42Cf`。root健康200/数据库ok，返回v4原文HR策略、五工具与原system/tool hash；www沿既有重定向回读同健康值。
+- 待发布构建和正式入口均验：首页/登录200，匿名cockpit307到登录，匿名改稿POST401（未认证，不发模型请求）。开发夹具匿名请求被登录保护307，未冒称已在生产登录态打开fixture；生产代码本身禁用development夹具。
+- 指定最终部署查询最近10分钟error日志，没有返回记录；只是发布短窗，不证明真实新改稿质量或长期无错。外部drains/告警配置本轮未审计。
+- 本轮没有真实账户付费生成、真实云端保存或新PDF验收；软件回放和虚构UI通过不升级成模型效果证明。旧H2失败批及费用保持原样，旧作答和积分未写入。
+
+回滚点保留：`dpl_9KdZ48ou6dFgPbnYk2quYbimkxS9` / `ai-job-coach-81ogy5dla-velmavalienteqejimu22-jpgs-projects.vercel.app`。只有出现需要回滚的实际问题并按用户授权范围处理；本轮未回滚。

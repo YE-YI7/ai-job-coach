@@ -5,6 +5,7 @@ import type {compileContextBundle} from './context';
 import type {LlmMessage, NativeTool} from '@/lib/llm-tools';
 import origin from './f6-origin.json';
 import type {F6Checkpoint} from './resume-f6-writer';
+import type {F6ReproSection} from './f6-repro-input';
 
 // This is one pre-funded repair, not a reusable free-model entitlement.
 export const F6_ACCEPTANCE_ID = '8727b32a-6de0-4bc4-906d-44754202f8fb';
@@ -23,6 +24,8 @@ export type F6AcceptanceExecution = {
   context: ReturnType<typeof compileContextBundle>;
   model: 'deepseek-v4-flash';
   checkpoint?: F6Checkpoint;
+  /** Separate admin-only reproduction. Absent for the original 8727 run. */
+  section?: F6ReproSection;
   beforeCall: (messages: LlmMessage[], tools?: NativeTool[]) => Promise<void>;
   onUsage: (usage: Usage) => void;
 };

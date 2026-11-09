@@ -49,6 +49,7 @@ import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,
 import {F6_RESUME_WRITER, F6_MAX_AUTHOR_CALLS, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
 import {f6DocumentPreflight} from './resume-f6-preflight';
+import {f6ReproSources, f6ReproScopeIssues} from './f6-repro-input';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
 import type {F6Deliverables} from './f6-tool-session';
@@ -130,7 +131,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     siteFunded = Boolean(trialScope || options.acceptance); // Keep audit attribution; never use its linked model account.
     if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
     if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
-    const editSource = trialScope?.excerpt || resumeText;
+    const reproSection = options.acceptance?.section;
+    if (reproSection && (!useF6 || !onDemandReview || reproSection.resume.trim() !== resumeText
+      || reproSection.jd.trim() !== jobDescription
+      || !resumeText.includes(reproSection.excerpt) || editingRequest || agentTask?.answers.length
+      || generationSource?.changes.length)) throw Error('F6_REPRO_SCOPE_INPUT_MISMATCH');
+    const editSource = reproSection?.excerpt || trialScope?.excerpt || resumeText;
     reservation = options.acceptance ? {id: 'offline-f6-acceptance', source: 'site_acceptance', remaining: null}
       : options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
       : trialScope ? await reserveResumeTrial(user.id,`resume-draft:${requestId}`) : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
@@ -228,6 +234,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       { id: "base-resume", text: editSource },
       ...(context.claims || []).filter((claim) => citableIds.has(claim.id)).map((claim) => ({ id: claim.id, text: claim.displayText })),
     ];
+    const reproSources = f6ReproSources(reproSection, citationSources);
     const citationVerdicts: Array<{ index: number; outcome: GuardDecision["outcome"]; code: string; message: string }> = [];
 
     // Start with the editable facts, not a global material-readiness gate.
@@ -315,7 +322,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
       answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
       decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
-      scope:trialScope?'single':'whole',format:styleContract,
+      scope:trialScope||reproSection?'single':'whole',format:styleContract,
+      ...(reproSection ? {acceptedSection: reproSection} : {}),
       legacySuggestionProtocol: !onDemandReview,
       company:generationSource?.company,
       ...(attempt?{previousDraft:lastF6Document,reviewFeedback:repairFeedback}:{}),
@@ -334,7 +342,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const supplements=(agentTask?.answers||[]).flatMap(answer=>
         answer.kind!=='instruction'&&answer.claimId&&answer.sourceExcerpt
           ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
-      const issues=f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements});
+      const issues=[...(reproSection ? f6ReproScopeIssues(candidate) : []),
+        ...f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements,projectSources:reproSources})];
       if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
         input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:F6_MAX_AUTHOR_CALLS},
       });
@@ -481,6 +490,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       // 不复算任何一条正则或词表。
       const localSources = !useF6 ? citationSources : [
         {id:'base-resume',text:before},
+        ...reproSources,
         ...(agentTask?.answers ?? []).flatMap(answer=>answer.claimId && sourceIds.includes(answer.claimId)
           && answer.sourceExcerpt && (before.includes(answer.sourceExcerpt) || answer.sourceExcerpt.includes(before))
           ? citationSources.filter(entry=>entry.id===answer.claimId) : []),

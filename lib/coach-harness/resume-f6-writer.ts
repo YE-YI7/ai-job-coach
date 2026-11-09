@@ -6,6 +6,7 @@ import {captureEvalStage} from './eval-scope';
 import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
+import type {F6ReproSection} from './f6-repro-input';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -17,6 +18,8 @@ type Input = {
   /** Explicit automatic-review comparison baseline only, never the shipped F6 route. */
   legacySuggestionProtocol?: boolean;
   previousDraft?: string; reviewFeedback?: string[];
+  /** Admin-only parity experiment; does not change the ordinary product map. */
+  acceptedSection?: F6ReproSection;
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
@@ -32,6 +35,15 @@ function parse(reply: string): Record<string, unknown> {
 /** Two-message accepted F6 context, not a replacement product-writing prompt.
  * Scope/owned materials are task parameters; tools/resources are origin-frozen. */
 export function f6InitialMessages(input: Input): LlmMessage[] {
+  if (input.acceptedSection) {
+    if (input.scope !== 'single' || input.request || JSON.stringify(input.answers) !== '[]'
+      || JSON.stringify(input.decisions) !== '[]') throw Error('F6_REPRO_UNEXPECTED_OLD_INSTRUCTIONS');
+    return [{role: 'system', content: accepted.system}, {role: 'user', content: JSON.stringify({
+      task: input.acceptedSection.task, 'resume.md': input.acceptedSection.resume,
+      'jd.txt': input.acceptedSection.jd, 'facts.md': input.acceptedSection.facts,
+      public_hiring_case_notes: accepted.publicHiringCases, optional_read_file_examples: accepted.catalogue,
+    })}];
+  }
   const scope = input.scope === 'single' ? '本次只改本次授权的那一段经历。' : '本次改整份授权简历，按已有方向优化。';
   const system = accepted.system
     .replace('本次只写 Manus「Agent 产品经理」投递稿的「益职 AI」项目段。', scope)
@@ -71,7 +83,10 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     }
     return issues;
   };
-  const session = new F6ToolSession(input, verify, services, checkpoint?.publicCalls);
+  const resourceInput = input.acceptedSection
+    ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
+      facts: input.acceptedSection.facts} : input;
+  const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
     messages, tools: F6_ORIGIN_TOOLS,
@@ -136,7 +151,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     const changes = projectF6Document(input.resume, body).map(change => ({
       ...change, section: input.scope === 'single' ? '经历整体重写' : '整稿选材与重构',
       reason: 'F6 作者交付完整重写稿，宿主生成原位差异供确认；程序接收不等于独立语义审稿通过。',
-      sourceIds: input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
+      sourceIds: input.acceptedSection ? input.acceptedSection.claimIds
+        : input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
     }));
     return JSON.stringify({ changes, fullDocument: body, f6Deliverables: session.deliverables(),
       ...(receipt ? { selectionReceipt: receipt } : {}),

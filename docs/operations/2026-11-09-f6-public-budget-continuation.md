@@ -50,4 +50,12 @@
 
 ## 发布
 
-待 staged-production 同构建健康核验后，按用户授权 promote；切换前正式为 `e50050e` / `dpl_42Cf73nLbuYjZK7LYfgCuCk43YfL`，作为本次回滚点。
+2026-11-09 14:12 UTC 已按用户授权发布。同一 staged-production 构建先核验再 promote，没有将 preview 重建冒充已验构建。
+
+- 代码提交 `c5eb1de`，分支 `codex/f6-workspace-delivery-1108` 已推送；7 代码/测试文件加本报告，无其他包。
+- 最终部署 `dpl_Dh6kqNWmjsw2RBrywJHmdmVGiB9c`，production / READY；固定构建 `https://ai-job-coach-d74mdh2rt-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+- 待发布和正式入口均验：首页/登录 200、匿名 cockpit 307 到登录、匿名改稿 POST 401（没有模型请求）。健康 200/数据库 ok，v5 运行标识/原 system 与工具 hash/12 作者/4 公网/1 HR/原文点评/用户选模型全字段核同。
+- `yizhioffer.com` 和 `www.yizhioffer.com` 分别 inspect 均指向 `Dh6`，两域健康值一致；最终只读核验时间 14:12:23 UTC。
+- 指定最终部署查询发布前后短窗 error 日志没有返回记录；不是长期无错误或新付费生成成功的证明。新上游调用及模型费用依然 0。
+- 证据新增 `public-budget-candidate-verified.json`、`public-budget-live-verified.json`。实际登录/保存/PDF验收使用同一账号隔离副本；前端与存储代码未变，不冒称发布后又运行了新模型。
+- 回滚点保留 `e50050e` / `dpl_42Cf73nLbuYjZK7LYfgCuCk43YfL` / `https://ai-job-coach-8nwdpokdp-velmavalienteqejimu22-jpgs-projects.vercel.app`，本轮未回滚。

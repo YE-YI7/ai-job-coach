@@ -103,7 +103,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(messages.map((message:{role:string})=>message.role)).toEqual(['system','user']);
     expect(settings.nativeTools.map((tool:{function:{name:string}})=>tool.function.name))
       .toEqual(['read_file','search','fetch','write_output','render_pdf']);
-    expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,resumeF6Tools:true,maxRetries:0});
+    expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,timeoutMs:90000,resumeF6Tools:true,maxRetries:0});
     expect(body.workflow).toMatchObject({writer:F6_RESUME_WRITER,reviewPolicy:'on_demand',maxDraftAttempts:1,maxReviewContractRepairs:0});
     expect(body.reviewer).toMatchObject({status:'not_run',passed:false});
     expect(body.applicationQuality.status).toBe('draft');
@@ -242,7 +242,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect((await POST(await trialRequest())).status).toBe(503);
     expect(getContextBundleForUser).not.toHaveBeenCalled();expect(reserveQuota).not.toHaveBeenCalled();
     const prompts=JSON.stringify((callLLM as jest.Mock).mock.calls[0][0]);expect(prompts).toContain('甲门店');expect(prompts).not.toContain('乙门店');
-    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:75000,firstTokenTimeoutMs:30000,maxRetries:0,resumeF6Tools:true});
+    expect((callLLM as jest.Mock).mock.calls[0][1]).toMatchObject({timeoutMs:90000,firstTokenTimeoutMs:30000,maxRetries:0,resumeF6Tools:true});
     expect((callLLM as jest.Mock).mock.calls[0][1].onDelta).toBeUndefined();
     expect((runWithGenerationContext as jest.Mock).mock.calls[0][0].userId).toBe('user-1');
     expect((callLLM as jest.Mock).mock.calls[0][1].siteFunded).toBe(true);

@@ -86,7 +86,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
   let lastModelPhase: ResumeModelPhase = 'draft';
   const callLLM = async (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
     lastModelPhase = phase;
-    const timeoutMs = resumeCallTimeout(deadline, Date.now(), phase, settings?.timeoutMs || 55_000);
+    const timeoutMs = resumeCallTimeout(deadline, Date.now(), phase, settings?.timeoutMs || 55_000,
+      {reserveFinalReview: !onDemandReview});
     // Receive upstream activity while buffering private JSON. Never show raw
     // partial JSON, silently switch providers, or retry a billable timeout.
     if (options.acceptance) await options.acceptance.beforeCall(messages, settings?.nativeTools);
@@ -326,7 +327,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       knowledgeDocumentIds:readIds,
     },()=>callLLM(messages,{
       provider:'deepseek',temperature:0.3,maxTokens:7500,reasoningBudgetTokens:4096,
-      timeoutMs:75_000,maxRetries:0,nativeTools,resumeF6Tools:true,
+      timeoutMs:90_000,maxRetries:0,nativeTools,resumeF6Tools:true,
     },attempt?'repair':'draft'));},ids=>trace!.step('retrieval','f6_read_file',ids.length,{
       input:{requested:ids},output:{read:ids,personalFacts:false},
     }),candidate=>{

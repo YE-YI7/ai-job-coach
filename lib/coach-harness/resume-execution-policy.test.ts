@@ -14,3 +14,11 @@ test('empty and truncated finals share one output repair, not a paid timeout ret
   expect(resumeTransportCanKeepCheckpoint(new Error('LLM_REQUEST_TIMEOUT'))).toBe(true);
   expect(resumeTransportCanKeepCheckpoint(new Error('insufficient balance'))).toBe(false);
 });
+
+test('F6 without an automatic Judge reserves saving, not a nonexistent review',()=>{
+  expect(resumeCallTimeout(230_000,130_000,'draft',90_000,{reserveFinalReview:false})).toBe(88_000);
+  expect(resumeCallTimeout(230_000,156_000,'draft',90_000,{reserveFinalReview:false})).toBe(62_000);
+  expect(()=>resumeCallTimeout(230_000,211_000,'draft',90_000,{reserveFinalReview:false}))
+    .toThrow('LLM_REQUEST_TIMEOUT');
+  expect(resumeCallTimeout(230_000,130_000,'draft',90_000)).toBe(33_000);
+});

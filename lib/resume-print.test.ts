@@ -75,19 +75,37 @@ test("page breaks sit outside layout cells without dropping either side", () => 
  expect(html).toContain("分页后</p>");
  expect(html).toContain("align-self:start");
 });
-test("preview creation does not imply print or PDF saved",()=>{
- let click:()=>void=()=>{};
+test("preview creation does not imply print or PDF saved",async()=>{
+ let click:()=>void|Promise<void>=()=>{};
  const onPrint=jest.fn(),print=jest.fn();
  const target={document:{open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>({addEventListener:(_event:string,listener:()=>void)=>{click=listener;}})},print} as unknown as Window;
  renderResumePrintWindow(target,"测试原文","classic","简历",onPrint);
  expect(onPrint).not.toHaveBeenCalled();
- click();expect(print).toHaveBeenCalledTimes(1);expect(onPrint).toHaveBeenCalledTimes(1);
+ await click();expect(print).toHaveBeenCalledTimes(1);expect(onPrint).toHaveBeenCalledTimes(1);
+});
+test('serif PDF waits for the bundled font and a load failure never silently prints fallback glyph mappings',async()=>{
+ let click:()=>void|Promise<void>=()=>{};
+ const button={disabled:false,textContent:'保存为 PDF',addEventListener:(_event:string,listener:()=>void)=>{click=listener;}};
+ const print=jest.fn(),load=jest.fn().mockRejectedValueOnce(Error('offline')).mockResolvedValue([{}]);
+ const target={document:{open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>button,fonts:{load}},print} as unknown as Window;
+ renderResumePrintWindow(target,'入口、回读、已保存。','editorial','字体回归');
+ await click();expect(print).not.toHaveBeenCalled();expect(button.disabled).toBe(false);expect(button.textContent).toContain('字体未加载');
+ await click();expect(load).toHaveBeenCalledWith('10.5pt "YiZhi Resume Serif"');expect(print).toHaveBeenCalledTimes(1);
 });
 test("print freezes revision ink at full opacity even during its screen entrance",()=>{
  const html=resumePrintHtml(LANDING_RESUME,"modern","打印动效回归",{toolbar:false,highlight:DEMO_BEFORE});
  expect(html).toContain("animation:ink-land 720ms");
  expect(html).toContain("animation:none!important;transition:none!important");
  expect(html).toContain("mark{opacity:1;filter:none}");
+});
+test("print text stays in document flow instead of painting all headings before positioned paragraphs",()=>{
+ const html=resumePrintHtml("林清\n\n## 项目经历\n### 项目甲\n- 第一条贡献。\n### 项目乙\n- 第二条贡献。","editorial","文字层顺序");
+ const print=html.slice(html.lastIndexOf('@media print{'));
+ expect(print).toContain('section,.resume-header{position:relative;z-index:0}');
+ expect(print).toContain('h2,h3,.resume-bullet{position:static!important}');
+ expect(print).toContain('.resume-bullet:before{position:static;display:inline-block');
+ expect(print).not.toContain('.resume-photo{position:static;float:right');
+ expect(html.indexOf('第一条贡献。</p>')).toBeLessThan(html.indexOf('<h3>项目乙</h3>'));
 });
 test.each(Object.keys(printTemplates) as (keyof typeof printTemplates)[])("%s keeps real text and print pagination",template=>{
  const html=resumePrintHtml("姓名\n\n教育经历\n真实内容",template,"简历");

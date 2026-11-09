@@ -190,7 +190,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(reserveQuota).toHaveBeenCalledTimes(1);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),pass);
     if (pass) {
-      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:2,maxRepairs:1,writer:'f6-accepted-document-v2'});
+      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:2,maxRepairs:1,writer:'f6-origin-runtime-v3'});
       expect(finishResumeTask).toHaveBeenCalledTimes(1);
       expect((finishResumeTask as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((finalizeQuota as jest.Mock).mock.invocationCallOrder[0]);
       expect(response.status).toBe(200);
@@ -805,7 +805,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).changes).toHaveLength(1);
     expect(createArtifactWithClaims).toHaveBeenCalledWith(expect.objectContaining({title:"简历修改候选版本"}));
-    expect(JSON.stringify((callLLM as jest.Mock).mock.calls[0][0])).toContain("没有目标 JD");
+    expect(JSON.parse((callLLM as jest.Mock).mock.calls[0][0].find((m:{role:string})=>m.role==='user').content)['jd.txt']).toBe('');
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
     expect(runWithGenerationContext).toHaveBeenCalledWith(expect.objectContaining({userId:"user-1",operation:"resume_review"}),expect.any(Function));
     expect((callLLM as jest.Mock).mock.calls[1][1]).toMatchObject({maxTokens:2200,reasoningBudgetTokens:8192,maxRetries:0,responseSchema:{name:'resume_independent_review_v1',schema:{required:['status','summary','findings','valueChecks','document','recovery']}}});

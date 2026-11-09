@@ -1,31 +1,24 @@
 import accepted from './f6-accepted.json';
+import origin from './f6-origin.json';
+import {createHash} from 'node:crypto';
 import { projectF6Document } from './resume-f6-projection';
+import {captureEvalStage} from './eval-scope';
+import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 
-export const F6_RESUME_WRITER = 'f6-accepted-document-v2';
-export const F6_MAX_AUTHOR_CALLS = 6;
-type Id = keyof typeof accepted.resources;
+export const F6_RESUME_WRITER = 'f6-origin-runtime-v3';
+export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
+type Id = F6ResourceId;
 type Input = {
   resume: string; jd: string; facts: Array<{ id: string; text: string }>;
   request: string; answers: unknown; decisions: unknown; scope: 'whole' | 'single'; format: unknown;
+  company?: string; domain?: string;
+  /** Explicit automatic-review comparison baseline only, never the shipped F6 route. */
+  legacySuggestionProtocol?: boolean;
   previousDraft?: string; reviewFeedback?: string[];
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
-const fields = (properties: Record<string, unknown>) => ({
-  type: 'object', properties, required: Object.keys(properties), additionalProperties: false,
-});
-const tool = (name: string, description: string, parameters: Record<string, unknown>): NativeTool => ({
-  type: 'function', function: { name, description, parameters },
-});
-const tools = [
-  tool('read_file', 'Read the complete F6 task spec or an optional teaching case by catalogue ID. Cases are not candidate facts.',
-    fields({ file: { type: 'string', enum: Object.keys(accepted.resources) } })),
-  tool('write_output', 'Deliver the COMPLETE rewritten authorised résumé and optional selection receipt. The host derives reversible changes afterwards.',
-    fields({ files: { type: 'array', minItems: 1, maxItems: 2, items: fields({
-      name: { type: 'string', enum: ['resume-new.md', 'notes.md'] }, text: { type: 'string' },
-    }) } })),
-];
 
 function parse(reply: string): Record<string, unknown> {
   const value = JSON.parse(reply.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
@@ -33,16 +26,16 @@ function parse(reply: string): Record<string, unknown> {
   return value;
 }
 
-/** Exact accepted F6 map/resources; only company, task scope and host delivery
- * are parameterised. There is no mandatory selection turn or per-line limit. */
-export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void, verifyDocument?:VerifyDocument) {
+/** Two-message accepted F6 context, not a replacement product-writing prompt.
+ * Scope/owned materials are task parameters; tools/resources are origin-frozen. */
+export function f6InitialMessages(input: Input): LlmMessage[] {
   const scope = input.scope === 'single' ? '本次只改本次授权的那一段经历。' : '本次改整份授权简历，按已有方向优化。';
   const system = accepted.system
     .replace('本次只写 Manus「Agent 产品经理」投递稿的「益职 AI」项目段。', scope)
     .replace('在该项目段取舍、重排和编辑。', '在授权范围内取舍、重排和编辑。')
     .replace('本次交付只有项目段正文，以「### 益职 AI」开头，可直接回复或通过 write_output 保存为 resume-new.md。',
       '本次交付完整的授权范围正文，可直接回复或通过 write_output 保存为 resume-new.md。');
-  const messages: LlmMessage[] = [
+  return [
     { role: 'system', content: system },
     { role: 'user', content: JSON.stringify({
       task: scope, 'resume.md': input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
@@ -52,15 +45,14 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       public_hiring_case_notes: accepted.publicHiringCases,
       optional_read_file_examples: accepted.catalogue,
     }) },
-    { role: 'system', content: [
-      '这是 F6 的产品交付适配，不是逐句纠错接口。交付完整新稿，不要求逐句对应，不要求六条修改，不把原句当作不可重构的模板。',
-      '工具目录：read_file 可按需读 spec.md、S006、S007；write_output 交整稿与选材回执。是否读、读哪项及何时交稿由你决定。',
-      '当前未提供公开搜索或渲染工具，不声称搜索、实测页数或完成了不存在的验证；没有目标 JD 不猜公司门槛。',
-      '每个重要主张、动机和判断只用同一经历的原文或明确归属的本人补充，不能把其他项目做法、验证或指标移植过去。',
-      '原有姓名与联系方式原样保留。尊重用户已采纳/拒绝的决定。结构调整可作为整体建议供用户拒绝；不自动应用或删除。',
-      '保持指标方向、单位、基准、责任和阶段。事实不等于全文照抄；从已有证据选择最能改变招聘判断的贡献。',
-    ].join('\n') },
   ];
+}
+
+/** Accepted loop: native choices -> actual tool result -> next choice. Saving a
+ * valid body completes the task, exactly as the original experiment did. */
+export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: Id[]) => void,
+  verifyDocument?: VerifyDocument, services?: F6ToolServices) {
+  const messages = f6InitialMessages(input);
   const readIds: Id[] = [];
   const rejectedBodies=new Set<string>();
   const verify=(body:string)=>{
@@ -71,8 +63,19 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     }
     return issues;
   };
+  const session = new F6ToolSession(input, verify, services);
+  const started = Date.now();
+  captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
+    messages, tools: F6_ORIGIN_TOOLS,
+  }, output: {
+    writer: F6_RESUME_WRITER, originSystemHash: origin.systemHash,
+    actualSystemHash: createHash('sha256').update(messages[0].content).digest('hex'),
+    taskParameterChanges: ['authorised scope', 'owned résumé/JD/facts/answers/decisions'],
+    resourceHashes: origin.resourceHashes, maxAuthorCalls: F6_MAX_AUTHOR_CALLS,
+    orderedWorkflow: false, extraAutomaticJudge: false,
+  }}, started, 0);
   for (let turn = 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
-    const reply = await call([...messages], turn ? 'write' : 'read_or_write', [...readIds], tools);
+    const reply = await call(structuredClone(messages), turn ? 'write' : 'read_or_write', [...readIds], F6_ORIGIN_TOOLS);
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
@@ -87,41 +90,32 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       }
       return deliver(reply.trim());
     }
-    // Read compatibility for already queued responses only. New F6 requests
-    // contain no per-line suggestion schema and never ask for this shape.
-    if (Array.isArray(value.changes)) return reply;
+    // Explicit former automatic-review comparison only. The production F6
+    // route cannot fall back to the old per-suggestion response protocol.
+    if (input.legacySuggestionProtocol && Array.isArray(value.changes)) return reply;
     if (value.type !== 'native_tool_calls' || !Array.isArray(value.tool_calls)) throw Error('F6_WRITER_PROTOCOL_INVALID');
     const calls = value.tool_calls as NativeToolCall[];
     messages.push({ role: 'assistant', content: String(value.content || ''), tool_calls: calls });
-    let body: string | undefined, receipt: string | undefined;
     for (const request of calls) {
-      const args = parse(request.function.arguments);
-      let result: Record<string, unknown>;
-      if (request.function.name === 'read_file') {
-        if (typeof args.file !== 'string' || !Object.hasOwn(accepted.resources, args.file)) throw Error('F6_READ_OUTSIDE_CATALOGUE');
-        const id = args.file as Id;
-        readIds.push(id); onRead([id]);
-        result = { file: id, text: accepted.resources[id], personalFacts: false };
-      } else if (request.function.name === 'write_output') {
-        if (!Array.isArray(args.files) || !args.files.length || args.files.length > 2) throw Error('F6_WRITE_OUTSIDE_SCOPE');
-        const names = new Set<string>();
-        for (const file of args.files) {
-          if (!file || !['resume-new.md', 'notes.md'].includes(file.name) || names.has(file.name)
-            || typeof file.text !== 'string' || !file.text.trim() || file.text.length > 30_000) throw Error('F6_WRITE_OUTSIDE_SCOPE');
-          names.add(file.name);
-          if (file.name === 'resume-new.md') body = file.text.trim();
-          else receipt = file.text.trim();
+      const toolStarted = Date.now();
+      let args: Record<string, unknown> = {}, result: Record<string, unknown>;
+      try {
+        args = parse(request.function.arguments);
+        result = await session.invoke(request.function.name, args);
+        if (request.function.name === 'read_file') {
+          const id = args.file as Id;
+          readIds.push(id); onRead([id]);
         }
-        const issues=body?verify(body):[];
-        result = issues.length
-          ? {saved:[],applied:false,issues,
-            instruction:'程序未接收这版。对照原稿核实并修正，交回完整新稿；诊断不提供新的经历事实。'}
-          : { saved: [...names], applied: false, requiresReviewAndUserConfirmation: true };
-        if(issues.length)body=undefined;
-      } else throw Error('F6_UNKNOWN_TOOL');
+      } catch (error) {
+        if (error instanceof Error && error.message === 'F6_REPAIR_NO_PROGRESS') throw error;
+        result = {error: error instanceof Error ? error.message : 'TOOL_FAILED'};
+      }
+      captureEvalStage('retrieval', 'f6_tool_' + request.function.name,
+        {input: {toolCallId: request.id, arguments: args}, output: result}, toolStarted, Date.now() - toolStarted);
       messages.push({ role: 'tool', tool_call_id: request.id, content: JSON.stringify(result) });
     }
-    if (body) return deliver(body, receipt);
+    const body = session.outputs.get('resume-new.md');
+    if (body) return deliver(body, session.outputs.get('notes.md'));
   }
   throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
 
@@ -132,7 +126,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       reason: 'F6 作者交付完整重写稿，宿主生成原位差异供确认；程序接收不等于独立语义审稿通过。',
       sourceIds: input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
     }));
-    return JSON.stringify({ changes, fullDocument: body, ...(receipt ? { selectionReceipt: receipt } : {}),
+    return JSON.stringify({ changes, fullDocument: body, f6Deliverables: session.deliverables(),
+      ...(receipt ? { selectionReceipt: receipt } : {}),
       ...(!changes.length ? { status: 'unchanged' } : {}) });
   }
 }

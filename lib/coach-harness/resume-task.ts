@@ -31,14 +31,15 @@ export function publicResumeTask(row: Row): ResumeAgentTask {
 
 export async function ownedResumeTaskSource(userId: string, opportunityId: string) {
   const db = requireDb(await getDbClient());
-  const { data, error } = await db.from("coach_opportunities").select("id,jd_text,metadata").eq("user_id", userId).eq("id", opportunityId).eq("status", "active").maybeSingle();
+  const { data, error } = await db.from("coach_opportunities").select("id,company,jd_text,metadata").eq("user_id", userId).eq("id", opportunityId).eq("status", "active").maybeSingle();
   if (error) throw new ResumeTaskError("简历暂时无法读取，请稍后重试", 503);
   if (!data) throw new ResumeTaskError("当前简历不可访问", 404);
   const resume = String(data.metadata?.resumeText || "").trim();
   const jd = String(data.jd_text || "").trim();
   if (!resume) throw new ResumeTaskError("请先上传简历", 400);
   if (resume.length>30_000||jd.length>30_000) throw new ResumeTaskError("简历或岗位原文超过30000字，请先精简；原文已保留，尚未调用模型",400);
-  return { resume, jd, revision: String(data.metadata?.resumeRevision || ""), changes:(data.metadata?.resumeChanges||[]) as ResumeChange[], applicationQuality:data.metadata?.applicationQuality as Opportunity['applicationQuality'], general: data.metadata?.workspaceType === "preparation", fingerprint: resumeTaskFingerprint(resume, jd, data.metadata?.resumeRevision) };
+  return { resume, jd, ...(data.company ? {company: String(data.company)} : {}),
+    revision: String(data.metadata?.resumeRevision || ""), changes:(data.metadata?.resumeChanges||[]) as ResumeChange[], applicationQuality:data.metadata?.applicationQuality as Opportunity['applicationQuality'], general: data.metadata?.workspaceType === "preparation", fingerprint: resumeTaskFingerprint(resume, jd, data.metadata?.resumeRevision) };
 }
 async function readRow(userId: string, opportunityId: string): Promise<Row | null> {
   const db = requireDb(await getDbClient());

@@ -26,7 +26,8 @@ test('no compulsory planning call: author can deliver the complete document imme
   const result = JSON.parse(await runF6ResumeWriter(input,run,jest.fn()));
   expect(result.changes).toHaveLength(1);
   expect(run).toHaveBeenCalledTimes(1);
-  expect(run.mock.calls[0][3].map((t:{function:{name:string}})=>t.function.name)).toEqual(['read_file','write_output']);
+  expect(run.mock.calls[0][3].map((t:{function:{name:string}})=>t.function.name))
+    .toEqual(['read_file','search','fetch','write_output','render_pdf']);
 });
 
 test('author can read both cases in independent turns, then deliver without a six-suggestion constraint', async () => {
@@ -44,10 +45,10 @@ test.each([
   tool('write_output',{files:[{name:'outside.md',text:'x'}]}),
   tool('write_output',{files:[{name:'resume-new.md',text:''}]}),
   '{"bad":"protocol"}',
-])('scope/protocol errors do not invoke another model: %s', async payload => {
+])('scope/protocol errors cannot escape the catalogue or produce a saved body: %s', async payload => {
   const run=jest.fn().mockResolvedValue(payload);
   await expect(runF6ResumeWriter(input,run,jest.fn())).rejects.toThrow();
-  expect(run).toHaveBeenCalledTimes(1);
+  expect(run.mock.calls.length).toBeLessThanOrEqual(F6_MAX_AUTHOR_CALLS);
 });
 
 test('bounded autonomous reading cannot create an infinite billable loop', async () => {

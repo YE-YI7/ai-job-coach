@@ -15,10 +15,12 @@ type LlmOptions = {
   requireExactConnectedModel?: boolean;
   /** Bounded administrator experiments only; no implicit protocol or provider fallback. */
   nativeTools?: NativeTool[];
-  /** Server-only F6 writer: bounded read_file/write_output, automatic choice. */
+  /** Server-only F6 origin catalogue, automatic choice, scoped tool executors. */
   resumeF6Tools?: true;
   /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
   siteFunded?: boolean;
+  /** Server-only funded F6 acceptance: do not substitute the hosted model. */
+  exactSiteF6Model?: 'deepseek-v4-flash';
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
   onDelta?: (text: string) => void;
   firstTokenTimeoutMs?: number;
@@ -182,7 +184,9 @@ export async function callLLM(
   if (options?.nativeTools && (options.onDelta || !options.nativeTools.length
     || (!options.requireExactConnectedModel && !options.resumeF6Tools))) throw Error('NATIVE_TOOLS_EXPERIMENT_ONLY');
   if (options?.resumeF6Tools && (!options.nativeTools?.length
-    || options.nativeTools.some(tool => !['read_file', 'write_output'].includes(tool.function.name)))) throw Error('F6_TOOL_SCOPE_INVALID');
+    || options.nativeTools.some(tool => !['read_file', 'search', 'fetch', 'write_output', 'render_pdf'].includes(tool.function.name)))) throw Error('F6_TOOL_SCOPE_INVALID');
+  if (options?.exactSiteF6Model && (!options.siteFunded || !options.resumeF6Tools
+    || options.provider !== 'deepseek' || options.model !== options.exactSiteF6Model)) throw Error('F6_SITE_MODEL_SCOPE_INVALID');
 
   const trace = getGenerationContext();
   let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
@@ -210,7 +214,7 @@ export async function callLLM(
   // DeepSeek identifiers. A missing Step credential fails visibly, never swaps
   // silently to the depleted provider.
   const hostedModel = hostedStepModel();
-  if (provider === "deepseek" && hostedModel) {
+  if (provider === "deepseek" && hostedModel && !options?.exactSiteF6Model) {
     provider = "stepfun";
     model = hostedModel;
   } else if (provider === "stepfun") {

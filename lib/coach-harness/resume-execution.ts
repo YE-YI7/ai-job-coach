@@ -46,10 +46,13 @@ import {resumeReviewDiagnostic,resumeReviewProtocolIssue,resumeReviewRepairHint}
 import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired, resumeTransportCanKeepCheckpoint, type ResumeModelPhase } from './resume-execution-policy';
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
-import {F6_RESUME_WRITER, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
+import {F6_RESUME_WRITER, F6_MAX_AUTHOR_CALLS, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
 import {f6DocumentPreflight} from './resume-f6-preflight';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
+import type {F6AcceptanceExecution} from './f6-acceptance';
+import {runF6ResumeWriter as runLegacyF6Writer, F6_RESUME_WRITER as LEGACY_F6_WRITER,
+  F6_MAX_AUTHOR_CALLS as LEGACY_F6_CALLS} from './resume-f6-legacy-v2';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -70,20 +73,32 @@ export type ResumeExecutionOptions = {
   strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard";
   isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2; writer?: typeof F6_RESUME_WRITER;
   reviewPolicy?: 'automatic' | 'on_demand';
+  /** Server-only, once-claimed admin repair budget; never read from request JSON. */
+  acceptance?: F6AcceptanceExecution;
 };
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
   const useF6 = options.writer === F6_RESUME_WRITER;
+  // Rollout only: a staged admin acceptance uses the full origin runtime while
+  // existing customers can remain on the exact preceding release until verified.
+  // This is not a model choice, workflow order, or request-body switch.
+  const originF6 = useF6 && (Boolean(options.acceptance) || process.env.F6_ORIGIN_RUNTIME !== 'legacy-v2');
+  const activeF6Writer = originF6 ? F6_RESUME_WRITER : LEGACY_F6_WRITER;
+  const activeF6Calls = originF6 ? F6_MAX_AUTHOR_CALLS : LEGACY_F6_CALLS;
+  const author = originF6 ? runF6ResumeWriter : runLegacyF6Writer;
   const onDemandReview = useF6 && options.reviewPolicy === 'on_demand';
   const maxDraftAttempts = onDemandReview ? 1 : options.maxDraftAttempts ?? 2;
   let siteFunded = false;
   let lastModelPhase: ResumeModelPhase = 'draft';
-  const callLLM = (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
+  const callLLM = async (messages:Parameters<typeof observedResumeLLM>[0], settings:Parameters<typeof observedResumeLLM>[1], phase:ResumeModelPhase='review') => {
     lastModelPhase = phase;
     const timeoutMs = resumeCallTimeout(deadline, Date.now(), phase, settings?.timeoutMs || 55_000);
     // Receive upstream activity while buffering private JSON. Never show raw
     // partial JSON, silently switch providers, or retry a billable timeout.
+    if (options.acceptance) await options.acceptance.beforeCall(messages, settings?.nativeTools);
     return observedResumeLLM(messages,{...settings,siteFunded,timeoutMs,firstTokenTimeoutMs:Math.min(30_000,timeoutMs),
+      ...(options.acceptance ? {model: options.acceptance.model, exactSiteF6Model: options.acceptance.model,
+        onUsage: options.acceptance.onUsage} : {}),
       ...(settings?.nativeTools ? {} : {onDelta:()=>undefined}),maxRetries:0});
   };
   let reservation: QuotaReservation | null = null;
@@ -117,11 +132,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
     const trialScope = agentTask?.edit_scope || null;
-    siteFunded = Boolean(trialScope); // Keep account audit attribution, never use its linked model account.
+    siteFunded = Boolean(trialScope || options.acceptance); // Keep audit attribution; never use its linked model account.
     if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
     if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
     const editSource = trialScope?.excerpt || resumeText;
-    reservation = options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
+    reservation = options.acceptance ? {id: 'offline-f6-acceptance', source: 'site_acceptance', remaining: null}
+      : options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
       : trialScope ? await reserveResumeTrial(user.id,`resume-draft:${requestId}`) : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
     if (!reservation) { outcome = "quota_denied"; return NextResponse.json({ ok: false, error: trialScope ? "本账号的一次经历体验已使用或正在处理。整份及后续修改需付费。" : "整份简历修改需付费，请先补充额度；免费体验仅限一段经历。", needUpgrade: true }, { status: 403 }); }
 
@@ -136,7 +152,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const questionSource = jobDescription ? { id: "job-description", text: jobDescription } : undefined;
 
     let context;
-    if (opportunityId && !trialScope) {
+    if (options.acceptance) {
+      context = structuredClone(options.acceptance.context);
+    } else if (opportunityId && !trialScope) {
       context = await getContextBundleForUser({
         userId: user.id,
         task: "resume_workshop",
@@ -170,7 +188,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
 
     if (agentTask) {
       const answers = factualResumeAnswers(agentTask.answers);
-      const supplementClaims:CareerClaim[] = options.isolated ? answers.filter(a=>a.claimId).map(a=>({id:a.claimId!,entityType:"experience",entityKey:a.id,claimType:"resume_task_supplement",value:a.answer,displayText:a.answer,sourceExcerpt:a.answer,status:"unverified",visibility:"recruiter_safe",sourceKind:"user_statement",verificationLevel:"self_reported"})) : await persistResumeAnswerClaims(agentTask);
+      const supplementClaims:CareerClaim[] = options.acceptance
+        ? context.claims.filter(claim => claim.claimType === 'resume_task_supplement')
+        : options.isolated ? answers.filter(a=>a.claimId).map(a=>({id:a.claimId!,entityType:"experience",entityKey:a.id,claimType:"resume_task_supplement",value:a.answer,displayText:a.answer,sourceExcerpt:a.answer,status:"unverified",visibility:"recruiter_safe",sourceKind:"user_statement",verificationLevel:"self_reported"})) : await persistResumeAnswerClaims(agentTask);
       context = compileContextBundle({ ...context, knowledgeContext: "", claims: [...context.claims.filter(claim=>claim.claimType!=="resume_task_supplement"), ...supplementClaims],
         attachments: [...context.attachments, ...answers.map((answer, index) => ({ id: `resume-answer-source-${index}`, label: "已保存的本人补充（自述）", text: answer.answer, required: true }))] });
     }
@@ -289,20 +309,22 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       return NextResponse.json({ok:true,unchanged:true,summary,changes:kept,...(task?{task}:{})});
     };
     trace.step("draft", "writer_budget", maxDraftAttempts, {input:null, output:{maxDraftAttempts, strategy, writer:options.writer ?? 'legacy'}});
-    if(useF6)trace.step('draft','f6_editor_selected',1,{input:null,output:{writer:F6_RESUME_WRITER}});
+    if(useF6)trace.step('draft','f6_editor_selected',1,{input:null,output:{writer:activeF6Writer}});
     for(let attempt=0;attempt<maxDraftAttempts;attempt++){
     // A failed writer attempt never spends the remaining quality-check budget
     // on a new draft when the caller has opted for one generation.
     let canRepairDraft=attempt+1<maxDraftAttempts;
     let output:string;
-    try { output = useF6 ? await runF6ResumeWriter({
+    try { output = useF6 ? await author({
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
       answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
       decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
       scope:trialScope?'single':'whole',format:styleContract,
+      legacySuggestionProtocol: !onDemandReview,
+      company:generationSource?.company,
       ...(attempt?{previousDraft:lastF6Document,reviewFeedback:repairFeedback}:{}),
     }, (messages,stage,readIds,nativeTools)=>{
-      if(f6AuthorCalls>=6)throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
+      if(f6AuthorCalls>=activeF6Calls)throw Error('F6_AUTHOR_CALL_BUDGET_EXHAUSTED');
       f6AuthorCalls++;
       return runWithGenerationContext({
       userId:modelUserId,operation:'resume_draft',requestId:`${requestId}:f6:${f6AuthorCalls}`,
@@ -318,7 +340,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
           ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
       const issues=f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements});
       if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
-        input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:6},
+        input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:activeF6Calls},
       });
       return issues;
     }) : await runWithGenerationContext({
@@ -805,8 +827,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       rejectedCount: rejected.length + errorChangeIds.size,
       reviewer: { status:onDemandReview?'not_run':reviewerPassed?'passed':'failed',passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
       documentReview,
-      workflow:{version:onDemandReview?F6_NATIVE_WORKFLOW:RESUME_WORKFLOW_VERSION,strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
-        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:F6_RESUME_WRITER}:{})},
+      workflow:{version:onDemandReview?(originF6?F6_NATIVE_WORKFLOW:'f6-native-document-v2-verifiable-delivery'):RESUME_WORKFLOW_VERSION,
+        strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
+        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:activeF6Writer}:{})},
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

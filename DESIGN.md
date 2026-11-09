@@ -53,6 +53,7 @@ colors:
   paper-contact: "#555750"
   paper-date: "#61635c"
   paper-highlight: "#e7f3e8"
+  resume-evidence-highlight: "#fff0a8"
   cockpit-studio-canvas: "#eae9e4"
   cockpit-studio-surface: "#fdfdfb"
   cockpit-studio-ink: "#272b27"
@@ -355,6 +356,8 @@ components:
 ---
 
 # Design System: 益职 AI
+
+2026-11-09 HR 点评交付：简历工具栏下只增加默认折叠的“查看 HR 点评 · 供核对”，采用既有 TutorMarkdown 呈现自然语言，不展开 JSON、不增评分或审核通过徽章。首稿点评与作者回应状态分开说明；原作者返修后不冒称再次复审，手写后旧点评失效。入口44px触达，不进PDF；手机与桌面仅虚构夹具验证，不代表真实模型质量已验收。
 
 2026-10-20 Cursor 局部交互验收：保留其首页双入口与局部宋体演示，不把展示字体带入正式导师；正式导师仍遵守 `docs/product/mentor-reply-presentation.md`。首页新增内容明确标为虚构示例/互动演示，分享只生成公开的示例图片，不取用户材料。采纳不动画整张文档；改动文字的 720ms 入场只用于屏幕，PDF 关闭所有入场动画并恢复完整墨色。等待细线仅跟随实际 busy 状态，保留等待文字和原控制禁用条件，不表示百分比。减少动态效果关闭新增移动/显隐过渡，分享按钮手机触达44px。此为用户委托的实现验收记录，不宣称用户审美批准，不改原文件、模型位置或计费。
 

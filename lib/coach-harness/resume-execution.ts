@@ -48,11 +48,13 @@ import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
 import {F6_RESUME_WRITER, F6_MAX_AUTHOR_CALLS, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
-import {f6DocumentPreflight} from './resume-f6-preflight';
+import {f6DocumentPreflight, f6DocumentSafetyIssues} from './resume-f6-preflight';
+import {annotateF6Changes, f6DeliveryChanges} from './resume-f6-delivery';
 import {f6ReproSources, f6ReproScopeIssues, f6ReproArtifactIssues} from './f6-repro-input';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
 import type {F6Deliverables} from './f6-tool-session';
+import {F6HrReviewSession,f6HrSummary,type F6HrReceipt} from './f6-hr-review';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -73,6 +75,8 @@ export type ResumeExecutionOptions = {
   strategy?: "independent" | "self_review" | "format_only"; formatPolicy?: "preserve" | "repair" | "standard";
   isolated?: true; isolatedAnswers?: ResumeAgentAnswer[]; maxDraftAttempts?: 1 | 2; writer?: typeof F6_RESUME_WRITER;
   reviewPolicy?: 'automatic' | 'on_demand';
+  /** Explicit server-only opt-in; never supplied by request JSON. */
+  hrCommentary?: true;
   /** Server-only, once-claimed admin repair budget; never read from request JSON. */
   acceptance?: F6AcceptanceExecution;
 };
@@ -252,6 +256,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let reviewContractRepairUsed=false;
     let lastF6Document: string | undefined;
     let f6Deliverables: F6Deliverables | undefined;
+    let hrReceipt: F6HrReceipt | undefined;
     let f6AuthorCalls=options.acceptance?.checkpoint?.completedAuthorCalls || 0;
     let partialRecoveryReason: 'resume_repair_timeout' | 'resume_repair_incomplete' | null = null;
     let checkpoint: { changes:ResumeChange[]; retained:ResumeChange[]; reviewer:typeof reviewer; documentReview:DocumentReview|null;
@@ -300,7 +305,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ],{provider:'deepseek',temperature:0,maxTokens:900,reasoningBudgetTokens:4096,timeoutMs:45_000,maxRetries:0,responseFormat:'json_object'}));
       const check=parseJson(checkOutput);
       if(check.status!=='passed'||check.unchanged!==true||String(check.summary||'').length<8){repairFeedback.push('独立检查认为仍有值得处理的内容：'+String(check.summary||'请先精简已有事实或对模糊经历问一个问题'));return null;}
-      const summary=onDemandReview ? 'F6 本轮没有提出新增修改，原文保留。未运行独立审稿，可主动点“检查修改”。'
+      const summary=hrReceipt ? '本轮没有新增修改，原文保留。\n'+f6HrSummary(hrReceipt)
+        :onDemandReview ? 'F6 本轮没有提出新增修改，原文保留。未运行独立审稿，可主动点“检查修改”。'
         : `已检查，本轮没有新增修改，原文保留。原因：${String(check.summary).trim()} 仍可直接编辑或导出。`;
       trace!.step('review','original_document_checked_unchanged');
       const kept=generationSource?.changes||[];
@@ -342,14 +348,25 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       const supplements=(agentTask?.answers||[]).flatMap(answer=>
         answer.kind!=='instruction'&&answer.claimId&&answer.sourceExcerpt
           ? citationSources.filter(source=>source.id===answer.claimId).map(source=>({sourceExcerpt:answer.sourceExcerpt,source})) : []);
-      const issues=[...(reproSection ? [...f6ReproScopeIssues(candidate),
-        ...f6ReproArtifactIssues(editSource,candidate,reproSection,citationSources.slice(1),context)] : []),
-        ...f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements,projectSources:reproSources})];
+      const issues=onDemandReview
+        ? [...(reproSection?f6ReproScopeIssues(candidate):[]),...f6DocumentSafetyIssues(editSource,candidate)]
+        : [...(reproSection ? [...f6ReproScopeIssues(candidate),
+          ...f6ReproArtifactIssues(editSource,candidate,reproSection,citationSources.slice(1),context)] : []),
+          ...f6DocumentPreflight(editSource,candidate,{resume:resumeText,supplements,projectSources:reproSources})];
       if(issues.length)trace!.step('grounding','f6_document_returned_to_original_author',issues.length,{
         input:{candidate},output:{issues,automaticJudge:false,maxAuthorCalls:F6_MAX_AUTHOR_CALLS},
       });
       return issues;
-    }, undefined, options.acceptance?.checkpoint) : await runWithGenerationContext({
+    }, undefined, options.acceptance?.checkpoint,
+    options.hrCommentary && onDemandReview ? new F6HrReviewSession({
+      resume: editSource, jd: jobDescription,
+      facts: citationSources.slice(1).map(item=>`[${item.id}] ${item.text}`).join('\n\n'),
+    },messages=>runWithGenerationContext({
+      userId:modelUserId,operation:'resume_review',requestId:`${requestId}:f6:hr-commentary`,
+    },()=>callLLM(messages,{
+      provider:'deepseek',model:'deepseek-v4-pro',temperature:0,maxTokens:3500,
+      reasoningBudgetTokens:4096,timeoutMs:55_000,maxRetries:0,
+    }))) : undefined) : await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,
@@ -398,6 +415,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       trace.step('draft','f6_selection_receipt',1,{input:null,output:{receipt:parsed.selectionReceipt.slice(0,600)}});
     }
     if (useF6 && parsed.f6Deliverables) f6Deliverables = parsed.f6Deliverables;
+    if (useF6 && options.hrCommentary) hrReceipt = parsed.hrReview;
     trace.step("draft", "model_returned", undefined, {input:{source, jobDescription, attempt, repairFeedback},output:parsed});
     // Preserve both legitimate same-call JSON layouts; record raw output above.
     lastDraftReview={...(parsed.selfReview || {}),document:parsed.selfReview?.document || parsed.document};
@@ -454,7 +472,22 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     }
     rejected = [];
     const fullF6Document = useF6 && typeof parsed.fullDocument === 'string';
-    changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
+    const advisoryDelivery=fullF6Document&&onDemandReview;
+    if(advisoryDelivery){
+      const delivery=f6DeliveryChanges(resumeText,rawChanges,{
+        allowedIds:citableIds,
+        idFor:(before,index)=>assignedIds.get(before)||(()=>{
+          const id=`ai-change-${Date.now()}-${index}`;assignedIds.set(before,id);return id;
+        })(),
+        ...(trialScope?{inScope:(before:string)=>inResumeTrialScope(trialScope,before,resumeText)}:{}),
+      });
+      changes=delivery.changes;rejected=delivery.rejected;
+      trace.step('grounding','content_checks_advisory_only',changes.length,{
+        input:{candidateCharacters:parsed.fullDocument.length},
+        output:{policy:'deliver_with_confirmation_notices',automaticReturnToAuthor:false,
+          protectedChecks:['identity/contact','ownership','scope','projection','revision/lease','quota']},
+      });
+    }else changes = rawChanges.flatMap((raw: Record<string, unknown>, index: number) => {
       const citationIds = resolveResumeSourceIds(raw.sourceIds, citableIds);
       const sourceIds = citationIds.ids;
       if(citationIds.resolved.length)trace!.step('grounding','source_id_abbreviation_resolved',citationIds.resolved.length,{input:{attempt,index,sourceIds:raw.sourceIds},output:{resolved:citationIds.resolved}});
@@ -568,9 +601,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if(onDemandReview){
       finalChanges=changes;
       reviewer={status:'not_run',summary:F6_DEFERRED_REVIEW_SUMMARY,findings:[]};
-      documentReview=deferredF6DocumentReview(formatFindings);
+      documentReview=deferredF6DocumentReview(formatFindings.map(finding=>
+        finding.category==='system'?finding:{...finding,severity:'warning'}));
+      if(hrReceipt)documentReview.summary='程序结构检查已完成；独立 HR 点评另附，返修后未再复审，不代表事实或质量通过。';
       trace.step('review','independent_review_deferred',changes.length,{input:null,output:{
-        policy:'on_demand',independentReview:'not_run',programmaticReview:documentReview,
+        policy:'on_demand',blockingIndependentReview:'not_run',hrCommentary:hrReceipt?.finalState,
+        programmaticReview:documentReview,
       }});
       break;
     }
@@ -734,6 +770,13 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         return NextResponse.json({ok:false,reasonCode:'resume_no_deliverable_change',retryable:true,error:'这次没有形成可应用的新修改，已有成稿和补充仍保留，本次未扣额度。可以选择具体段落继续。'},{status:422});
       }
     }
+    if(onDemandReview){
+      finalChanges=annotateF6Changes(finalChanges,[{id:'authorized-resume',text:resumeText},...citationSources]);
+      trace.step('grounding','evidence_confirmation_notices',undefined,{
+        input:{sourceIds:citationSources.map(source=>source.id)},
+        output:{blocking:false,changes:finalChanges.map(change=>({id:change.id,notices:change.evidenceNotices||[]}))},
+      });
+    }
     const preview = applyResumeChanges(resumeText, finalChanges);
     if(preview.findings.length){
       outcome='blocked';trace.step('review','mapping_conflict',preview.findings.length);
@@ -757,7 +800,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     }else if(preview.text!==lastReviewInput && strategy==="self_review"){
       documentReview={status:"failed",source:"self_review",summary:"原编辑自查没有覆盖过滤后的最终保留稿。",findings:[{changeId:null,category:"system",severity:"error",message:"最终稿与原编辑自查的稿件不同，不能冒称整稿通过。"}]};
     }
-    const retainedFormatFindings=checkResumeFormat(resumeText,preview.text,finalChanges,formatPolicy,useF6&&Boolean(lastF6Document));
+    const retainedFormatFindings=checkResumeFormat(resumeText,preview.text,finalChanges,formatPolicy,useF6&&Boolean(lastF6Document))
+      .filter(finding=>!onDemandReview||finding.category==='system');
     const blockingDocumentFindings=(documentReview?.findings || []).filter(f=>f.severity==="error" && (!f.changeId || finalChanges.some(c=>c.id===f.changeId)));
     if(retainedFormatFindings.length || blockingDocumentFindings.length || !documentReview || documentReview.status!=='passed'){
       outcome="blocked";trace.step("review","whole_document_unresolved");
@@ -780,6 +824,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         content: { baseResumeText: resumeText, jobDescription, changes: finalChanges, previewText: preview.text,
           discardedSuggestions: rejected, discardedReviewFindings,
           ...(f6Deliverables?{f6Deliverables}:{}),
+          ...(hrReceipt?{hrReview:hrReceipt}:{}),
           ...(useF6&&generationSource?{previousResumeChanges:generationSource.changes}:{}),
         },
         status: reviewerPassed && ats.ok ? "needs_confirmation" : "draft", contextSnapshot: context,
@@ -787,10 +832,21 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       });
       // Rejected proposals are not in this artifact. Judge the retained preview,
       // while keeping the discarded proposal diagnostics in the artifact audit.
-      const factsStatus = preview.findings.length === 0 ? "passed" : "failed";
+      const factsStatus = onDemandReview ? "not_run" : preview.findings.length === 0 ? "passed" : "failed";
       const reviews = await Promise.all([
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "facts", status: factsStatus, summary: factsStatus === "passed" ? "保留的改写引用已提供材料；被过滤的建议不在本版本中，不代表经历已核实。" : "当前预览存在无法定位或未通过事实校验的改写。", findings: preview.findings, contextFingerprint: context.fingerprint }),
-        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "independent_ai", status: onDemandReview ? 'not_run' : reviewerPassed ? "passed" : "failed", summary: String(reviewer.summary || (reviewerPassed ? "独立复核通过。" : "独立复核发现阻断项。")), findings: reviewerFindings, contextFingerprint: context.fingerprint }),
+        recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id),
+          reviewerType: "facts", status: factsStatus,
+          summary: onDemandReview ? '作者稿已交付待确认；依据疑点仅作标注，未做独立事实核实。'
+            :factsStatus === "passed" ? "保留的改写引用已提供材料；被过滤的建议不在本版本中，不代表经历已核实。"
+              : "当前预览存在无法定位或未通过事实校验的改写。",
+          findings: onDemandReview?finalChanges.flatMap(change=>change.evidenceNotices||[]):preview.findings,
+          contextFingerprint: context.fingerprint }),
+        recordArtifactReview({
+          userId:user.id,opportunityId,artifactId:String(artifact.id),reviewerType:'independent_ai',
+          status:hrReceipt?'warning':onDemandReview?'not_run':reviewerPassed?'passed':'failed',
+          summary:hrReceipt?f6HrSummary(hrReceipt):String(reviewer.summary || (reviewerPassed?'独立复核通过。':'独立复核发现阻断项。')),
+          findings:hrReceipt?hrReceipt.records:reviewerFindings,contextFingerprint:context.fingerprint,
+        }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "ats", status: ats.ok ? "passed" : "failed", summary: ats.ok ? jobDescription ? `文本可解析；岗位词覆盖 ${(ats.coverage * 100).toFixed(0)}%。` : '文本可解析；未提供 JD，不计算岗位词覆盖。' : "文本不满足 ATS 基础要求。", findings: ats.findings, contextFingerprint: context.fingerprint }),
         recordArtifactReview({ userId: user.id, opportunityId, artifactId: String(artifact.id), reviewerType: "pdf", status: "not_run", summary: "导出 PDF 后上传校验文字层。", findings: [], contextFingerprint: context.fingerprint }),
       ]);
@@ -817,7 +873,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const deliverySummary=resumeDeliverySummary(newSuggestions,[...unresolvedGrounding.values(),...(requestCoverage?.unaddressed||[])]);
     const explanation=correctionOnly?'本轮只完成文字校对，尚未完成内容优化。':partialRecoveryReason?'部分返修暂未完成，对应原文仍保留。'
       :!coversSupplement(finalChanges)?'刚才补充的那段暂未形成可靠改写，仍保留原文。':partial?'这是部分交付，不代表本轮要求已全部完成。':'';
-    const summary=deliverySummary+explanation+(onDemandReview?F6_DEFERRED_REVIEW_SUMMARY:'');
+    const summary=deliverySummary+explanation+(hrReceipt
+      ? '\n'+f6HrSummary(hrReceipt) : onDemandReview?F6_DEFERRED_REVIEW_SUMMARY:'');
     const task=generationSource?await finishResumeTask(user.id,String(body.resumeTaskId),String(body.resumeTaskLease),generationSource,{ok:true,prepared:true,changes:finalChanges,followUp,applicationQuality,summary,...partialFields,
       ...(f6Deliverables?{f6Deliverables}:{})}):undefined;
     if(task&&task.state!=='ready')throw Error('简历在修改期间发生变化，新结果未覆盖你的编辑，本次未扣额度');
@@ -831,16 +888,23 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       ok: true,
       changes: finalChanges,
       ...(f6Deliverables?{f6Deliverables}:{}),
+      ...(hrReceipt?{hrReview:hrReceipt}:{}),
       ...partialFields,
       ...(summary?{summary}:{}),
       ...(task?{task}:{}),
       ...(followUp ? { followUp } : {}),
       rejectedCount: rejected.length + errorChangeIds.size,
-      reviewer: { status:onDemandReview?'not_run':reviewerPassed?'passed':'failed',passed: reviewerPassed, summary: reviewer.summary, findings: reviewerFindings },
+      reviewer: {
+        status:hrReceipt?'warning':onDemandReview?'not_run':reviewerPassed?'passed':'failed',
+        passed:reviewerPassed,summary:hrReceipt?f6HrSummary(hrReceipt):reviewer.summary,findings:reviewerFindings,
+      },
       documentReview,
       workflow:{version:onDemandReview?F6_NATIVE_WORKFLOW:RESUME_WORKFLOW_VERSION,
         strategy,formatPolicy,maxDraftAttempts,maxRepairs:maxDraftAttempts-1,
-        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',...(useF6?{writer:F6_RESUME_WRITER}:{})},
+        maxReviewContractRepairs:onDemandReview?0:1,reviewPolicy:onDemandReview?'on_demand':'automatic',
+        ...(useF6?{writer:F6_RESUME_WRITER}:{}),
+        ...(options.hrCommentary?{hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1}:{}),
+      },
       // 这一轮引用回指闸给了哪些裁决（评测与遥测按 reason.code 断言，不读文案）。
       guards: citationVerdicts,
       applicationQuality,

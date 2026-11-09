@@ -43,6 +43,14 @@ export interface OpportunityActivity {
   timeLabel: string;
 }
 
+export interface ResumeEvidenceNotice {
+  code: "number_not_found" | "wording_not_found" | "qualifier_changed";
+  quote: string;
+  start: number;
+  end: number;
+  message: string;
+}
+
 export interface ResumeChange {
   id: string;
   section: string;
@@ -52,10 +60,13 @@ export interface ResumeChange {
   evidenceId: string | null;
   evidenceIds?: string[];
   editedByUser?: boolean;
+  /** Advisory only, relative to this exact after text. Never a verified-fact label. */
+  evidenceNotices?: ResumeEvidenceNotice[];
   /** A targeted follow-up may revise an accepted paragraph; rejecting it restores this version. */
   previousDecision?: {
     after: string; status: "accepted" | "rejected"; reason: string; evidenceId: string | null;
     evidenceIds?: string[]; editedByUser?: boolean;
+    evidenceNotices?: ResumeEvidenceNotice[];
     /** Rejecting an atomic document proposal restores the exact saved choices. */
     documentChanges?: ResumeChange[];
   };

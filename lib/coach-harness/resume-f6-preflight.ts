@@ -6,6 +6,14 @@ import {citationGroundingDecision} from './guard-slots/verification.guards';
 import type {GroundingSource} from './citation-verifier';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
 
+/** Content diagnostics below are advisory for the shipped F6 author. Only
+ * protected identity/contact can still reject an otherwise readable document.
+ * Auth/ownership/scope/CAS/quota checks live in their existing host layers. */
+export function f6DocumentSafetyIssues(source:string,candidate:string){
+  return resumeSourceProtection(source,candidate,'',source,true)
+    .filter(issue=>issue.startsWith('姓名与联系方式'));
+}
+
 /** Verification feedback is data for the SAME author, not a new reviewer,
  * candidate evidence, an automatic approval or permission to change facts. */
 export function f6DocumentPreflight(source:string,candidate:string,options:{
@@ -14,7 +22,7 @@ export function f6DocumentPreflight(source:string,candidate:string,options:{
   projectSources?: GroundingSource[];
 }={}){
   return projectF6Document(source,candidate).flatMap(({before,after})=>{
-    const sources=[{id:'base-resume',text:before},...(options.projectSources||[]),...(options.supplements||[])
+    const sources=[{id:'base-resume',text:before},{id:'authorized-resume',text:source},...(options.projectSources||[]),...(options.supplements||[])
       .filter(item=>before.includes(item.sourceExcerpt)||item.sourceExcerpt.includes(before)).map(item=>item.source)];
     const citation=after?citationGroundingDecision({citation:{candidateText:after,sources}}):null;
     return [

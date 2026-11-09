@@ -20,14 +20,17 @@ export function mergeResumeAgentChanges(source:string,previous:ResumeChange[],pr
     const baseline=old.status==='accepted'?old.after:old.before;
     if(change.after.trim()===baseline.trim())return [];
     replaced.add(old.id);
-    return [{...change,previousDecision:{after:old.after,status:old.status as 'accepted'|'rejected',reason:old.reason,evidenceId:old.evidenceId,evidenceIds:old.evidenceIds,editedByUser:old.editedByUser}}];
+    return [{...change,previousDecision:{after:old.after,status:old.status as 'accepted'|'rejected',
+      reason:old.reason,evidenceId:old.evidenceId,evidenceIds:old.evidenceIds,editedByUser:old.editedByUser,
+      evidenceNotices:old.evidenceNotices}}];
   });
   return [...decided.filter(change=>!replaced.has(change.id)),...fresh];
 }
 
 export function decideResumeChange(change:ResumeChange,status:'accepted'|'rejected'):ResumeChange{
   const {previousDecision,...current}=change;
-  return status==='rejected'&&previousDecision?{...current,...previousDecision}:{...current,status};
+  return status==='rejected'&&previousDecision
+    ?{...current,...previousDecision,evidenceNotices:previousDecision.evidenceNotices}:{...current,status};
 }
 
 /** Whole-document refusal is a rollback to saved choices, not acceptance of

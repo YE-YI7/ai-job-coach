@@ -100,7 +100,9 @@ test('invalid provider usage never releases a durable cost reservation',async()=
  expect(run.calls[0]).not.toHaveProperty('estimatedCny');
 });
 test('only the linked confirmed-project sources are admitted, and output cannot escape the section',()=>{
- expect(f6ReproSources(section,[{id:'note',text:facts.trim()}])).toHaveLength(1);
+ expect(f6ReproSources(section,[{id:'note',text:facts.trim()}])).toEqual([
+  {id:'authorized-project-original',text:section.excerpt},{id:'note',text:facts.trim()},
+ ]);
  expect(()=>f6ReproSources(section,[{id:'note',text:'外来的事实'}])).toThrow('FACT_SOURCE_MISSING');
  expect(f6ReproScopeIssues('### 益职 AI\n整理记录。')).toEqual([]);
  expect(f6ReproScopeIssues('### 益职 AI\n整理记录。\n### 别的经历\n另写。')).not.toEqual([]);
@@ -118,6 +120,7 @@ test('original paragraph evidence is not replaced by project notes; invalid new 
  expect(f6ReproChangeSourceIds('用户 50 人。',data,facts)).toEqual(['note','existing']);
  const issues=(candidate:string)=>f6ReproArtifactIssues(original,candidate,data,facts,context);
  expect(issues('### 益职 AI\n发起者 | 2025 年 11 月起\n\n产品用户 50 人。\n')).toEqual([]);
- expect(issues('### 益职 AI\n发起者 | 2025.11 起\n\n产品用户 50 人。\n').some(s=>s.includes('2025.11'))).toBe(true);
+ expect(issues('### 益职 AI\n发起者 | 2025.11 起\n\n产品用户 50 人。\n')).toEqual([]);
+ expect(issues('### 益职 AI\n发起者 | 2025.12 起\n\n产品用户 50 人。\n').some(s=>s.includes('2025.12'))).toBe(true);
  expect(issues('### 益职 AI\n发起者 | 2025 年 11 月起\n\n产品用户 500 人。\n').some(s=>s.includes('500人'))).toBe(true);
 });

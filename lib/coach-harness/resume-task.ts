@@ -15,6 +15,7 @@ import {readResumeDelivery} from './resume-delivery-record';
 import {skipsResumeFact} from './resume-single-question';
 import {isResumeEditingDirection} from './resume-edit-request';
 import { parseResumeReference, resolveResumeReference, sameResumeReference } from '@/lib/opportunities/resume-reference';
+import {resumeStorageSnapshot} from './resume-storage-snapshot';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
@@ -39,6 +40,7 @@ export async function ownedResumeTaskSource(userId: string, opportunityId: strin
   if (!resume) throw new ResumeTaskError("请先上传简历", 400);
   if (resume.length>30_000||jd.length>30_000) throw new ResumeTaskError("简历或岗位原文超过30000字，请先精简；原文已保留，尚未调用模型",400);
   return { resume, jd, ...(data.company ? {company: String(data.company)} : {}),
+    storage:resumeStorageSnapshot(data.metadata?.resumeText,data.jd_text),
     revision: String(data.metadata?.resumeRevision || ""), changes:(data.metadata?.resumeChanges||[]) as ResumeChange[], applicationQuality:data.metadata?.applicationQuality as Opportunity['applicationQuality'], general: data.metadata?.workspaceType === "preparation", fingerprint: resumeTaskFingerprint(resume, jd, data.metadata?.resumeRevision) };
 }
 async function readRow(userId: string, opportunityId: string): Promise<Row | null> {
@@ -242,7 +244,9 @@ export async function persistResumeTrialClaims(userId:string,opportunityId:strin
   return rows.map(row=>({id:String(row.id),entityType:'experience',entityKey:String(row.entity_key),claimType:'resume_trial_source',value:row.value,displayText:String(row.display_text),sourceExcerpt:String(row.source_excerpt),sourceId,status:row.status as CareerClaim['status'],visibility:'recruiter_safe',sourceKind:'user_upload',verificationLevel:'self_reported'}));
 }
 
-export async function finishResumeTask(userId: string, taskId: string, lease: string, source: { resume: string; jd: string; revision:string; changes?:ResumeChange[] }, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean;partial?:boolean;reasonCode?:string;
+export async function finishResumeTask(userId: string, taskId: string, lease: string, source: {
+  resume:string;jd:string;revision:string;changes?:ResumeChange[];storage?:{resume:string;jd:string};
+}, body: {ok?:boolean;recovery?:ResumeRecovery;followUp?:unknown;error?:string;changes?:ResumeChange[];applicationQuality?:Opportunity["applicationQuality"];prepared?:boolean;summary?:string;unchanged?:boolean;partial?:boolean;reasonCode?:string;
   f6Deliverables?: import('./f6-tool-session').F6Deliverables}) {
   const db = requireDb(await getDbClient()), row = await resumeTaskInput(userId, taskId, lease);
   const question = body.ok ? nextResumeQuestion(source.resume, body.followUp, row.answers)
@@ -256,7 +260,7 @@ export async function finishResumeTask(userId: string, taskId: string, lease: st
     ...('partial' in body && body.partial===true?{partial:true,reasonCode:'reasonCode' in body?body.reasonCode:null}:{}) } : null;
   const { data, error } = await db.rpc("finish_coach_resume_task", { p_user_id: userId, p_task_id: taskId, p_lease: lease,
     p_state: state, p_question: question, p_result: result, p_error: body.ok || question ? null : String(body.error || "改稿暂未完成，补充已保存，可以重试"),
-    p_source: source.resume, p_jd: source.jd, p_revision: source.revision });
+    p_source: source.storage?.resume??source.resume, p_jd: source.storage?.jd??source.jd, p_revision: source.revision });
   if (error || !data) throw new ResumeTaskError("改稿保存尚未确认，请刷新进度后继续，不必重填补充", 503);
   return publicResumeTask(data);
 }

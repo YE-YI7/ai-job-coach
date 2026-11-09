@@ -13,6 +13,7 @@ import ResumeInlineEditor from "./ResumeInlineEditor";
 import { useResumeBlockDraft } from "./ResumeDraftSession";
 import styles from "./ResumeInlineReview.module.css";
 import { useResumeReference } from './ResumeReference';
+import ResumeEvidenceNotices from './ResumeEvidenceNotices';
 
 const editHintKey = 'yizhi:hint:inline-edit:v2';
 const editingHintSeen = () => { try { return localStorage.getItem(editHintKey)==='seen'; } catch { return true; } };
@@ -73,6 +74,17 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
     return original.length===shown.length&&original.every((id,index)=>id===shown[index])?original:[];
   },[opportunity.resumeText,projection.text]);
   const change=opportunity.resumeChanges.find(item=>item.id===active?.id&&item.status==='pending');
+  useLayoutEffect(()=>{
+    const element=bubble.current;
+    if(!active||!element)return;
+    const place=()=>{
+      element.style.top=`${Math.max(12,Math.min(active.bottom+8,window.innerHeight-element.getBoundingClientRect().height-12))}px`;
+    };
+    place();
+    if(typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(place);observer.observe(element);
+    return()=>observer.disconnect();
+  },[active,editing,change?.id]);
   const saveBlock = () => {
     if (!blockEdit || disabled) return;
     if (!blockEdit.text.trim() && !confirmDelete) { setConfirmDelete(true); return; }
@@ -104,6 +116,7 @@ function ResumeInlineReviewSession({ opportunity, onUpdate, onEdit, onReorder, o
         try { await reference.quote(change.id); setActive(null); setEditing(false); }
         catch (cause) { setEditError(cause instanceof Error ? cause.message : '引用失败，请重新点选。'); }
       }}><MessageSquareQuote size={16} aria-hidden="true" />引用到对话</button>}
+      <ResumeEvidenceNotices change={change}/>
       {editing?<form onSubmit={event=>{event.preventDefault();if(!value.trim())return;onEdit(change.id,value.trim());setEditing(false);setActive(null);}}><textarea aria-label="自己修改简历文字" rows={4} maxLength={30000} value={value} onChange={event=>setValue(event.target.value)} autoFocus/><button type="submit">保存文字</button></form>:<p>{change.reason}</p>}
     </div>,document.body)}
   </div>;

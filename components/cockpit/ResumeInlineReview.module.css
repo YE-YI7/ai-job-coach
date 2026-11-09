@@ -18,4 +18,11 @@
 .bubble textarea:focus-visible{outline:none;border-color:transparent;box-shadow:var(--field-active-shadow)}
 .unlocated{font-size:13px;line-height:1.7;margin-block:16px;color:var(--cockpit-studio-muted,#6b665e)}
 .unlocated p{margin:10px 0}.unlocated button{margin-left:12px}
+.evidenceNotices{margin:8px 6px;color:var(--workbench-warning-text,#805626);font-size:13px;line-height:1.7}
+.bubble .evidenceNotices p{margin:0;color:inherit;font-size:inherit}
+.evidenceNotices ul{max-height:160px;overflow-y:auto;margin:8px 0 0;padding:0 0 0 18px;overflow-wrap:anywhere}
+.evidenceNotices ul:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.evidenceNotices li+li{margin-top:8px}
+.evidenceNotices mark{background:var(--resume-evidence-highlight,#fff0a8);color:var(--cockpit-studio-ink,#2f2a23);padding:1px 2px}
+.evidenceNotices span{display:block}
 @media(max-width:700px){.decisions button{min-height:44px;min-width:44px}.bubble textarea{font-size:16px}}

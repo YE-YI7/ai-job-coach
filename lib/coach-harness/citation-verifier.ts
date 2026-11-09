@@ -23,8 +23,10 @@
  * FABRICATION_RULES（已知编造形状的正向要求）。表外一律拒。
  */
 
+import {qualifierSubjectScores} from './citation-subject-scope';
+
 /** 核验器版本：改动下面任何判定表都必须升版；护栏阈值指纹的 guard 段应把本对象取进去。 */
-export const CITATION_VERIFIER_VERSION = "citation-verifier-v3";
+export const CITATION_VERIFIER_VERSION = "citation-verifier-v4-subject-scope";
 
 export type GroundingSource = { id: string; text: string };
 
@@ -406,7 +408,16 @@ function qualifierClassesBefore(clause: string, verbIndex: number): Set<"NEG" | 
   const window = clause.slice(Math.max(0, verbIndex - LOOKBACK), verbIndex);
   const classes = new Set<"NEG" | "HEDGE" | "ROLE">();
   (Object.keys(QUALIFIER_TOKENS) as Array<"NEG" | "HEDGE" | "ROLE">).forEach((cls) => {
-    if (QUALIFIER_TOKENS[cls].some((token) => window.includes(token))) classes.add(cls);
+    if (QUALIFIER_TOKENS[cls].some((token) => {
+      const index = window.lastIndexOf(token);
+      if (index < 0) return false;
+      // A realised-state marker after a planning-stage word scopes the action
+      // as completed (e.g. “岗位计划与材料管理已上线”), not planned. Epistemic
+      // hedges such as 预计 remain hedged even before “已经”. “已计划上线”
+      // still is a plan: its marker precedes, rather than follows, 计划.
+      return !(cls === 'HEDGE' && ['计划','准备','拟','即将','待'].includes(token)
+        && /已经|已/.test(window.slice(index + token.length)));
+    })) classes.add(cls);
   });
   return classes;
 }
@@ -428,17 +439,26 @@ function checkQualifiers(statement: string, pool: IndexedSource[]): QualifierFin
         // “参与需求调研，收集反馈” wrongly carries 参与 across the comma on
         // only the source side, so even the unchanged original is rejected.
         // Do not split whitespace: “参与 用户访谈” still carries its qualifier.
-        const occurrences: Array<Set<"NEG" | "HEDGE" | "ROLE"> | null> = [];
+        const entries: Array<{classes:Set<"NEG" | "HEDGE" | "ROLE"> | null;text:string;context:string}> = [];
         for (const source of pool) {
-          for(const sourceClause of source.text.split(/[，,、；;：:。！？!?\n]/).map(stripPunctuation)){
-            let sAt = sourceClause.indexOf(verb);
-            while (sAt >= 0) {
-              const classes = qualifierClassesBefore(sourceClause, sAt);
-              occurrences.push(classes.size ? classes : null);
-              sAt = sourceClause.indexOf(verb, sAt + verb.length);
+          for(const sentence of source.text.split(/[；;。！？!?\n]/)){
+            for(const sourceClause of sentence.split(/[，,、：:]/).map(stripPunctuation)){
+              let sAt = sourceClause.indexOf(verb);
+              while (sAt >= 0) {
+                const classes = qualifierClassesBefore(sourceClause, sAt);
+                entries.push({classes:classes.size ? classes : null,text:sourceClause,context:sentence});
+                sAt = sourceClause.indexOf(verb, sAt + verb.length);
+              }
             }
           }
         }
+        const ignored = [...ACTION_VOCAB,...Object.values(QUALIFIER_TOKENS).flat()];
+        let scores = qualifierSubjectScores(statement,entries.map(entry=>entry.text),verb,ignored);
+        if (!scores.some(score=>score>0)) {
+          scores = qualifierSubjectScores(statement,entries.map(entry=>entry.context),verb,ignored);
+        }
+        const best = Math.max(0,...scores);
+        const occurrences = entries.filter((_,index)=>best===0||scores[index]===best).map(entry=>entry.classes);
         const qualified = occurrences.filter((c): c is Set<"NEG" | "HEDGE" | "ROLE"> => c !== null && c.size > 0);
         if (occurrences.length > 0 && qualified.length === occurrences.length) {
           for (const cls of new Set(qualified.flatMap((c) => [...c]))) {

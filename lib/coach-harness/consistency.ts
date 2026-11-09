@@ -6,7 +6,14 @@ import { isCitableSource, type ArtifactDraft, type CareerClaim, type Consistency
 const NUMBER_PATTERN = /(?<![A-Za-z\d])(?:[¥￥$]?\d+(?:[.,]\d+)?(?:%|万|亿|[kK]|人|次|个月|年|天|元)?|\d{4}[.-]\d{1,2})(?![A-Za-z\d])/gu;
 
 function numberTokens(value: string) {
-  const canonical=value.replace(/(\d)\s+(?=%|万|亿|[kK]|人|次|个月|年|天|元)/g,'$1');
+  // Equivalent calendar notation is not an invented decimal metric. Do not
+  // normalize percentages/currency, infer a month, or accept another month.
+  const dates=value
+    .replace(/((?:19|20)\d{2})\s*年\s*(0?[1-9]|1[0-2])\s*月(?:份)?/g,
+      (_,year,month)=>`${year}.${String(Number(month)).padStart(2,'0')}`)
+    .replace(/(?<![A-Za-z\d¥￥$])((?:19|20)\d{2})[.-](0?[1-9]|1[0-2])(?=\s*(?:起|至|以来|[-–—]|[|｜\n]|$))/g,
+      (_,year,month)=>`${year}.${String(Number(month)).padStart(2,'0')}`);
+  const canonical=dates.replace(/(\d)\s+(?=%|万|亿|[kK]|人|次|个月|年|天|元)/g,'$1');
   return new Set((canonical.match(NUMBER_PATTERN) || []).map((token) => token.replaceAll("，", "")));
 }
 

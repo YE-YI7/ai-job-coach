@@ -12,7 +12,10 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     tools:['read_file','search','fetch','write_output','render_pdf'],
     maxAuthorCalls:F6_MAX_AUTHOR_CALLS,
     maxPublicRequests:4,
-    automaticJudge:false,
+    automaticJudge:true,
+    blockingJudge:false,
+    hrCommentary:'plain_text_one_author_response',
+    maxHrCalls:1,
     modelSelection:'preserve-user-selection',
   });
   expect(F6_MAX_AUTHOR_CALLS).toBe(12);

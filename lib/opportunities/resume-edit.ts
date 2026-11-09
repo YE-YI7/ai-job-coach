@@ -18,6 +18,7 @@ export function applyUserResumeEdit(
       ...change,
       after: nextText,
       editedByUser: true,
+      evidenceNotices: undefined,
       status: "pending" as const,
     } : change),
     applicationQuality: opportunity.applicationQuality ? {

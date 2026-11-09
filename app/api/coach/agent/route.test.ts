@@ -34,7 +34,7 @@ test('引用无需额外模型：同一导师调用拿到精确源区间，定�
  const job='33333333-3333-4333-8333-333333333333';
  const text='整理需求记录，交给产品经理每周核对。';
  const change={id:'c1',section:'项目',before:text,after:'整理需求记录供每周核对。',reason:'精简',status:'pending' as const,evidenceId:null};
- const source={resume:text,jd:'',revision:'r1',changes:[change],applicationQuality:undefined,general:true,fingerprint:'fixture'};
+ const source={resume:text,jd:'',storage:{resume:text,jd:''},revision:'r1',changes:[change],applicationQuality:undefined,general:true,fingerprint:'fixture'};
  const owned=jest.spyOn(resumeTaskStore,'ownedResumeTaskSource').mockResolvedValue(source);
  q.maybeSingle.mockResolvedValue({data:{id:job}}); // workarea ownership; first completed-turn read below is null
  q.maybeSingle.mockResolvedValueOnce({data:null});
@@ -53,7 +53,7 @@ test('引用无需额外模型：同一导师调用拿到精确源区间，定�
 test('引用过期或跨岗位时模型和上下文检索均零调用', async () => {
  jest.resetAllMocks(); setupGeneration();
  const owned=jest.spyOn(resumeTaskStore,'ownedResumeTaskSource').mockResolvedValue({
-  resume:'原稿',jd:'',revision:'r2',changes:[],applicationQuality:undefined,general:true,fingerprint:'fixture',
+  resume:'原稿',jd:'',storage:{resume:'原稿',jd:''},revision:'r2',changes:[],applicationQuality:undefined,general:true,fingerprint:'fixture',
  });
  try{
   const response=await POST(new Request('https://example.com/api/coach/agent',{method:'POST',body:JSON.stringify({

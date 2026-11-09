@@ -33,10 +33,25 @@ export function resumeInlineProjection(source: string, changes: ResumeChange[], 
     text += source.slice(cursor, edit.start);
     const before=edit.change.previousDecision?.status==='accepted'?edit.change.previousDecision.after:source.slice(edit.start, edit.end);
     const pieces = showMarks && edit.change.status === "pending" ? resumeInkDiff(before, edit.after) : [{ text: edit.after, kind: "same" as const }];
+    const notices=showMarks&&edit.change.status==='pending'?(edit.change.evidenceNotices||[]).filter(notice=>
+      notice.start>=0&&notice.end>notice.start&&edit.after.slice(notice.start,notice.end)===notice.quote):[];
+    let afterOffset=0;
     for (const piece of pieces) {
-      const start = text.length;
-      text += piece.text;
-      if (piece.kind !== "same" && piece.text.trim()) ink.push({ start, end: text.length, kind: piece.kind, id: edit.change.id });
+      const cuts=[...new Set([0,piece.text.length,...(piece.kind==='removed'?[]:notices.flatMap(notice=>
+        [notice.start-afterOffset,notice.end-afterOffset].filter(at=>at>0&&at<piece.text.length)))])].sort((a,b)=>a-b);
+      for(let i=1;i<cuts.length;i++){
+        const segment=piece.text.slice(cuts[i-1],cuts[i]),start=text.length;
+        const needsConfirmation=piece.kind!=='removed'&&notices.some(notice=>
+          afterOffset+cuts[i-1]>=notice.start&&afterOffset+cuts[i]<=notice.end);
+        const kind=needsConfirmation?'reworded':piece.kind;
+        text+=segment;
+        if(kind!=='same'&&segment.trim()){
+          const last=ink.at(-1);
+          if(last&&last.end===start&&last.kind===kind&&last.id===edit.change.id)last.end=text.length;
+          else ink.push({start,end:text.length,kind,id:edit.change.id});
+        }
+      }
+      if(piece.kind!=='removed')afterOffset+=piece.text.length;
     }
     cursor = edit.end;
   }

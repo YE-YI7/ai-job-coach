@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import origin from './f6-origin.json';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v3' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v4-hr-commentary' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -13,7 +13,10 @@ export function f6RuntimeIdentity() {
     tools: origin.tools.map(tool => tool.function.name),
     maxAuthorCalls: origin.maxAuthorCalls,
     maxPublicRequests: origin.maxPublicRequests,
-    automaticJudge: false,
+    automaticJudge: true,
+    blockingJudge: false,
+    hrCommentary: 'plain_text_one_author_response',
+    maxHrCalls: 1,
     modelSelection: 'preserve-user-selection',
   };
 }

@@ -23,9 +23,11 @@ export class F6ToolSession {
   private services: F6ToolServices;
   constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string},
     private verify: (body: string) => string[], services?: F6ToolServices,
-    publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>) {
+    publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>,
+    fixtureSpec?: string) {
     this.resources = {...origin.resources, 'resume.md': input.resume, 'jd.txt': input.jd,
-      'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts)};
+      'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts),
+      ...(fixtureSpec===undefined?{}:{'spec.md':fixtureSpec})};
     const company = input.company || '';
     // Preserve the experiment's explicitly identified public research target.
     // Unknown companies are not silently treated as Manus or called official.

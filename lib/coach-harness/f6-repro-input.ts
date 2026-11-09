@@ -21,7 +21,7 @@ export function f6ReproSources(section: F6ReproSection | undefined, sources: Gro
   if (selected.length !== ids.size || selected.some(source => !section.facts.includes(source.text))) {
     throw Error('F6_REPRO_FACT_SOURCE_MISSING');
   }
-  return selected;
+  return [{id:'authorized-project-original',text:section.excerpt},...selected];
 }
 
 export function f6ReproScopeIssues(body: string): string[] {
@@ -36,7 +36,7 @@ export function f6ReproScopeIssues(body: string): string[] {
  * it rather than replacing it. Use the same provenance at tool and save gates. */
 export function f6ReproChangeSourceIds(before: string, section: F6ReproSection,
   facts: GroundingSource[]) {
-  return [...new Set([...section.claimIds,...facts.filter(fact=>before.includes(fact.text)
+  return [...new Set([...section.claimIds,...facts.filter(fact=>section.excerpt.includes(fact.text)
     || fact.text.includes(before)).map(fact=>fact.id)])];
 }
 

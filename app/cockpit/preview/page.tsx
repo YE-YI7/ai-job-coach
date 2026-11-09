@@ -7,6 +7,7 @@ import ResumeMentorFixture from "@/components/cockpit/ResumeMentorFixture";
 import ExperienceSafetyFixture from '@/components/cockpit/ExperienceSafetyFixture';
 import InterviewUiFixture from '@/components/cockpit/InterviewUiFixture';
 import ResumeReferenceFixture from '@/components/cockpit/ResumeReferenceFixture';
+import {f6EvidenceNotices} from '@/lib/coach-harness/resume-f6-delivery';
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function CockpitPreviewPage({ searchParams }: {
   searchParams: Promise<{
     empty?: string; preparation?: string; tab?: string; longResume?: string;
     narrative?: string; changes?: string; studio?: string; entry?: string; longCopy?: string; mentorUI?: string;safetyUI?:string;
-    interviewUI?: string; interviewHistory?: string; resumeQuote?: string;
+    interviewUI?: string; interviewHistory?: string; resumeQuote?: string; evidenceNotices?:string; hrCommentary?:string;
   }>;
 }) {
   if (process.env.NODE_ENV !== "development") notFound();
@@ -72,8 +73,20 @@ export default async function CockpitPreviewPage({ searchParams }: {
     "需求调研、流程设计、原型与验收；Figma、SQL、Excel。",
   ].join("\n\n");
   const studioOpportunities:Opportunity[]=[{...demoOpportunities[0],id:"studio-ui-preview",company:"示例科技",role:"产品经理",location:"上海",resumeText:studioResume,applicationQuality:undefined,resumeOriginal:undefined,resumeChanges:[{...demoOpportunities[0].resumeChanges[0],id:"studio-expression",section:"工作经历",before:"从高频问题中整理 120 条测试用例，检查回答准确性和来源是否一致。",after:"整理 120 条高频问题测试用例，核对回答准确性与引用来源。",reason:"收紧重复表达，保留测试规模与检查内容。此为虚构交互样例。",status:"pending"}]}];
+  if(params.evidenceNotices==='1'){
+    const change=studioOpportunities[0].resumeChanges[0];
+    const after='独立主导评测体系，覆盖 500 条用例并已上线。';
+    studioOpportunities[0].resumeChanges=[{...change,after,
+      reason:'纯虚构标注验收：包含未提供依据的责任、数字和上线状态，供测试采纳、拒绝与自己修改。',
+      evidenceNotices:f6EvidenceNotices(after,[{id:'fixture-original',text:change.before}])}];
+  }
   const narrativeResume = ["测试求职者，探索人机协作。联系方式：test@example.com。我希望用真实项目展示判断、行动和结果；此为虚构验收材料，不代表用户经历。", "## 我提出的问题，和做出的产品", ...Array.from({length:4},(_,i)=>`### 协作项目 ${i+1} · 从判断到行动\n负责人 | 2024.01 起\n- **实际责任**：定义需求与验收边界，保留真实事实。\n- **验证结果**：完整性标记 NARRATIVE-${i+1}，仅为排版测试。\n[项目来源](https://example.com/project-${i+1})`), "<!-- PAGEBREAK -->", "## 在真实业务里检验判断", "### 示例公司 · 产品经理\n2024.01 - 至今\n- 推动需求评审和质量验收，不捏造业绩。", "## 教育背景\n示例大学 · 本科", "简历正文结束 · NARRATIVE-END"].join("\n\n");
 
+  if(params.hrCommentary==='1'){
+    studioOpportunities[0].applicationQuality={artifactId:'fictional-hr',version:1,status:'draft',reviews:[{
+      reviewerType:'independent_ai',status:'warning',summary:'独立 HR 点评（针对首稿，供核对，不是审核通过）\n原作者已回应点评并更新稿件，未再复审。\n\n**虚构点评示例**：评测动作清楚；原材料只有参与经历，请核实“独立主导”的责任范围。\n\n面试可追问：你具体设计了哪些用例？怎么核验引用？结果如何使用？',
+    }]};
+  }
   if (params.longCopy === "1") {
     // 仅开发环境，覆盖旧长 JD 被误当成大标题的布局坏例。
     studioOpportunities[0] = {

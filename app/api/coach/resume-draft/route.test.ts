@@ -77,7 +77,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     opportunityId:"opp-1", resumeText:"负责模型评测", mode:"general_resume", resumeTaskId:"task", resumeTaskLease:"lease", ...extra,
   })});
   const writerAndReview = () => (runWithGenerationContext as jest.Mock).mock.calls.map(([context]) => context.operation);
-  test('shipped F6 delivers the complete body without an automatic judge or fabricated approval',async()=>{
+  test('shipped F6 delivers after independent raw HR commentary and same-author response, without fabricated approval',async()=>{
     // A leftover rollout flag must never send the actual product route back
     // to the two-tool writer while health reports the accepted runtime.
     jest.replaceProperty(process,'env',{...process.env,F6_ORIGIN_RUNTIME:'legacy-v2'});
@@ -88,7 +88,8 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     (getContextBundleForUser as jest.Mock).mockResolvedValue({allowedClaimIds:['claim-1'],unverifiedClaimIds:[],
       selection:{included:[],excluded:[]},budget:{maxInputTokens:12000},usage:{truncated:false},
       claims:[{id:'claim-1',displayText:before}],artifacts:[],knowledge:[],attachments:[]});
-    (callLLM as jest.Mock).mockResolvedValueOnce(after);
+    const hr='整理与核对动作清楚。建议保留，不要补造主导经历。\n追问一？追问二？追问三？';
+    (callLLM as jest.Mock).mockResolvedValueOnce(after).mockResolvedValueOnce(hr).mockResolvedValueOnce(after);
     (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});
     (createArtifactWithClaims as jest.Mock).mockResolvedValue({id:'artifact',version:1});
@@ -97,35 +98,51 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     const result=await productionPOST(oneShotInput({resumeText:before,reviewPolicy:'automatic',strategy:'independent'}));
     const body=await result.json();
     expect(result.status).toBe(200);
-    expect(writerAndReview()).toEqual(['resume_draft']);
-    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(writerAndReview()).toEqual(['resume_draft','resume_review','resume_draft']);
+    expect(callLLM).toHaveBeenCalledTimes(3);
     const [messages,settings]=(callLLM as jest.Mock).mock.calls[0];
     expect(messages.map((message:{role:string})=>message.role)).toEqual(['system','user']);
     expect(settings.nativeTools.map((tool:{function:{name:string}})=>tool.function.name))
       .toEqual(['read_file','search','fetch','write_output','render_pdf']);
     expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,timeoutMs:90000,resumeF6Tools:true,maxRetries:0});
     expect(body.workflow).toMatchObject({writer:F6_RESUME_WRITER,reviewPolicy:'on_demand',maxDraftAttempts:1,maxReviewContractRepairs:0});
-    expect(body.reviewer).toMatchObject({status:'not_run',passed:false});
+    expect(body.reviewer).toMatchObject({status:'warning',passed:false});
     expect(body.applicationQuality.status).toBe('draft');
-    expect(body.applicationQuality.reviews.find((r:{reviewerType:string})=>r.reviewerType==='independent_ai').status).toBe('not_run');
-    expect(body.summary).toContain('未自动运行独立审稿');
+    expect(body.applicationQuality.reviews.find((r:{reviewerType:string})=>r.reviewerType==='independent_ai').status).toBe('warning');
+    expect(body.summary).toContain(hr);
+    expect(body.hrReview.records[0].commentary).toBe(hr);
+    expect(body.workflow).toMatchObject({hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1});
+    const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
+    expect(hrMessages).toHaveLength(2);
+    expect(JSON.parse(hrMessages[1].content)['candidate.md']).toBe(after);
+    expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
+    expect(hrSettings.nativeTools).toBeUndefined();
+    expect(hrSettings.responseFormat).toBeUndefined();
+    expect(JSON.parse((callLLM as jest.Mock).mock.calls[2][0].at(-1).content).hrReview).toBe(hr);
+    expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),
+      expect.objectContaining({summary:expect.stringContaining(hr),applicationQuality:body.applicationQuality}));
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
     expect(finishResumeTask).toHaveBeenCalledTimes(1);
   });
 
-  test('shipped route still blocks a changed numeric direction before saving or charging success',async()=>{
+  test('shipped route retains numeric-direction notice after author response; no blocking fact repair loop',async()=>{
     const before='评测正确率提升6.4个百分点。';
     (callLLM as jest.Mock).mockResolvedValue('评测正确率6.4个百分点。');
     const response=await productionPOST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({opportunityId:'opp-1',resumeText:before,mode:'general_resume'})}));
-    expect(response.ok).toBe(false);
-    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
-    expect(createArtifactWithClaims).not.toHaveBeenCalled();
-    expect(callLLM).toHaveBeenCalledTimes(2);
+    expect(response.ok).toBe(true);
+    const body=await response.json();
+    expect(body.changes[0].after).toBe('评测正确率6.4个百分点。');
+    expect(body.changes[0].evidenceNotices).toEqual(expect.arrayContaining([
+      expect.objectContaining({code:'qualifier_changed',quote:'6.4个百分点'}),
+    ]));
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+    expect(createArtifactWithClaims).toHaveBeenCalled();
+    expect(callLLM).toHaveBeenCalledTimes(3);
   });
 
-  test('programmatic rejection reaches the original F6 author before a corrected body enters the save path',async()=>{
+  test('shipped F6 preserves first body with notices if author response fails, without content rejection or retry',async()=>{
     const before='整理评测记录，整理后交给同事每周核对。';
-    const after='整理评测记录，交给同事每周核对。';
+    const after='主导模型评测并提升正确率。';
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id:'opp-1',answers:[]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume:before,jd:'',revision:'r',changes:[]});
     (getContextBundleForUser as jest.Mock).mockResolvedValue({allowedClaimIds:['claim-1'],unverifiedClaimIds:[],
@@ -147,9 +164,13 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     const body=await response.json();
     expect(response.status).toBe(200);
     expect(body.changes[0].after).toBe(after);
-    expect(writerAndReview()).toEqual(['resume_draft','resume_draft']);
-    const toolFeedback=(callLLM as jest.Mock).mock.calls[1][0].find((message:{role:string})=>message.role==='tool');
-    expect(JSON.parse(toolFeedback.content)).toMatchObject({saved:[],applied:false,issues:expect.any(Array)});
+    expect(writerAndReview()).toEqual(['resume_draft','resume_review','resume_draft']);
+    expect(callLLM).toHaveBeenCalledTimes(3);
+    expect(body.hrReview.finalState).toMatch(/^repair_incomplete/);
+    expect(body.changes[0].evidenceNotices).toEqual(expect.arrayContaining([
+      expect.objectContaining({code:'wording_not_found',quote:'主导'}),
+    ]));
+    expect(recordArtifactReview).toHaveBeenCalledWith(expect.objectContaining({reviewerType:'facts',status:'not_run'}));
     expect(finishResumeTask).toHaveBeenCalledTimes(1);
     expect(finalizeQuota).toHaveBeenCalledTimes(1);
   });
@@ -198,7 +219,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(reserveQuota).toHaveBeenCalledTimes(1);
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),pass);
     if (pass) {
-      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:2,maxRepairs:1,writer:'f6-origin-runtime-v3'});
+      expect(result.workflow).toMatchObject({strategy:"independent",maxDraftAttempts:2,maxRepairs:1,writer:F6_RESUME_WRITER});
       expect(finishResumeTask).toHaveBeenCalledTimes(1);
       expect((finishResumeTask as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((finalizeQuota as jest.Mock).mock.invocationCallOrder[0]);
       expect(response.status).toBe(200);

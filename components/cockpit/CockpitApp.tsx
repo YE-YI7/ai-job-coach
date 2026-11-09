@@ -80,6 +80,7 @@ import type { ResumeAgentTask } from "@/lib/coach-harness/resume-task-types";
 import ResumeAgentConversation from "./ResumeAgentConversation";
 import ResumeExperienceTrial from './ResumeExperienceTrial';
 import { readChatResponse } from '@/lib/coach-harness/chat-stream';
+import { resumeRequestFeedback, type ResumeRequestResult } from '@/lib/coach-harness/resume-request-feedback';
 import {decideResumeChanges} from "@/lib/opportunities/resume-agent-merge";
 import {rememberResumeEdit,travelResumeEdit,editResumeBlock,currentResumeEditHistory} from "@/lib/opportunities/resume-edit-history";
 import { useResumeTemplate } from "@/lib/resume-template-preference";
@@ -939,14 +940,18 @@ function CockpitWorkspace({
         body:JSON.stringify({opportunityId:id,action,answer,requestId,modelMode,resumeReference,questionId:resumeAgentTasks[id]?.question?.id,
           ...(trial?{trialBlockId:trial.blockId,trialExcerpt:trial.excerpt}:{})}),
       });
-      const result=await readChatResponse<{ok:boolean;error?:string;task:ResumeAgentTask;conversationDecision?:string}>(response,onReply||(()=>{}),undefined,event=>{if(event.task){onReceipt?.(event.task);receiveResumeTask(id,event.task);}});
+      const result=await readChatResponse<ResumeRequestResult>(response,onReply||(()=>{}),undefined,event=>{
+        if(event.task){onReceipt?.(event.task);receiveResumeTask(id,event.task);}
+      });
       // A failed mentor call still returns its saved message receipt. Apply it
       // before throwing; a fast failure must not depend on the 4s poll arriving.
       if(result.task){onReceipt?.(result.task);receiveResumeTask(id,result.task);}
       if(!response.ok||!result.ok)throw Error(result.error||'暂未完成，补充仍保留，请重试');
-      if(action==='revise'&&!result.task.answers.some((item:{kind?:string;answer:string})=>item.kind==='instruction'&&item.answer===answer?.trim()))throw Error('另一处正在修改简历，这条要求尚未保存，输入已保留；完成后可以再发送。');
-      announce((result.conversationDecision==='discuss'?'导师已回复，简历未改动':result.task.state==='needs_detail'?'导师还有一个问题，可以继续讨论':result.task.state==='ready'?result.task.result?.unchanged?'已检查，当前内容保留，没有新增修改':'修改已保存，可以在纸面上确认':result.task.state==='failed'?result.task.error:'进度已保存')||'进度已保存');
-      if(trial&&result.task.state==='failed')throw Error(result.task.error||'这段暂未改好，体验次数保留，可以重试');
+      if(action==='revise'&&!result.task?.answers.some(item=>item.kind==='instruction'&&item.answer===answer?.trim())) {
+        throw Error('另一处正在修改简历，这条要求尚未保存，输入已保留；完成后可以再发送。');
+      }
+      announce(resumeRequestFeedback(result,action));
+      if(trial&&result.task?.state==='failed')throw Error(result.task.error||'这段暂未改好，体验次数保留，可以重试');
     }finally{resumeRequestBusy.current=false;setGeneratingResume(false);setResumeMessageBusy(false);}
   };
 
@@ -958,8 +963,15 @@ function CockpitWorkspace({
       return;
     }
     if(dataMode==='live'&&!localIds.includes(active.id)){
-      const task=resumeAgentTasks[active.id];
-      try{await runResumeAgent(trial||task?.editScope||task?.state==='ready'?'restart':task?.state==='failed'||task?.state==='running'?'retry':'start',undefined,active,undefined,undefined,trial);}catch(error){announce(error instanceof Error?error.message:'修改暂未完成');if(trial)throw error;}
+      // Confirmation requests a new generation, even before the task GET returns.
+      // The server retains answers and prevents a concurrent lease. The mentor's
+      // explicit recovery action continues to use retry with its original scope.
+      try {
+        await runResumeAgent('restart',undefined,active,undefined,undefined,trial);
+      } catch(error) {
+        announce(error instanceof Error?error.message:'修改暂未完成');
+        if(trial)throw error;
+      }
       return;
     }
     if (resumeRequestBusy.current) return;

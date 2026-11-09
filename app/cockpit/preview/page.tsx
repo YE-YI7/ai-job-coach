@@ -8,6 +8,7 @@ import ExperienceSafetyFixture from '@/components/cockpit/ExperienceSafetyFixtur
 import InterviewUiFixture from '@/components/cockpit/InterviewUiFixture';
 import ResumeReferenceFixture from '@/components/cockpit/ResumeReferenceFixture';
 import ResumeReviewFixture from '@/components/cockpit/ResumeReviewFixture';
+import ResumeRestartFixture from '@/components/cockpit/ResumeRestartFixture';
 import {f6EvidenceNotices} from '@/lib/coach-harness/resume-f6-delivery';
 
 export const dynamic = "force-dynamic";
@@ -34,10 +35,12 @@ export default async function CockpitPreviewPage({ searchParams }: {
     empty?: string; preparation?: string; tab?: string; longResume?: string;
     narrative?: string; changes?: string; studio?: string; entry?: string; longCopy?: string; mentorUI?: string;safetyUI?:string;
     interviewUI?: string; interviewHistory?: string; resumeQuote?: string; evidenceNotices?:string; hrCommentary?:string; reviewUI?:string;
+    resumeRestartUI?:string; replay?:string;
   }>;
 }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
+  if (params.resumeRestartUI === '1') return <ResumeRestartFixture replay={params.replay==='1'}/>;
   if (params.reviewUI === '1') return <ResumeReviewFixture/>;
   if (params.resumeQuote === '1') return <ResumeReferenceFixture />;
   if (params.interviewUI === '1') return <InterviewUiFixture initialHistory={params.interviewHistory === '1'} />;

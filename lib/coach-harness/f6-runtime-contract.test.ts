@@ -16,6 +16,8 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     authorExecutionState:'remaining_calls_and_exact_read_references',
     mentorGuidance:'optional_same_author_changes_md',
     mentorGuidancePolicySha256:expect.stringMatching(/^[a-f0-9]{64}$/),
+    mentorResponseDelivery:'typed_document_or_retained_body_with_reply',
+    mentorResponseChannelsSha256:expect.stringMatching(/^[a-f0-9]{64}$/),
     automaticJudge:true,
     blockingJudge:false,
     hrCommentary:'plain_text_one_author_response',

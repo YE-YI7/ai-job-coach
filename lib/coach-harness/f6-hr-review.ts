@@ -60,9 +60,19 @@ export class F6HrReviewSession {
   receipt(){return {policy:'plain_commentary_one_author_response' as const,finalState:this.finalState,records:this.records};}
 }
 
-export const F6_HR_REPAIR_INSTRUCTION = 'HR点评是待核实的建议，不是候选人事实，也不必照单全收。'
-  +'回看原简历与补充，自己判断是否采纳：修正有依据的问题，不为迎合HR补造动机、经历或结果。'
-  +'仍由你选工具和取舍，交回完整稿；若点评不适用可保留原稿并说明理由。本次只回应这一轮点评，不再额外复审。';
+const F6_HR_SOURCE_RESPONSE = 'HR点评是待核实的建议，不是候选人事实，也不必照单全收。'
+  + '回看原简历与补充，自己判断是否采纳：修正有依据的问题，不为迎合HR补造动机、经历或结果。';
+const F6_HR_ONE_RESPONSE = '本次只回应这一轮点评，不再额外复审。';
+export const F6_HR_REPAIR_INSTRUCTION = F6_HR_SOURCE_RESPONSE
+  + '仍由你选工具和取舍，交回完整稿；若点评不适用可保留原稿并说明理由。' + F6_HR_ONE_RESPONSE;
+
+/** Keep the old experiment instruction byte-identical. The mentor channel
+ * must not simultaneously demand a full rewrite and permit retaining it. */
+export function f6HrResponseInstruction(mentorChannels?: string) {
+  return mentorChannels ? F6_HR_SOURCE_RESPONSE
+    + '仍由你选工具和取舍；若点评不适用可保留原稿并说明理由。'
+    + mentorChannels + F6_HR_ONE_RESPONSE : F6_HR_REPAIR_INSTRUCTION;
+}
 
 export function f6HrSummary(receipt:F6HrReceipt):string{
   const commentary=receipt.records.find(record=>record.status==='completed')?.commentary;

@@ -8,6 +8,11 @@ export const F6_MENTOR_RESPONSIBILITY = `【面向用户的导师职责】
 是否需要追问、查哪份资料、用什么辅导方式由你判断，没有缺口就不必生成 changes.md，不为走流程强问。notes.md仍是内部选材回执，不能代替面向用户的沟通。HR点评是建议，核对后自行取舍；若回应后正文变化，辅导也应针对最后交付的正文，同次更新 changes.md，避免显示旧稿的问题。
 用户后续确认、纠正、否认或想不起时，结合此前建议和最新自述继续：确认只使用真实确认的范围；否认撤回相应假设；不知道保留已知部分并给可选的回忆/学习路径，不逼编数据、不把教学示例变成用户事实。`;
 
+/** Post-review transport channels, not a writing plan or a semantic parser. */
+export const F6_MENTOR_HR_RESPONSE_CHANNELS = '已有正文已保存。回应这轮HR时，普通回复是发给用户的聊天，不会替换简历。'
+  + '要交修订正文，用现有write_output保存resume-new.md；要保留正文，可以直接回复，'
+  + '或只保存changes.md给用户、notes.md作内部说明。不必为结束任务重写未变的正文。';
+
 export interface F6MentorGuidance {
   version: 1;
   text: string;

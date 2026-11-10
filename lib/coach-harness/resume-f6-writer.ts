@@ -7,9 +7,9 @@ import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} 
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
 import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
-import {F6_HR_REPAIR_INSTRUCTION,type F6HrReviewSession} from './f6-hr-review';
+import {f6HrResponseInstruction,type F6HrReviewSession} from './f6-hr-review';
 import {f6CallMessages} from './f6-execution-state';
-import {F6_MENTOR_RESPONSIBILITY, type latestF6MentorTurn} from './f6-mentor-guidance';
+import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS, type latestF6MentorTurn} from './f6-mentor-guidance';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -99,9 +99,13 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   const messages = checkpoint ? structuredClone(checkpoint.messages) : initial;
   const readIds: Id[] = checkpoint ? [...checkpoint.readIds] : [];
   let reviewedBody:string|undefined;
+  let documentDeliveryUnresolved = false;
+  const mentorCoaching = Boolean(input.mentorCoaching && !input.fixture && !input.acceptedSection);
+  const hrResponseInstruction = f6HrResponseInstruction(mentorCoaching ? F6_MENTOR_HR_RESPONSE_CHANNELS : undefined);
   const rejectedBodies=new Set<string>();
   const verify=(body:string)=>{
     const issues=verifyDocument?.(body)||[];
+    documentDeliveryUnresolved = issues.length > 0;
     if(issues.length){
       if(rejectedBodies.has(body))throw Error('F6_REPAIR_NO_PROGRESS');
       rejectedBodies.add(body);
@@ -112,7 +116,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
       facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}:input;
   const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
-    Boolean(input.mentorCoaching && !input.fixture && !input.acceptedSection));
+    mentorCoaching);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
     messages, tools: F6_ORIGIN_TOOLS,
@@ -140,6 +144,20 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
+      // After HR, the channel is explicit: ordinary text is conversation;
+      // only a named resume-new.md write replaces the verified document.
+      // Do not guess message type from keywords, a name, or punctuation.
+      if (mentorCoaching && hrReview?.repairRequested && reviewedBody) {
+        const body = session.outputs.get('resume-new.md') || reviewedBody;
+        const receipt = await session.invoke('write_output', {files: [{name: 'changes.md', text: reply}]});
+        captureEvalStage('draft', 'host_capture_visible_mentor_reply', {
+          input: {text: reply, source: 'ordinary post-HR author response'},
+          output: receipt,
+        }, Date.now(), 0);
+        if (documentDeliveryUnresolved) hrReview.interrupted('document_delivery_unresolved');
+        else await hrReview.inspect(body, F6_MAX_AUTHOR_CALLS - turn - 1);
+        return deliver(body, session.outputs.get('notes.md'));
+      }
       const issues=verify(reply);
       if(issues.length){
         messages.push({role:'assistant',content:reply});
@@ -157,7 +175,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1);
         if(feedback){
           messages.push({role:'assistant',content:reply});
-          messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:F6_HR_REPAIR_INSTRUCTION})});
+          messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:hrResponseInstruction})});
           continue;
         }
       }
@@ -169,6 +187,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     if (value.type !== 'native_tool_calls' || !Array.isArray(value.tool_calls)) throw Error('F6_WRITER_PROTOCOL_INVALID');
     const calls = value.tool_calls as NativeToolCall[];
     let writtenBody=false;
+    let writtenResponse = false;
     let bodyReceiptId:string|undefined;
     messages.push({ role: 'assistant', content: String(value.content || ''), tool_calls: calls });
     for (const request of calls) {
@@ -176,11 +195,16 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       let args: Record<string, unknown> = {}, result: Record<string, unknown>;
       try {
         args = parse(request.function.arguments);
+        if (request.function.name === 'write_output' && Array.isArray(args.files)
+          && args.files.some(file => file?.name === 'resume-new.md')) documentDeliveryUnresolved = true;
         result = await session.invoke(request.function.name, args);
         if(request.function.name==='write_output'&&Array.isArray(result.saved)&&result.saved.includes('resume-new.md')){
           writtenBody=true;
+          documentDeliveryUnresolved = false;
           bodyReceiptId=request.id;
         }
+        if (request.function.name === 'write_output' && Array.isArray(result.saved)
+          && result.saved.some(name => name === 'changes.md' || name === 'notes.md')) writtenResponse = true;
         if (request.function.name === 'read_file') {
           const id = args.file as Id;
           readIds.push(id); onRead([id]);
@@ -194,7 +218,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       messages.push({ role: 'tool', tool_call_id: request.id, content: JSON.stringify(result) });
     }
     const body = session.outputs.get('resume-new.md');
-    if(body&&(!hrReview||writtenBody)){
+    const retainedResponse = mentorCoaching && hrReview?.repairRequested && writtenResponse;
+    if(body && !documentDeliveryUnresolved && (!hrReview || writtenBody || retainedResponse)){
       if(hrReview){
         reviewedBody=body;
         const feedback=await hrReview.inspect(body,F6_MAX_AUTHOR_CALLS-turn-1);
@@ -202,7 +227,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
           const receipt=[...messages].reverse().find(message=>message.role==='tool'
             &&message.tool_call_id===bodyReceiptId);
           if(!receipt)throw Error('HR_AUTHOR_RECEIPT_MISSING');
-          receipt.content=JSON.stringify({...JSON.parse(receipt.content),hrReview:feedback,instruction:F6_HR_REPAIR_INSTRUCTION});
+          receipt.content=JSON.stringify({...JSON.parse(receipt.content),hrReview:feedback,instruction:hrResponseInstruction});
           continue;
         }
       }

@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {captureEvalStage} from './eval-scope';
 import type {F6ReviewHints} from './f6-review-hints';
 import {f6ReviewReferences} from './f6-review-references';
+import {F6_HR_CALIBRATION} from './f6-hr-calibration';
 
 type Material = {resume:string; jd:string; facts:string};
 type ReviewContext = {
@@ -30,7 +31,8 @@ candidate.md 是唯一待评的新稿；resume.md 和 facts.md 仅用于核对�
 对照中被删除或压缩的内容也需要判断，不只核新写出来的句子。可以省略重复过程或弱细节，但不能无依据地删掉唯一的基本资历、硬门槛信号或让事实口径改变；需要较大取舍时区分用户已确认与仍待选择。材料的脱敏/示例标记不是判断一项基本资历无价值的招聘依据。请同样检查正文中新增的判断时点与措辞含义，不把事后发现改为事前预判。
 区分局部结果、灰度观察与全量上线，不把离线证据说成毫无价值，也不把相关指标变化当成已证明的个人因果贡献。不能由岗位对口断言100%匹配、无需培养或保证过筛选。
 提出值得面试追问的问题。无法核实时说明不确定；不要为了补齐 JD 或让稿子漂亮而虚构经历、结果或动机。缺少事实的建议写成待询问的事实缺口，不直接提供可粘进简历的经历；合理选择也不等于已验证最优解。
-用自然语言给作者和用户写点评，不要求 JSON、固定字段或条数，不重写简历。点评只是建议，不是新的候选人事实、事实认证或录用承诺。`;
+用自然语言给作者和用户写点评，不要求 JSON、固定字段或条数，不重写简历。点评只是建议，不是新的候选人事实、事实认证或录用承诺。
+${F6_HR_CALIBRATION}`;
 
 export function f6HrMessages(input:Material,body:string,reviewContext?:ReviewContext):LlmMessage[]{
   return [

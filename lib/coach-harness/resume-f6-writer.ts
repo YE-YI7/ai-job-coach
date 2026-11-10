@@ -10,6 +10,7 @@ import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
 import {f6HrResponseInstruction,type F6HrReviewSession} from './f6-hr-review';
 import {f6CallMessages} from './f6-execution-state';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS, type latestF6MentorTurn} from './f6-mentor-guidance';
+import {f6ReviewExecution} from './f6-review-execution';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -261,6 +262,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     const artifacts=session.deliverables();
     return JSON.stringify({ changes, fullDocument: body, f6Deliverables: {
       ...artifacts,
+      ...(hrReceipt ? {reviewExecution:f6ReviewExecution(hrReceipt,body)} : {}),
       ...(hrReceipt?.authorResponse?{internalReviewResponse:{
         ...hrReceipt.authorResponse,resumeRevision:artifacts.resumeRevision,
       }}:{}),

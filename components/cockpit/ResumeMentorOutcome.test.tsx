@@ -37,3 +37,16 @@ test('current author coaching is visible without opening HR or change-log disclo
     mentorGuidance: {...coached.f6Deliverables.mentorGuidance, current: false}}};
   expect(renderToStaticMarkup(<ResumeMentorOutcome result={stale}/>)).not.toContain(coaching);
 });
+
+test.each([0, 2])('unfinished author response overrides saved/accepted wording (pending=%s)', pendingCount => {
+  const incomplete = {...result, f6Deliverables: {files: {}, resumeRevision: 1, renderedRevision: -1,
+    reviewExecution: {version: 1 as const, status: 'author_response_incomplete' as const,
+      certification: false as const, finalState: 'repair_incomplete:budget', authorBodySha256: 'test'},
+    mentorGuidance: {version: 1 as const, text: '旧草稿补问', resumeRevision: 1, current: true}}};
+  const html = renderToStaticMarkup(<ResumeMentorOutcome result={incomplete} pendingCount={pendingCount}/>);
+  expect(html).toContain('返修还没完成');
+  expect(html).not.toContain('新稿已保存');expect(html).not.toContain('修改已处理');
+  expect(html).toContain('<summary>此前草稿的辅导 · 返修未完成</summary>');
+  expect(html).not.toContain('open=');
+  expect(html).not.toContain('aria-label="导师的补强建议"');
+});

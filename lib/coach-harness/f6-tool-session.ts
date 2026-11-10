@@ -17,6 +17,7 @@ export type F6Deliverables = {
   pdf?: {revision: number; receipt: Record<string, unknown>; base64: string; current: boolean};
   mentorGuidance?: import('./f6-mentor-guidance').F6MentorGuidance;
   internalReviewResponse?: {text:string; audience:'internal_review'; resumeRevision:number};
+  reviewExecution?: import('./f6-review-execution').F6ReviewExecution;
 };
 export class F6ToolSession {
   readonly outputs = new Map<string, string>();

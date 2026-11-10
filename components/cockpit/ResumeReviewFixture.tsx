@@ -38,10 +38,17 @@ const subscribe=(notify:()=>void)=>{
   return()=>{window.removeEventListener(key,notify);window.removeEventListener('storage',notify);};
 };
 const noop=async()=>{};
-export default function ResumeReviewFixture(){
+export default function ResumeReviewFixture({mentorGuidance=false}:{mentorGuidance?:boolean}){
   const [mode,setMode]=useState<ChatMode>('auto');
   const snapshot=useSyncExternalStore(subscribe,()=>localStorage.getItem(key)||initialSnapshot,()=>initialSnapshot);
   const item:Opportunity=JSON.parse(snapshot);
+  const teaching = '**这段可能体现评测判断，不只是整理记录。** 我先保留已有事实，不写成独立主导。\n\n'
+    + '可以回忆一次失败案例：你是按要求登记，还是自己判断了问题原因？想不起时先找一份当时的记录，'
+    + '用“发现什么—凭什么判断—改了哪里—怎么验证”复盘，不需要补造数字。你本人当时做的关键判断是什么？';
+  const visibleTask:ResumeAgentTask=mentorGuidance?{...task,result:{...task.result!,f6Deliverables:{
+    files:{'resume-new.md':after,'changes.md':teaching},resumeRevision:1,renderedRevision:-1,
+    mentorGuidance:{version:1,text:teaching,resumeRevision:1,current:true},
+  }}}:task;
   const save=(next:Opportunity)=>{localStorage.setItem(key,JSON.stringify(next));window.dispatchEvent(new Event(key));};
   return <main className={styles.fixture}>
     <p>虚构交互验收 · 本地演示保存，不写云端，不调用模型</p>
@@ -57,7 +64,7 @@ export default function ResumeReviewFixture(){
       <aside aria-label="虚构简历导师">
         <ResumeComposerModel.Provider value={{mode,control:<ModelPicker value={mode} onChange={setMode}
           catalog={catalogWithAvailability(['glm-5.3'])} connected/>}}>
-          <ResumeAgentConversation task={task} busy={false} pendingCount={item.resumeChanges.filter(c=>c.status==='pending').length}
+          <ResumeAgentConversation task={visibleTask} busy={false} pendingCount={item.resumeChanges.filter(c=>c.status==='pending').length}
             onMessage={noop} onContinue={noop} onSkip={noop}/>
         </ResumeComposerModel.Provider>
       </aside>

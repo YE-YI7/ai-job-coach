@@ -9,6 +9,7 @@ import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
 import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
 import {F6_HR_REPAIR_INSTRUCTION,type F6HrReviewSession} from './f6-hr-review';
 import {f6CallMessages} from './f6-execution-state';
+import {F6_MENTOR_RESPONSIBILITY, type latestF6MentorTurn} from './f6-mentor-guidance';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -26,6 +27,9 @@ type Input = {
   /** Admin-only parity experiment; does not change the ordinary product map. */
   acceptedSection?: F6ReproSection;
   fixture?: F6AuthorFixture;
+  mentorCoaching?: true;
+  previousMentorGuidance?: string;
+  latestMentorTurn?: ReturnType<typeof latestF6MentorTurn>;
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
@@ -65,10 +69,15 @@ export function f6InitialMessages(input: Input): LlmMessage[] {
     .replace('本次交付只有项目段正文，以「### 益职 AI」开头，可直接回复或通过 write_output 保存为 resume-new.md。',
       '本次交付完整的授权范围正文，可直接回复或通过 write_output 保存为 resume-new.md。');
   return [
-    { role: 'system', content: system },
+    { role: 'system', content: system + (input.mentorCoaching ? '\n\n' + F6_MENTOR_RESPONSIBILITY : '') },
     { role: 'user', content: JSON.stringify({
       task: scope, 'resume.md': input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
       answers: input.answers, editingRequest: input.request, priorDecisions: input.decisions,
+      ...(input.latestMentorTurn ? {latestMentorTurn: input.latestMentorTurn} : {}),
+      ...(input.previousMentorGuidance ? {previousMentorGuidance: {
+        text: input.previousMentorGuidance,
+        provenance: '此前AI导师提出的待确认角度与教学，不是候选人事实；结合用户最新确认/否认/跳过核实。',
+      }} : {}),
       ...(input.previousDraft ? {previousDraft:input.previousDraft,reviewFeedback:input.reviewFeedback,
         repairInstruction:'这是独立检查给原作者的诊断，不是候选人事实或正确答案。逐项对照原稿与候选核实；修正有依据的问题，不照单补写新事实。交回完整修订稿。'} : {}),
       public_hiring_case_notes: accepted.publicHiringCases,
@@ -102,7 +111,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   const resourceInput = input.acceptedSection
     ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
       facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}:input;
-  const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls,input.fixture?.spec);
+  const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
+    Boolean(input.mentorCoaching && !input.fixture && !input.acceptedSection));
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
     messages, tools: F6_ORIGIN_TOOLS,

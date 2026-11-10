@@ -14,6 +14,7 @@ export type F6ToolServices = {
 export type F6Deliverables = {
   files: Record<string, string>; resumeRevision: number; renderedRevision: number;
   pdf?: {revision: number; receipt: Record<string, unknown>; base64: string; current: boolean};
+  mentorGuidance?: import('./f6-mentor-guidance').F6MentorGuidance;
 };
 export class F6ToolSession {
   readonly outputs = new Map<string, string>();
@@ -23,10 +24,11 @@ export class F6ToolSession {
   readonly resources: Record<string, string>;
   private services: F6ToolServices;
   private publicExhausted = false;
+  private mentorGuidanceRevision?: number;
   constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string},
     private verify: (body: string) => string[], services?: F6ToolServices,
     publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>,
-    fixtureSpec?: string) {
+    fixtureSpec?: string, private mentorCoaching = false) {
     this.resources = {...origin.resources, 'resume.md': input.resume, 'jd.txt': input.jd,
       'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts),
       ...(fixtureSpec===undefined?{}:{'spec.md':fixtureSpec})};
@@ -106,6 +108,7 @@ export class F6ToolSession {
         if (file.name === 'resume-new.md' && this.outputs.get(file.name) !== text) this.revision++;
         this.outputs.set(file.name, text);
       }
+      if (this.mentorCoaching && names.has('changes.md')) this.mentorGuidanceRevision = this.revision;
       return {saved: files.map(file => file.name), resumeRevision: this.revision};
     }
     if (name === 'render_pdf') {
@@ -131,8 +134,13 @@ export class F6ToolSession {
     this.outputs.set('resume-new.md', text);
   }
   deliverables(): F6Deliverables {
+    const guidance = this.outputs.get('changes.md');
     return {files: Object.fromEntries(this.outputs), resumeRevision: this.revision,
       renderedRevision: this.renderedRevision,
+      ...(this.mentorCoaching && guidance && this.mentorGuidanceRevision !== undefined ? {
+        mentorGuidance: {version: 1 as const, text: guidance, resumeRevision: this.mentorGuidanceRevision,
+          current: this.mentorGuidanceRevision === this.revision},
+      } : {}),
       ...(this.pdf ? {pdf: {...this.pdf, current: this.pdf.revision === this.revision}} : {})};
   }
 }

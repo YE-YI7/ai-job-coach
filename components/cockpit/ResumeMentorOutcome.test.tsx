@@ -24,3 +24,16 @@ test('headings inside fenced code do not become report topics; original text is 
   expect(sections.map(s=>s.title)).toEqual(['先核实这处','面试怎么问']);
   expect(introduction+sections.map(s=>s.body).join('')).toBe(raw);
 });
+
+test('current author coaching is visible without opening HR or change-log disclosures',()=>{
+  const coaching = '这句可以体现**交付推进**。先回忆一次上线卡点，你实际协调了哪一项？';
+  const coached = {...result, f6Deliverables: {files: {'changes.md': coaching}, resumeRevision: 2, renderedRevision: -1,
+    mentorGuidance: {version: 1 as const, text: coaching, resumeRevision: 2, current: true}}};
+  const html = renderToStaticMarkup(<ResumeMentorOutcome result={coached} pendingCount={1}/>);
+  expect(html).toContain('aria-label="导师的补强建议"');
+  expect(html.indexOf(coaching)).toBeLessThan(html.indexOf('<details'));
+  expect(html).not.toContain('open=');
+  const stale = {...coached, f6Deliverables: {...coached.f6Deliverables,
+    mentorGuidance: {...coached.f6Deliverables.mentorGuidance, current: false}}};
+  expect(renderToStaticMarkup(<ResumeMentorOutcome result={stale}/>)).not.toContain(coaching);
+});

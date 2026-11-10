@@ -87,3 +87,19 @@ test('plain entry titles are placement, but measured scope on a responsibility r
  expect(decision.placements).toHaveLength(1);
  expect(decision.supplement).toMatchObject({quote:'我整理了12份访谈记录',sourceExcerpt:source,field:'scope'});
 });
+
+test('visible coaching is present in the next mentor input, distinct from user facts and internal selection notes',()=>{
+ const guidance='如果你实际协调过交付，可以挖推进能力；这不是已确认经历。你定过哪个验收条件？';
+ const task={id:'t',state:'ready' as const,question:null,answers:[],updatedAt:'now',conversation:turns,
+  result:{changes:[],resumeGenerationId:'t:3',f6Deliverables:{files:{'notes.md':'内部选材说明','changes.md':guidance},
+   resumeRevision:1,renderedRevision:-1,mentorGuidance:{version:1 as const,text:guidance,resumeRevision:1,current:true}}}};
+ const messages=resumeConversationMessages({resume:source,jd:'',changes:[]},task).messages;
+ const payload=JSON.parse(messages[1].content);
+ expect(payload.mentorGuidance.text).toBe(guidance);
+ expect(payload.mentorGuidance.provenance).toContain('不是已确认事实');
+ expect(payload.savedAnswers).toEqual([]);
+ expect(JSON.stringify(payload)).not.toContain('内部选材说明');
+ expect(messages[0].content).toContain('用户否认某个角度');
+ expect(messages[0].content).toContain('用户不知道则保留已有稿');
+ expect(messages[0].content).toContain('后来学会不等于过去做过');
+});

@@ -14,6 +14,7 @@ import {
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import { observedResumeLLM } from "@/lib/coach-harness/eval-observer";
 import {f6FailureResponse} from './f6-failure-response';
+import {currentF6MentorGuidance, latestF6MentorTurn} from './f6-mentor-guidance';
 import { finalizeQuota, reserveQuota, reserveResumeTrial, type QuotaReservation } from "@/lib/quota";
 import { resolveResumeTrialScope, inResumeTrialScope } from '@/lib/resume-experience-trial';
 import { runWithGenerationContext } from "@/lib/generation-context";
@@ -327,6 +328,9 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let output:string;
     try { output = useF6 ? await runF6ResumeWriter({
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
+      mentorCoaching: true,
+      previousMentorGuidance: currentF6MentorGuidance(agentTask?.result?.f6Deliverables),
+      latestMentorTurn: latestF6MentorTurn(agentTask?.conversation),
       answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
       decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
       scope:trialScope||reproSection?'single':'whole',format:styleContract,

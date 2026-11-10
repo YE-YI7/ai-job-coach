@@ -35,13 +35,13 @@ export default async function CockpitPreviewPage({ searchParams }: {
     empty?: string; preparation?: string; tab?: string; longResume?: string;
     narrative?: string; changes?: string; studio?: string; entry?: string; longCopy?: string; mentorUI?: string;safetyUI?:string;
     interviewUI?: string; interviewHistory?: string; resumeQuote?: string; evidenceNotices?:string; hrCommentary?:string; reviewUI?:string;
-    resumeRestartUI?:string; replay?:string;
+    resumeRestartUI?:string; replay?:string; mentorGuidance?:string;
   }>;
 }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
   if (params.resumeRestartUI === '1') return <ResumeRestartFixture replay={params.replay==='1'}/>;
-  if (params.reviewUI === '1') return <ResumeReviewFixture/>;
+  if (params.reviewUI === '1') return <ResumeReviewFixture mentorGuidance={params.mentorGuidance==='1'}/>;
   if (params.resumeQuote === '1') return <ResumeReferenceFixture />;
   if (params.interviewUI === '1') return <InterviewUiFixture initialHistory={params.interviewHistory === '1'} />;
   if(params.safetyUI==='1')return <ExperienceSafetyFixture/>;

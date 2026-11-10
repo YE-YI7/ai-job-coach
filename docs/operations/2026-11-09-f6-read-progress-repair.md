@@ -45,4 +45,10 @@
 
 ## 发布
 
-待候选 production 构建核验后，按既有流程 promote 同一构建；本节随后补实际部署 ID、正式域名核验及回滚地址。未完成前不称已上线。
+代码 `a5e297d5d79817bb3bfd691a6dfea0b3c21b63fb` 已推送任务分支。先以 `--prod --skip-domain` 构建、核验，再 promote **同一构建** `dpl_BB3FsRxYaMwP4HNrRbRhWBDNDjvw`，未混入其他包。
+
+- 候选固定地址：`https://ai-job-coach-j95em38mg-velmavalienteqejimu22-jpgs-projects.vercel.app`，2026-11-10 01:09 UTC 核验 READY、正确项目/提交及 v6；本地日期 11-09。
+- 正式回读：**2026-11-10 01:10:14 UTC**，`yizhioffer.com` 与 `www.yizhioffer.com` 都指向上述部署；健康数据库 ok、原 system/五工具 hash、12 作者/4 公网/1 HR、模型选择保留，新执行状态已生效。
+- 首页/登录 200，匿名 cockpit / Eval 后台 307，匿名改稿 POST 401；发布检查 0 模型调用/0 数据写入，不当作新生成验收。
+- 私有 `read-progress-candidate-verified.json`、`read-progress-live-verified.json` 保留核验原回执。
+- 可回滚前版 `dpl_BZKFYrFowVQ7iLeKfXdaYR5yyjzT`：`https://ai-job-coach-1ojd3w0ik-velmavalienteqejimu22-jpgs-projects.vercel.app`。回滚会恢复重复读状态缺失，未执行回滚。

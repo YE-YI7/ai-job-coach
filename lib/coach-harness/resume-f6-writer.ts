@@ -173,7 +173,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         output:{characters:reply.length,bytePreserved:true}},Date.now(),0);
       if(hrReview){
         reviewedBody=reply;
-        const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1);
+        const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
           messages.push({role:'assistant',content:reply});
           messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:hrResponseInstruction,
@@ -224,7 +224,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     if(body && !documentDeliveryUnresolved && (!hrReview || writtenBody || retainedResponse)){
       if(hrReview){
         reviewedBody=body;
-        const feedback=await hrReview.inspect(body,F6_MAX_AUTHOR_CALLS-turn-1);
+        const feedback=await hrReview.inspect(body,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
           const receipt=[...messages].reverse().find(message=>message.role==='tool'
             &&message.tool_call_id===bodyReceiptId);

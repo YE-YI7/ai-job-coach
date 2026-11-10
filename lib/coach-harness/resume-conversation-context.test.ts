@@ -75,3 +75,14 @@ test('complete long drafts replace duplicate diff text instead of multiplying th
   expect(JSON.stringify(payload).split(after).length-1).toBe(1);
   expect(JSON.stringify(payload).split(before).length-1).toBe(1);
 });
+
+test('ordinary user continuation receives actual pending and incomplete-review state, not a false quality certificate',()=>{
+  const summary='独立 HR 点评（供核对，不是审核通过）\n原作者回应尚未完成，已保留已有稿件。';
+  const source={resume:original,jd:'',changes};
+  const messages=resumeConversationMessages(source,{...task,result:{...task.result!,summary}}).messages;
+  const payload=JSON.parse(messages[1].content);
+  expect(payload.currentDeliveryState).toMatchObject({pendingChanges:1,matchesLastGenerated:true,lastGenerationSummary:summary});
+  expect(payload.currentDeliveryState.provenance).toContain('不是候选人事实或质量认证');
+  expect(messages[0].content).toContain('不要把“用户想不起”');
+  expect(messages[0].content).toContain('不因此新增一轮审核');
+});

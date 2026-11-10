@@ -4,7 +4,7 @@ import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-men
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v13-explicit-mentor-artifact' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v14-coaching-evidence-review' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -30,6 +30,7 @@ export function f6RuntimeIdentity() {
     blockingJudge: false,
     hrCommentary: 'plain_text_one_author_response',
     hrEvidence: 'same_candidate_version_nonblocking_hints_to_hr_and_author',
+    hrCoachingEvidence: 'same_revision_explicit_mentor_artifact_not_candidate_fact',
     hrReviewPolicySha256: createHash('sha256').update(F6_HR_PROMPT).digest('hex'),
     maxHrCalls: 1,
     modelSelection: 'preserve-user-selection',

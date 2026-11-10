@@ -10,6 +10,8 @@ export const F6_MENTOR_RESPONSIBILITY = `【面向用户的导师职责】
 
 /** Post-review transport channels, not a writing plan or a semantic parser. */
 export const F6_MENTOR_HR_RESPONSE_CHANNELS = '已有正文已保存。这轮普通回复仅保存为内部HR回应，不会替换正文或已给用户的问题。'
+  + 'HR采纳/反驳、规格自检和“这稿可用”的结论只放notes.md或普通内部回复，不写进changes.md。'
+  + 'changes.md只用于直接和用户沟通尚待核实的具体能力或事实，不是向用户答辩HR；没有新的辅导内容就不覆盖它。'
   + '给用户的辅导请显式用write_output保存changes.md；notes.md仍是内部选材说明。'
   + '正文不变时原问题仍保留，可自主决定是否更新；正文变了则旧问题可能过期，应核对而非照搬。'
   + '修订正文用write_output保存resume-new.md。不必为结束任务重写未变的正文。'

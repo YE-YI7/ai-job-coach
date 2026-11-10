@@ -176,7 +176,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1);
         if(feedback){
           messages.push({role:'assistant',content:reply});
-          messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:hrResponseInstruction})});
+          messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:hrResponseInstruction,
+            ...(hrReview.reviewContext()?{reviewContext:hrReview.reviewContext()}:{})})});
           continue;
         }
       }
@@ -228,7 +229,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
           const receipt=[...messages].reverse().find(message=>message.role==='tool'
             &&message.tool_call_id===bodyReceiptId);
           if(!receipt)throw Error('HR_AUTHOR_RECEIPT_MISSING');
-          receipt.content=JSON.stringify({...JSON.parse(receipt.content),hrReview:feedback,instruction:hrResponseInstruction});
+          receipt.content=JSON.stringify({...JSON.parse(receipt.content),hrReview:feedback,instruction:hrResponseInstruction,
+            ...(hrReview.reviewContext()?{reviewContext:hrReview.reviewContext()}:{})});
           continue;
         }
       }

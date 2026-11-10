@@ -58,6 +58,7 @@ import {resumeResultCaveatIssues} from './resume-result-caveats';
 import type {F6AcceptanceExecution} from './f6-acceptance';
 import type {F6Deliverables} from './f6-tool-session';
 import {F6HrReviewSession,f6HrSummary,type F6HrReceipt} from './f6-hr-review';
+import {f6ReviewHints} from './f6-review-hints';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -378,7 +379,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     },()=>callLLM(messages,{
       provider:'deepseek',model:'deepseek-v4-pro',temperature:0,maxTokens:3500,
       reasoningBudgetTokens:4096,timeoutMs:55_000,maxRetries:0,
-    }))) : undefined) : await runWithGenerationContext({
+    })),candidate=>f6ReviewHints(editSource,candidate,
+      [{id:'authorized-resume',text:resumeText},...citationSources])) : undefined) : await runWithGenerationContext({
       userId: modelUserId,
       operation: "resume_draft",
       requestId:attempt?`${requestId}:repair`:requestId,

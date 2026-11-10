@@ -1,9 +1,17 @@
 import type {LlmMessage} from '@/lib/llm-tools';
 import {createHash} from 'node:crypto';
 import {captureEvalStage} from './eval-scope';
+import type {F6ReviewHints} from './f6-review-hints';
 
 type Material = {resume:string; jd:string; facts:string};
-type HrRecord = {body:string; status:'completed'|'failed'; commentary?:string; error?:string};
+type ReviewContext = {
+  candidateSha256: string;
+  sourceSha256: string;
+  hints?: F6ReviewHints;
+  hintsUnavailable?: true;
+};
+type HrRecord = {body:string; status:'completed'|'failed'; commentary?:string; error?:string;
+  reviewContext?: ReviewContext};
 export type F6HrCall = (messages:LlmMessage[])=>Promise<string>;
 export type F6HrReceipt = ReturnType<F6HrReviewSession['receipt']>;
 
@@ -13,16 +21,19 @@ candidate.md 是唯一待评的新稿；resume.md 和 facts.md 仅用于核对�
 先模拟快速扫读，再对照 JD，重点评估能否看懂候选人的具体贡献及约面理由；不重复抄写 JD、经历或铺满每一层检查。没有 JD 就明确不判断岗位匹配。扫读不是计时的人类实验。
 优先指出影响约面的少量问题，引用新稿里的话，解释为什么重要；需要核源时对照原稿或补充中的出处。不要把原稿已改掉的错字当作新稿错误。
 核对判断、动机、因果、数字、责任和完成状态。允许有依据的概括或可复算派生值；不要把词面不相同当作编造，也不要凭相同词就认定有据。缺少岗位要求不等于事实错误。
+核源时比较完整主张，而非只看数字是否出现：数字的单位、增减方向、阈值与实测、离线与线上须与出处一致；责任要区分参与协作、协调交付与带人管理。证据只支持其中一种时，不能把更强的一种当作亮点。原材料未解释的原因仍是未知，不替候选人开脱，也不替他补动机。
+若提供mechanical_review_hints，它们只是原程序的待确认提示与原文/新稿对照，不是判错结论；中文数字和阿拉伯数字等格式差异可有依据地排除。提示为空也不代表没有事实问题。核对之后再给建议，不把未核实的主张当作亮点复述。
 区分局部结果、灰度观察与全量上线，不把离线证据说成毫无价值，也不把相关指标变化当成已证明的个人因果贡献。不能由岗位对口断言100%匹配、无需培养或保证过筛选。
-提出值得面试追问的问题。无法核实时说明不确定；不要为了补齐 JD 或让稿子漂亮而虚构经历、结果或动机。
+提出值得面试追问的问题。无法核实时说明不确定；不要为了补齐 JD 或让稿子漂亮而虚构经历、结果或动机。缺少事实的建议写成待询问的事实缺口，不直接提供可粘进简历的经历；合理选择也不等于已验证最优解。
 用自然语言给作者和用户写点评，不要求 JSON、固定字段或条数，不重写简历。点评只是建议，不是新的候选人事实、事实认证或录用承诺。`;
 
-export function f6HrMessages(input:Material,body:string):LlmMessage[]{
+export function f6HrMessages(input:Material,body:string,reviewContext?:ReviewContext):LlmMessage[]{
   return [
     {role:'system',content:F6_HR_PROMPT},
     {role:'user',content:JSON.stringify({
       purpose:'source_reference_only',
       sources:{'resume.md':input.resume,'facts.md':input.facts,'jd.txt':input.jd},
+      ...(reviewContext ? {mechanical_review_hints: reviewContext} : {}),
     })},
     {role:'user',content:JSON.stringify({
       purpose:'only_review_target',document:'candidate.md',
@@ -37,18 +48,29 @@ export class F6HrReviewSession {
   repairRequested=false;
   finalState='not_reviewed';
   private authorResponse?: {text:string; audience:'internal_review'};
-  constructor(private input:Material,private call:F6HrCall){}
+  constructor(private input:Material,private call:F6HrCall,
+    private hintsFor?: (body:string)=>F6ReviewHints){}
+  /** Same versioned evidence goes to HR and its original author. It is not
+   * parsed HR output, a rejection gate, or a second review call. */
+  reviewContext() { return this.records[0]?.reviewContext; }
   async inspect(body:string,remainingAuthorCalls:number):Promise<string|null>{
     if(this.records.length){
       this.finalState=body===this.records[0].body
         ?'author_retained_not_rechecked':'author_revised_not_rechecked';
       return null;
     }
-    const messages=f6HrMessages(this.input,body),started=Date.now();
+    let reviewContext:ReviewContext|undefined;
+    if(this.hintsFor){
+      reviewContext={candidateSha256:createHash('sha256').update(body).digest('hex'),
+        sourceSha256:createHash('sha256').update(this.input.resume).digest('hex')};
+      try { reviewContext.hints=this.hintsFor(body); }
+      catch { reviewContext.hintsUnavailable=true; }
+    }
+    const messages=f6HrMessages(this.input,body,reviewContext),started=Date.now();
     try{
       const commentary=await this.call(messages);
       if(!commentary?.trim())throw Error('HR_EMPTY_RESPONSE');
-      this.records.push({body,status:'completed',commentary});
+      this.records.push({body,status:'completed',commentary,...(reviewContext?{reviewContext}:{})});
       captureEvalStage('review','f6_hr_advisory',{
         input:{messages},output:{commentary,blocking:false},
       },started,Date.now()-started);
@@ -60,7 +82,7 @@ export class F6HrReviewSession {
       return null;
     }catch(error){
       const message=error instanceof Error?error.message:String(error);
-      this.records.push({body,status:'failed',error:message});
+      this.records.push({body,status:'failed',error:message,...(reviewContext?{reviewContext}:{})});
       this.finalState='hr_failed_body_preserved';
       captureEvalStage('review','f6_hr_advisory_failed',{
         input:{messages},output:{error:message,bodyPreserved:true},
@@ -86,7 +108,8 @@ export const F6_HR_REPAIR_INSTRUCTION = F6_HR_SOURCE_RESPONSE
  * must not simultaneously demand a full rewrite and permit retaining it. */
 export function f6HrResponseInstruction(mentorChannels?: string) {
   return mentorChannels ? F6_HR_SOURCE_RESPONSE
-    + '仍由你选工具和取舍；若点评不适用可保留原稿并说明理由。'
+    + '仍由你选工具和取舍；也要对照随点评返回的原程序提示和原文核实正文，不能只反驳HR就认定正文正确。'
+    + '点评不适用可保留正文；采纳或不采纳的理由只放notes.md或普通内部回复，不是给用户的辅导。'
     + '先分清HR引文来自新稿还是原稿；不把“可省略负面表述”当成证据缺口消失。'
     + '不补造事实不等于停止辅导，仍可基于实际缺口给用户回忆或验证路径；无需强行提问。'
     + mentorChannels + F6_HR_ONE_RESPONSE : F6_HR_REPAIR_INSTRUCTION;

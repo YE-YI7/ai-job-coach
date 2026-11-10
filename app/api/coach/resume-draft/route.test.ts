@@ -141,6 +141,45 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
   });
 
+  test('production wiring sends exact nonblocking evidence to HR and original author before final delivery', async () => {
+    const before = '李青\n有一名算法和两名后端一起做，离线验收允许下降不超过1个百分点。';
+    const after = '李青\n带1名算法、2名后端交付，离线验收允许下降≤1%。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id: 'opp-1', answers: []});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume: before, jd: '', revision: 'r', changes: []});
+    (getContextBundleForUser as jest.Mock).mockResolvedValue({allowedClaimIds: ['claim-1'], unverifiedClaimIds: [],
+      selection: {included: [], excluded: []}, budget: {maxInputTokens: 12000}, usage: {truncated: false},
+      claims: [{id: 'claim-1', displayText: before}], artifacts: [], knowledge: [], attachments: []});
+    (applyResumeChanges as jest.Mock).mockReturnValue({text: after, findings: []});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok: true, coverage: 1, findings: []});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id: 'artifact', version: 1});
+    (recordArtifactReview as jest.Mock).mockImplementation(async data => ({
+      reviewer_type: data.reviewerType, status: data.status, summary: data.summary,
+    }));
+    (finishResumeTask as jest.Mock).mockResolvedValue({state: 'ready'});
+    (callLLM as jest.Mock).mockResolvedValueOnce(after)
+      .mockResolvedValueOnce('核对责任和单位；不要为补齐岗位而编SQL经历。')
+      .mockResolvedValueOnce('暂保留待确认稿，不把点评当作事实。');
+
+    const response = await productionPOST(oneShotInput({resumeText: before}));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(callLLM).toHaveBeenCalledTimes(3);
+    const reviewMessages = (callLLM as jest.Mock).mock.calls[1][0];
+    const evidence = JSON.parse(reviewMessages[1].content).mechanical_review_hints;
+    const authorEvidence = JSON.parse((callLLM as jest.Mock).mock.calls[2][0].at(-1).content).reviewContext;
+    expect(evidence).toEqual(authorEvidence);
+    expect(evidence.hints.passages).toEqual(expect.arrayContaining([
+      expect.objectContaining({before: expect.stringContaining('一起做'), after: expect.stringContaining('带1名'),
+        notices: expect.arrayContaining([expect.objectContaining({quote: '1%'})])}),
+    ]));
+    expect(JSON.parse(reviewMessages.at(-1).content)).toMatchObject({text: after, sha256: evidence.candidateSha256});
+    expect(body.hrReview.records[0].reviewContext).toEqual(evidence);
+    expect(body.reviewer.passed).toBe(false);
+    expect(body.applicationQuality.status).toBe('draft');
+    expect(body.changes.some((change: {evidenceNotices?: Array<{quote: string}>}) =>
+      change.evidenceNotices?.some(notice => notice.quote === '1%'))).toBe(true);
+  });
+
   test('production route withdraws exhausted research tools, then delivers author and raw HR response without extra calls', async () => {
     const before = '整理评测记录，整理后交给同事每周核对。';
     const after = '整理评测记录，交给同事每周核对。';

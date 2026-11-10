@@ -24,6 +24,8 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     automaticJudge:true,
     blockingJudge:false,
     hrCommentary:'plain_text_one_author_response',
+    hrEvidence:'same_candidate_version_nonblocking_hints_to_hr_and_author',
+    hrReviewPolicySha256:expect.stringMatching(/^[a-f0-9]{64}$/),
     maxHrCalls:1,
     modelSelection:'preserve-user-selection',
   });

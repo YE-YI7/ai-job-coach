@@ -170,9 +170,14 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     const authorEvidence = JSON.parse((callLLM as jest.Mock).mock.calls[2][0].at(-1).content).reviewContext;
     expect(evidence).toEqual(authorEvidence);
     expect(evidence.hints.passages).toEqual(expect.arrayContaining([
-      expect.objectContaining({before: expect.stringContaining('一起做'), after: expect.stringContaining('带1名'),
+      expect.objectContaining({source: expect.objectContaining({document:'resume.md'}),
+        candidate: expect.objectContaining({document:'candidate.md'}),
         notices: expect.arrayContaining([expect.objectContaining({quote: '1%'})])}),
     ]));
+    const pair = evidence.hints.passages.find((part: {notices: Array<{quote: string}>}) =>
+      part.notices.some(notice => notice.quote === '1%'));
+    expect(before.slice(pair.source.start,pair.source.end)).toContain('一起做');
+    expect(after.slice(pair.candidate.start,pair.candidate.end)).toContain('带1名');
     expect(reviewMessages.at(-1).content.endsWith(after)).toBe(true);
     expect(reviewMessages.at(-1).content).toContain('SHA256: ' + evidence.candidateSha256);
     expect(body.hrReview.records[0].reviewContext).toEqual(evidence);

@@ -113,8 +113,9 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(body.hrReview.records[0].commentary).toBe(hr);
     expect(body.workflow).toMatchObject({hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1});
     const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
-    expect(hrMessages).toHaveLength(2);
-    expect(JSON.parse(hrMessages[1].content)['candidate.md']).toBe(after);
+    expect(hrMessages).toHaveLength(3);
+    expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'source_reference_only'});
+    expect(JSON.parse(hrMessages[2].content)).toMatchObject({purpose:'only_review_target',text:after});
     expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
     expect(hrSettings.nativeTools).toBeUndefined();
     expect(hrSettings.responseFormat).toBeUndefined();
@@ -326,7 +327,11 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(prompt).toContain("S007");
     expect(prompt).not.toContain("弱稿");
     const trace = await (startResumeTrace as jest.Mock).mock.results[0].value;
-    expect(trace.data.retrieval.includedMethodIds).toEqual(RESUME_METHOD_IDS);
+    expect(trace.data.retrieval.includedMethodIds).toEqual([]);
+    expect(trace.data.retrieval.includedIds).toEqual([]);
+    expect(trace.data.retrieval.preparedIds).toEqual(expect.arrayContaining(RESUME_METHOD_IDS));
+    expect(trace.step).toHaveBeenCalledWith('retrieval','reviewed_methods_prepared_not_sent',0,
+      expect.objectContaining({output:expect.objectContaining({delivered:false})}));
     expect(trace.data.retrieval.matches).toEqual([]);
   });
 

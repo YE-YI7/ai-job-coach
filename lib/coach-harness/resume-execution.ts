@@ -49,6 +49,7 @@ import { RESUME_EXECUTION_LIMIT_MS, resumeCallTimeout, resumeOutputCanBeRepaired
 import {carryResumeProposals,isResumeEditingDirection,readResumeRequestCoverage,resumeDeliverySummary,
   RESUME_REQUEST_REVIEW_PROMPT,type ResumeRequestCoverage} from './resume-edit-request';
 import {F6_RESUME_WRITER, F6_MAX_AUTHOR_CALLS, f6MetricDirectionIssues, runF6ResumeWriter} from './resume-f6-writer';
+import {resumeKnowledgeDelivery} from './resume-knowledge-delivery';
 import {deferredF6DocumentReview,F6_DEFERRED_REVIEW_SUMMARY,F6_NATIVE_WORKFLOW} from './resume-f6-review-policy';
 import {f6DocumentPreflight, f6DocumentSafetyIssues} from './resume-f6-preflight';
 import {annotateF6Changes, f6DeliveryChanges} from './resume-f6-delivery';
@@ -210,10 +211,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const includedKnowledge = context.knowledge || [];
     const includedIds = new Set(includedKnowledge.map(item => item.id));
     const knowledgePrompt = renderResumeKnowledge(includedKnowledge);
+    const knowledgeDelivery=resumeKnowledgeDelivery(useF6,includedKnowledge,methods.map(item=>item.id));
     trace.data.retrieval = { status: examples.length ? "matched" : "no_close_example", candidates: examples.length,
-      includedIds: includedKnowledge.map(item => item.id),
+      includedIds:knowledgeDelivery.includedIds,preparedIds:knowledgeDelivery.preparedIds,
       methodCandidateIds: methods.map(item => item.id),
-      includedMethodIds: methods.filter(item => includedIds.has(item.id)).map(item => item.id),
+      includedMethodIds:knowledgeDelivery.includedMethodIds,
       excludedByBudgetIds: references.knowledge.filter(item => !includedIds.has(item.id)).map(item => item.id),
       matches: examples.map(item => ({ id: item.document.id, similarity: item.score, dimensions: item.matchedDimensions, signals: item.matchedSignals, stageMatched: item.stageMatched })),
       documentTitles: [...new Map<string, string>([
@@ -221,7 +223,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         ...examples.map(item => [item.document.id, item.document.title] as const),
       ])].flatMap(([id, title]) => id && title ? [{ id, title }] : []) };
     trace.step("retrieval", examples.length ? "background_examples_selected" : "no_close_example", examples.length);
-    trace.step("retrieval", "reviewed_methods_in_context", trace.data.retrieval.includedMethodIds?.length || 0, { input: { resumeText, jobDescription, candidateMethodIds: methods.map(item=>item.id) }, output: { retrieval: trace.data.retrieval, knowledgePrompt }, knowledge: includedKnowledge.map(item=>({id:item.id,title:item.title,included:true,kind:'knowledge'})) });
+    trace.step('retrieval',knowledgeDelivery.stageCode,knowledgeDelivery.includedMethodIds.length,{
+      input:{resumeText,jobDescription,candidateMethodIds:methods.map(item=>item.id)},
+      output:{retrieval:trace.data.retrieval,knowledgePrompt,delivered:knowledgeDelivery.delivered},
+      knowledge:includedKnowledge.map(item=>({id:item.id,title:item.title,
+        included:knowledgeDelivery.delivered,kind:'knowledge'})),
+    });
 
     // PRD §5.1 fail-loud：关键原句装不下就拒绝生成，不能截断后继续作结论。
     assertContextFits(context);

@@ -101,6 +101,19 @@ test("saved runs show catalog titles on the retrieval stage", () => {
   ]);
   expect(result.spans[0].knowledge).toHaveLength(2);
 });
+test('prepared but unsent F6 knowledge is never presented as included', () => {
+  const result=presentEvalRun({spans:[{
+    id:'prepared',kind:'stage',name:'知识检索',knowledge:[],
+    output:{retrieval:{preparedIds:['method','domain'],includedIds:[],
+      methodCandidateIds:['method'],documentTitles:[{id:'method',title:'事实方法'}]}},
+  }]});
+  expect(result.knowledge).toHaveLength(2);
+  expect(result.knowledge.every(item=>!item.included)).toBe(true);
+  expect(result.knowledge.map(item=>item.reason)).toEqual([
+    '已准备，未发送给当前作者','已准备，未发送给当前作者',
+  ]);
+  expect(result.spans[0].knowledge).toEqual(result.knowledge);
+});
 test("partial retrieval summaries preserve captured knowledge and stage-specific evidence", () => {
   const stageKnowledge = [{ id: "actual", title: "当次标题", included: true, kind: "method", excerpt: "当次片段" }];
   const original = {

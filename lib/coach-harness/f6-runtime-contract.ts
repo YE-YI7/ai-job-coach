@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import origin from './f6-origin.json';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-mentor-guidance';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v8-mentor-response-delivery' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v9-review-and-guidance-channels' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -15,10 +15,10 @@ export function f6RuntimeIdentity() {
     maxAuthorCalls: origin.maxAuthorCalls,
     maxPublicRequests: origin.maxPublicRequests,
     publicBudgetContinuation: 'exhausted_tools_unavailable_keep_evidence',
-    authorExecutionState: 'remaining_calls_and_exact_read_references',
+    authorExecutionState: 'remaining_calls_read_references_and_delivery_state',
     mentorGuidance: 'optional_same_author_changes_md',
     mentorGuidancePolicySha256: createHash('sha256').update(F6_MENTOR_RESPONSIBILITY).digest('hex'),
-    mentorResponseDelivery: 'typed_document_or_retained_body_with_reply',
+    mentorResponseDelivery: 'explicit_user_guidance_separate_internal_hr_response',
     mentorResponseChannelsSha256: createHash('sha256').update(F6_MENTOR_HR_RESPONSE_CHANNELS).digest('hex'),
     automaticJudge: true,
     blockingJudge: false,

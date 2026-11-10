@@ -100,6 +100,7 @@ export function captureEvalStage(
 }
 type RetrievalRecord = {
   includedIds?: unknown;
+  preparedIds?: unknown;
   methodCandidateIds?: unknown;
   excludedByBudgetIds?: unknown;
   matches?: unknown;
@@ -118,6 +119,7 @@ export function knowledgeFromRetrieval(
   if (!retrieval || typeof retrieval !== "object") return [];
   const record = retrieval as RetrievalRecord;
   const included = new Set(stringList(record.includedIds));
+  const prepared = new Set(stringList(record.preparedIds));
   const methods = new Set(stringList(record.methodCandidateIds));
   const excluded = new Set(stringList(record.excludedByBudgetIds));
   const matches = Array.isArray(record.matches) ? record.matches : [];
@@ -133,6 +135,7 @@ export function knowledgeFromRetrieval(
   const ids = [
     ...new Set([
       ...included,
+      ...prepared,
       ...methods,
       ...excluded,
       ...matches.flatMap((match) => {
@@ -156,7 +159,9 @@ export function knowledgeFromRetrieval(
         ? "因上下文预算未纳入"
         : isIncluded
           ? "实际纳入上下文"
-          : "候选，未纳入",
+          : prepared.has(id)
+            ? "已准备，未发送给当前作者"
+            : "候选，未纳入",
     };
   });
 }

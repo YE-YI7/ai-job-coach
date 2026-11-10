@@ -13,6 +13,7 @@ test('all F6 files and rendered PDF receipt survive task RPC and authenticated r
   (getDbClient as jest.Mock).mockResolvedValue(Object.assign(db,{rpc}));
   const f6Deliverables={files:{'portrait.md':'岗位画像','battle.md':'问题排序','resume-new.md':'真实新稿',
     'changes.md':'修改说明','notes.md':'选材回执'},resumeRevision:1,renderedRevision:1,
+    internalReviewResponse:{text:'已核实HR引用来自原稿。',audience:'internal_review' as const,resumeRevision:1},
     pdf:{revision:1,receipt:{pages:1,actualPageSize:'A4'},base64:'actual-pdf-bytes-fixture',current:true}};
   const result=await finishResumeTask('owner','new-task','lease',source,{ok:true,prepared:true,changes:[],f6Deliverables});
   expect(rpc).toHaveBeenCalledWith('finish_coach_resume_task',expect.objectContaining({p_result:expect.objectContaining({f6Deliverables})}));

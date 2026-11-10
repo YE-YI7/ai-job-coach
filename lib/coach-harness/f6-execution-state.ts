@@ -1,9 +1,11 @@
 import {createHash} from 'node:crypto';
 import type {LlmMessage} from '@/lib/llm-tools';
+import type {F6ToolSession} from './f6-tool-session';
 
 /** Transport state, not a writing plan. Originals stay in the transcript once;
  * repeated immutable reads point to that exact tool result, never a summary. */
-export function f6CallMessages(history: LlmMessage[], completed: number, limit: number) {
+export function f6CallMessages(history: LlmMessage[], completed: number, limit: number,
+  deliverables?:ReturnType<F6ToolSession['deliveryState']>) {
   const messages = structuredClone(history);
   // Preserve the accepted first request byte for byte. State starts when an
   // actual author turn has completed, not as a replacement writing prompt.
@@ -34,6 +36,7 @@ export function f6CallMessages(history: LlmMessage[], completed: number, limit: 
     source: 'host_execution_state',
     authorCalls: {limit, completed, remainingIncludingThisCall: Math.max(0, limit - completed)},
     readFiles: [...reads.values()], duplicateReads,
+    ...(deliverables?{deliverables}:{}),
     note: '这是执行状态，不是简历事实或固定步骤。调用额度不会因换工具或重读而恢复。'
       + '已读原文仍在本对话的对应回执里；自行判断材料是否足够，以及继续取证、交稿或提出关键问题。',
   };

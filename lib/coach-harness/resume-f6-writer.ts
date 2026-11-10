@@ -134,7 +134,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   for (let turn = checkpoint?.completedAuthorCalls || 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
     let reply:string;
     try{
-      reply=await call(f6CallMessages(messages,turn,F6_MAX_AUTHOR_CALLS),
+      reply=await call(f6CallMessages(messages,turn,F6_MAX_AUTHOR_CALLS,session.deliveryState()),
         turn?'write':'read_or_write',[...new Set(readIds)],session.availableTools());
     }catch(error){
       if(!hrReview||!reviewedBody)throw error;
@@ -144,15 +144,16 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
-      // After HR, the channel is explicit: ordinary text is conversation;
-      // only a named resume-new.md write replaces the verified document.
-      // Do not guess message type from keywords, a name, or punctuation.
+      // HR consideration is internal. Only an explicit changes.md write
+      // updates user-facing guidance; ordinary commentary must not erase an
+      // existing question or be guessed from its words/punctuation.
       if (mentorCoaching && hrReview?.repairRequested && reviewedBody) {
         const body = session.outputs.get('resume-new.md') || reviewedBody;
-        const receipt = await session.invoke('write_output', {files: [{name: 'changes.md', text: reply}]});
-        captureEvalStage('draft', 'host_capture_visible_mentor_reply', {
+        hrReview.captureAuthorResponse(reply);
+        captureEvalStage('draft', 'host_capture_internal_hr_response', {
           input: {text: reply, source: 'ordinary post-HR author response'},
-          output: receipt,
+          output: {stored:'hrReview.authorResponse',audience:'internal_review',
+            deliverables:session.deliveryState()},
         }, Date.now(), 0);
         if (documentDeliveryUnresolved) hrReview.interrupted('document_delivery_unresolved');
         else await hrReview.inspect(body, F6_MAX_AUTHOR_CALLS - turn - 1);
@@ -254,8 +255,15 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         : input.acceptedSection ? f6ReproChangeSourceIds(change.before,input.acceptedSection,input.facts)
         : input.facts.filter(fact => change.before.includes(fact.text) || fact.text.includes(change.before)).map(fact => fact.id),
     }));
-    return JSON.stringify({ changes, fullDocument: body, f6Deliverables: session.deliverables(),
-      ...(hrReview?{hrReview:hrReview.receipt()}:{}),
+    const hrReceipt=hrReview?.receipt();
+    const artifacts=session.deliverables();
+    return JSON.stringify({ changes, fullDocument: body, f6Deliverables: {
+      ...artifacts,
+      ...(hrReceipt?.authorResponse?{internalReviewResponse:{
+        ...hrReceipt.authorResponse,resumeRevision:artifacts.resumeRevision,
+      }}:{}),
+    },
+      ...(hrReceipt?{hrReview:hrReceipt}:{}),
       ...(receipt ? { selectionReceipt: receipt } : {}),
       ...(!changes.length ? { status: 'unchanged' } : {}) });
   }

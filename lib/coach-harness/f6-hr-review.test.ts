@@ -12,12 +12,18 @@ const tool=(name:string,args:unknown)=>JSON.stringify({type:'native_tool_calls',
 const write=(text:string)=>tool('write_output',{files:[{name:'resume-new.md',text}]});
 const commentary='「主导评测」与原材料「参与评测」责任不符，请核实。\n问题一？\n问题二？\n问题三？';
 
-test('HR gets only four labeled documents, never author conversation or tools',()=>{
+test('HR receives source-only references separately, with the current candidate last',()=>{
   const messages=f6HrMessages(material,first);
-  expect(messages.map(m=>m.role)).toEqual(['system','user']);
+  expect(messages.map(m=>m.role)).toEqual(['system','user','user']);
   expect(JSON.parse(messages[1].content)).toEqual({
-    'candidate.md':first,'resume.md':material.resume,'facts.md':material.facts,'jd.txt':material.jd,
+    purpose:'source_reference_only',
+    sources: {'resume.md':material.resume,'facts.md':material.facts,'jd.txt':material.jd},
   });
+  expect(JSON.parse(messages[2].content)).toMatchObject({purpose:'only_review_target',
+    document:'candidate.md',text:first,sha256:expect.stringMatching(/^[a-f0-9]{64}$/)});
+  expect(messages[0].content).toContain('原稿');
+  expect(messages[0].content).toContain('不能说成新稿引文');
+  expect(messages[0].content).toContain('不重复抄写');
 });
 test.each([commentary,'建议保留；无需修改。','{"interviewQuestions":["一","二","三"]}'])
 ('any nonempty HR commentary goes verbatim to same author; no shape or question-count rejection',async raw=>{

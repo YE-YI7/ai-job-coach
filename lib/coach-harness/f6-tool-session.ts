@@ -15,6 +15,7 @@ export type F6Deliverables = {
   files: Record<string, string>; resumeRevision: number; renderedRevision: number;
   pdf?: {revision: number; receipt: Record<string, unknown>; base64: string; current: boolean};
   mentorGuidance?: import('./f6-mentor-guidance').F6MentorGuidance;
+  internalReviewResponse?: {text:string; audience:'internal_review'; resumeRevision:number};
 };
 export class F6ToolSession {
   readonly outputs = new Map<string, string>();
@@ -132,6 +133,21 @@ export class F6ToolSession {
   captureVisibleBody(text: string) {
     if (this.outputs.get('resume-new.md') !== text) this.revision++;
     this.outputs.set('resume-new.md', text);
+  }
+  /** Execution facts, never an instruction to follow a required tool order. */
+  deliveryState() {
+    return {
+      resume:{saved:this.outputs.has('resume-new.md'),revision:this.revision},
+      pdf:{
+        status:!this.pdf?'not_rendered':this.pdf.revision===this.revision?'current':'stale',
+        revision:this.renderedRevision,
+        ...(this.pdf?{pages:this.pdf.receipt.pages}:{}),
+      },
+      mentorMessage:{saved:this.outputs.has('changes.md'),
+        current:this.mentorGuidanceRevision===this.revision,
+        ...(this.mentorGuidanceRevision===undefined?{}:{revision:this.mentorGuidanceRevision}),
+      },
+    };
   }
   deliverables(): F6Deliverables {
     const guidance = this.outputs.get('changes.md');

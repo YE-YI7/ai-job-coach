@@ -9,9 +9,11 @@ export const F6_MENTOR_RESPONSIBILITY = `【面向用户的导师职责】
 用户后续确认、纠正、否认或想不起时，结合此前建议和最新自述继续：确认只使用真实确认的范围；否认撤回相应假设；不知道保留已知部分并给可选的回忆/学习路径，不逼编数据、不把教学示例变成用户事实。`;
 
 /** Post-review transport channels, not a writing plan or a semantic parser. */
-export const F6_MENTOR_HR_RESPONSE_CHANNELS = '已有正文已保存。回应这轮HR时，普通回复是发给用户的聊天，不会替换简历。'
-  + '要交修订正文，用现有write_output保存resume-new.md；要保留正文，可以直接回复，'
-  + '或只保存changes.md给用户、notes.md作内部说明。不必为结束任务重写未变的正文。';
+export const F6_MENTOR_HR_RESPONSE_CHANNELS = '已有正文已保存。这轮普通回复仅保存为内部HR回应，不会替换正文或已给用户的问题。'
+  + '给用户的辅导请显式用write_output保存changes.md；notes.md仍是内部选材说明。'
+  + '正文不变时原问题仍保留，可自主决定是否更新；正文变了则旧问题可能过期，应核对而非照搬。'
+  + '修订正文用write_output保存resume-new.md。不必为结束任务重写未变的正文。'
+  + '执行状态里的保存、渲染是不同事实，未得到渲染回执不能声称已渲染；不能承诺招聘筛选结果。';
 
 export interface F6MentorGuidance {
   version: 1;

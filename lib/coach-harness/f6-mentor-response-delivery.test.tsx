@@ -51,8 +51,11 @@ test('a post-HR read is not mistaken for a completed response', async () => {
   expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(guidance);
 });
 
-test('ordinary post-HR conversation is delivered as a message, never validated as a résumé', async () => {
-  const author = jest.fn().mockResolvedValueOnce(draft()).mockResolvedValueOnce(guidance);
+test('ordinary HR response is internal and cannot overwrite the existing user question', async () => {
+  const internal = '我核对了原稿，保留正文，不补造线上结果。';
+  const author = jest.fn().mockResolvedValueOnce(reply(write([
+    {name: 'resume-new.md', text: body}, {name: 'changes.md', text: guidance},
+  ]))).mockResolvedValueOnce(internal);
   const verify = jest.fn((text: string) => f6DocumentSafetyIssues(source, text));
   const spans: EvalSpan[] = [];
   const result = JSON.parse(await withEvalObserver({spans, save: async () => {}}, () =>
@@ -61,12 +64,23 @@ test('ordinary post-HR conversation is delivered as a message, never validated a
   expect(verify.mock.calls.map(([text]) => text)).toEqual([body]);
   expect(result.fullDocument).toBe(body);
   expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(guidance);
-  expect(spans.some(span => span.code === 'host_capture_visible_mentor_reply')).toBe(true);
+  expect(result.hrReview.authorResponse).toMatchObject({text: internal, audience: 'internal_review'});
+  expect(result.f6Deliverables.internalReviewResponse).toMatchObject({
+    text:internal,audience:'internal_review',resumeRevision:1,
+  });
+  expect(result.f6Deliverables.files['changes.md']).toBe(guidance);
+  expect(spans.some(span => span.code === 'host_capture_internal_hr_response')).toBe(true);
   expect(spans.some(span => span.code === 'host_capture_visible_body')).toBe(false);
   const receipt = JSON.parse(author.mock.calls[1][0].at(-1).content);
-  expect(receipt.instruction).toContain('普通回复');
+  expect(receipt.instruction).toContain('内部');
+  expect(receipt.instruction).toContain('changes.md');
   expect(receipt.instruction).toContain('resume-new.md');
   expect(receipt.instruction).not.toContain('交回完整稿');
+  expect(receipt.executionState.deliverables.pdf.status).toBe('not_rendered');
+  const reread=JSON.parse(JSON.stringify(result));
+  const html=renderToStaticMarkup(<ResumeMentorOutcome result={reread} pendingCount={1}/>);
+  expect(html).toContain(guidance);
+  expect(html).not.toContain(internal);
 });
 
 test('a rejected revised document cannot be masked by saving only a mentor reply', async () => {
@@ -96,7 +110,8 @@ test('a conversation after rejected document delivery preserves the valid draft 
   expect(author).toHaveBeenCalledTimes(3);
   expect(result.fullDocument).toBe(body);
   expect(result.hrReview.finalState).toBe('repair_incomplete:document_delivery_unresolved');
-  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(guidance);
+  expect(currentF6MentorGuidance(result.f6Deliverables)).toBeUndefined();
+  expect(result.hrReview.authorResponse.text).toBe(guidance);
 });
 
 test('post-HR conversation is visible in the existing outcome component and survives a JSON roundtrip', async () => {

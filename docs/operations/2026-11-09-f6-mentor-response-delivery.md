@@ -75,3 +75,49 @@ content-quality failures; this patch does not rewrite the model's draft or
 claim they are fixed. No real cloud-save, browser-login or PDF acceptance was
 rerun. No real résumé, old interview answers, wallet, credits or supplier budget
 was touched. No production alias promotion or push in this task.
+
+## Release and fresh acceptance update
+
+The candidate-only statements above describe the earlier repair phase. The user
+then requested release and testing and authorized a **new** site-funded cap of
+CNY 0.50 / 27 upstream calls, one generation and at most one natural continuation,
+without automatic reruns or personal-wallet/credit changes.
+
+- Released source `713967d43b3a677b4518b5d01499bd6ed6558191`; deployment
+  `dpl_DqeSJ8ATXabCKwp7xqTtjSEiHJRm` was verified before promotion.
+  At 2026-11-10 06:48 UTC, apex and the expected www-to-apex canonical redirect
+  resolve to the same v8 release. Source pushed; old v6 retained for rollback.
+- Original system provenance/tools hashes and 12 author / 4 public / 1 HR caps
+  remain unchanged. Model selection and existing protections remain available.
+- Fresh paid generation used an isolated durable-budget service: **all 1989
+  tracked product files are byte-identical to the release**; only untracked QA
+  instrumentation was added. This instrumentation was never promoted to the
+  formal site. The formal fixed deployment then read the same owned QA rows and
+  was used for login, visible advice, adoption, refresh and actual PDF export.
+  This is not claimed as one canonical-domain paid HTTP end-to-end request.
+- Synthetic full resume/JD, actual Step 3.7 Flash, 5 author + 1 HR calls, no retry;
+  HTTP 137.584 seconds / Eval 124.134 seconds. Conservative no-cache upper cost
+  CNY **0.137766**, all usage settled; budget closed at six calls.
+- The ordinary post-HR reply was delivered visibly without rewriting the body
+  or invalidating guidance. Education retained. Six changes accepted through
+  keyboard Enter, refreshed, cloud source-plus-accepted-edits materialized with
+  the real product function exactly equals the new body (1186 trimmed chars).
+- Product print page exported using Chrome native Cmd+P/Save as PDF: one A4 page,
+  all 18 paragraphs once/in order, normalized full text equals the generated body,
+  no toolbar text. Poppler whole-page visual review found no clipping/overlap.
+  Print-page button did not itself open the dialog; mouse highlight confirmation
+  popover was not verified. Neither is reported as a passed path.
+- **Mentor quality failed**: final response was an audit-like long message,
+  replaced the initial concrete question, claimed rendering without a render tool
+  call, and guaranteed screening without evidence. Simulation ended with zero
+  replies before inspecting raw Trace; no teacher-style continuation was staged.
+  Delivery success is not resume/mentor quality acceptance. No further paid calls.
+
+Eval `efa7d5f9-0177-43ea-a84c-5be1bb674081`, Trace
+`5d39b9e7-c82f-4f3e-b887-d40677c7c5a7`, new synthetic opportunity
+`8ed26265-c3f6-4781-afea-3c6a2ede3754`.
+
+Private release evidence: `mentor-release-20261109-MBAyqi/`; paid acceptance:
+`mentor-release-model-20261109-hODrkd/`, both beneath the existing private audit
+root above. Contains credentials; do not publish the directory. Full decisions,
+failures and next scope are in ME `开发文档/2026-11-09-F6导师回复上线与自然用户验收.md`.

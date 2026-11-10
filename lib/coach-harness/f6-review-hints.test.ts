@@ -29,7 +29,7 @@ test('real v11 trace proves notices were absent from HR, not merely ignored afte
   // The source-only/current-candidate split is preserved; this recorded HR
   // input had no mechanical hints. Do not relabel it as a successful review.
   expect(JSON.parse(oldMessages[1].content)).not.toHaveProperty('mechanical_review_hints');
-  expect(lastPayload(oldMessages).text).toBe(fixture.originalBody);
+  expect(oldMessages.at(-1)!.content.endsWith(fixture.originalBody)).toBe(true);
   expect(fixture.hrCommentary).toContain('≤1%');
   expect(fixture.hrCommentary).toContain('最优解');
 });
@@ -79,7 +79,7 @@ test('recorded bad author and HR outputs replay unchanged, but now both receive 
   expect(hrInput.sourceSha256).toBe(hash(input.resume));
   expect(hrInput.hints.passages.some((part: {notices: Array<{quote: string}>}) =>
     part.notices.some(notice => notice.quote === '1%'))).toBe(true);
-  expect(lastPayload(review.mock.calls[0][0]).text).toBe(fixture.originalBody);
+  expect(review.mock.calls[0][0].at(-1).content.endsWith(fixture.originalBody)).toBe(true);
   expect(result.hrReview.records[0].reviewContext).toEqual(hrInput);
 
   // Feeding archived outputs is not a fresh semantic acceptance. Preserve

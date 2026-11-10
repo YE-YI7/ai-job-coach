@@ -28,9 +28,9 @@ test('same versioned coverage reaches HR target boundary and original author wit
   const session = new F6HrReviewSession({resume: source, jd: '产品经理', facts: '[]'}, call, hints);
   expect(await session.inspect(body, 1)).toContain('学历');
   const messages = call.mock.calls[0][0];
-  const target = JSON.parse(messages.at(-1).content);
-  expect(target.text).toBe(body);
-  expect(target.source_comparison_pointers.sourceOnlyStandaloneLines).toEqual(hints().sourceOnlyStandaloneLines);
+  expect(messages.at(-1).content.endsWith(body)).toBe(true);
+  const pointers = JSON.parse(messages[1].content).mechanical_review_hints.hints;
+  expect(pointers.sourceOnlyStandaloneLines).toEqual(hints().sourceOnlyStandaloneLines);
   expect(session.reviewContext()?.hints).toEqual(hints());
   expect(call).toHaveBeenCalledTimes(1);
   expect(await session.inspect(source, 0)).toBeNull();
@@ -38,9 +38,9 @@ test('same versioned coverage reaches HR target boundary and original author wit
 });
 
 test('no synthetic coverage is added when legacy caller supplies no hints', () => {
-  const target = JSON.parse(f6HrMessages({resume: source, jd: '', facts: '[]'}, body).at(-1)!.content);
-  expect(target).not.toHaveProperty('source_comparison_pointers');
-  expect(target.text).toBe(body);
+  const messages = f6HrMessages({resume: source, jd: '', facts: '[]'}, body);
+  expect(JSON.parse(messages[1].content)).not.toHaveProperty('mechanical_review_hints');
+  expect(messages.at(-1)!.content.endsWith(body)).toBe(true);
 });
 
 const replayRoot = process.env.F6_COVERAGE_REPLAY;
@@ -60,12 +60,33 @@ const replayRoot = process.env.F6_COVERAGE_REPLAY;
     .find(line => line.text.includes('信息管理本科'));
   expect(pointer?.text).toContain('江南理工大学');
   expect(draft).not.toContain('信息管理本科');
-  expect(JSON.parse(call.mock.calls[0][0].at(-1).content).text).toBe(draft);
+  expect(call.mock.calls[0][0].at(-1).content.endsWith(draft)).toBe(true);
   expect(session.receipt().records[0].commentary).toBe(recordedHr);
   writeFileSync(path.join(root, 'attempt-1-coverage-replay.json'), JSON.stringify({
     kind: 'recorded_output_wiring_replay_not_model_quality', upstreamCalls: 0, costCny: 0,
     sourceEval: task.delivery.evalRunId, sourceTrace: task.delivery.traceId,
-    sameVersionedContext: session.reviewContext(), target: JSON.parse(call.mock.calls[0][0].at(-1).content),
+    sameVersionedContext: session.reviewContext(), target: call.mock.calls[0][0].at(-1).content,
     badDraftPreserved: true, badHrPreserved: true, semanticQualityRetested: false,
+  }, null, 2));
+});
+
+(replayRoot ? test : test.skip)('actual v15 review confusion replays with raw readable target and no altered source or output', async () => {
+  const root = replayRoot!;
+  const fixture = JSON.parse(readFileSync(path.join(root, 'fixture.json'), 'utf8'));
+  const task = JSON.parse(readFileSync(path.join(root, 'attempt-2-task-initial.json'), 'utf8')).task;
+  const record = JSON.parse(readFileSync(path.join(root, 'attempt-2-coach_eval_runs-initial.json'), 'utf8'))
+    .find((row: {id: string}) => row.id === task.delivery.evalRunId).run;
+  const hr = record.spans.find((span: {kind: string; name: string}) => span.kind === 'agent' && span.name === '独立质检 Agent');
+  const oldTarget = JSON.parse(hr.input.messages.at(-1).content);
+  const messages = f6HrMessages({resume: fixture.resume, jd: fixture.jd, facts: '[]'}, oldTarget.text);
+  expect(messages.at(-1)!.content.endsWith(oldTarget.text)).toBe(true);
+  expect(messages.at(-1)!.content).toContain('从 0 到 1');
+  expect(messages.at(-1)!.content).not.toContain('\\n');
+  expect(JSON.parse(messages[1].content).sources['resume.md']).toBe(fixture.resume);
+  writeFileSync(path.join(root, 'attempt-2-readable-target-replay.json'), JSON.stringify({
+    kind: 'recorded_input_representation_replay_not_model_quality', sourceEval: task.delivery.evalRunId,
+    newModelCalls: 0, costCny: 0, candidateBytePreserved: true, originalSourcePreserved: true,
+    archivedHrStillUnchanged: hr.output, rawReadableTarget: messages.at(-1)!.content,
+    semanticQualityRetested: false,
   }, null, 2));
 });

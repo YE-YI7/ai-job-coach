@@ -115,7 +115,8 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
     expect(hrMessages).toHaveLength(3);
     expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'source_reference_only'});
-    expect(JSON.parse(hrMessages[2].content)).toMatchObject({purpose:'only_review_target',text:after});
+    expect(hrMessages[2].content).toContain('唯一待评新稿 candidate.md');
+    expect(hrMessages[2].content.endsWith(after)).toBe(true);
     expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
     expect(hrSettings.nativeTools).toBeUndefined();
     expect(hrSettings.responseFormat).toBeUndefined();
@@ -172,7 +173,8 @@ describe("resume draft source mapping and automatic-review baseline", () => {
       expect.objectContaining({before: expect.stringContaining('一起做'), after: expect.stringContaining('带1名'),
         notices: expect.arrayContaining([expect.objectContaining({quote: '1%'})])}),
     ]));
-    expect(JSON.parse(reviewMessages.at(-1).content)).toMatchObject({text: after, sha256: evidence.candidateSha256});
+    expect(reviewMessages.at(-1).content.endsWith(after)).toBe(true);
+    expect(reviewMessages.at(-1).content).toContain('SHA256: ' + evidence.candidateSha256);
     expect(body.hrReview.records[0].reviewContext).toEqual(evidence);
     expect(body.reviewer.passed).toBe(false);
     expect(body.applicationQuality.status).toBe('draft');

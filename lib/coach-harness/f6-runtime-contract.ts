@@ -4,7 +4,7 @@ import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-men
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v15-source-coverage-handoff' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v16-readable-review-target' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */

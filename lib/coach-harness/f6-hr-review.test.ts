@@ -19,8 +19,9 @@ test('HR receives source-only references separately, with the current candidate 
     purpose:'source_reference_only',
     sources: {'resume.md':material.resume,'facts.md':material.facts,'jd.txt':material.jd},
   });
-  expect(JSON.parse(messages[2].content)).toMatchObject({purpose:'only_review_target',
-    document:'candidate.md',text:first,sha256:expect.stringMatching(/^[a-f0-9]{64}$/)});
+  expect(messages[2].content).toContain('唯一待评新稿 candidate.md');
+  expect(messages[2].content).toMatch(/SHA256: [a-f0-9]{64}/);
+  expect(messages[2].content.endsWith(first)).toBe(true);
   expect(messages[0].content).toContain('原稿');
   expect(messages[0].content).toContain('不能说成新稿引文');
   expect(messages[0].content).toContain('不重复抄写');

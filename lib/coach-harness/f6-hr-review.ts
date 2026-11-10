@@ -38,14 +38,12 @@ export function f6HrMessages(input:Material,body:string,reviewContext?:ReviewCon
       sources:{'resume.md':input.resume,'facts.md':input.facts,'jd.txt':input.jd},
       ...(reviewContext ? {mechanical_review_hints: reviewContext} : {}),
     })},
-    {role:'user',content:JSON.stringify({
-      purpose:'only_review_target',document:'candidate.md',
-      ...(reviewContext?.hints ? {source_comparison_pointers: {
-        meaning: '原稿中未在新稿逐字出现的独立短行，仅供检查遗漏；改写也可能造成不相同，不是判错或新稿引文。',
-        sourceOnlyStandaloneLines: reviewContext.hints.sourceOnlyStandaloneLines,
-      }} : {}),
-      sha256:createHash('sha256').update(body).digest('hex'),text:body,
-    })},
+    // Keep the actual review target readable, not another escaped document
+    // inside the source-reference JSON. Exact bytes and SHA remain in Trace.
+    {role:'user',content:'唯一待评新稿 candidate.md\nSHA256: '
+      + createHash('sha256').update(body).digest('hex')
+      + '\n上条消息是核源资料，不是新稿；以下才是本轮可见正文。\n\n'
+      + body},
   ];
 }
 

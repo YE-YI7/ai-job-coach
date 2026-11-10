@@ -51,13 +51,16 @@ test('same original notice checker supplies exact source/candidate pairs before 
 test('normal format differences and unchanged material are not mechanical errors or rejection gates', () => {
   const original = '李青\n整理1200条用例。';
   expect(f6ReviewHints(original, original, [{id: 'original', text: original}]).passages).toEqual([]);
-  expect(f6ReviewHints(original, '李青\n整理1,200条用例。',
-    [{id: 'original', text: original}]).passages).toEqual([]);
+  const hints = f6ReviewHints(original, '李青\n整理1,200条用例。', [{id: 'original', text: original}]);
+  expect(hints.passages).toHaveLength(1);
+  expect(hints.passages[0].notices).toEqual([]);
 });
 
 test('recorded bad author and HR outputs replay unchanged, but now both receive the same versioned hints', async () => {
   const initial = f6InitialMessages(input);
-  expect(hash(JSON.stringify(initial))).toBe(fixture.initialMessagesSha256);
+  expect(hash(JSON.stringify(initial))).not.toBe(fixture.initialMessagesSha256);
+  expect(JSON.parse(initial[1].content)['resume.md']).toBe(fixture.resume);
+  expect(JSON.parse(initial[1].content)['facts.md']).toEqual(fixture.facts);
   const author = jest.fn();
   fixture.authorOutputs.forEach(output => author.mockResolvedValueOnce(output));
   const review = jest.fn().mockResolvedValue(fixture.hrCommentary);
@@ -84,7 +87,8 @@ test('recorded bad author and HR outputs replay unchanged, but now both receive 
   expect(result.fullDocument).toBe(fixture.originalBody);
   expect(result.fullDocument).toContain('下降≤1%');
   expect(result.fullDocument).toContain('带1名算法、2名后端');
-  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(fixture.originalGuidance);
+  expect(currentF6MentorGuidance(result.f6Deliverables)).toBeUndefined();
+  expect(result.f6Deliverables.files['changes.md']).toBe(fixture.originalGuidance);
   expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');
   if (process.env.F6_HR_HANDOFF_REPLAY_OUTPUT) {
     writeFileSync(process.env.F6_HR_HANDOFF_REPLAY_OUTPUT, JSON.stringify({
@@ -96,7 +100,8 @@ test('recorded bad author and HR outputs replay unchanged, but now both receive 
       newHrMessages: review.mock.calls[0][0], newAuthorReviewInput: author.mock.calls[4][0],
       sameVersionedContextDelivered: true, hrContext: hrInput, authorContext: authorInput,
       originalBadBodyPreserved: result.fullDocument === fixture.originalBody,
-      originalBadGuidancePreserved: currentF6MentorGuidance(result.f6Deliverables) === fixture.originalGuidance,
+      originalBadGuidancePreserved: result.f6Deliverables.files['changes.md'] === fixture.originalGuidance,
+      legacyChangeReportNotShownAsMentor: currentF6MentorGuidance(result.f6Deliverables) === undefined,
       hrFinalState: result.hrReview.finalState,
       qualityVerdict: 'not_retested_recorded_bad_outputs_still_bad',
     }, null, 2) + '\n');
@@ -156,7 +161,7 @@ test('original-author revision and optional coaching use separate channels, with
   const guidance = '你当时怎样比较客服的风险与处理量？记不清的话可以保留已知事实。';
   const review = jest.fn().mockResolvedValue('责任和单位需要核对。');
   const author = jest.fn().mockResolvedValueOnce(write([{name: 'resume-new.md', text: candidate}]))
-    .mockResolvedValueOnce(write([{name: 'resume-new.md', text: source}, {name: 'changes.md', text: guidance},
+    .mockResolvedValueOnce(write([{name: 'resume-new.md', text: source}, {name: 'mentor.md', text: guidance},
       {name: 'notes.md', text: '责任与单位按原文修正，不补SQL经历。'}]));
   const result = JSON.parse(await runF6ResumeWriter(smallInput, author, jest.fn(), undefined,
     undefined, undefined, new F6HrReviewSession(smallMaterial, review, hintsFor)));
@@ -174,6 +179,6 @@ test('internal disagreement has an explicit internal destination, not ambiguous 
   const instruction = f6HrResponseInstruction(F6_MENTOR_HR_RESPONSE_CHANNELS);
   expect(instruction).not.toContain('若点评不适用可保留原稿并说明理由');
   expect(instruction).toContain('理由只放notes.md或普通内部回复');
-  expect(instruction).toContain('不是向用户答辩HR');
+  expect(instruction).toContain('mentor.md只用于直接和用户沟通');
   expect(instruction).toContain('不能只反驳HR就认定正文正确');
 });

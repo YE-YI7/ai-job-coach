@@ -26,7 +26,7 @@ const draft = () => reply(write([{name: 'resume-new.md', text: body}]));
 const hr = () => new F6HrReviewSession({resume: source, jd: input.jd, facts: source},
   jest.fn().mockResolvedValue('可以核实小模型对比里的具体失败类型，不补造结果。'));
 
-test.each(['changes.md', 'notes.md'])('post-HR %s can retain the verified body without rewriting it', async file => {
+test.each(['mentor.md', 'changes.md', 'notes.md'])('post-HR %s can retain the verified body without rewriting it', async file => {
   const author = jest.fn().mockResolvedValueOnce(draft())
     .mockResolvedValueOnce(reply(write([{name: file, text: guidance}])));
   const verify = jest.fn((text: string) => f6DocumentSafetyIssues(source, text));
@@ -38,13 +38,13 @@ test.each(['changes.md', 'notes.md'])('post-HR %s can retain the verified body w
   expect(result.f6Deliverables.resumeRevision).toBe(1);
   expect(review.finalState).toBe('author_retained_not_rechecked');
   expect(review.records).toHaveLength(1);
-  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(file === 'changes.md' ? guidance : undefined);
+  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(file === 'mentor.md' ? guidance : undefined);
 });
 
 test('a post-HR read is not mistaken for a completed response', async () => {
   const author = jest.fn().mockResolvedValueOnce(draft())
     .mockResolvedValueOnce(reply(tool('read_file', {file: 'facts.md'})))
-    .mockResolvedValueOnce(reply(write([{name: 'changes.md', text: guidance}])));
+    .mockResolvedValueOnce(reply(write([{name: 'mentor.md', text: guidance}])));
   const result = JSON.parse(await runF6ResumeWriter(input, author, jest.fn(), undefined, undefined, undefined, hr()));
   expect(author).toHaveBeenCalledTimes(3);
   expect(result.fullDocument).toBe(body);
@@ -54,7 +54,7 @@ test('a post-HR read is not mistaken for a completed response', async () => {
 test('ordinary HR response is internal and cannot overwrite the existing user question', async () => {
   const internal = '我核对了原稿，保留正文，不补造线上结果。';
   const author = jest.fn().mockResolvedValueOnce(reply(write([
-    {name: 'resume-new.md', text: body}, {name: 'changes.md', text: guidance},
+    {name: 'resume-new.md', text: body}, {name: 'mentor.md', text: guidance},
   ]))).mockResolvedValueOnce(internal);
   const verify = jest.fn((text: string) => f6DocumentSafetyIssues(source, text));
   const spans: EvalSpan[] = [];
@@ -68,12 +68,12 @@ test('ordinary HR response is internal and cannot overwrite the existing user qu
   expect(result.f6Deliverables.internalReviewResponse).toMatchObject({
     text:internal,audience:'internal_review',resumeRevision:1,
   });
-  expect(result.f6Deliverables.files['changes.md']).toBe(guidance);
+  expect(result.f6Deliverables.files['mentor.md']).toBe(guidance);
   expect(spans.some(span => span.code === 'host_capture_internal_hr_response')).toBe(true);
   expect(spans.some(span => span.code === 'host_capture_visible_body')).toBe(false);
   const receipt = JSON.parse(author.mock.calls[1][0].at(-1).content);
   expect(receipt.instruction).toContain('内部');
-  expect(receipt.instruction).toContain('changes.md');
+  expect(receipt.instruction).toContain('mentor.md');
   expect(receipt.instruction).toContain('resume-new.md');
   expect(receipt.instruction).not.toContain('交回完整稿');
   expect(receipt.executionState.deliverables.pdf.status).toBe('not_rendered');
@@ -88,9 +88,9 @@ test('a rejected revised document cannot be masked by saving only a mentor reply
   const corrected = body + '\n原职责边界不变。';
   const author = jest.fn().mockResolvedValueOnce(draft())
     .mockResolvedValueOnce(reply(write([{name: 'resume-new.md', text: wrong}]),
-      write([{name: 'changes.md', text: guidance}])))
+      write([{name: 'mentor.md', text: guidance}])))
     .mockResolvedValueOnce(reply(write([{name: 'resume-new.md', text: corrected},
-      {name: 'changes.md', text: guidance}])));
+      {name: 'mentor.md', text: guidance}])));
   const verify = jest.fn((text: string) => f6DocumentSafetyIssues(source, text));
   const result = JSON.parse(await runF6ResumeWriter(input, author, jest.fn(), verify, undefined, undefined, hr()));
   expect(author).toHaveBeenCalledTimes(3);
@@ -116,7 +116,7 @@ test('a conversation after rejected document delivery preserves the valid draft 
 
 test('post-HR conversation is visible in the existing outcome component and survives a JSON roundtrip', async () => {
   const author = jest.fn().mockResolvedValueOnce(draft())
-    .mockResolvedValueOnce(reply(write([{name: 'changes.md', text: guidance}])));
+    .mockResolvedValueOnce(reply(write([{name: 'mentor.md', text: guidance}])));
   const result = JSON.parse(await runF6ResumeWriter(input, author, jest.fn(), undefined, undefined, undefined, hr()));
   const reread = JSON.parse(JSON.stringify({changes: result.changes, f6Deliverables: result.f6Deliverables,
     summary: '新稿与追问分别保存。'}));
@@ -149,22 +149,23 @@ const privateTrace = process.env.F6_MENTOR_TRACE_PATH;
       request: payload.editingRequest, answers: payload.answers, decisions: payload.priorDecisions,
       scope: 'whole', format: {}, mentorCoaching: true}, author, jest.fn(), verify, undefined, undefined,
     new F6HrReviewSession({resume: sourceResume, jd: payload['jd.txt'], facts: JSON.stringify(payload['facts.md'])}, reviewer))));
-  expect(author.mock.calls[0][0]).toEqual(trace.initialAuthorMessages);
+  expect(JSON.parse(author.mock.calls[0][0][1].content)['resume.md']).toBe(sourceResume);
   expect(author).toHaveBeenCalledTimes(3);
   expect(reviewer).toHaveBeenCalledTimes(1);
   const firstDraft = trace.artifactSequence[0].files.find((file: {name: string}) => file.name === 'resume-new.md').text;
   const originalGuidance = trace.delivery.mentorGuidance.text;
   expect(result.fullDocument).toBe(firstDraft);
   expect(result.f6Deliverables.resumeRevision).toBe(1);
-  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(originalGuidance);
+  expect(currentF6MentorGuidance(result.f6Deliverables)).toBeUndefined();
+  expect(result.f6Deliverables.files['changes.md']).toBe(originalGuidance);
   expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');
   expect(verify).toHaveBeenCalledTimes(1);
   const html = renderToStaticMarkup(<ResumeMentorOutcome result={result} pendingCount={result.changes.length}/>);
-  expect(html).toContain('有没有一两个典型反例');
+  expect(html).not.toContain('有没有一两个典型反例');
   const output = {sourceTraceId: trace.experiment.traceId, sourceCaptureSha256: sourceHash,
     kind: 'offline_recorded_output_replay_not_a_new_model_run', modelCalls: 0, costCny: 0,
     authorOutputsConsumed: author.mock.calls.length, hrOutputsConsumed: reviewer.mock.calls.length,
-    firstInputByteEqual: true, fullDocument: result.fullDocument, mentorGuidance: result.f6Deliverables.mentorGuidance,
+    firstInputByteEqual: false, fullDocument: result.fullDocument, mentorGuidance: result.f6Deliverables.mentorGuidance,
     hrFinalState: result.hrReview.finalState, userVisible: html, spans,
     limitations: ['Recorded responses, not a fresh model behavior/quality acceptance.',
       'Original missing education and report-like writing are not repaired by this delivery fix.']};

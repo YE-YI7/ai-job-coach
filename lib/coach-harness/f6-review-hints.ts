@@ -14,9 +14,9 @@ export type F6ReviewHints = {
 export function f6ReviewHints(source: string, candidate: string, sources: GroundingSource[]): F6ReviewHints {
   return {
     policy: 'mechanical_hints_not_verdict',
-    passages: projectF6Document(source, candidate).flatMap(({before, after}) => {
+    passages: projectF6Document(source, candidate).map(({before, after}) => {
       const notices = f6EvidenceNotices(after, sources);
-      return notices.length ? [{before, after, notices}] : [];
+      return {before, after, notices};
     }),
   };
 }

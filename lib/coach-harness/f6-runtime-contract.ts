@@ -2,8 +2,9 @@ import {createHash} from 'node:crypto';
 import origin from './f6-origin.json';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-mentor-guidance';
 import {F6_HR_PROMPT} from './f6-hr-review';
+import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v12-hr-evidence-handoff' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v13-explicit-mentor-artifact' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -11,13 +12,14 @@ export function f6RuntimeIdentity() {
   return {
     version: F6_RUNTIME_VERSION,
     originSystemSha256: origin.systemHash,
-    toolsSha256: createHash('sha256').update(JSON.stringify(origin.tools)).digest('hex'),
+    toolsSha256: createHash('sha256').update(JSON.stringify(F6_MENTOR_TOOLS)).digest('hex'),
+    originToolsSha256: createHash('sha256').update(JSON.stringify(origin.tools)).digest('hex'),
     tools: origin.tools.map(tool => tool.function.name),
     maxAuthorCalls: origin.maxAuthorCalls,
     maxPublicRequests: origin.maxPublicRequests,
     publicBudgetContinuation: 'exhausted_tools_unavailable_keep_evidence',
     authorExecutionState: 'remaining_calls_read_references_and_delivery_state',
-    mentorGuidance: 'optional_same_author_changes_md',
+    mentorGuidance: 'optional_same_author_mentor_md_internal_changes_preserved',
     mentorGuidancePolicySha256: createHash('sha256').update(F6_MENTOR_RESPONSIBILITY).digest('hex'),
     mentorResponseDelivery: 'explicit_user_guidance_separate_internal_hr_response',
     mentorResponseChannelsSha256: createHash('sha256').update(F6_MENTOR_HR_RESPONSE_CHANNELS).digest('hex'),

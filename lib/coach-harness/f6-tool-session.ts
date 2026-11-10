@@ -1,6 +1,7 @@
 import origin from './f6-origin.json';
 import {F6PublicTools, type F6PublicBudget} from './f6-public-tools';
 import type {NativeTool} from '@/lib/llm-tools';
+import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
 export const F6_OUTPUT_FILES = ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md'];
 export const F6_ORIGIN_TOOLS = origin.tools as NativeTool[];
@@ -50,9 +51,10 @@ export class F6ToolSession {
   /** Availability is execution state, not an authored workflow. Keep every
    * usable origin tool unchanged; never advertise a tool that cannot run. */
   availableTools(): NativeTool[] {
+    const tools = this.mentorCoaching ? F6_MENTOR_TOOLS : F6_ORIGIN_TOOLS;
     return this.publicUnavailable()
-      ? F6_ORIGIN_TOOLS.filter(tool => !['search', 'fetch'].includes(tool.function.name))
-      : F6_ORIGIN_TOOLS;
+      ? tools.filter(tool => !['search', 'fetch'].includes(tool.function.name))
+      : tools;
   }
   private publicUnavailable() {
     return this.publicExhausted || this.services.publicBudget?.().remaining === 0;
@@ -90,11 +92,12 @@ export class F6ToolSession {
       return {...output, ...(this.services.publicBudget ? {publicResearch: this.publicState()} : {})};
     }
     if (name === 'write_output') {
-      if (!Array.isArray(args.files) || !args.files.length || args.files.length > 5) throw Error('OUTPUT_FILE_LIST_INVALID');
+      const allowed = this.mentorCoaching ? [...F6_OUTPUT_FILES, 'mentor.md'] : F6_OUTPUT_FILES;
+      if (!Array.isArray(args.files) || !args.files.length || args.files.length > allowed.length) throw Error('OUTPUT_FILE_LIST_INVALID');
       const files = args.files as Array<{name: string; text: string}>;
       const names = new Set();
       for (const file of files) {
-        if (!file || !F6_OUTPUT_FILES.includes(file.name) || names.has(file.name)
+        if (!file || !allowed.includes(file.name) || names.has(file.name)
           || typeof file.text !== 'string' || !file.text.trim() || Buffer.byteLength(file.text) >= 20_000) {
           throw Error('OUTPUT_SCOPE_OR_SIZE_INVALID');
         }
@@ -109,7 +112,7 @@ export class F6ToolSession {
         if (file.name === 'resume-new.md' && this.outputs.get(file.name) !== text) this.revision++;
         this.outputs.set(file.name, text);
       }
-      if (this.mentorCoaching && names.has('changes.md')) this.mentorGuidanceRevision = this.revision;
+      if (this.mentorCoaching && names.has('mentor.md')) this.mentorGuidanceRevision = this.revision;
       return {saved: files.map(file => file.name), resumeRevision: this.revision};
     }
     if (name === 'render_pdf') {
@@ -143,14 +146,14 @@ export class F6ToolSession {
         revision:this.renderedRevision,
         ...(this.pdf?{pages:this.pdf.receipt.pages}:{}),
       },
-      mentorMessage:{saved:this.outputs.has('changes.md'),
+      mentorMessage:{saved:this.outputs.has('mentor.md'),
         current:this.mentorGuidanceRevision===this.revision,
         ...(this.mentorGuidanceRevision===undefined?{}:{revision:this.mentorGuidanceRevision}),
       },
     };
   }
   deliverables(): F6Deliverables {
-    const guidance = this.outputs.get('changes.md');
+    const guidance = this.outputs.get('mentor.md');
     return {files: Object.fromEntries(this.outputs), resumeRevision: this.revision,
       renderedRevision: this.renderedRevision,
       ...(this.mentorCoaching && guidance && this.mentorGuidanceRevision !== undefined ? {

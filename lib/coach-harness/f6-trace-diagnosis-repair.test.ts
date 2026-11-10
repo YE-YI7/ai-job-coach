@@ -36,7 +36,7 @@ test('execution receipts distinguish saved, rendered, and stale PDF without requ
 // Real recorded outputs, never a fresh model call. The old HR mistakes remain
 // visible: replay proves channel/state fixes, not new model semantic quality.
 const traceFile = process.env.F6_DELIVERY_DIAGNOSIS_TRACE;
-(traceFile ? test : test.skip)('replay the released failing trace without overwriting the user question', async () => {
+(traceFile ? test : test.skip)('replay historical files without promoting an internal changes file to a new mentor message', async () => {
   const before = readFileSync(traceFile!);
   const rows = JSON.parse(before.toString());
   const run = rows.find((row: {id: string}) => row.id === 'efa7d5f9-0177-43ea-a84c-5be1bb674081').run;
@@ -62,8 +62,9 @@ const traceFile = process.env.F6_DELIVERY_DIAGNOSIS_TRACE;
     facts: JSON.stringify(payload['facts.md'])}, hr)));
   expect(author).toHaveBeenCalledTimes(5);
   expect(hr).toHaveBeenCalledTimes(1);
-  expect(author.mock.calls[0][0]).toEqual(initial);
-  expect(currentF6MentorGuidance(result.f6Deliverables)).toBe(question);
+  expect(JSON.parse(author.mock.calls[0][0][1].content)['resume.md']).toBe(payload['resume.md']);
+  expect(currentF6MentorGuidance(result.f6Deliverables)).toBeUndefined();
+  expect(result.f6Deliverables.files['changes.md']).toBe(question);
   expect(result.fullDocument).toBe(files.find((file: {name: string}) => file.name === 'resume-new.md').text);
   expect(result.hrReview.authorResponse.text).toBe(authors[4].output);
   expect(result.f6Deliverables.renderedRevision).toBe(-1);
@@ -77,8 +78,8 @@ const traceFile = process.env.F6_DELIVERY_DIAGNOSIS_TRACE;
       kind:'recorded_output_replay_not_fresh_model_quality',sourceEval:run.id,
       sourceSha256:createHash('sha256').update(before).digest('hex'),
       modelCalls:0,costCny:0,authorOutputsConsumed:author.mock.calls.length,
-      hrOutputsConsumed:hr.mock.calls.length,initialInputByteEqual:true,
-      preservedBody:result.fullDocument,preservedQuestion:question,
+      hrOutputsConsumed:hr.mock.calls.length,initialInputByteEqual:false,
+      preservedBody:result.fullDocument,preservedLegacyFile:question,userMentorNotAutoMigrated:true,
       hrMessages:hr.mock.calls[0][0],internalReviewResponse:result.f6Deliverables.internalReviewResponse,
       lastExecutionState:JSON.parse(finalInput.at(-1).content).executionState,
       originalHrMistakesStillPreserved:true,

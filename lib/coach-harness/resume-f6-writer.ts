@@ -3,7 +3,7 @@ import origin from './f6-origin.json';
 import {createHash} from 'node:crypto';
 import { projectF6Document } from './resume-f6-projection';
 import {captureEvalStage} from './eval-scope';
-import {F6ToolSession, F6_ORIGIN_TOOLS, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
+import {F6ToolSession, type F6ResourceId, type F6ToolServices} from './f6-tool-session';
 import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
 import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
@@ -119,7 +119,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     mentorCoaching);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
-    messages, tools: F6_ORIGIN_TOOLS,
+    messages, tools: session.availableTools(),
   }, output: {
     writer: F6_RESUME_WRITER, originSystemHash: origin.systemHash,
     actualSystemHash: createHash('sha256').update(messages[0].content).digest('hex'),
@@ -144,7 +144,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     let value: Record<string, unknown>;
     try { value = parse(reply); } catch {
       if (reply.trim().startsWith('{') || !reply.trim()) throw Error('F6_WRITER_PROTOCOL_INVALID');
-      // HR consideration is internal. Only an explicit changes.md write
+      // HR consideration is internal. Only an explicit mentor.md write
       // updates user-facing guidance; ordinary commentary must not erase an
       // existing question or be guessed from its words/punctuation.
       if (mentorCoaching && hrReview?.repairRequested && reviewedBody) {
@@ -206,7 +206,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
           bodyReceiptId=request.id;
         }
         if (request.function.name === 'write_output' && Array.isArray(result.saved)
-          && result.saved.some(name => name === 'changes.md' || name === 'notes.md')) writtenResponse = true;
+          && result.saved.some(name => name === 'mentor.md' || name === 'changes.md' || name === 'notes.md')) writtenResponse = true;
         if (request.function.name === 'read_file') {
           const id = args.file as Id;
           readIds.push(id); onRead([id]);

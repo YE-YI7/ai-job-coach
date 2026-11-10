@@ -16,11 +16,25 @@ import {skipsResumeFact} from './resume-single-question';
 import {isResumeEditingDirection} from './resume-edit-request';
 import { parseResumeReference, resolveResumeReference, sameResumeReference } from '@/lib/opportunities/resume-reference';
 import {resumeStorageSnapshot} from './resume-storage-snapshot';
+import {currentResumeConversationLocation} from './resume-conversation-location';
 
 type SavedConversationTurn=ResumeConversationTurn&{plan?:ResumeConversationDecision};
 type Row = { id: string; user_id: string; opportunity_id: string; fingerprint: string; source_revision?:string; state: ResumeAgentTask["state"]; question: ResumeAgentTask["question"]; answers: ResumeAgentAnswer[]; conversation?:SavedConversationTurn[]; result: ResumeAgentTask["result"] | null; error: string | null; version: number; lease_id: string | null; updated_at: string; edit_scope?: ResumeTrialScope | null };
 export class ResumeTaskError extends Error { constructor(message: string, public status = 409) { super(message); } }
 export const resumeTaskFingerprint = (resume: string, jd: string, revision?: string) => createHash("sha256").update(JSON.stringify([resume.trim(), jd.trim(), revision || ""])).digest("hex");
+
+function assertConversationLocations(
+  plan:ResumeConversationDecision,
+  source:{resume:string; changes:ResumeChange[]; revision?:string},
+  row:Row,
+) {
+  const facts = plan.supplements || (plan.supplement ? [plan.supplement] : []);
+  for (const fact of [...facts,...(plan.placements || [])]) {
+    if (fact.location && !currentResumeConversationLocation(fact.location,source,publicResumeTask(row))) {
+      throw new ResumeTaskError('这处修改位置已更新，输入已保留，本轮未执行修改；请刷新核对。');
+    }
+  }
+}
 export function publicResumeTask(row: Row): ResumeAgentTask {
   return { id: row.id, state: row.state, question: row.question, answers: row.answers, updatedAt: row.updated_at,
     ...(row.edit_scope ? {editScope:row.edit_scope} : {}),
@@ -94,7 +108,10 @@ export async function completeResumeMessage(userId:string,opportunityId:string,i
   if(turn.resumeReference)await resolveResumeReference(turn.resumeReference,{id:opportunityId,resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes});
   const skipped=row.question&&skipsResumeFact(turn.message)&&!row.answers.some(answer=>answer.id===row.question!.id);
   const safePlan=skipped?{...plan,supplement:null}:plan;
-  const conversation=row.conversation.map(t=>t.id===id?{...t,status:'completed' as const,reply:safePlan.reply,decision:safePlan.action,plan:safePlan}:t);
+  assertConversationLocations(safePlan,source,row);
+  const conversation=row.conversation.map(t=>t.id===id?{
+    ...t,status:'completed' as const,reply:safePlan.reply,decision:safePlan.action,plan:safePlan,
+  }:t);
   const db=requireDb(await getDbClient());
   const {data,error}=await db.from('coach_resume_tasks').update({conversation,...(skipped?{question:null,answers:[...row.answers,{...row.question!,answer:'',skipped:true,savedAt:new Date().toISOString()}]}:{}),version:version+1,updated_at:new Date().toISOString()}).eq('user_id',userId).eq('id',row.id).eq('version',version).select('*').maybeSingle();
   if(error||!data)throw new ResumeTaskError('导师回复尚未保存，输入已保留，未执行修改',error?503:409);
@@ -151,20 +168,29 @@ export async function claimResumeTask(userId: string, opportunityId: string, inp
     if(turn.resumeReference)await resolveResumeReference(turn.resumeReference,{id:opportunityId,resumeText:source.resume,resumeRevision:source.revision,resumeChanges:source.changes});
     const instructionId=`conversation:${turn.id}`;
     if(row!.answers.some(a=>a.id===instructionId))return {task:publicResumeTask(row!),source,claimed:false};
+    assertConversationLocations(turn.plan,source,row!);
+    const supplements=turn.plan.supplements||(turn.plan.supplement?[turn.plan.supplement]:[]);
+    const locations=[...supplements,...(turn.plan.placements||[])]
+      .flatMap(fact=>fact.location?[fact.location]:[]);
     const additions:ResumeAgentAnswer[]=[{
       id:instructionId,kind:'instruction',field:'context',sourceExcerpt:turn.resumeReference?.before||'',
       question:'导师确认的本次修改目标',
       answer:turn.plan.editorBrief+(turn.resumeReference?
-        `\n引用定位：${turn.resumeReference.changeId}，源区间[${turn.resumeReference.start},${turn.resumeReference.end})。原文：${turn.resumeReference.before}`:''),
+        `\n引用定位：${turn.resumeReference.changeId}，源区间[${turn.resumeReference.start},${turn.resumeReference.end})。原文：${turn.resumeReference.before}`:'')
+        +(locations.length?'\n程序核验的修改位置（仅定位，不是经历事实；事实只看原稿与本人逐字回答）：'
+          +JSON.stringify(locations):''),
       savedAt:new Date().toISOString(),
     }];
-    const supplements=turn.plan.supplements||(turn.plan.supplement?[turn.plan.supplement]:[]);
     for(const supplement of supplements){
       const digest=createHash('sha256').update(JSON.stringify([supplement.sourceExcerpt,supplement.quote])).digest('hex').slice(0,16);
       const factId=`conversation-fact:${supplement.turnId}:${digest}`;
       if(![...row!.answers,...additions].some(a=>a.id===factId)){
-        additions.push({id:factId,field:supplement.field,sourceExcerpt:supplement.sourceExcerpt,
-          question:'讨论中补充的本人经历',answer:supplement.quote,claimId:randomUUID(),savedAt:new Date().toISOString()});
+        additions.push({
+          id:factId,field:supplement.field,sourceExcerpt:supplement.sourceExcerpt,
+          question:'讨论中补充的本人经历',answer:supplement.quote,
+          claimId:randomUUID(),savedAt:new Date().toISOString(),
+          ...(supplement.location?{editLocation:supplement.location}:{}),
+        });
       }
     }
     // Save the instruction and acquire its generation lease in the same CAS.

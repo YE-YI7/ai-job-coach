@@ -48,7 +48,9 @@ export async function runResumeConversation(
       let plan: ResumeConversationDecision;
       let evidenceNotApplied=false;
       try {
-        plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[]);
+        plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[],{
+          changes:opened.source.changes,revision:opened.source.revision,task:opened.task,
+        });
       } catch (error) {
         if (!(error instanceof ResumeConversationEvidenceError)) throw error;
         evidenceNotApplied=true;

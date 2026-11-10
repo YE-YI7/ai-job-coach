@@ -15,6 +15,8 @@ export interface ResumeAgentAnswer extends ResumeAgentQuestion {
   skipped?: boolean;
   savedAt: string;
   claimId?: string;
+  /** Editing context only. answer/claimId remain the user's factual evidence. */
+  editLocation?: import('./resume-conversation-location').ResumeConversationLocation;
 }
 export interface ResumeAgentTask {
   delivery?: import('./resume-delivery').ResumeDeliveryReceipt;

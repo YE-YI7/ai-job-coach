@@ -12,12 +12,14 @@ test('only an exact user quotation anchored to source can become a supplement',(
  const plan={action:'revise',reply:'把实习中你实际交付的材料写清楚。',editorBrief:'只修改对应实习，保留参与责任。',supplement:{turnId:'one',quote:'我整理了访谈分类表，交给产品经理。',sourceExcerpt:source,field:'deliverable'}};
  expect(parseResumeConversationDecision(JSON.stringify(plan),source,turns)).toEqual(plan);
  for(const bad of [{quote:'我主导产品实现收入增长20%'},{turnId:'unknown'},{field:'untrusted'}])expect(()=>parseResumeConversationDecision(JSON.stringify({...plan,supplement:{...plan.supplement,...bad}}),source,turns)).toThrow('尚未执行改稿');
- for(const sourceExcerpt of ['','原文没有的经历']){
+ for(const sourceExcerpt of ['']){
   const recovered=parseResumeConversationDecision(JSON.stringify({...plan,supplement:{...plan.supplement,sourceExcerpt}}),source,turns);
   expect(recovered).toMatchObject({action:'discuss',supplement:null,editorBrief:''});
   expect(recovered.reply).toContain('哪一段实习或项目');
   expect((recovered.reply.match(/？/g)||[])).toHaveLength(1);
  }
+ expect(()=>parseResumeConversationDecision(JSON.stringify({...plan,supplement:{...plan.supplement,
+  sourceExcerpt:'原文没有的经历'}}),source,turns)).toThrow('本轮没有执行新修改');
 });
 test('missing, malformed or incomplete action never falls back to revision',()=>{
  for(const value of ['not json','{}','{"action":"edit","reply":"直接改"}','{"action":"revise","reply":"直接改"}'])expect(()=>parseResumeConversationDecision(value,source,turns)).toThrow();

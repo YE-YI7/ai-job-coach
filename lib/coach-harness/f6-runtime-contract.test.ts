@@ -20,6 +20,7 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     mentorResponseChannelsSha256:expect.stringMatching(/^[a-f0-9]{64}$/),
     conversationContext:'latest_projected_draft_and_original_source',
     conversationEvidence:'literal_user_quotes_original_references_untrusted_not_applied',
+    conversationLocation:'versioned_current_to_original_mapping_not_factual_evidence',
     automaticJudge:true,
     blockingJudge:false,
     hrCommentary:'plain_text_one_author_response',

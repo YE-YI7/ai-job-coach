@@ -10,6 +10,22 @@ export function f6CallMessages(history: LlmMessage[], completed: number, limit: 
   // Preserve the accepted first request byte for byte. State starts when an
   // actual author turn has completed, not as a replacement writing prompt.
   if (completed === 0) return messages;
+  let sourceDiff:string|undefined;
+  for(const message of messages) {
+    if(message.role!=='tool'&&message.role!=='user')continue;
+    try {
+      const payload=JSON.parse(message.content);
+      if(typeof payload?.hrReview==='string'&&typeof payload.reviewContext?.authorSourceDiff==='string') {
+        sourceDiff=payload.reviewContext.authorSourceDiff;
+        const {authorSourceDiff,...context}=payload.reviewContext;
+        message.content=JSON.stringify({...payload,reviewContext:{...context,
+          authorSourceDiffReference:{sha256:createHash('sha256').update(authorSourceDiff).digest('hex'),
+            providedAsReadableMessage:true}}});
+      }
+    }catch { /* Only host-owned structured review evidence, never parse HR prose. */ }
+  }
+  const withDiff=()=>sourceDiff?[...messages,{role:'user' as const,
+    content:'既有原位差异（核源数据，不是判错结论）：减号为原文，加号为新稿。\n\n'+sourceDiff}]:messages;
   const reads = new Map<string, {file: string; sha256: string; firstToolCallId: string; reads: number}>();
   let duplicateReads = 0;
   for (const message of messages) {
@@ -47,10 +63,10 @@ export function f6CallMessages(history: LlmMessage[], completed: number, limit: 
       const payload = JSON.parse(last.content);
       if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
         last.content = JSON.stringify({...payload, executionState});
-        return messages;
+        return withDiff();
       }
     } catch { /* Non-JSON checkpoint: append state without rewriting its text. */ }
   }
   messages.push({role: 'user', content: JSON.stringify({executionState})});
-  return messages;
+  return withDiff();
 }

@@ -121,7 +121,9 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
     expect(hrSettings.nativeTools).toBeUndefined();
     expect(hrSettings.responseFormat).toBeUndefined();
-    expect(JSON.parse((callLLM as jest.Mock).mock.calls[2][0].at(-1).content).hrReview).toBe(hr);
+    const authorReview=(callLLM as jest.Mock).mock.calls[2][0].filter((message:{content:string})=>message.content.startsWith('{'))
+      .map((message:{content:string})=>JSON.parse(message.content)).find((payload:{hrReview?:string})=>payload.hrReview);
+    expect(authorReview.hrReview).toBe(hr);
     expect(finishResumeTask).toHaveBeenCalledWith('user-1','task','lease',expect.anything(),
       expect.objectContaining({summary:expect.stringContaining(hr),applicationQuality:body.applicationQuality}));
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
@@ -168,8 +170,14 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
     const reviewMessages = (callLLM as jest.Mock).mock.calls[1][0];
     const evidence = JSON.parse(reviewMessages[1].content).mechanical_review_hints;
-    const authorEvidence = JSON.parse((callLLM as jest.Mock).mock.calls[2][0].at(-1).content).reviewContext;
-    expect(evidence).toEqual(authorEvidence);
+    const authorMessages=(callLLM as jest.Mock).mock.calls[2][0];
+    const authorEvidence=authorMessages.filter((message:{content:string})=>message.content.startsWith('{'))
+      .map((message:{content:string})=>JSON.parse(message.content)).find((payload:{hrReview?:string})=>payload.hrReview).reviewContext;
+    const {authorSourceDiffReference,...sharedEvidence}=authorEvidence;
+    expect(evidence).toEqual(sharedEvidence);
+    expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
+    expect(authorMessages.at(-1).content).toContain('- 有一名算法和两名后端一起做');
+    expect(authorMessages.at(-1).content).toContain('+ 带1名算法');
     expect(evidence.hints.passages).toEqual(expect.arrayContaining([
       expect.objectContaining({source: expect.objectContaining({document:'resume.md'}),
         candidate: expect.objectContaining({document:'candidate.md'}),

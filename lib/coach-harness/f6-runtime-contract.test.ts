@@ -27,6 +27,7 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     hrCommentary:'plain_text_one_author_response',
     hrEvidence:'same_candidate_version_nonblocking_hints_to_hr_and_author',
     hrSourceTransport:'native_readable_documents_with_sha_references',
+    hrAuthorEvidence:'existing_literal_projection_diff_as_readable_data',
     hrCoachingEvidence:'same_revision_explicit_mentor_artifact_not_candidate_fact',
     hrReviewPolicySha256:expect.stringMatching(/^[a-f0-9]{64}$/),
     maxHrCalls:1,

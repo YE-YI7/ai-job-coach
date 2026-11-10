@@ -4,6 +4,7 @@ import {captureEvalStage} from './eval-scope';
 import type {F6ReviewHints} from './f6-review-hints';
 import {f6ReviewReferences} from './f6-review-references';
 import {F6_HR_CALIBRATION} from './f6-hr-calibration';
+import {f6AuthorSourceDiff} from './f6-author-source-diff';
 
 type Material = {resume:string; jd:string; facts:string};
 type ReviewContext = {
@@ -67,7 +68,11 @@ export class F6HrReviewSession {
     private hintsFor?: (body:string)=>F6ReviewHints){}
   /** Same versioned evidence goes to HR and its original author. It is not
    * parsed HR output, a rejection gate, or a second review call. */
-  reviewContext() { return this.records[0]?.reviewContext; }
+  reviewContext() {
+    const record=this.records[0];
+    return record?.reviewContext ? {...record.reviewContext,
+      ...(record.sourceComparison?{authorSourceDiff:f6AuthorSourceDiff(record.sourceComparison)}:{})} : undefined;
+  }
   async inspect(body:string,remainingAuthorCalls:number,coaching?:{text:string;resumeRevision:number;current:boolean}):Promise<string|null>{
     if(this.records.length){
       this.finalState=body===this.records[0].body

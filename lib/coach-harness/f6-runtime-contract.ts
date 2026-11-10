@@ -4,7 +4,7 @@ import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-men
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v19-readable-review-sources' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v20-readable-author-source-diff' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -31,6 +31,7 @@ export function f6RuntimeIdentity() {
     hrCommentary: 'plain_text_one_author_response',
     hrEvidence: 'same_candidate_version_nonblocking_hints_to_hr_and_author',
     hrSourceTransport: 'native_readable_documents_with_sha_references',
+    hrAuthorEvidence: 'existing_literal_projection_diff_as_readable_data',
     hrCoachingEvidence: 'same_revision_explicit_mentor_artifact_not_candidate_fact',
     hrReviewPolicySha256: createHash('sha256').update(F6_HR_PROMPT).digest('hex'),
     maxHrCalls: 1,

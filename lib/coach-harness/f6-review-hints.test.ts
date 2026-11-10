@@ -22,7 +22,8 @@ const candidate = '李青\n带1名算法、2名后端交付；离线解决率下
 const hintsFor = (body: string) => f6ReviewHints(source, body, [{id: 'original', text: source}]);
 const smallInput = {...input, resume: source, facts: [], jd: 'AI产品经理'};
 const smallMaterial = {resume: source, jd: smallInput.jd, facts: '[]'};
-const lastPayload = (messages: LlmMessage[]) => JSON.parse(messages.at(-1)!.content);
+const lastPayload = (messages: LlmMessage[]) => [...messages].reverse().filter(message=>message.content.startsWith('{'))
+  .map(message=>JSON.parse(message.content)).find(payload=>typeof payload.hrReview==='string');
 
 test('real v11 trace proves notices were absent from HR, not merely ignored after delivery', () => {
   const oldMessages = f6HrMessages(material, fixture.originalBody);
@@ -74,7 +75,12 @@ test('recorded bad author and HR outputs replay unchanged, but now both receive 
   expect(evidence).toHaveBeenCalledTimes(1);
   const hrInput = JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints;
   const authorInput = lastPayload(author.mock.calls[4][0]).reviewContext;
-  expect(authorInput).toEqual(hrInput);
+  const {authorSourceDiffReference,...authorContext}=authorInput;
+  expect(authorContext).toEqual(hrInput);
+  expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
+  const readableDiff=author.mock.calls[4][0].at(-1).content.split('\n\n').slice(1).join('\n\n');
+  expect(authorSourceDiffReference.sha256).toBe(hash(readableDiff));
+  expect(readableDiff).toContain('- 教育经历');
   expect(hrInput.candidateSha256).toBe(hash(fixture.originalBody));
   expect(hrInput.sourceSha256).toBe(hash(input.resume));
   expect(hrInput.hints.passages.some((part: {notices: Array<{quote: string}>}) =>
@@ -114,7 +120,10 @@ test('same evidence reaches the author for an ordinary visible document, without
   const result = JSON.parse(await runF6ResumeWriter(smallInput, author, jest.fn(), undefined,
     undefined, undefined, new F6HrReviewSession(smallMaterial, review, hintsFor)));
   const context = lastPayload(author.mock.calls[1][0]).reviewContext;
-  expect(context).toEqual(JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints);
+  const {authorSourceDiffReference,...shared}=context;
+  expect(shared).toEqual(JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints);
+  expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
+  expect(author.mock.calls[1][0].at(-1).content).toContain('+ 带1名算法');
   expect(result.fullDocument).toBe(candidate);
   expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');
   expect(result.f6Deliverables.internalReviewResponse.text).toContain('已核对');

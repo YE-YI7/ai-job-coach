@@ -5,6 +5,7 @@ import {
   withEvalObserver,
 } from "./eval-scope";
 import { recordWorkspaceResume, workspaceEvalEnabled } from "./workspace-eval";
+import {expandEvalTranscript} from './eval-transcript-storage';
 jest.mock("@/lib/db", () => ({ getDbClient: jest.fn() }));
 const owner = { id: "owner" },
   probe = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -193,4 +194,30 @@ test("business errors propagate after saving a visible failed run", async () => 
     }),
   ).rejects.toThrow("original");
   expect(snapshots.at(-1)!.run.status).toBe("failed");
+});
+
+test('large cumulative failed run saves final status without losing the last turn or its cost', async () => {
+  const {snapshots} = database(null, {message: 'summary unavailable'});
+  let expected: unknown;
+  const response = await recordWorkspaceResume(owner, request(), async () => {
+    const observer = getEvalObserver()!;
+    const messages = [{role: 'user', content: '虚构输入'.repeat(7000)}];
+    for (let i = 0; i < 12; i++) {
+      messages.push({role: 'tool', content: `receipt ${i}`.repeat(1800)});
+      observer.spans.push({id: `call-${i}`, kind: 'agent', name: 'author', status: 'completed',
+        startedAt: new Date().toISOString(), durationMs: 1, input: {messages: [...messages]}, output: 'read again',
+        knowledge: [], usage: {inputTokens: 123, outputTokens: 38, cacheHitTokens: 0,
+          estimatedCostUsd: 0.001, provider: 'fixture', retryCount: 0, pricingVersion: 'fixture'}});
+      await observer.save();
+    }
+    expected = structuredClone(observer.spans);
+    return Response.json({ok: false, reasonCode: 'resume_author_no_draft'}, {status: 503});
+  });
+  expect(response.status).toBe(503);
+  const stored = snapshots.at(-1)!;
+  expect(stored.status).toBe('failed');
+  expect(stored.run.status).toBe('failed');
+  expect(stored.run.result.output.reasonCode).toBe('resume_author_no_draft');
+  expect(Buffer.byteLength(JSON.stringify(stored.run))).toBeLessThan(1000000);
+  expect(expandEvalTranscript(stored.run).spans).toEqual(expected);
 });

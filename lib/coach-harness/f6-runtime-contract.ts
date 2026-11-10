@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import origin from './f6-origin.json';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v5-public-budget-state' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v6-read-progress-state' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -14,6 +14,7 @@ export function f6RuntimeIdentity() {
     maxAuthorCalls: origin.maxAuthorCalls,
     maxPublicRequests: origin.maxPublicRequests,
     publicBudgetContinuation: 'exhausted_tools_unavailable_keep_evidence',
+    authorExecutionState: 'remaining_calls_and_exact_read_references',
     automaticJudge: true,
     blockingJudge: false,
     hrCommentary: 'plain_text_one_author_response',

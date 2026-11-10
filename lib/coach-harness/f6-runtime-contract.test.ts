@@ -13,6 +13,7 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     maxAuthorCalls:F6_MAX_AUTHOR_CALLS,
     maxPublicRequests:4,
     publicBudgetContinuation:'exhausted_tools_unavailable_keep_evidence',
+    authorExecutionState:'remaining_calls_and_exact_read_references',
     automaticJudge:true,
     blockingJudge:false,
     hrCommentary:'plain_text_one_author_response',

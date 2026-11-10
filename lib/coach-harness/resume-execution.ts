@@ -13,6 +13,7 @@ import {
 } from "@/lib/coach-harness";
 import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview } from "@/lib/coach-harness/repository";
 import { observedResumeLLM } from "@/lib/coach-harness/eval-observer";
+import {f6FailureResponse} from './f6-failure-response';
 import { finalizeQuota, reserveQuota, reserveResumeTrial, type QuotaReservation } from "@/lib/quota";
 import { resolveResumeTrialScope, inResumeTrialScope } from '@/lib/resume-experience-trial';
 import { runWithGenerationContext } from "@/lib/generation-context";
@@ -928,6 +929,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       outcome = "blocked";
       return NextResponse.json({ ok: false, error: error.message, blocked: error.blocked }, { status: 422 });
     }
+    const f6Failure = f6FailureResponse(error);
+    if (f6Failure) return NextResponse.json(f6Failure, {status: 503});
     const recovery = tokenPayRecoveryResponse(error);
     if (recovery) return recovery;
     if(error instanceof Error && /Empty response from LLM|Incomplete response from LLM|模型输出中断|LLM_REQUEST_TIMEOUT|timed out|LLM API|Service is too busy/i.test(error.message)) {

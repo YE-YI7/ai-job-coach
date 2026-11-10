@@ -86,7 +86,10 @@ test('continue the same author after a checkpoint without replaying paid calls o
     {role:'tool',tool_call_id:'old',content:'actual old receipt'}],readIds:['spec.md'],completedAuthorCalls:3,publicCalls:[]};
   const run=jest.fn().mockResolvedValue(input.resume+'\n'),read=jest.fn(),hooks=services();
   const result=JSON.parse(await runF6ResumeWriter(input,run,read,()=>[],hooks,checkpoint));
-  expect(run).toHaveBeenCalledTimes(1);expect(run.mock.calls[0][0]).toEqual(checkpoint.messages);
+  expect(run).toHaveBeenCalledTimes(1);
+  expect(run.mock.calls[0][0].slice(0,checkpoint.messages.length)).toEqual(checkpoint.messages);
+  expect(JSON.parse(run.mock.calls[0][0].at(-1).content).executionState.authorCalls)
+    .toEqual({limit:12,completed:3,remainingIncludingThisCall:9});
   expect(read).not.toHaveBeenCalled();expect(hooks.search).not.toHaveBeenCalled();expect(hooks.fetch).not.toHaveBeenCalled();
   expect(result.fullDocument).toBe(input.resume+'\n');
   expect(result.f6Deliverables.files['resume-new.md']).toBe(input.resume+'\n');

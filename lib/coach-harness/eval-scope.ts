@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import type { LlmTransportDiagnostic } from '@/lib/llm-transport';
+import {expandEvalTranscript} from './eval-transcript-storage';
 
 export interface EvalSpan {
   id: string;
@@ -185,6 +186,7 @@ export function presentEvalRun(
   titles: Record<string, string> = {},
   retrieval?: unknown,
 ) {
+  run = expandEvalTranscript(run);
   const spans = Array.isArray(run.spans) ? (run.spans as EvalSpan[]) : [];
   const fromRetrieval = knowledgeFromRetrieval(
     retrieval || retrievalFromSpans(spans),

@@ -8,6 +8,7 @@ import type { LlmMessage, NativeTool, NativeToolCall } from '../llm-tools';
 import {F6_RUNTIME_VERSION} from './f6-runtime-contract';
 import {f6ReproChangeSourceIds,type F6ReproSection} from './f6-repro-input';
 import {F6_HR_REPAIR_INSTRUCTION,type F6HrReviewSession} from './f6-hr-review';
+import {f6CallMessages} from './f6-execution-state';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -119,7 +120,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   for (let turn = checkpoint?.completedAuthorCalls || 0; turn < F6_MAX_AUTHOR_CALLS; turn++) {
     let reply:string;
     try{
-      reply=await call(structuredClone(messages),turn?'write':'read_or_write',[...readIds],session.availableTools());
+      reply=await call(f6CallMessages(messages,turn,F6_MAX_AUTHOR_CALLS),
+        turn?'write':'read_or_write',[...new Set(readIds)],session.availableTools());
     }catch(error){
       if(!hrReview||!reviewedBody)throw error;
       hrReview.interrupted(error instanceof Error?error.message:String(error));

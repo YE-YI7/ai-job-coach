@@ -9,6 +9,7 @@ import {
   type EvalSpan,
 } from "./eval-scope";
 import { RESUME_TRACE_EVENT, resumeRequestHash } from "./resume-trace";
+import {compactEvalTranscript} from './eval-transcript-storage';
 
 /** Server-only consent allowlists, not user-editable metadata. Capture-only
  * identities do not acquire administrator permissions. */
@@ -117,7 +118,7 @@ export async function recordWorkspaceResume(
         .from("coach_eval_runs")
         .update({
           status: run.status,
-          run: redactEval(run),
+          run: compactEvalTranscript(redactEval(run) as Record<string, unknown>),
           legacy_trace_id: legacyId,
           updated_at: new Date().toISOString(),
         })

@@ -7,14 +7,17 @@ import { recordWorkspaceResume, workspaceEvalEnabled } from "./workspace-eval";
 import { beginResumeMessage, completeResumeMessage, failResumeMessage, readResumeTask, ResumeTaskError } from "./resume-task";
 import { resumeMessageFailure } from './resume-conversation-recovery';
 import { resumeConversationLlmOptions } from './resume-conversation-model';
-import { parseResumeConversationDecision, resumeConversationMessages } from "./resume-conversation-decision";
+import {
+  parseResumeConversationDecision, resumeConversationMessages, ResumeConversationEvidenceError,
+  type ResumeConversationDecision,
+} from "./resume-conversation-decision";
 import type { ResumeAgentTask } from "./resume-task-types";
 import { resumeReplyPreview } from './resume-reply-stream';
 import {isChatMode} from './chat-options';
 import {resolveChatModel} from './chat-models';
 import { ResumeReferenceError } from '@/lib/opportunities/resume-reference';
 
-const reply=(body:unknown)=>Response.json(body,{headers:{'Cache-Control':'private, no-store'}});
+const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
 /** Sending invokes the mentor. Only its validated decision may invoke the editor. */
 export async function runResumeConversation(
   request:Request,user:{id:string},body:{opportunityId:string;requestId:string;answer:string;modelMode?:unknown;resumeReference?:unknown},
@@ -42,16 +45,42 @@ export async function runResumeConversation(
       // stream a false "I'll add this experience" then retract the whole reply.
       if(onReply)options.onDelta=resumeReplyPreview(onReply,false);
       const raw=await runWithGenerationContext({userId:user.id,operation:'resume_conversation',requestId:`${body.requestId}:decision`,knowledgeDocumentIds:knowledge.map(k=>k.id)},()=>observedResumeLLM(messages,options));
-      const plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[]);
+      let plan: ResumeConversationDecision;
+      let evidenceNotApplied=false;
+      try {
+        plan=parseResumeConversationDecision(raw,opened.source.resume,opened.task.conversation||[]);
+      } catch (error) {
+        if (!(error instanceof ResumeConversationEvidenceError)) throw error;
+        evidenceNotApplied=true;
+        captureEvalStage('review','resume_conversation_evidence_not_applied',{
+          input:{messageId:body.requestId},
+          output:{reason:error.message,action:'discuss',editorInvoked:false},
+        },start,Date.now()-start);
+        // Never dispatch an untrusted editorBrief or stream its edit promise.
+        // The original user message stays available on the completed turn.
+        plan={action:'discuss',reply:'这条补充已保存。本轮没有执行新修改，原稿和已有改稿都保留；无法核对的内容暂不写入简历。',
+          editorBrief:'',supplement:null};
+      }
       const task=await completeResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,plan);
       onReply?.(plan.reply);
       onReceipt?.(task);
       captureEvalStage('review','resume_conversation_decision',{input:{messageId:body.requestId},output:plan},start,Date.now()-start);
+      if(evidenceNotApplied){
+        // The user receipt is saved, but this was not a useful model decision.
+        // Preserve the existing failed-call refund inside the metered boundary;
+        // expose the saved non-editing receipt only AFTER settlement below.
+        return reply({ok:true,task,conversationDecision:'discuss',conversationRecovery:'evidence_not_applied'},422);
+      }
       return reply({ok:true,task:plan.action==='revise'?await revise(body.requestId):task,conversationDecision:plan.action});
     },{operation:'resume_conversation',quotaType:'chat'});
     const response=await recordWorkspaceResume(user,auditRequest,execute);
     if(!response.ok){
       const problem=await response.clone().json().catch(()=>({}));
+      if(response.status===422&&problem.conversationRecovery==='evidence_not_applied'
+        &&problem.task?.conversation?.some((turn:{id:string;status:string;decision?:string})=>
+          turn.id===body.requestId&&turn.status==='completed'&&turn.decision==='discuss')){
+        return Response.json(problem,{status:200,headers:response.headers});
+      }
       await failResumeMessage(user.id,body.opportunityId,body.requestId,opened.version,{...resumeMessageFailure(problem.error),...(workspaceEvalEnabled(user)?{traceId}:{})});
       const task=await readResumeTask(user.id,body.opportunityId).catch(()=>null);
       return Response.json({...problem,task},{status:response.status,headers:response.headers});

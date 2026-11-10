@@ -13,6 +13,12 @@ import {
 import { splitResumeBlocks } from "@/lib/opportunities/resume-blocks";
 import {isResumeEditingDirection} from './resume-edit-request';
 import {currentF6MentorGuidance} from './f6-mentor-guidance';
+import {resumeConversationDraftContext} from './resume-conversation-context';
+import type {ResumeChange} from '@/lib/opportunities/types';
+
+/** A user message is saved independently of whether the AI's fact handoff is
+ * reliable. This error may be completed as discussion, never as an edit. */
+export class ResumeConversationEvidenceError extends Error {}
 
 export interface ResumeConversationFact {
   turnId: string;
@@ -29,6 +35,8 @@ export interface ResumeConversationDecision {
   supplements?: ResumeConversationFact[];
   /** 公司／项目标题仅作定位，不要求编辑把纠正口语写进正文。 */
   placements?: ResumeConversationFact[];
+  /** Exact original-source quotations are references, not new user statements. */
+  sourceReferences?: Array<{quote:string; sourceExcerpt:string; attemptedTurnId:string; source:'resume'}>;
 }
 export const RESUME_CONVERSATION_PROMPT = `你是负责把简历改好的导师，不是把写作决策交还用户的助手。发送消息不等于要求执行改稿：由你结合当前意愿、原文和历次回答判断。
 【职责】你决定突出什么、删什么冗余、采用哪种表达。只能请用户确认他们实际做过什么，不能问“你想突出哪个”“这样写可以吗”“要不要开始改”。不要把职业写作判断当作缺失事实。
@@ -38,6 +46,7 @@ export const RESUME_CONVERSATION_PROMPT = `你是负责把简历改好的导师�
 读完整段历史，把各轮的交付、归属与用途合起来判断；以用户最后一次明确纠正为准，不能继续沿已撤回的公司归属。用户补过的事实不要换个说法再问。用户说“就常规一样”，不要补出常规做法细节，已有事实足够就改，不要求再确认写作方向。
 revise的reply只说准备改哪段、突出什么，不声称已改或已保存。替换正文只由编辑Agent生成；不能先在聊天里写一版，再等待用户批准，导致编辑一直不启动。editorBrief只写本次局部目标与边界，不拟替换正文，不改无关段落。
 【事实交接】supplements最多4条，可引用不同历史用户消息；每条turnId必须真实，quote必须逐字摘录该用户消息，sourceExcerpt必须锚定现有相关简历段落。把同一段需要合用的动作、交付、用途一起传给编辑，不因最后一句只有归属或“常规一样”而丢掉前面的事实。
+【当前版本与来源】resume是原稿核源；currentDraft.text是当前完整修改预览，包含尚待用户确认的AI建议，不是新事实。若textReference为resume则当前稿与原稿相同，直接看resume；currentChanges记录各条修改状态，不用自行拼出成稿。先对照currentDraft，别重修已经改好的内容；投影未完成时不要假设它成功。mentorGuidance引用的旧错误不等于当前正文仍有错误。原稿已有事实直接回原稿核对，不要为了交接重新挂到用户消息ID上；supplements仅收用户真实原话。previousMentorGuidance是用户取舍前旧稿的辅导，只用于理解回话，不当当前待办。
 只允许用户实际自述进入supplements。导师拟稿、修改指令、问题、假设、外部案例都不是事实。不要把“分析达人特点”擅加为分析粉丝画像、转化率等未提供方法；不要把定制方案写成孵化达人或带来未提供的增长。无新增事实可返回空数组，直接用原文安全改。
 如果仍不知道事实属于哪段，discuss只问归属；不得以空sourceExcerpt新增经历，更不能按JD猜公司。若用户已经明确归属，就使用那段实际原文作锚，不因它与新增工作不同而反复质疑是否同一段实习。
 每轮最多一个事实问题，不同时索要动作、规模、结果。接受不知道、没记录、没做过或跳过；单独跳过只discuss、保留已有事实，不能自动删经历。纠错不等于内容优化，不能把修错字说成岗位定制完成。
@@ -49,7 +58,7 @@ revise的reply只说准备改哪段、突出什么，不声称已改或已保存
 只返回JSON：{"action":"discuss|revise","reply":"短判断或一个关键问题","editorBrief":"discuss时为空；revise时局部编辑目标","supplements":[{"turnId":"用户消息ID","quote":"逐字真实自述","sourceExcerpt":"对应简历原文","field":"context|action|deliverable|outcome|scope"}]}。`;
 
 export function resumeConversationMessages(
-  source: { resume: string; jd: string; changes: unknown[] },
+  source: { resume: string; jd: string; changes: unknown[]; revision?:string },
   task: ResumeAgentTask,
 ) {
   const references = selectResumeDraftKnowledge(source.resume, source.jd);
@@ -58,14 +67,24 @@ export function resumeConversationMessages(
   );
   const turns = task.conversation || [];
   const visible = turns.slice(-16);
+  const currentDraft = resumeConversationDraftContext(source, task);
+  const guidance = currentF6MentorGuidance(task.result?.f6Deliverables);
+  const guidanceKey = currentDraft.matchesLastGenerated === false || currentDraft.projectionStatus === 'unresolved'
+    ? 'previousMentorGuidance' : 'mentorGuidance';
   const payload = {
     resume: source.resume,
     jd: source.jd,
-    currentChanges: source.changes,
+    currentDraft: currentDraft.text === source.resume
+      ? {...currentDraft,text:undefined,textReference:'resume'} : currentDraft,
+    // Full before/after pairs duplicate both complete documents. Keep their
+    // state/identity here; an explicitly quoted change stays in referencedChange.
+    currentChanges: currentDraft.projectionStatus === 'current'
+      ? (source.changes as ResumeChange[]).map(({id,section,status})=>({id,section,status}))
+      : source.changes,
     question: task.question,
     savedAnswers: task.answers,
-    ...(currentF6MentorGuidance(task.result?.f6Deliverables) ? {mentorGuidance: {
-      text: currentF6MentorGuidance(task.result?.f6Deliverables),
+    ...(guidance ? {[guidanceKey]: {
+      text: guidance,
       provenance: 'AI建议/待确认角度/教学，仅用于理解这轮用户回复，不是已确认事实。',
       resumeGenerationId: task.result?.resumeGenerationId,
     }} : {}),
@@ -130,6 +149,7 @@ export function parseResumeConversationDecision(
     throw Error("本次修改目标尚未明确，简历未改变，请继续讨论。");
   const facts: ResumeConversationFact[] = [];
   const placements: ResumeConversationFact[] = [];
+  const sourceReferences: NonNullable<ResumeConversationDecision['sourceReferences']> = [];
   const blocks = splitResumeBlocks(source);
   const headings = new Set(
     blocks.map((block) => block.heading).filter(Boolean),
@@ -157,11 +177,11 @@ export function parseResumeConversationDecision(
         : [value.supplement]
       : value.supplements;
   if (action === "revise" && (!Array.isArray(rawFacts) || rawFacts.length > 4))
-    throw Error("本轮补充需要聚焦到对应经历，尚未执行改稿");
+    throw new ResumeConversationEvidenceError("本轮补充需要聚焦到对应经历，尚未执行改稿");
   if (action === "revise")
     for (const rawFact of rawFacts as unknown[]) {
       if (!rawFact || typeof rawFact !== "object")
-        throw Error("补充格式不完整，尚未执行改稿");
+        throw new ResumeConversationEvidenceError("补充格式不完整，尚未执行改稿");
       const s = rawFact as Record<string, unknown>;
       const turn = turns.find((t) => t.id === s.turnId),
         quote = typeof s.quote === "string" ? s.quote.trim() : "";
@@ -173,12 +193,21 @@ export function parseResumeConversationDecision(
         !turn ||
         !quote ||
         quote.length > 2000 ||
-        !turn.message.includes(quote) ||
         !["context", "action", "deliverable", "outcome", "scope"].includes(
           String(s.field),
         )
       )
-        throw Error("这条补充还不能可靠对应到原文，尚未执行改稿，请继续说明。");
+        throw new ResumeConversationEvidenceError("这条补充还不能可靠对应到原文，尚未执行改稿，请继续说明。");
+      if (!turn.message.includes(quote)) {
+        // The model sometimes assigns an exact original quotation to the
+        // current user turn. Keep its ORIGINAL provenance, not a fabricated
+        // user claim. Unknown/new claims still cannot pass this branch.
+        if (excerpt?.includes(quote)) {
+          sourceReferences.push({quote,sourceExcerpt:excerpt,attemptedTurnId:turn.id,source:'resume'});
+          continue;
+        }
+        throw new ResumeConversationEvidenceError("这条补充还不能可靠对应到原文，尚未执行改稿，请继续说明。");
+      }
       // Permissions and writing preferences never become experience claims.
       if(isResumeEditingDirection(quote))continue;
       // A valid self-report with unknown placement is a normal conversation,
@@ -224,5 +253,6 @@ export function parseResumeConversationDecision(
     supplement: facts[0] || null,
     ...(facts.length > 1 ? { supplements: facts } : {}),
     ...(placements.length ? { placements } : {}),
+    ...(sourceReferences.length ? { sourceReferences } : {}),
   };
 }

@@ -39,9 +39,15 @@ export function f6HrMessages(input:Material,body:string,reviewContext?:ReviewCon
     {role:'system',content:F6_HR_PROMPT},
     {role:'user',content:JSON.stringify({
       purpose:'source_reference_only',
-      sources:{'resume.md':input.resume,'facts.md':input.facts,'jd.txt':input.jd},
+      sources:Object.fromEntries(Object.entries({'resume.md':input.resume,'facts.md':input.facts,'jd.txt':input.jd})
+        .map(([document,text])=>[document,{providedAsReadableMessage:true,sha256:createHash('sha256').update(text).digest('hex')}])),
       ...(reviewContext ? {mechanical_review_hints: reviewContext} : {}),
     })},
+    // Source facts need the same readable document boundary as the candidate.
+    // Do not bury unique qualifications in JSON-escaped paragraphs or repeat
+    // the full text in both representations. References retain exact hashes.
+    ...Object.entries({'resume.md':input.resume,'facts.md':input.facts,'jd.txt':input.jd})
+      .map(([document,text])=>({role:'user' as const,content:'核源文档 '+document+'（不是新稿）\n\n'+text})),
     // Keep the actual review target readable, not another escaped document
     // inside the source-reference JSON. Exact bytes and SHA remain in Trace.
     {role:'user',content:'唯一待评新稿 candidate.md\nSHA256: '

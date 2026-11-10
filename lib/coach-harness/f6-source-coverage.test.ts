@@ -101,7 +101,9 @@ const replayRoot = process.env.F6_COVERAGE_REPLAY;
   expect(messages.at(-1)!.content.endsWith(oldTarget.text)).toBe(true);
   expect(messages.at(-1)!.content).toContain('从 0 到 1');
   expect(messages.at(-1)!.content).not.toContain('\\n');
-  expect(JSON.parse(messages[1].content).sources['resume.md']).toBe(fixture.resume);
+  expect(messages.find(message=>message.content.startsWith('核源文档 resume.md'))!.content.endsWith(fixture.resume)).toBe(true);
+  expect(JSON.parse(messages[1].content).sources['resume.md'].sha256)
+    .toBe(createHash('sha256').update(fixture.resume).digest('hex'));
   writeFileSync(path.join(root, 'attempt-2-readable-target-replay.json'), JSON.stringify({
     kind: 'recorded_input_representation_replay_not_model_quality', sourceEval: task.delivery.evalRunId,
     newModelCalls: 0, costCny: 0, candidateBytePreserved: true, originalSourcePreserved: true,

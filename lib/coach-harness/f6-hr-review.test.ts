@@ -1,6 +1,7 @@
 import {F6HrReviewSession,f6HrMessages,f6HrSummary} from './f6-hr-review';
 import {runF6ResumeWriter,f6InitialMessages,F6_MAX_AUTHOR_CALLS} from './resume-f6-writer';
 import {F6_ORIGIN_TOOLS} from './f6-tool-session';
+import {createHash} from 'node:crypto';
 
 const input={resume:'参与评测，整理120条用例。',jd:'需要评测经验',facts:[{id:'f',text:'整理120条用例。'}],
   answers:[],decisions:[],request:'',scope:'whole' as const,format:{}};
@@ -14,14 +15,17 @@ const commentary='「主导评测」与原材料「参与评测」责任不符�
 
 test('HR receives source-only references separately, with the current candidate last',()=>{
   const messages=f6HrMessages(material,first);
-  expect(messages.map(m=>m.role)).toEqual(['system','user','user']);
+  expect(messages.map(m=>m.role)).toEqual(['system','user','user','user','user','user']);
   expect(JSON.parse(messages[1].content)).toEqual({
     purpose:'source_reference_only',
-    sources: {'resume.md':material.resume,'facts.md':material.facts,'jd.txt':material.jd},
+    sources: Object.fromEntries(Object.entries({'resume.md':material.resume,'facts.md':material.facts,'jd.txt':material.jd})
+      .map(([document,text])=>[document,{providedAsReadableMessage:true,
+        sha256:createHash('sha256').update(text).digest('hex')}])),
   });
-  expect(messages[2].content).toContain('唯一待评新稿 candidate.md');
-  expect(messages[2].content).toMatch(/SHA256: [a-f0-9]{64}/);
-  expect(messages[2].content.endsWith(first)).toBe(true);
+  expect(messages[2].content.endsWith(material.resume)).toBe(true);
+  expect(messages.at(-1)!.content).toContain('唯一待评新稿 candidate.md');
+  expect(messages.at(-1)!.content).toMatch(/SHA256: [a-f0-9]{64}/);
+  expect(messages.at(-1)!.content.endsWith(first)).toBe(true);
   expect(messages[0].content).toContain('原稿');
   expect(messages[0].content).toContain('不能说成新稿引文');
   expect(messages[0].content).toContain('不重复抄写');

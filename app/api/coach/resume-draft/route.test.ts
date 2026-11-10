@@ -113,10 +113,11 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(body.hrReview.records[0].commentary).toBe(hr);
     expect(body.workflow).toMatchObject({hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1});
     const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
-    expect(hrMessages).toHaveLength(3);
+    expect(hrMessages).toHaveLength(6);
     expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'source_reference_only'});
-    expect(hrMessages[2].content).toContain('唯一待评新稿 candidate.md');
-    expect(hrMessages[2].content.endsWith(after)).toBe(true);
+    expect(hrMessages[2].content).toContain('核源文档 resume.md（不是新稿）');
+    expect(hrMessages.at(-1).content).toContain('唯一待评新稿 candidate.md');
+    expect(hrMessages.at(-1).content.endsWith(after)).toBe(true);
     expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
     expect(hrSettings.nativeTools).toBeUndefined();
     expect(hrSettings.responseFormat).toBeUndefined();

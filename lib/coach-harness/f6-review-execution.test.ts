@@ -8,8 +8,8 @@ test('review calibration never becomes candidate facts or the main author instru
   const messages = f6HrMessages(material, '李青\n两个项目均已上线。');
   expect(F6_HR_PROMPT).toContain('正文的准确限定不能抵消总领');
   expect(messages[0].content).toContain('不写总体匹配度');
-  expect(JSON.parse(messages[1].content).sources['resume.md']).toBe(material.resume);
-  expect(JSON.parse(messages[1].content).sources['facts.md']).toBe('[]');
+  expect(messages[2].content).toBe('核源文档 resume.md（不是新稿）\n\n'+material.resume);
+  expect(messages[3].content).toBe('核源文档 facts.md（不是新稿）\n\n[]');
   const author = f6InitialMessages({resume: material.resume, jd: material.jd, facts: [], answers: [],
     decisions: [], request: '', scope: 'whole', format: {}, mentorCoaching: true});
   expect(author[0].content).not.toContain('审核校准例');

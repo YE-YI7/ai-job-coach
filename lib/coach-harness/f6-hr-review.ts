@@ -131,6 +131,8 @@ export class F6HrReviewSession {
 const F6_HR_SOURCE_RESPONSE = 'HR点评是待核实的建议，不是候选人事实，也不必照单全收。'
   + '回看原简历与补充，自己判断是否采纳：修正有依据的问题，不为迎合HR补造动机、经历或结果。';
 const F6_HR_ONE_RESPONSE = '本次只回应这一轮点评，不再额外复审。';
+export const F6_HR_AUTHOR_SCOPE = '独立HR的本轮点评已经完成，不再另开独立复审调用。'
+  + '点评补充你的整稿任务，不替代它：你仍对整份交稿负责，自己核源、取舍并交回完整可用稿，不以HR提到哪些问题来缩小检查范围。';
 export const F6_HR_REPAIR_INSTRUCTION = F6_HR_SOURCE_RESPONSE
   + '仍由你选工具和取舍，交回完整稿；若点评不适用可保留原稿并说明理由。' + F6_HR_ONE_RESPONSE;
 
@@ -142,7 +144,7 @@ export function f6HrResponseInstruction(mentorChannels?: string) {
     + '点评不适用可保留正文；采纳或不采纳的理由只放notes.md或普通内部回复，不是给用户的辅导。'
     + '先分清HR引文来自新稿还是原稿；不把“可省略负面表述”当成证据缺口消失。'
     + '不补造事实不等于停止辅导，仍可基于实际缺口给用户回忆或验证路径；无需强行提问。'
-    + mentorChannels + F6_HR_ONE_RESPONSE : F6_HR_REPAIR_INSTRUCTION;
+    + mentorChannels + F6_HR_AUTHOR_SCOPE : F6_HR_REPAIR_INSTRUCTION;
 }
 
 export function f6HrSummary(receipt:F6HrReceipt):string{

@@ -32,6 +32,13 @@ export function isResumeTextUnchanged(before: string, after: string) {
   return visible(before) === visible(after);
 }
 
+/** Compare the visible document, not a print-only comment. Punctuation and
+ * real paragraph/list changes remain significant; this is not a quality score. */
+export function isCurrentResumeUnchanged(current: string, candidate: string) {
+  const text = (value: string) => value.replace(/<!--\s*PAGEBREAK\s*-->/g, '');
+  return isResumeTextUnchanged(text(current), text(candidate));
+}
+
 /** Similarity heuristic, NOT a quality verdict. OCR corrections and repairs to
  * fused sentences often fall below the same edit-distance threshold. Only the
  * independent reviewer can decide whether such a non-no-op is useful. */

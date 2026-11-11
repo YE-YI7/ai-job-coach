@@ -11,6 +11,7 @@ import {f6HrResponseInstruction,type F6HrReviewSession} from './f6-hr-review';
 import {f6CallMessages} from './f6-execution-state';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS, type latestF6MentorTurn} from './f6-mentor-guidance';
 import {f6ReviewExecution} from './f6-review-execution';
+import type {ResumeEditingContext} from './resume-editing-context';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
@@ -31,6 +32,7 @@ type Input = {
   mentorCoaching?: true;
   previousMentorGuidance?: string;
   latestMentorTurn?: ReturnType<typeof latestF6MentorTurn>;
+  editingContext?: ResumeEditingContext;
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
@@ -72,8 +74,18 @@ export function f6InitialMessages(input: Input): LlmMessage[] {
   return [
     { role: 'system', content: system + (input.mentorCoaching ? '\n\n' + F6_MENTOR_RESPONSIBILITY : '') },
     { role: 'user', content: JSON.stringify({
-      task: scope, 'resume.md': input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
-      answers: input.answers, editingRequest: input.request, priorDecisions: input.decisions,
+      task: scope, 'resume.md': input.editingContext?.current.text ?? input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
+      answers: input.answers, editingRequest: input.request,
+      priorDecisions: input.editingContext && Array.isArray(input.decisions)
+        ? input.decisions.map(({id, section, status}) => ({id, section, status})) : input.decisions,
+      ...(input.editingContext ? {
+        currentTask: input.editingContext.task,
+        documentRoles: input.editingContext.documentRoles,
+        source_reference_only: {
+          'original-resume.md': input.resume,
+          instructionHistory: input.editingContext.instructionHistory,
+        },
+      } : {}),
       ...(input.latestMentorTurn ? {latestMentorTurn: input.latestMentorTurn} : {}),
       ...(input.previousMentorGuidance ? {previousMentorGuidance: {
         text: input.previousMentorGuidance,
@@ -115,7 +127,8 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   };
   const resourceInput = input.acceptedSection
     ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
-      facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}:input;
+      facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}
+      : {...input, resume: input.editingContext?.current.text ?? input.resume};
   const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
     mentorCoaching);
   const started = Date.now();

@@ -34,7 +34,7 @@ export async function POST(request: Request) {
           const revise=async(messageId:string)=>{
             claimed=await claimResumeTask(user.id,body.opportunityId,{action:'conversation',messageId});
             if(!claimed.claimed)return claimed.task;
-            return executeClaimed(request,body.opportunityId,user.id,claimed);
+            return executeClaimed(request,body.opportunityId,user.id,claimed,'conversation');
           };
           return onReply?await runResumeConversation(request,user,body,revise,onReply,onReceipt):await runResumeConversation(request,user,body,revise);
         } catch(error) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     if(!['start','restart','answer','skip','retry','revise'].includes(body.action))return reply({ok:false,error:'改稿动作无效'},400);
     claimed = await claimResumeTask(user.id, body.opportunityId, body);
     if (!claimed.claimed) return reply({ ok: true, task: claimed.task, replayed: true });
-    return reply({ ok: true, task: await executeClaimed(request,body.opportunityId,user.id,claimed) });
+    return reply({ ok: true, task: await executeClaimed(request,body.opportunityId,user.id,claimed,body.action) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "改稿暂未完成，补充仍保留";
     if (claimed?.claimed) {
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
     return reply({ ok: false, error: message }, error instanceof ResumeTaskError ? error.status : 503);
   }
 }
-async function executeClaimed(request:Request,opportunityId:string,userId:string,claimed:Awaited<ReturnType<typeof claimResumeTask>>){
+async function executeClaimed(request:Request,opportunityId:string,userId:string,
+  claimed:Awaited<ReturnType<typeof claimResumeTask>>,action:string){
     const generationId = typeof claimed.version === "number" ? `${claimed.task.id}:${claimed.version}` : "";
     const started=Date.now();
     const coordinates={taskId:claimed.task.id,sourceRevision:claimed.source.revision,opportunityId,startedAt:new Date(started).toISOString(),mode:claimed.source.general?'general_resume':'target_resume'};
@@ -72,7 +73,7 @@ async function executeClaimed(request:Request,opportunityId:string,userId:string
       const response = await draftResume(new Request(request.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
       opportunityId, resumeText: claimed.source.resume, jobDescription: claimed.source.jd,
       mode: claimed.source.general ? "general_resume" : "target_resume", requestId: `resume-task:${claimed.task.id}:${claimed.version}`,
-      resumeTaskId: claimed.task.id, resumeTaskLease: claimed.lease,
+      resumeTaskId: claimed.task.id, resumeTaskLease: claimed.lease, resumeTaskAction: action,
       }) }));
       evalRunId=response.headers.get('x-yizhi-eval-id');
       result = await response.json();

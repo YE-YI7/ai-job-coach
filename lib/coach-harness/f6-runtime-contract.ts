@@ -4,7 +4,7 @@ import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-men
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v22-source-evidence-units' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v23-current-document-intent' as const;
 
 /** Public, non-personal release receipt. The writer and the health endpoint
  * share this identity; an environment flag cannot secretly select an old writer. */
@@ -24,6 +24,8 @@ export function f6RuntimeIdentity() {
     mentorResponseDelivery: 'explicit_user_guidance_separate_internal_hr_response',
     mentorResponseChannelsSha256: createHash('sha256').update(F6_MENTOR_HR_RESPONSE_CHANNELS).digest('hex'),
     conversationContext: 'latest_projected_draft_and_original_source',
+    editingContext: 'current_visible_draft_original_evidence_historical_instructions',
+    editingOutcome: 'increment_against_current_document_not_old_source',
     conversationEvidence: 'literal_user_quotes_original_references_untrusted_not_applied',
     conversationLocation: 'versioned_current_to_original_mapping_not_factual_evidence',
     automaticJudge: true,

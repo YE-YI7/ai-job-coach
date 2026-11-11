@@ -38,6 +38,7 @@ beforeEach(() => {
   (draft as jest.Mock).mockImplementation(async (input: Request) => {
     const body = await input.json();
     expect(body.resumeText).toBe(source);
+    expect(body.resumeTaskAction).toBe('restart');
     expect(body.requestId).toBe('resume-task:task:7');
     const result = { changes: [{ id: 'new', before: source, after: '本轮新成稿', status: 'pending' }], resumeGenerationId: 'task:7' };
     Object.assign(db.rows('coach_resume_tasks')[0], { state: 'ready', result, lease_id: null, version: 8 });

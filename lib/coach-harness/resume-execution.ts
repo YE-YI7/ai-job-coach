@@ -59,6 +59,7 @@ import type {F6AcceptanceExecution} from './f6-acceptance';
 import type {F6Deliverables} from './f6-tool-session';
 import {F6HrReviewSession,f6HrSummary,type F6HrReceipt} from './f6-hr-review';
 import {f6ReviewHints} from './f6-review-hints';
+import {resumeEditingContext, isCurrentResumeUnchanged} from './resume-editing-context';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -131,7 +132,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     if (agentTask && agentTask.opportunity_id !== opportunityId) throw Error("改稿任务与当前简历不一致");
     // Read-time normalization only. Never rewrite historical user answers.
     if(agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||!isResumeEditingDirection(answer.answer));
-    const editingRequest=agentTask?.answers.filter(answer=>answer.kind==='instruction').at(-1)?.answer||'';
+    const latestEditingRequest=agentTask?.answers.filter(answer=>answer.kind==='instruction').at(-1)?.answer||'';
     let requestCoverage:ResumeRequestCoverage|null=null;
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
@@ -142,9 +143,15 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const reproSection = options.acceptance?.section;
     if (reproSection && (!useF6 || !onDemandReview || reproSection.resume.trim() !== resumeText
       || reproSection.jd.trim() !== jobDescription
-      || !resumeText.includes(reproSection.excerpt) || editingRequest || agentTask?.answers.length
+      || !resumeText.includes(reproSection.excerpt) || latestEditingRequest || agentTask?.answers.length
       || generationSource?.changes.length)) throw Error('F6_REPRO_SCOPE_INPUT_MISMATCH');
     const editSource = reproSection?.excerpt || trialScope?.excerpt || resumeText;
+    const editingContext = onDemandReview && generationSource && agentTask && !trialScope && !reproSection
+      ? resumeEditingContext(generationSource, agentTask, body.resumeTaskAction) : undefined;
+    const editingRequest = editingContext?.task.request ?? latestEditingRequest;
+    if (editingContext) trace.step('context', 'current_document_editing_baseline', undefined, {
+      input: {action: editingContext.task.action}, output: editingContext,
+    });
     reservation = options.acceptance ? {id: 'offline-f6-acceptance', source: 'site_acceptance', remaining: null}
       : options.isolated ? { id: "offline-isolated-eval", source: "isolated_site_model", remaining: null }
       : trialScope ? await reserveResumeTrial(user.id,`resume-draft:${requestId}`) : await reserveQuota(user.id, "resume", `resume-draft:${requestId}`);
@@ -202,6 +209,12 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
         : options.isolated ? answers.filter(a=>a.claimId).map(a=>({id:a.claimId!,entityType:"experience",entityKey:a.id,claimType:"resume_task_supplement",value:a.answer,displayText:a.answer,sourceExcerpt:a.answer,status:"unverified",visibility:"recruiter_safe",sourceKind:"user_statement",verificationLevel:"self_reported"})) : await persistResumeAnswerClaims(agentTask);
       context = compileContextBundle({ ...context, knowledgeContext: "", claims: [...context.claims.filter(claim=>claim.claimType!=="resume_task_supplement"), ...supplementClaims],
         attachments: [...context.attachments, ...answers.map((answer, index) => ({ id: `resume-answer-source-${index}`, label: "已保存的本人补充（自述）", text: answer.answer, required: true }))] });
+    }
+    if (editingContext && editingContext.current.text !== resumeText) {
+      context = compileContextBundle({...context, attachments: [...context.attachments, {
+        id: 'current-resume', label: '本轮要修改的当前稿（不是新增事实）',
+        text: editingContext.current.text, required: true,
+      }]});
     }
     trace.step("context", "own_materials_compiled", undefined, { input: { resumeText, jobDescription, opportunityId, mode: body.mode }, output: context });
     const references = selectResumeDraftKnowledge(resumeText, jobDescription, context.knowledge);
@@ -336,9 +349,11 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let output:string;
     try { output = useF6 ? await runF6ResumeWriter({
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
+      ...(editingContext ? {editingContext} : {}),
       mentorCoaching: true,
       previousMentorGuidance: currentF6MentorGuidance(agentTask?.result?.f6Deliverables),
-      latestMentorTurn: latestF6MentorTurn(agentTask?.conversation),
+      latestMentorTurn: !editingContext || editingContext.task.action === 'conversation'
+        ? latestF6MentorTurn(agentTask?.conversation) : undefined,
       answers:agentTask?.answers.filter(item=>item.kind!=='instruction') ?? [],
       decisions:generationSource?.changes.filter(change=>change.status!=='pending') ?? [],
       scope:trialScope||reproSection?'single':'whole',format:styleContract,
@@ -373,6 +388,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     }, undefined, options.acceptance?.checkpoint,
     options.hrCommentary && onDemandReview ? new F6HrReviewSession({
       resume: editSource, jd: jobDescription,
+      ...(editingContext ? {currentResume: editingContext.current.text} : {}),
       facts: citationSources.slice(1).map(item=>`[${item.id}] ${item.text}`).join('\n\n'),
     },messages=>runWithGenerationContext({
       userId:modelUserId,operation:'resume_review',requestId:`${requestId}:f6:hr-commentary`,
@@ -436,6 +452,28 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const documentDelivery = useF6 && typeof parsed.fullDocument === 'string';
     if(documentDelivery)lastF6Document=parsed.fullDocument;
     else if(useF6)canRepairDraft=false;
+    // Compare to what the user saw, not to the upload behind earlier accepted
+    // edits. Preserve every old choice and the explicit mentor/HR channels.
+    if (onDemandReview && documentDelivery && editingContext && generationSource
+      && isCurrentResumeUnchanged(editingContext.current.text, parsed.fullDocument)) {
+      const summary = '本轮没有新增正文修改，当前稿和原有取舍已保留。'
+        + (hrReceipt ? '\n' + f6HrSummary(hrReceipt) : '');
+      const kept = generationSource.changes;
+      const task = await finishResumeTask(user.id, String(body.resumeTaskId), String(body.resumeTaskLease), generationSource, {
+        ok: true, prepared: true, changes: kept, unchanged: true, summary,
+        applicationQuality: generationSource.applicationQuality,
+        ...(f6Deliverables ? {f6Deliverables} : {}),
+      });
+      if (task.state !== 'ready') throw Error('简历已更新，本轮没有覆盖你的编辑，请刷新核对');
+      await finalizeQuota(reservation, false); reservation = null; outcome = 'unchanged';
+      trace.data.editingValue = {reviewed: 0, useful: 0, rejected: 0, kinds: [],
+        personalDisclaimersOmitted: 0, disposition: 'unchanged'};
+      trace.step('save', 'current_document_unchanged', 0, {
+        input: {baselineSha256: editingContext.current.sha256}, output: {task, summary, oldDecisionsPreserved: true},
+      });
+      return NextResponse.json({ok: true, unchanged: true, summary, changes: kept, task,
+        ...(f6Deliverables ? {f6Deliverables} : {}), ...(hrReceipt ? {hrReview: hrReceipt} : {})});
+    }
     rawChanges = coalesceResumeProposals(Array.isArray(parsed.changes)
       ? (documentDelivery ? parsed.changes : parsed.changes.slice(0,6)).filter((item:unknown)=>item&&typeof item==='object') : []);
     if(attempt)rawChanges=carryResumeProposals(rawChanges,groundedCarry,lockedChanges);

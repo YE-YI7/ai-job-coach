@@ -2,12 +2,13 @@ import {createHash} from 'node:crypto';
 import {applyResumeChanges} from './application-quality';
 import type {ResumeChange} from '@/lib/opportunities/types';
 import type {ResumeAgentTask} from './resume-task-types';
+import {isCurrentResumeUnchanged} from './resume-diff';
 
 /** The same clean projection the editor displays, not a new factual source.
  * A declined/manual edit must win over the last model-generated file. */
 export function resumeConversationDraftContext(
   source: {resume:string; changes:unknown[]; revision?:string},
-  task: ResumeAgentTask,
+  task: Pick<ResumeAgentTask, 'result'>,
 ) {
   const valid = source.changes.every(change => {
     if (!change || typeof change !== 'object') return false;
@@ -26,7 +27,7 @@ export function resumeConversationDraftContext(
     projectionStatus: complete ? 'current' as const : 'unresolved' as const,
     text,
     sha256: text === null ? null : createHash('sha256').update(text).digest('hex'),
-    matchesLastGenerated: text === null || !generated ? null : text.trim() === generated.trim(),
+    matchesLastGenerated: text === null || !generated ? null : isCurrentResumeUnchanged(text, generated),
     findings: projection?.findings || [{code:'invalid_change_record',message:'修改记录无法完整投影，不能当成最新完整稿。'}],
     provenance: '当前工作区的完整修改预览，含待确认建议与用户已作的取舍；不是新增事实证据。'
       + '事实仍核对原稿resume和用户conversation[].user；最新明确纠正优先。',

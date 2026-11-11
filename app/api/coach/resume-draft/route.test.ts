@@ -77,6 +77,58 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     opportunityId:"opp-1", resumeText:"负责模型评测", mode:"general_resume", resumeTaskId:"task", resumeTaskLease:"lease", ...extra,
   })});
   const writerAndReview = () => (runWithGenerationContext as jest.Mock).mock.calls.map(([context]) => context.operation);
+  test('restart edits the visible draft, treats old requests as history and does not sell an unchanged old improvement again', async () => {
+    const before = '整理评测记录，整理后交给同事每周核对。';
+    const current = '整理评测记录，交给同事每周核对。';
+    const oldChanges = [{id: 'already-accepted', before, after: current, section: '经历',
+      reason: '上轮已接受', evidenceId: null, status: 'accepted'}];
+    const oldInstruction = {id: 'old-instruction', kind: 'instruction', field: 'context', sourceExcerpt: '',
+      question: '修改要求', answer: '只改这一句，不调整章节。', savedAt: '2026-10-25T09:05:22Z'};
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id: 'opp-1', answers: [oldInstruction],
+      conversation: [{id: 'old-message', message: '之前的局部修改', reply: '之前的回复', status: 'completed'}]});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume: before, jd: '', revision: 'r', changes: oldChanges});
+    const output = (files: Array<{name: string; text: string}>) => JSON.stringify({type: 'native_tool_calls', tool_calls: [{
+      id: 'write', type: 'function', function: {name: 'write_output', arguments: JSON.stringify({files})},
+    }]});
+    const mentor = '这段的交付已写清。你给同事核对时，具体用什么标准判断记录是否可用？';
+    (callLLM as jest.Mock).mockResolvedValueOnce(output([{name: 'resume-new.md', text: current + '\n<!-- PAGEBREAK -->'}]))
+      .mockResolvedValueOnce('本轮正文没有新增改进；核对标准仍可向用户确认。')
+      .mockResolvedValueOnce(output([{name: 'mentor.md', text: mentor}]));
+    (finishResumeTask as jest.Mock).mockResolvedValue({state: 'ready'});
+    const response = await productionPOST(oneShotInput({resumeText: before, resumeTaskAction: 'restart'}));
+    const result = await response.json();
+    expect(response.status).toBe(200);
+    expect(result).toMatchObject({ok: true, unchanged: true, changes: oldChanges,
+      summary: expect.stringContaining('本轮没有新增正文修改'),
+      f6Deliverables: {mentorGuidance: {text: mentor, current: true}}});
+    const first = JSON.parse((callLLM as jest.Mock).mock.calls[0][0][1].content);
+    expect(first['resume.md']).toBe(current);
+    expect(first.editingRequest).toBe('');
+    expect(first.latestMentorTurn).toBeUndefined();
+    expect(first.source_reference_only['original-resume.md']).toBe(before);
+    expect(first.source_reference_only.instructionHistory[0].text).toBe(oldInstruction.answer);
+    const hr = (callLLM as jest.Mock).mock.calls[1][0];
+    expect(hr.at(-2).content.endsWith(current)).toBe(true);
+    expect(finishResumeTask).toHaveBeenCalledWith('user-1', 'task', 'lease', expect.anything(),
+      expect.objectContaining({changes: oldChanges, unchanged: true,
+        f6Deliverables: expect.objectContaining({mentorGuidance: expect.objectContaining({text: mentor})})}));
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
+    expect(createArtifactWithClaims).not.toHaveBeenCalled();
+    expect(callLLM).toHaveBeenCalledTimes(3);
+  });
+
+  test('a broken current-draft mapping fails before quota reservation and any billable call', async () => {
+    const before = '负责整理评测记录。';
+    (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id: 'opp-1', answers: []});
+    (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume: before, jd: '', revision: 'r',
+      changes: [{id: 'invalid', before: '不存在的原文', after: '过期改动', section: '经历', status: 'pending'}]});
+    const response = await productionPOST(oneShotInput({resumeText: before, resumeTaskAction: 'restart'}));
+    expect(response.ok).toBe(false);
+    expect(callLLM).not.toHaveBeenCalled();
+    expect(reserveQuota).not.toHaveBeenCalled();
+    expect(finishResumeTask).not.toHaveBeenCalled();
+  });
+
   test('shipped F6 delivers after independent raw HR commentary and same-author response, without fabricated approval',async()=>{
     // A leftover rollout flag must never send the actual product route back
     // to the two-tool writer while health reports the accepted runtime.
@@ -113,7 +165,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(body.hrReview.records[0].commentary).toBe(hr);
     expect(body.workflow).toMatchObject({hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1});
     const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
-    expect(hrMessages).toHaveLength(6);
+    expect(hrMessages).toHaveLength(7);
     expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'source_reference_only'});
     expect(hrMessages[2].content).toContain('核源文档 resume.md（不是新稿）');
     expect(hrMessages.at(-1).content).toContain('唯一待评新稿 candidate.md');

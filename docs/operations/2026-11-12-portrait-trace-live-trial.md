@@ -47,3 +47,5 @@
 应用内侧栏当前仍登录非管理员测试账号，未转移 Chrome 凭据或扩大权限；登录页 redirect 已指向本轮。原 Chrome 管理员已打开同一正式记录。不能把侧栏登录页说成已经看到结果。
 
 私有证据：`/Users/yi/Documents/Codex/yizhi-portrait-trace-trial-20261112-A6dZGT/`；UI 修正发布：`/Users/yi/Documents/Codex/yizhi-eval-trace-labels-20261112-jIxxFE/`。凭据只在私有权限文件，不进报告或仓库。下一步讨论这条真实链路的核源与取舍问题，**不自动再改 Harness 或追加实验**。
+
+最终展示修正 `22641e3`（只提交本任务3个展示/测试文件和本说明，未push含其他未发布祖先的分支）；补实际 `applied=false` 回执后云构建成功，最终生产部署 `dpl_H49dedDm2r9HTxLHrTUdFqPWBHqv`。staged 4静态资源SHA、匿名数据401、完整runtime同后 promote；模型验收部署没有被promote。最终4资源hash和完整runtime仍独立核对，不用UI发布冒成Harness变更或新模型试跑。旧两个脏operations文档保留，未提交也未打入发布包。

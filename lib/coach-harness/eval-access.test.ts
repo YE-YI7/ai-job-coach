@@ -47,3 +47,23 @@ test("eval-specific server user ID allowlist does not trust email or metadata", 
     else process.env.EVAL_ADMIN_USER_IDS = old;
   }
 });
+test("additive Eval grants preserve existing admins and match the authenticated ID only", () => {
+  const before={ids:process.env.EVAL_ADMIN_USER_IDS,extra:process.env.EVAL_ADMIN_ADDITIONAL_USER_IDS,email:process.env.ADMIN_EMAILS};
+  try {
+    process.env.EVAL_ADMIN_USER_IDS="existing-admin";
+    process.env.EVAL_ADMIN_ADDITIONAL_USER_IDS=" sidebar-admin , second-admin ";
+    process.env.ADMIN_EMAILS="";
+    expect(isEvalAdmin({id:"existing-admin"})).toBe(true);
+    expect(isEvalAdmin({id:"sidebar-admin"})).toBe(true);
+    expect(isEvalAdmin({id:"second-admin"})).toBe(true);
+    expect(isEvalAdmin({id:"other",email:"sidebar-admin"})).toBe(false);
+    expect(isEvalAdmin(null)).toBe(false);
+    delete process.env.EVAL_ADMIN_ADDITIONAL_USER_IDS;
+    expect(isEvalAdmin({id:"sidebar-admin"})).toBe(false);
+    expect(isEvalAdmin({id:"existing-admin"})).toBe(true);
+  } finally {
+    for(const [key,value] of [["EVAL_ADMIN_USER_IDS",before.ids],["EVAL_ADMIN_ADDITIONAL_USER_IDS",before.extra],["ADMIN_EMAILS",before.email]]) {
+      if(value===undefined)delete process.env[key!];else process.env[key!]=value;
+    }
+  }
+});

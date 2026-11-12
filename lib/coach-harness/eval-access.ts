@@ -2,7 +2,10 @@ export function isEvalAdmin(
   user: { id?: string; email?: string | null } | null,
 ) {
   if (!user) return false;
-  const ids = (process.env.EVAL_ADMIN_USER_IDS || "")
+  // Keep an existing secret allowlist intact when its value cannot be read
+  // back. Additional grants remain server-controlled and Eval-specific.
+  const ids = [process.env.EVAL_ADMIN_USER_IDS, process.env.EVAL_ADMIN_ADDITIONAL_USER_IDS]
+    .filter(Boolean).join(",")
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);

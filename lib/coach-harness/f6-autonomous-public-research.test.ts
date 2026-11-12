@@ -3,6 +3,7 @@ import {F6PublicTools} from './f6-public-tools';
 import {F6PublicResearchPrivacy} from './f6-public-research-privacy';
 import {runF6ResumeWriter} from './resume-f6-writer';
 import {F6HrReviewSession} from './f6-hr-review';
+import {resumeEditingContext} from './resume-editing-context';
 
 const resume='姓名：林禾\n邮箱：lin@example.test\n手机：13800138000\n\n负责整理问答失败原因，核对人工验收记录。';
 const secret='我与某内部团队在未发布的客户项目中调整了保密验收规则并记录了具体的失败分类及实施过程，'
@@ -94,4 +95,18 @@ test('same author can freely fetch, search, then write; HR remains once and no e
     const tools=invocation[3];
     expect(tools.find((tool:{function:{name:string}})=>tool.function.name==='search').function.parameters.required).toEqual(['query']);
   }
+});
+
+test('private passages from the original source stay protected even after removal from the visible draft',async()=>{
+  const original=resume+'\n'+secret;
+  const editingContext=resumeEditingContext({resume:original,changes:[{id:'omit',before:secret,after:'',
+    section:'项目',reason:'已接受取舍',status:'accepted',evidenceId:null}]},{answers:[]},'restart');
+  const services=hooks(),author=jest.fn().mockResolvedValueOnce(call('search',{query:secret}))
+    .mockResolvedValueOnce(editingContext.current.text);
+  const delivered=JSON.parse(await runF6ResumeWriter({...input,resume:original,facts:[],editingContext},
+    author,()=>{},undefined,services));
+  expect(services.search).not.toHaveBeenCalled();
+  const receipt=author.mock.calls[1][0].filter((message:{role:string})=>message.role==='tool').at(-1);
+  expect(JSON.parse(receipt.content)).toMatchObject({error:'PUBLIC_RESEARCH_PRIVATE_INPUT',sentToPublicService:false});
+  expect(delivered.fullDocument).toBe(editingContext.current.text);
 });

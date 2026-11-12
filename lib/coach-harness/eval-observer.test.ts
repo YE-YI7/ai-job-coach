@@ -8,6 +8,22 @@ import { callLLM } from "@/lib/llm";
 import { runWithGenerationContext } from "@/lib/generation-context";
 jest.mock("@/lib/llm", () => ({ callLLM: jest.fn() }));
 beforeEach(() => jest.clearAllMocks());
+test('a QA budget refusal happens before the upstream request and remains a failed span',async()=>{
+  const spans:EvalSpan[]=[],beforeModel=jest.fn().mockRejectedValue(new Error('QA_BUDGET_EXHAUSTED'));
+  await expect(withEvalObserver({spans,save:async()=>{},beforeModel},()=>
+    observedResumeLLM([{role:'user',content:'clean resume'}],{maxTokens:7500}))).rejects.toThrow('QA_BUDGET_EXHAUSTED');
+  expect(callLLM).not.toHaveBeenCalled();expect(spans[0].status).toBe('failed');
+});
+test('QA observation leaves the original messages, settings and output unchanged',async()=>{
+  const messages=[{role:'user' as const,content:'clean resume'}],before=JSON.stringify(messages);
+  (callLLM as jest.Mock).mockResolvedValue('actual draft');
+  const afterModel=jest.fn().mockResolvedValue(undefined);
+  const result=await withEvalObserver({spans:[],save:async()=>{},beforeModel:async()=>{},afterModel},()=>
+    observedResumeLLM(messages,{maxTokens:7500,temperature:.3}));
+  expect(result).toBe('actual draft');expect(JSON.stringify(messages)).toBe(before);
+  expect(callLLM).toHaveBeenCalledWith(messages,expect.objectContaining({maxTokens:7500,temperature:.3}));
+  expect(afterModel).toHaveBeenCalledTimes(1);
+});
 test("normal-user path preserves original arguments and captures nothing", async () => {
   (callLLM as jest.Mock).mockResolvedValue("ok");
   const messages = [{ role: "user" as const, content: "sample" }];

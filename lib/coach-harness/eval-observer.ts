@@ -59,6 +59,7 @@ export async function observedResumeLLM(
   observer.spans.push(span);
   await observer.save();
   try {
+    await observer.beforeModel?.(span);
     const output = await callLLM(args[0], {
       ...args[1],
       onDiagnostic: (diagnostic) => {
@@ -93,6 +94,7 @@ export async function observedResumeLLM(
     throw error;
   } finally {
     span.durationMs = Date.now() - start;
+    await observer.afterModel?.(span);
     await observer.save();
   }
 }

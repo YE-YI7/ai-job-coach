@@ -10,6 +10,7 @@ import {
 } from "./eval-scope";
 import { RESUME_TRACE_EVENT, resumeRequestHash } from "./resume-trace";
 import {compactEvalTranscript} from './eval-transcript-storage';
+import {workspaceQaTarget, workspaceQaBudget} from './workspace-qa-budget';
 
 /** Server-only consent allowlists, not user-editable metadata. Capture-only
  * identities do not acquire administrator permissions. */
@@ -18,7 +19,7 @@ export function workspaceEvalEnabled(user: { id: string }) {
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)
-    .includes(user.id);
+    .includes(user.id) || workspaceQaTarget(user.id);
 }
 /** Observe the real request without replaying it, adding a model call, or changing old answers. */
 export async function recordWorkspaceResume(
@@ -47,6 +48,9 @@ export async function recordWorkspaceResume(
   const id = probeId || randomUUID(),
     requestId = String(body.requestId || id).slice(0, 180),
     started = Date.now();
+  let qaBudget:Awaited<ReturnType<typeof workspaceQaBudget>>;
+  try { qaBudget=await workspaceQaBudget(user.id,body.opportunityId,id); }
+  catch { return Response.json({error:'隔离验收预算不可用，未调用模型。'},{status:503}); }
   const spans: EvalSpan[] = [];
   const run: Record<string, unknown> = {
     id,
@@ -136,7 +140,7 @@ export async function recordWorkspaceResume(
     body: JSON.stringify({ ...body, requestId }),
   });
   try {
-    const response = await withEvalObserver({ spans, save }, () =>
+    const response = await withEvalObserver({ spans, save, ...qaBudget }, () =>
       execute(forwarded),
     );
     const output = await response.clone().json();

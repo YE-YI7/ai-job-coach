@@ -32,7 +32,11 @@ export type EvalStageIO = {
   output: unknown;
   knowledge?: EvalSpan["knowledge"];
 };
-type Observer = { spans: EvalSpan[]; save: () => Promise<void> };
+type Observer = {
+  spans: EvalSpan[]; save: () => Promise<void>;
+  beforeModel?: (span: EvalSpan) => Promise<void>;
+  afterModel?: (span: EvalSpan) => Promise<void>;
+};
 const scope = new AsyncLocalStorage<Observer>();
 export function withEvalObserver<T>(
   observer: Observer,

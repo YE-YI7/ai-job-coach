@@ -72,6 +72,7 @@ export class F6HrReviewSession {
   repairRequested=false;
   finalState='not_reviewed';
   private authorResponse?: {text:string; audience:'internal_review'};
+  private reviewedMessages?:LlmMessage[];
   constructor(private input:Material,private call:F6HrCall,
     private hintsFor?: (body:string)=>F6ReviewHints){}
   /** Same versioned evidence goes to HR and its original author. It is not
@@ -80,6 +81,28 @@ export class F6HrReviewSession {
     const record=this.records[0];
     return record?.reviewContext ? {...record.reviewContext,
       ...(record.sourceComparison?{authorSourceDiff:f6AuthorSourceDiff(record.sourceComparison)}:{})} : undefined;
+  }
+  /** HR prose is external advice, never a successful-save receipt or user fact.
+   * Reuse the exact reviewed documents so the original author can reconcile it.
+   * No extraction, correction, verdict parsing or extra model call occurs here. */
+  authorHandoff(commentary:string,instruction:string):LlmMessage[]{
+    const record=this.records[0];
+    if(record?.status!=='completed'||record.commentary!==commentary)throw Error('F6_HR_HANDOFF_RECORD_MISMATCH');
+    if(!this.reviewedMessages)throw Error('F6_HR_REVIEW_INPUT_MISSING');
+    const evidence=structuredClone(this.reviewedMessages.slice(1));
+    evidence[0]={role:'user',content:JSON.stringify({...JSON.parse(evidence[0].content),
+      source:'host_review_handoff',instruction})};
+    const messages:LlmMessage[]=[
+      {role:'assistant',content:JSON.stringify({source:'independent_hr',
+        authority:'unverified_advice_not_user_fact',hrReview:commentary,
+        candidateSha256:createHash('sha256').update(record.body).digest('hex')})},
+      ...evidence,
+    ];
+    captureEvalStage('context','f6_hr_author_evidence_handoff',{
+      input:{reviewedCandidateSha256:createHash('sha256').update(record.body).digest('hex')},
+      output:{messages,adviceSeparateFromSave:true,source:'existing_review_documents',newFactsAdded:false},
+    },Date.now(),0);
+    return messages;
   }
   async inspect(body:string,remainingAuthorCalls:number,coaching?:{text:string;resumeRevision:number;current:boolean}):Promise<string|null>{
     if(this.records.length){
@@ -103,6 +126,7 @@ export class F6HrReviewSession {
         sha256:createHash('sha256').update(coaching.text).digest('hex'),resumeRevision:coaching.resumeRevision};
     }
     const messages=f6HrMessages(this.input,body,reviewContext),started=Date.now();
+    this.reviewedMessages=structuredClone(messages);
     try{
       const commentary=await this.call(messages);
       if(!commentary?.trim())throw Error('HR_EMPTY_RESPONSE');

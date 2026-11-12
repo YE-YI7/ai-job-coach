@@ -16,6 +16,7 @@ const write=(text:string,guide?:string)=>JSON.stringify({type:'native_tool_calls
     {name:'resume-new.md',text},...(guide?[{name:'mentor.md',text:guide}]:[]),
   ]})},
 }]});
+const handoff=(messages:Array<{content:string}>)=>JSON.parse(messages.find(m=>m.content.includes('"source":"host_review_handoff"'))!.content);
 
 test('the same existing HR sees current user-visible coaching as unconfirmed material, not a new fact',async()=>{
   const hr=jest.fn().mockResolvedValue('辅导中随机抽样无出处，请核实。');
@@ -27,7 +28,7 @@ test('the same existing HR sees current user-visible coaching as unconfirmed mat
   const context=JSON.parse(hr.mock.calls[0][0][1].content).mechanical_review_hints;
   expect(context).toMatchObject({candidateSha256:hash(body),sourceSha256:hash(source),
     coaching:{document:'mentor.md',text:coaching,sha256:hash(coaching),resumeRevision:1}});
-  expect(JSON.parse(author.mock.calls[1][0].at(-1).content).reviewContext).toEqual(context);
+  expect(handoff(author.mock.calls[1][0]).mechanical_review_hints).toEqual(context);
   expect(hr.mock.calls[0][0][0].content).toContain('不是候选人事实');
   expect(hr.mock.calls[0][0][0].content).toContain('不能用业务规模替代本人责任');
   expect(result.f6Deliverables.mentorGuidance.text).not.toContain('我记得');
@@ -78,7 +79,7 @@ privateReplay('actual v13 outputs replay byte-for-byte; newly wired coaching rea
   expect(result.f6Deliverables.files['mentor.md']).toBe(originalFiles['mentor.md']);
   const context=JSON.parse(hr.mock.calls[0][0][1].content).mechanical_review_hints;
   expect(context.coaching.text).toBe(originalFiles['mentor.md']);
-  expect(JSON.parse(author.mock.calls[2][0].at(-1).content).reviewContext).toEqual(context);
+  expect(handoff(author.mock.calls[2][0]).mechanical_review_hints).toEqual(context);
   expect(hr).toHaveBeenCalledTimes(1);expect(author).toHaveBeenCalledTimes(3);
   writeFileSync(dir+'/v14-actual-trace-replay.json',JSON.stringify({kind:'zero_fee_recorded_output_wiring_replay',
     originalEvalId:archived.id,newModelCalls:0,costCny:0,initialMessagesIdentical:true,

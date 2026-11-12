@@ -23,7 +23,7 @@ const hintsFor = (body: string) => f6ReviewHints(source, body, [{id: 'original',
 const smallInput = {...input, resume: source, facts: [], jd: 'AI产品经理'};
 const smallMaterial = {resume: source, jd: smallInput.jd, facts: '[]'};
 const lastPayload = (messages: LlmMessage[]) => [...messages].reverse().filter(message=>message.content.startsWith('{'))
-  .map(message=>JSON.parse(message.content)).find(payload=>typeof payload.hrReview==='string');
+  .map(message=>JSON.parse(message.content)).find(payload=>payload.source==='host_review_handoff');
 
 test('real v11 trace proves notices were absent from HR, not merely ignored after delivery', () => {
   const oldMessages = f6HrMessages(material, fixture.originalBody);
@@ -57,7 +57,7 @@ test('normal format differences and unchanged material are not mechanical errors
   expect(hints.passages[0].notices).toEqual([]);
 });
 
-test('recorded bad author and HR outputs replay unchanged, but now both receive the same versioned hints', async () => {
+test('recorded bad outputs stay unchanged; literal evidence, not lexical suspicions, reaches HR and author', async () => {
   const initial = f6InitialMessages(input);
   expect(hash(JSON.stringify(initial))).not.toBe(fixture.initialMessagesSha256);
   expect(JSON.parse(initial[1].content)['resume.md']).toBe(fixture.resume);
@@ -74,17 +74,14 @@ test('recorded bad author and HR outputs replay unchanged, but now both receive 
   expect(review).toHaveBeenCalledTimes(1);
   expect(evidence).toHaveBeenCalledTimes(1);
   const hrInput = JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints;
-  const authorInput = lastPayload(author.mock.calls[4][0]).reviewContext;
-  const {authorSourceDiffReference,...authorContext}=authorInput;
-  expect(authorContext).toEqual(hrInput);
-  expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
-  const readableDiff=author.mock.calls[4][0].at(-1).content.split('\n\n').slice(1).join('\n\n');
-  expect(authorSourceDiffReference.sha256).toBe(hash(readableDiff));
-  expect(readableDiff).toContain('- 教育经历');
+  const authorInput = lastPayload(author.mock.calls[4][0]).mechanical_review_hints;
+  expect(authorInput).toEqual(hrInput);
+  expect(author.mock.calls[4][0].some((m:LlmMessage)=>m.content==='核源文档 resume.md（不是新稿）\n\n'+input.resume)).toBe(true);
   expect(hrInput.candidateSha256).toBe(hash(fixture.originalBody));
   expect(hrInput.sourceSha256).toBe(hash(input.resume));
-  expect(hrInput.hints.passages.some((part: {notices: Array<{quote: string}>}) =>
-    part.notices.some(notice => notice.quote === '1%'))).toBe(true);
+  expect(hrInput.hints.passages.every((part:object)=>!('notices' in part))).toBe(true);
+  expect(result.hrReview.records[0].sourceComparison.passages.some((part:{notices:Array<{quote:string}>})=>
+    part.notices.some(notice=>notice.quote==='1%'))).toBe(true);
   expect(review.mock.calls[0][0].at(-1).content.endsWith(fixture.originalBody)).toBe(true);
   expect(result.hrReview.records[0].reviewContext).toEqual(hrInput);
 
@@ -119,11 +116,9 @@ test('same evidence reaches the author for an ordinary visible document, without
   const author = jest.fn().mockResolvedValueOnce(candidate).mockResolvedValueOnce('已核对，保留待确认稿。');
   const result = JSON.parse(await runF6ResumeWriter(smallInput, author, jest.fn(), undefined,
     undefined, undefined, new F6HrReviewSession(smallMaterial, review, hintsFor)));
-  const context = lastPayload(author.mock.calls[1][0]).reviewContext;
-  const {authorSourceDiffReference,...shared}=context;
-  expect(shared).toEqual(JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints);
-  expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
-  expect(author.mock.calls[1][0].at(-1).content).toContain('+ 带1名算法');
+  const context = lastPayload(author.mock.calls[1][0]).mechanical_review_hints;
+  expect(context).toEqual(JSON.parse(review.mock.calls[0][0][1].content).mechanical_review_hints);
+  expect(author.mock.calls[1][0].some((m:LlmMessage)=>m.content.endsWith(candidate))).toBe(true);
   expect(result.fullDocument).toBe(candidate);
   expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');
   expect(result.f6Deliverables.internalReviewResponse.text).toContain('已核对');

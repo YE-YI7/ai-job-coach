@@ -71,12 +71,13 @@ test('ordinary HR response is internal and cannot overwrite the existing user qu
   expect(result.f6Deliverables.files['mentor.md']).toBe(guidance);
   expect(spans.some(span => span.code === 'host_capture_internal_hr_response')).toBe(true);
   expect(spans.some(span => span.code === 'host_capture_visible_body')).toBe(false);
-  const receipt = JSON.parse(author.mock.calls[1][0].at(-1).content);
+  const messages=author.mock.calls[1][0];
+  const receipt=JSON.parse(messages.find((m:{content:string})=>m.content.includes('"source":"host_review_handoff"')).content);
   expect(receipt.instruction).toContain('内部');
   expect(receipt.instruction).toContain('mentor.md');
   expect(receipt.instruction).toContain('resume-new.md');
   expect(receipt.instruction).not.toContain('交回完整稿');
-  expect(receipt.executionState.deliverables.pdf.status).toBe('not_rendered');
+  expect(JSON.parse(messages.at(-1).content).executionState.deliverables.pdf.status).toBe('not_rendered');
   const reread=JSON.parse(JSON.stringify(result));
   const html=renderToStaticMarkup(<ResumeMentorOutcome result={reread} pendingCount={1}/>);
   expect(html).toContain(guidance);

@@ -192,8 +192,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
           messages.push({role:'assistant',content:reply});
-          messages.push({role:'user',content:JSON.stringify({hrReview:feedback,instruction:hrResponseInstruction,
-            ...(hrReview.reviewContext()?{reviewContext:hrReview.reviewContext()}:{})})});
+          messages.push(...hrReview.authorHandoff(feedback,hrResponseInstruction));
           continue;
         }
       }
@@ -206,7 +205,6 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     const calls = value.tool_calls as NativeToolCall[];
     let writtenBody=false;
     let writtenResponse = false;
-    let bodyReceiptId:string|undefined;
     messages.push({ role: 'assistant', content: String(value.content || ''), tool_calls: calls });
     for (const request of calls) {
       const toolStarted = Date.now();
@@ -219,7 +217,6 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         if(request.function.name==='write_output'&&Array.isArray(result.saved)&&result.saved.includes('resume-new.md')){
           writtenBody=true;
           documentDeliveryUnresolved = false;
-          bodyReceiptId=request.id;
         }
         if (request.function.name === 'write_output' && Array.isArray(result.saved)
           && result.saved.some(name => name === 'mentor.md' || name === 'changes.md' || name === 'notes.md')) writtenResponse = true;
@@ -242,11 +239,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         reviewedBody=body;
         const feedback=await hrReview.inspect(body,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
-          const receipt=[...messages].reverse().find(message=>message.role==='tool'
-            &&message.tool_call_id===bodyReceiptId);
-          if(!receipt)throw Error('HR_AUTHOR_RECEIPT_MISSING');
-          receipt.content=JSON.stringify({...JSON.parse(receipt.content),hrReview:feedback,instruction:hrResponseInstruction,
-            ...(hrReview.reviewContext()?{reviewContext:hrReview.reviewContext()}:{})});
+          messages.push(...hrReview.authorHandoff(feedback,hrResponseInstruction));
           continue;
         }
       }

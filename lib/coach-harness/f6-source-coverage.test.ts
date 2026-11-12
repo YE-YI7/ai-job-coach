@@ -49,17 +49,18 @@ test('no synthetic coverage is added when legacy caller supplies no hints', () =
   expect(messages.at(-1)!.content.endsWith(body)).toBe(true);
 });
 
-test('compact references retain every exact comparison and notice, without duplicating document bodies', () => {
+test('compact references retain every literal comparison; lexical UI suspicions stay only in the receipt', () => {
   const full = hints();
   const wire = f6ReviewReferences(source, body, full);
   for (let index = 0; index < wire.passages.length; index++) {
     const part = wire.passages[index];
     expect(part.source.empty ? '' : source.slice(part.source.start!, part.source.end!)).toBe(full.passages[index].before);
     expect(part.candidate.empty ? '' : body.slice(part.candidate.start!, part.candidate.end!)).toBe(full.passages[index].after);
-    expect(part.notices).toEqual(full.passages[index].notices);
+    expect(part).not.toHaveProperty('notices');
   }
   expect(wire.passages[0]).not.toHaveProperty('before');
   expect(wire.passages[0]).not.toHaveProperty('after');
+  expect(wire).not.toHaveProperty('noticeEvidence');
 });
 
 const replayRoot = process.env.F6_COVERAGE_REPLAY;

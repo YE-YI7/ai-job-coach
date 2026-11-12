@@ -12,11 +12,11 @@ test('unpaired source section is exact review data, not a deletion verdict or au
   expect(wire.sourceStructureToReconcile.sourceSectionsWithoutRecognizedCounterpart).toEqual([
     {kind:'education',heading:'教育经历',sourceLines:['南河大学｜信息管理本科｜2019—2023']},
   ]);
-  for(const item of wire.noticeEvidence){
-    expect(source).toContain(item.sourceText);expect(candidate).toContain(item.candidateText);
-    expect(item.notices).toEqual(full.passages.find(part=>part.before===item.sourceText)!.notices);
+  for(const item of wire.passages){
+    expect(item).not.toHaveProperty('notices');
   }
-  expect(wire.noticeEvidence.some(item=>item.sourceText.includes('1名算法')&&item.candidateText.includes('3人'))).toBe(true);
+  expect(full.passages.some(item=>item.before.includes('1名算法')&&item.after.includes('3人'))).toBe(true);
+  expect(wire).not.toHaveProperty('noticeEvidence');
   expect(wire).not.toHaveProperty('verdict');expect(wire).not.toHaveProperty('passed');
 });
 test('removing only a heading while retaining qualification content is not reported as an unmatched source section',()=>{
@@ -48,7 +48,8 @@ const root=process.env.F6_COVERAGE_REPLAY;
   expect(messages.at(-1)!.content).toBe(oldMessages.at(-1).content);
   expect(wire.sourceStructureToReconcile.sourceSectionsWithoutRecognizedCounterpart)
     .toContainEqual({kind:'education',heading:'教育经历',sourceLines:['江南理工大学（虚构院校）｜信息管理本科｜2019.09—2023.06']});
-  expect(wire.noticeEvidence.some(part=>part.sourceText.includes('一名算法和两名后端')&&part.candidateText.includes('3 人'))).toBe(true);
+  expect(hints.passages.some(part=>part.before.includes('一名算法和两名后端')&&part.after.includes('3 人'))).toBe(true);
+  expect(wire).not.toHaveProperty('noticeEvidence');
   writeFileSync(path.join(root!,'v22-source-units-replay.json'),JSON.stringify({
     upstreamCalls:0,costCny:0,kind:'source_evidence_transport_replay_not_quality',sourceEval:task.delivery.evalRunId,
     sourceTrace:task.delivery.traceId,samePrompt:true,sameSourceAndCandidate:true,sourceUnitEvidence:wire,

@@ -1,8 +1,8 @@
 import type {F6ReviewHints} from './f6-review-hints';
 import {splitResumeBlocks,stripResumeMarkdown} from '@/lib/opportunities/resume-blocks';
 
-/** Avoid sending both complete documents again in every diff. Both consumers
- * already have those documents. Full pairs remain in the review receipt.
+/** Transport literal evidence, not the UI checker's lexical suspicions.
+ * Full pairs and all UI notices remain in the review receipt.
  * Keep this adapter pure to avoid importing the execution/runtime graph. */
 export function f6ReviewReferences(source: string, candidate: string, hints: F6ReviewHints) {
   const sourceBlocks=splitResumeBlocks(source),candidateBlocks=splitResumeBlocks(candidate);
@@ -17,7 +17,7 @@ export function f6ReviewReferences(source: string, candidate: string, hints: F6R
   };
   return {
     policy: hints.policy,
-    referenceMeaning: '位置是对应完整文档的JavaScript字符串下标；原文/新稿已分别提供。差异和数字提示均非判错结论。',
+    referenceMeaning: '位置是对应完整文档的JavaScript字符串下标；原文/新稿已分别提供。这里只传原文位置，不传词面判错提示。',
     sourceOnlyStandaloneLines: hints.sourceOnlyStandaloneLines,
     sourceStructureToReconcile: {
       meaning:'复用原界面分块结果；未识别同类标题不等于事实丢失，改写不同也不是判错。仍须对照完整正文。',
@@ -26,12 +26,9 @@ export function f6ReviewReferences(source: string, candidate: string, hints: F6R
         &&!candidateKinds.has(block.kind)&&!block.lines.every(line=>candidateText.includes(normalized(line))))
         .map(block=>({kind:block.kind,heading:block.heading,sourceLines:block.lines})),
     },
-    noticeEvidence:hints.passages.filter(part=>part.notices.length>0)
-      .map(part=>({sourceText:part.before,candidateText:part.after,notices:part.notices})),
     passages: hints.passages.map(part => ({
       source: {document: 'resume.md', ...range(source, part.before)},
       candidate: {document: 'candidate.md', ...range(candidate, part.after)},
-      notices: part.notices,
     })),
   };
 }

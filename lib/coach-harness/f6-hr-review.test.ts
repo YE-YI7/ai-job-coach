@@ -41,9 +41,15 @@ test.each([commentary,'建议保留；无需修改。','{"interviewQuestions":["
   expect(author.mock.calls[0][0]).toEqual(f6InitialMessages(input));
   expect(author.mock.calls[0][3]).toEqual(F6_ORIGIN_TOOLS);
   expect(author.mock.calls[1][0].slice(0,2)).toEqual(author.mock.calls[0][0]);
-  const receipt=JSON.parse(author.mock.calls[1][0].at(-1).content);
-  expect(receipt.saved).toEqual(['resume-new.md']);expect(receipt.hrReview).toBe(raw);
-  expect(receipt.instruction).toContain('不是候选人事实');
+  const messages=author.mock.calls[1][0];
+  const receipt=JSON.parse(messages.find((m:{role:string})=>m.role==='tool').content);
+  expect(receipt.saved).toEqual(['resume-new.md']);expect(receipt).not.toHaveProperty('hrReview');
+  const advice=messages.find((m:{content:string})=>m.content.includes('"source":"independent_hr"'));
+  expect(advice.role).toBe('assistant');
+  expect(JSON.parse(advice.content)).toMatchObject({hrReview:raw,authority:'unverified_advice_not_user_fact'});
+  const handoff=messages.find((m:{content:string})=>m.content.includes('"source":"host_review_handoff"'));
+  expect(JSON.parse(handoff.content).instruction).toContain('不是候选人事实');
+  expect(messages.some((m:{content:string})=>m.content==='核源文档 resume.md（不是新稿）\n\n'+material.resume)).toBe(true);
   expect(result.fullDocument).toBe(fixed);
   expect(result.hrReview.finalState).toBe('author_revised_not_rechecked');
   expect(result.hrReview.records[0].commentary).toBe(raw);

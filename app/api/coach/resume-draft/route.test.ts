@@ -224,19 +224,19 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     const evidence = JSON.parse(reviewMessages[1].content).mechanical_review_hints;
     const authorMessages=(callLLM as jest.Mock).mock.calls[2][0];
     const authorEvidence=authorMessages.filter((message:{content:string})=>message.content.startsWith('{'))
-      .map((message:{content:string})=>JSON.parse(message.content)).find((payload:{hrReview?:string})=>payload.hrReview).reviewContext;
-    const {authorSourceDiffReference,...sharedEvidence}=authorEvidence;
-    expect(evidence).toEqual(sharedEvidence);
-    expect(authorSourceDiffReference.providedAsReadableMessage).toBe(true);
-    expect(authorMessages.at(-1).content).toContain('- 有一名算法和两名后端一起做');
-    expect(authorMessages.at(-1).content).toContain('+ 带1名算法');
+      .map((message:{content:string})=>JSON.parse(message.content))
+      .find((payload:{source?:string})=>payload.source==='host_review_handoff').mechanical_review_hints;
+    expect(evidence).toEqual(authorEvidence);
+    expect(authorMessages.some((message:{content:string})=>message.content==='核源文档 resume.md（不是新稿）\n\n'+before)).toBe(true);
+    expect(authorMessages.some((message:{content:string})=>message.content.startsWith('唯一待评新稿 candidate.md')
+      &&message.content.endsWith(after))).toBe(true);
     expect(evidence.hints.passages).toEqual(expect.arrayContaining([
       expect.objectContaining({source: expect.objectContaining({document:'resume.md'}),
-        candidate: expect.objectContaining({document:'candidate.md'}),
-        notices: expect.arrayContaining([expect.objectContaining({quote: '1%'})])}),
+        candidate: expect.objectContaining({document:'candidate.md'})}),
     ]));
-    const pair = evidence.hints.passages.find((part: {notices: Array<{quote: string}>}) =>
-      part.notices.some(notice => notice.quote === '1%'));
+    expect(evidence.hints.passages.every((part:object)=>!('notices' in part))).toBe(true);
+    const pair = evidence.hints.passages.find((part: {source:{start:number;end:number}}) =>
+      before.slice(part.source.start,part.source.end).includes('一起做'));
     expect(before.slice(pair.source.start,pair.source.end)).toContain('一起做');
     expect(after.slice(pair.candidate.start,pair.candidate.end)).toContain('带1名');
     expect(reviewMessages.at(-1).content.endsWith(after)).toBe(true);

@@ -8,6 +8,24 @@ import {
   withEvalStages,
   type EvalSpan,
 } from "./eval-scope";
+import {compactEvalTranscript,expandEvalTranscript} from './eval-transcript-storage';
+
+test('the viewer expands prefix references before sorting display timestamps',()=>{
+  const first=[{role:'system',content:'same system'},{role:'user',content:'clean original resume'}];
+  const second=[...first,{role:'tool',content:'actual retrieved material'}];
+  const original={spans:[
+    {id:'first',kind:'agent',startedAt:'2026-11-12T00:00:02Z',input:{messages:first}},
+    {id:'second',kind:'agent',startedAt:'2026-11-12T00:00:01Z',input:{messages:second}},
+  ]};
+  const stored=compactEvalTranscript(original),before=JSON.stringify(stored);
+  expect(stored.captureEncoding).toBe('message-prefix-v1');
+  const result=presentEvalRun(withEvalStages(stored));
+  expect(result.spans.map(span=>span.id)).toEqual(['second','first']);
+  expect(result.spans[0].input).toEqual({messages:second});
+  expect(result.spans[1].input).toEqual({messages:first});
+  expect(JSON.stringify(stored)).toBe(before);
+  expect(expandEvalTranscript(stored).spans).toEqual(original.spans);
+});
 
 test("private stages capture actual input/output only inside an observer", async () => {
   captureEvalStage(

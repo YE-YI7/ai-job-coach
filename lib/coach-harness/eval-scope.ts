@@ -232,6 +232,9 @@ export function presentEvalRun(
   };
 }
 export function withEvalStages(run: Record<string, unknown>) {
+  // Prefix references follow capture order, not display timestamps. Restore
+  // the original messages before merging/sorting spans for the viewer.
+  run = expandEvalTranscript(run);
   const captured: EvalSpan[] = Array.isArray(run.spans) ? run.spans : [];
   const stages: EvalSpan[] = Array.isArray(run.stages) ? run.stages : [];
   const spans = [

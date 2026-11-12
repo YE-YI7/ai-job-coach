@@ -32,14 +32,15 @@ function render() {
     [Number.isFinite(ms) ? `${(ms/1000).toFixed(1)}s` : '未记录','请求耗时'],
     [Number.isFinite(cost) ? `¥${cost.toFixed(4)}` : '未记录','保守费用估算，非实扣'],
   ].map(([value,label]) => `<span><strong>${esc(value)}</strong> ${esc(label)}</span>`).join('');
-  $('scope').textContent = run.provenance === 'synthetic'
+  $('scope').textContent = run.trialContext?.environment === 'production-identical isolated deployment'
+    ? '线上同版隔离试跑 · 真实模型调用 · 结果存正式 Eval，不是正式域名的新请求。' : run.provenance === 'synthetic'
     ? '演示夹具，非真实模型调用。' : run.source === 'workspace'
       ? '已采集的工作区请求。这里只读，不调用模型。'
       : '历史实验记录 · 执行完成不代表质量通过或已上线';
   const human = story.human;
   $('verdict').innerHTML = human ? `<div class="verdict"><h2>这次卡在哪里</h2>
     <p>${esc(short(human.verdict || human.candidateStatus || '已有人工复核，点开查看。',160))}</p>
-    <p class="byline">人工复核，独立于 Agent 原始输出</p>
+    <p class="byline">${esc(human.reviewer || '人工复核')}，独立于 Agent 原始输出</p>
     <details><summary>看判定依据</summary><p>${esc(human.reason || '')}</p><pre>${raw(human)}</pre></details></div>` : '';
   // Preserve the open node while polling; don't move the reader or steal focus.
   const opened = new Set([...document.querySelectorAll('.step details[open]')].map(el => el.dataset.node));

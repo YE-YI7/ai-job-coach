@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {get} from 'node:http';
-import {traceStory,orderedRows,selectionAfterRefresh,escape} from '../public/eval-lab/brief-model.mjs';
+import {traceStory,compactNodes,orderedRows,selectionAfterRefresh,escape} from '../public/eval-lab/brief-model.mjs';
 import {sidecar} from './eval-trace-sidecar.mjs';
 test('HR-only record cannot pretend author, Memory, search or persistence executed',() => {
   const story = traceStory({spans:[{id:'h',agent:'原独立HR',input:{messages:[]},output:'点评'}]});
@@ -10,6 +10,34 @@ test('HR-only record cannot pretend author, Memory, search or persistence execut
   assert.match(story.nodes.at(-1).summary,/没有重写、保存或导出/);
   assert.equal(story.tools.length,0);
   assert.equal(story.nodes[1].decisionRecorded,false);
+});
+test('production independent quality-review span is HR, not another author',() => {
+  const story=traceStory({spans:[{name:'独立质检 Agent',agent:'独立质检 Agent',kind:'agent',output:'real HR commentary'}]});
+  assert.deepEqual(story.nodes.map(node=>node.type),['input','hr','delivery']);
+  assert.equal(story.isHrOnly,true);
+});
+test('failed write and pre-HR corrections cannot be shown as HR revisions',() => {
+  const nodes=compactNodes([
+    {id:'a1',type:'author'},{type:'tool',title:'写出正文与说明',status:'failed',files:[{name:'resume-new.md',text:'rejected'}]},
+    {id:'a2',type:'author'},{type:'tool',title:'写出正文与说明',status:'recorded',files:[{name:'resume-new.md',text:'first body'}]},
+    {id:'h',type:'hr'},{id:'a3',type:'author'},
+    {type:'tool',title:'写出正文与说明',status:'recorded',files:[{name:'resume-new.md',text:'after HR'}]},
+  ]);
+  assert.deepEqual(nodes.map(node=>node.title),['工具调用未完成','形成首稿',undefined,'根据点评返修']);
+});
+test('saved false is a failed receipt, not a successful candidate write',() => {
+  const story=traceStory({spans:[{id:'a',kind:'agent',output:JSON.stringify({tool_calls:[{id:'t',function:{name:'write_output',
+    arguments:JSON.stringify({files:[{name:'resume-new.md',text:'rejected'}]})}}]})},
+    {kind:'stage',input:{toolCallId:'t'},output:{saved:false,issues:['identity changed']}}]});
+  const tool=story.nodes.find(node=>node.type==='tool');assert.equal(tool.status,'failed');
+  assert.match(tool.note,/未保存/);assert.equal(compactNodes(story.nodes).find(node=>node.id==='a').title,'工具调用未完成');
+});
+test('actual F6 source-protection receipt saved empty and applied false is not a first draft',() => {
+  const story=traceStory({spans:[{id:'a',kind:'agent',output:JSON.stringify({tool_calls:[{id:'t',function:{name:'write_output',
+    arguments:JSON.stringify({files:[{name:'resume-new.md',text:'identity changed'}]})}}]})},
+    {kind:'stage',input:{toolCallId:'t'},output:{saved:[],applied:false,issues:['identity changed']}}]});
+  assert.equal(story.nodes.find(node=>node.type==='tool').status,'failed');
+  assert.equal(compactNodes(story.nodes).find(node=>node.id==='a').title,'工具调用未完成');
 });
 test('native tools and actual receipt are linked, not inferred to be adopted',() => {
   const story = traceStory({spans:[{id:'a',kind:'agent',output:JSON.stringify({tool_calls:[

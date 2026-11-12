@@ -41,7 +41,7 @@ function toolReceipt(spans, call) {
 function isJudge(span) {
   return span.role === 'eval_judge' || span.agent === 'LLM 自评';
 }
-function isHr(span) { return /\bHR\b|独立.*审|独立.*复核/i.test(`${span.agent} ${span.name}`); }
+function isHr(span) { return /\bHR\b|独立.*(?:审|复核|质检)/i.test(`${span.agent} ${span.name}`); }
 function modelOutput(span) {
   const output = parse(span.output);
   if (typeof output === 'string') return output;
@@ -77,11 +77,12 @@ export function traceStory(run) {
         'mentor.md':'给用户的说明', 'notes.md':'作者的显式判断记录'};
       const document = args.content ?? args.text;
       const files = list(args.files).filter(file => typeof file.text === 'string');
-      const error = receipt?.error || receipt?.code;
+      const error = receipt?.error || receipt?.code
+        || (receipt?.saved === false || receipt?.applied === false ? '本次未保存' : null);
       allTools.push(tool.name);
       nodes.push({id:`tool-${index}-${i}`, type:'tool', title:names[tool.name] || tool.name,
         summary:files.length ? files.map(file => ({'resume-new.md':'简历正文',
-          'notes.md':'取舍说明','mentor.md':'用户追问'}[file.name] || file.name)).join('、')
+          'notes.md':'取舍说明','mentor.md':'导师说明'}[file.name] || file.name)).join('、')
           : fileLabels[target] || short(target, 85) || '参数已留存',
         note:error ? `工具回执：${typeof error === 'string' ? error : '失败'}`
           : receipt ? '有返回记录；读到不等于用进成稿。' : '没有单独留存返回回执。',
@@ -114,13 +115,17 @@ export function orderedRows(data) {
 }
 export function compactNodes(nodes) {
   const result = [];
+  let hrSeen = false;
   for (const node of nodes) {
+    if (node.type === 'hr') hrSeen = true;
     const previous = result.at(-1);
     if (node.type === 'tool' && previous && previous.type === 'author') {
       previous.tools.push(node);
-      if (node.files?.length) previous.title = result.filter(item => item.tools?.some(tool => tool.files?.length)).length > 1
+      if (node.status === 'failed') previous.title = '工具调用未完成';
+      else if (node.files?.some(file => file.name === 'resume-new.md')) previous.title = hrSeen
         ? '根据点评返修' : '形成首稿';
-      else previous.title = '读取材料';
+      else previous.title = node.title === '读取材料' || Array.isArray(node.detail)
+        && node.detail.every(action => action.action === '读取材料') ? '读取材料' : '调用工具';
     } else result.push({...node,tools:[]});
   }
   return result;

@@ -39,3 +39,19 @@
 ## 维护方式
 
 正式 Trace 新归档能被现有 API 列出后，本页会检查到并提示；运行仍未入库或未采集的原因不能靠前端补造。今后每个实验交付链接应带真实 run ID，核对时间/输入来源/实际执行/人工判断分离；不要再给另一个未启动的临时端口当已交付。
+
+## 11-12 后续：本人批准接正式后台，已发布
+
+本节承接上面的本地完成状态。本人明确要求正式上线、默认最新、每轮结果及时更新、不改 Harness。正式 `/admin/evals` 现在默认进入 `/admin/evals/trace`；无指定 ID 时持续跟随最近保存的运行，手选或带 ID 打开的历史记录则固定，刷新不会偷偷切换，可点提示回到跟随最新。原始明细仍能打开；后台人工反馈走现有只读接口，与 Agent 原始记录及额外 Judge 分区。
+
+发布没有直接上传当前 HEAD：它含未发布的 HR 接线 `4530242`。实际从原正式 `d2615b6a88b3790618b3ba2ff77e45d1a594c38e` 导出干净包，只覆盖本任务 11 个 UI/测试/说明文件；其余 2040 文件 Git blob 一致，其中 374 个改稿相关文件不变。UI 本地提交 `a8078d5`，未 push；发布包并非包含该提交全部祖先的工作树。两个既有脏 operations 文档未合入。
+
+部署 `dpl_6EPLg81kjQa6hJH5eUZ9hztaBfzb`，production READY，经 staged GET 核验后 promote，正式域名已独立确认。正式 https://yizhioffer.com/admin/evals 及 www→apex 均生效。4个新资源逐 SHA-256 核同；匿名两个管理员数据接口仍401；候选与正式完整 `resumeRuntime` 均与发布前逐字段一致，仍 v24。没有修改账号名单、Auth/RLS、环境变量或 Harness 行为。
+
+正式基线包全量 Jest：382套/3530条过，9套/25条按既有条件跳过；另42项Node展示回归、类型lint、本地和云构建通过；本轮 Impeccable detect 无发现。中间验证脚本曾将 CLI `--scope` 误传给 curl，随后匿名访问受保护静态页得到307；修正验证方式、复用已有虚构QA会话只读静态资源后通过，未因此放宽鉴权。
+
+真实 Chrome 管理员会话验证：默认显示最新 `ca9b5db8-e02d-4d3b-9e0f-3be2b405ec94`、标题“HR审查职责 · 6 · unified_scope”，显示“跟随最新 · 正式后台”；人工判定在独立区域。选择历史 `ec1a3643-80a7-4519-bcb2-d34f222496af` 后刷新保持该条，点击“有新运行”返回最新。该条只执行过HR，图上没有伪造作者生成/保存/PDF步骤。应用内浏览器当前是非管理员账号，继续拒绝访问，没有临时提权；已在原有登录的Chrome打开正式页。
+
+发布与验证的[正式Eval记录](https://yizhioffer.com/admin/evals/records?record=efd3de9f-754f-4e48-afed-e9913b2f6761)已单独保存并逐字读回。仅新增这一条隔离 development_log，不会冒充新的模型运行占据“最新Trace”；未写旧回答、简历、积分或钱包。私有发布证据：`/Users/yi/Documents/Codex/yizhi-eval-trace-release-20261112-ODBAEB/`，含source-parity、staged/production-http、build/regression、promote与archive-receipt。
+
+**后续每轮交付约定：** 成稿/失败、实际Trace、耗时、费用及人工判断先及时存入正式Eval再交付；失败也留记录，不只写聊天或给临时端口。页面每15秒读取已经保存的记录，不能把未采集的输入或本地未入库结果自动变成事实。不改变模型调用与费用权限，不把展示上线说成HR/改稿质量问题已解决。本轮0新模型调用、¥0模型费，未重跑简历。

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-export default async function EvalPage({searchParams}:{searchParams:Promise<{run?:string|string[]}>}) {
+export default async function EvalPage({searchParams}:{searchParams:Promise<{run?:string|string[];view?:string}>}) {
   const query=await searchParams;
   const run=typeof query.run==="string"?query.run:undefined;
   const validRun=!query.run||Boolean(run&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(run));
@@ -19,6 +19,7 @@ export default async function EvalPage({searchParams}:{searchParams:Promise<{run
       </main>
     );
   if(!validRun)return <main><h1>运行编号无效</h1><Link href="/admin/evals">返回运行列表</Link></main>;
+  if (query.view !== 'detail') redirect(`/admin/evals/trace${run ? `?run=${encodeURIComponent(run)}` : ''}`);
   return (
     <iframe
       title="益职 Eval Lab 管理员工作台"

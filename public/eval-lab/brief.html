@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'" />
+  <title>益职 · Trace 动线</title>
+  <link rel="stylesheet" href="./brief.css" />
+  <script type="module" src="./brief.mjs"></script>
+</head>
+<body>
+  <a href="#journey" class="skip">跳到执行动线</a>
+  <header>
+    <a href="/admin/evals" target="_top" class="brand">益职 / <strong>Trace</strong></a>
+    <nav aria-label="Eval 后台导航">
+      <a href="/admin/evals/records" target="_top">结果</a>
+      <a href="/admin/evals/comparisons" target="_top">对照</a>
+      <button id="refresh" type="button">刷新</button>
+    </nav>
+  </header>
+  <main>
+    <div class="sync" id="sync" role="status">正在读取已留存的运行…</div>
+    <button id="newest" class="newest" hidden type="button">有新运行，查看最新</button>
+    <details id="picker"><summary>换一条运行</summary><div id="runs"></div></details>
+    <section class="opening" aria-labelledby="title">
+      <h1 id="title">看清一次改稿<br />怎么走到结果</h1>
+      <p id="identity"></p>
+      <div id="metrics" class="metrics"></div>
+      <p id="scope" class="scope">只读已有记录，不会调用模型。</p>
+    </section>
+    <section id="verdict" aria-label="已留存的人工结论"></section>
+    <section id="journey" tabindex="-1" aria-labelledby="journey-heading">
+      <h2 id="journey-heading">实际走过的路</h2>
+      <p class="hint">彩色文字是人工定位；节点里保留 Agent 原话。</p>
+      <ol id="path" class="path"></ol>
+    </section>
+    <section id="feedback" class="evaluation" aria-label="后台人工反馈"></section>
+    <section id="evaluation" class="evaluation" aria-label="独立的评测记录"></section>
+    <footer><a id="full" href="./index.html?live=1">打开完整记录</a><p>连线表示调用记录顺序，不是隐藏思维链。未记录的原因不会补写。</p></footer>
+  </main>
+</body>
+</html>

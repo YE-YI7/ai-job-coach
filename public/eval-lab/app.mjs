@@ -334,6 +334,8 @@ function coverageHTML(r) {
 function renderDetail() {
   const r = current();
   if (!r) return;
+  const brief = document.getElementById('trace-brief');
+  if (brief) brief.href = `/admin/evals/trace?run=${encodeURIComponent(r.id)}`;
   $("run-title").textContent = r.label;
   $("run-origin").textContent =
     r.provenance === "synthetic"

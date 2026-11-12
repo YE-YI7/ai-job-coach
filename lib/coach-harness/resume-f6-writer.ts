@@ -129,7 +129,9 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
       facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}
       : {...input, resume: input.editingContext?.current.text ?? input.resume};
-  const session = new F6ToolSession(resourceInput, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
+  const session = new F6ToolSession({...resourceInput, ...(mentorCoaching ? {
+    privateResearchMaterial: JSON.stringify({originalResume: input.resume, facts: input.facts, answers: input.answers}),
+  } : {})}, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
     mentorCoaching);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {

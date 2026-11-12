@@ -14,6 +14,7 @@ test('the actual writer, workflow receipt and public release identity cannot dri
     maxAuthorCalls:F6_MAX_AUTHOR_CALLS,
     maxPublicRequests:4,
     publicBudgetContinuation:'exhausted_tools_unavailable_keep_evidence',
+    publicResearch:'author_queries_and_public_urls_local_privacy_checks',
     authorExecutionState:'remaining_calls_read_references_and_delivery_state',
     mentorGuidance:'optional_same_author_mentor_md_internal_changes_preserved',
     mentorGuidancePolicySha256:expect.stringMatching(/^[a-f0-9]{64}$/),

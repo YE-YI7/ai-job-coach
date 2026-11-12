@@ -13,13 +13,18 @@ test('origin tools stay frozen; product explicitly advertises the mentor file on
   expect(createHash('sha256').update(JSON.stringify(origin.tools)).digest('hex'))
     .toBe('a893136a0e8485564aab9c5f62d85f3551df25ec2482a1ffbfcb89e4d401ca8d');
   expect(F6_MENTOR_TOOLS.map(tool => tool.function.name)).toEqual(origin.tools.map(tool => tool.function.name));
-  for (const tool of F6_MENTOR_TOOLS.filter(item => item.function.name !== 'write_output')) {
+  for (const tool of F6_MENTOR_TOOLS.filter(item => ['read_file','render_pdf'].includes(item.function.name))) {
     expect(tool).toEqual(origin.tools.find(item => item.function.name === tool.function.name));
   }
   const write = F6_MENTOR_TOOLS.find(tool => tool.function.name === 'write_output')!;
   expect(write.function.description).toContain('changes.md are internal');
   expect(write.function.description).toContain('mentor.md is an optional direct message');
   expect(JSON.stringify(write.function.parameters)).toContain('mentor.md');
+  const search=F6_MENTOR_TOOLS.find(tool=>tool.function.name==='search')!;
+  expect(search.function.parameters).toMatchObject({required:['query'],properties:{query:{type:'string'}}});
+  expect(search.function.parameters.properties).not.toHaveProperty('topic');
+  expect(JSON.stringify(search.function.parameters)).not.toContain('enum');
+  expect(F6_MENTOR_TOOLS.find(tool=>tool.function.name==='fetch')!.function.description).toContain('No prior search is required');
 });
 
 test('all six optional files fit one call; only explicit mentor text becomes a versioned user message', async () => {

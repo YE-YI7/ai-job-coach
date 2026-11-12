@@ -2,6 +2,8 @@ import origin from './f6-origin.json';
 import {F6PublicTools, type F6PublicBudget} from './f6-public-tools';
 import type {NativeTool} from '@/lib/llm-tools';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
+import {F6PublicResearchPrivacy} from './f6-public-research-privacy';
+import {f6OriginResearch} from './f6-origin-research';
 
 export const F6_OUTPUT_FILES = ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md'];
 export const F6_ORIGIN_TOOLS = origin.tools as NativeTool[];
@@ -28,7 +30,8 @@ export class F6ToolSession {
   private services: F6ToolServices;
   private publicExhausted = false;
   private mentorGuidanceRevision?: number;
-  constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string},
+  constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string;
+    privateResearchMaterial?: string},
     private verify: (body: string) => string[], services?: F6ToolServices,
     publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>,
     fixtureSpec?: string, private mentorCoaching = false) {
@@ -40,10 +43,21 @@ export class F6ToolSession {
     // Unknown companies are not silently treated as Manus or called official.
     const domain = input.domain || (company.toLowerCase() === origin.researchTarget.company.toLowerCase()
       ? origin.researchTarget.domain : '');
-    const research = new F6PublicTools(company, domain);
+    const privacy = new F6PublicResearchPrivacy(mentorCoaching
+      ? [input.resume, typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts),
+        input.privateResearchMaterial || ''] : []);
+    const research = new F6PublicTools(domain, fetch, privacy);
     if (publicCheckpoint) research.restoreCompletedCalls(publicCheckpoint);
-    this.services = services || {
-      search: topic => research.search(topic), fetch: urls => research.read(urls),
+    const publicTools = mentorCoaching ? {
+      search: (query: unknown) => research.search(query), fetch: (urls: unknown) => research.read(urls),
+    } : f6OriginResearch(research, company, publicCheckpoint);
+    this.services = services ? {...services,
+      ...(mentorCoaching ? {
+        search: (query: unknown) => services.search(privacy.query(query)),
+        fetch: (urls: unknown) => services.fetch(privacy.urls(urls)),
+      } : {}),
+    } : {
+      ...publicTools,
       render: async text => (await import('./f6-render-pdf')).renderF6Pdf(text),
       publicBudget: () => research.budget(),
     };
@@ -77,7 +91,12 @@ export class F6ToolSession {
   errorReceipt(error: unknown): Record<string, unknown> {
     const message = error instanceof Error ? error.message : 'TOOL_FAILED';
     if (message === 'PUBLIC_REQUEST_BUDGET') this.publicExhausted = true;
-    return {error: message, ...(this.publicUnavailable() ? {publicResearch: this.publicState()} : {})};
+    const instruction = message === 'PUBLIC_RESEARCH_PRIVATE_INPUT'
+      ? '查询或网址含联系方式、已识别姓名、凭据或大段私人原文，未外发。请自行换成不含私人信息的公开问题，也可不搜索继续修改或问用户。'
+      : message === 'PUBLIC_QUERY_REQUIRED'
+        ? 'search接收query：请自行组织公开查询，不再选择topic分类；不要求公司名或固定关键词。' : undefined;
+    return {error: message, ...(instruction ? {instruction, sentToPublicService: false} : {}),
+      ...(this.publicUnavailable() ? {publicResearch: this.publicState()} : {})};
   }
   async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (name === 'read_file') {
@@ -87,7 +106,7 @@ export class F6ToolSession {
     if (name === 'search' || name === 'fetch') {
       if (this.publicUnavailable()) throw Error('PUBLIC_REQUEST_BUDGET');
       const output = await (name === 'search'
-        ? this.services.search(args.topic) : this.services.fetch(args.urls)) as Record<string, unknown>;
+        ? this.services.search(this.mentorCoaching ? args.query : args.topic) : this.services.fetch(args.urls)) as Record<string, unknown>;
       // The final successful request must announce exhaustion too. Waiting for
       // the next error would already waste an author call. Preserve its data.
       return {...output, ...(this.services.publicBudget ? {publicResearch: this.publicState()} : {})};

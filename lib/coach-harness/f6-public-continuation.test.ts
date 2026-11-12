@@ -15,7 +15,7 @@ const fetchPage = ['fetch', {urls: ['https://manus.im/docs']}] as [string, unkno
 function services() {
   const network = jest.fn(async () => new Response(JSON.stringify({result: {content: [{type: 'text',
     text: 'Title: Manus\nURL: https://manus.im/docs\nSource text'}]}})));
-  const research = new F6PublicTools('Manus', 'manus.im', network);
+  const research = new F6PublicTools('manus.im', network);
   return {network, research, hooks: {search: (topic: unknown) => research.search(topic),
     fetch: (urls: unknown) => research.read(urls), publicBudget: () => research.budget(),
     render: jest.fn().mockResolvedValue({bytes: new Uint8Array([1]), receipt: {pages: 1}})}};

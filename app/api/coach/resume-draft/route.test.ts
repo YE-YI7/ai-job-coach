@@ -265,7 +265,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
       result: {content: [{type: 'text', text: 'Title: Manus\nURL: https://manus.im/docs\npublic page'}]},
     })));
     const searchCalls = JSON.stringify({type: 'native_tool_calls', tool_calls: Array.from({length: 5}, (_, i) => ({
-      id: 'search-' + i, type: 'function', function: {name: 'search', arguments: '{"topic":"role"}'},
+      id: 'search-' + i, type: 'function', function: {name: 'search', arguments: '{"query":"招聘中的产品评测证据"}'},
     }))});
     (callLLM as jest.Mock).mockResolvedValueOnce(searchCalls).mockResolvedValueOnce(after)
       .mockResolvedValueOnce(hr).mockResolvedValueOnce(after);

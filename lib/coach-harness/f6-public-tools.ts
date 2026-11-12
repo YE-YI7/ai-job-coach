@@ -1,33 +1,19 @@
-import {isIP} from 'node:net';
 import origin from './f6-origin.json';
+import {F6PublicResearchPrivacy, f6PublicUrl} from './f6-public-research-privacy';
+export {f6PublicUrl} from './f6-public-research-privacy';
 
 export const F6_MAX_PUBLIC_REQUESTS = origin.maxPublicRequests;
 export type F6PublicBudget = {limit: number; used: number; remaining: number};
 
-const topics = {
-  role: 'Agent product manager hiring job requirements iteration user feedback',
-  team: 'team engineering product design culture AI-native founders interview',
-  screening: 'Agent product manager recruiting qualifications education screening',
-  agent_native: 'Agent product Context Engineering official blog tool use iteration',
-};
-type Topic = keyof typeof topics;
 type SearchItem = {url: string; title: string; publishedAt: string | null; author: string | null;
   sourceType: string; excerpt: string; indexOnlyNotRead: boolean};
-export function f6PublicUrl(raw: string) {
-  const url = new URL(raw);
-  if (url.protocol !== 'https:' || url.username || url.password || url.port || isIP(url.hostname)
-    || !url.hostname.includes('.') || /(?:^|\.)(localhost|local|internal|test|invalid)$/.test(url.hostname)
-    || /(?:token|secret|password|auth|session|key)=/i.test(url.search)) throw Error('PUBLIC_URL_REQUIRED');
-  url.hash = '';
-  return url.href;
-}
-
-/** Same keyless Exa MCP protocol as accepted PublicResearchA56. No résumé, JD,
- * answers, user credentials, cookies or paid-search fallback can enter a query. */
+/** Same keyless service and request budget, with author-chosen public queries.
+ * Private text is checked locally, not sent to a second model or search service. */
 export class F6PublicTools {
   private requests = 0;
   private indexed = new Map<string, {title: string; sourceType: string}>();
-  constructor(private company: string, private domain: string, private transport: typeof fetch = fetch) {}
+  constructor(private domain: string, private transport: typeof fetch = fetch,
+    private privacy = new F6PublicResearchPrivacy()) {}
 
   budget(): F6PublicBudget {
     return {limit: F6_MAX_PUBLIC_REQUESTS, used: this.requests,
@@ -71,14 +57,12 @@ export class F6PublicTools {
     return text;
   }
 
-  async search(topic: unknown) {
-    if (typeof topic !== 'string' || !Object.hasOwn(topics, topic)) throw Error('UNKNOWN_PUBLIC_TOPIC');
-    if (!this.company || this.company.length > 80 || /[\r\n@]|\d{7,}|密钥|验证码|手机号|简历原文/.test(this.company)) {
-      throw Error('PUBLIC_COMPANY_NAME_REQUIRED');
-    }
-    const query = `${this.company} ${topics[topic as Topic]}`;
+  async search(rawQuery: unknown) {
+    const query = this.privacy.query(rawQuery);
     const raw = await this.mcp('web_search_exa', {query, numResults: 5,
-      objective: `Investigate this public question about ${this.company}: ${query}. Follow the query's angle, including original interviews, product demonstrations, independent task tests or official documentation when relevant. Identify author/date and original source where available. Distinguish company statements, demonstrated observations and third-party opinions; do not infer internal hiring rules or personal resume facts.`,
+      objective: 'Investigate the public question expressed by the query. Follow its chosen angle; use original interviews, '
+        + 'demonstrations, independent tests or official sources when relevant. Identify author/date and original source '
+        + 'where available. Distinguish public claims from observations; do not infer private hiring rules or candidate facts.',
     });
     const results: SearchItem[] = [];
     for (const chunk of raw.split(/(?=(?:^|\n)Title:\s*)/)) {
@@ -96,18 +80,18 @@ export class F6PublicTools {
         excerpt: chunk.slice(0, 1000), indexOnlyNotRead: true};
       results.push(item); this.indexed.set(url, item);
     }
-    return {topic, results: results.slice(0, 4), warning: '索引摘录；事实核查需 fetch。公开内容不证明内部筛选偏好。'};
+    return {query, results: results.slice(0, 4), warning: '索引摘录；事实核查需 fetch。公开内容不证明内部筛选偏好。'};
   }
 
   async read(raw: unknown) {
-    if (!Array.isArray(raw) || !raw.length || raw.length > 2
-      || raw.some(u => typeof u !== 'string' || !this.indexed.has(u))) throw Error('FETCH_URL_NOT_FROM_PUBLIC_SEARCH');
-    const urls = [...new Set(raw.map(f6PublicUrl))];
+    const urls = this.privacy.urls(raw);
     const rawText = await this.mcp('web_fetch_exa', {urls, maxCharacters: 4200});
     const chunks = rawText.split(/(?=(?:^|\n)URL:\s*https:\/\/)/);
     const pages = urls.flatMap(url => {
       const text = chunks.filter(c => c.match(/^\s*URL:\s*(https:\/\/[^\s]+)/)?.[1] === url).join('\n');
-      const meta = this.indexed.get(url)!;
+      const meta = this.indexed.get(url) || {title: url,
+        sourceType: this.domain && (new URL(url).hostname === this.domain || new URL(url).hostname.endsWith('.' + this.domain))
+          ? 'official_self_description' : 'external_attributed_source'};
       return text ? [{url, title: meta.title, sourceType: meta.sourceType, text: text.slice(0, 2200)}] : [];
     });
     if (!pages.length) throw Error('PUBLIC_READER_DID_NOT_IDENTIFY_SOURCE');

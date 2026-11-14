@@ -202,7 +202,14 @@ export default function ResumeBlockBoard({ opportunity, onOpenEvidence, onUpdate
                         ? <textarea aria-label={`修改 ${change.section}`} value={editValue} maxLength={2000} rows={4} autoFocus onChange={(e) => setEditValue(e.target.value)} />
                         : <div className={styles.resumeComparison}><div><strong>完整原段落</strong>{comparison.before.split("\n").map((line,index)=><p key={index}>{renderMarkdownLine(line,[],new Set())}</p>)}</div><div><strong>修改后</strong>{comparison.after.split("\n").map((line,index)=><p key={index}>{renderMarkdownLine(line,[],new Set())}</p>)}</div></div>}
                       {!comparison.canApply&&<p role="alert">{comparison.reason}</p>}
-                      <details className={styles.popoverDetail}><summary>修改依据与检查</summary><p>{change.reason}</p>{opportunity.applicationQuality?.reviews.flatMap(review => (review.findings || []).filter(finding => finding.changeId === change.id).map((finding, index) => <p key={`${review.reviewerType}-${index}`}>{finding.message}</p>))}</details>
+                      {opportunity.applicationQuality?.reviews.some(review=>
+                        review.findings?.some(finding=>finding.changeId===change.id))&&
+                        <details className={styles.popoverDetail}>
+                          <summary>需你核对的内容</summary>
+                          {opportunity.applicationQuality.reviews.flatMap(review=>(review.findings||[])
+                            .filter(finding=>finding.changeId===change.id)
+                            .map((finding,index)=><p key={`${review.reviewerType}-${index}`}>{finding.message}</p>))}
+                        </details>}
                       {editingId === change.id ? (
                         <div className={styles.blockChangeActions}>
                           <button className={styles.primaryButton} disabled={!editValue.trim()} onClick={() => { onEdit(change.id, editValue.trim()); setEditingId(null); setEditValue(""); }}><Check size={14} />保存我的修改</button>

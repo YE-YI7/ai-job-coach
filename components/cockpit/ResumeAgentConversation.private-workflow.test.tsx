@@ -54,6 +54,9 @@ test('existing discussion and pending/failure states survive the presentation-on
 
 test('the résumé document no longer mounts a raw HR commentary widget', () => {
   expect(readFileSync(join(__dirname, 'CockpitApp.tsx'), 'utf8')).not.toContain('ResumeHrCommentary');
+  for(const file of ['ResumeInlineReview.tsx','ResumeWorkbench.tsx']){
+    expect(readFileSync(join(__dirname,file),'utf8')).not.toContain('{change.reason}');
+  }
 });
 
 // Private, opt-in read-only replay; CI does not need a user's local files.

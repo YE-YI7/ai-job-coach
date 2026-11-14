@@ -151,3 +151,11 @@ export const knowledgeBaseMetadata = {
   description: compiledKnowledge.description,
   goal: compiledKnowledge.goal,
 };
+
+/** Reviewed public documents only. Discovery does not load their bodies into
+ * an Agent request; the caller returns a catalogue, then reads selected IDs. */
+export function resumableKnowledgeDocuments(): AgentKnowledgeDocument[] {
+  return compiledKnowledge.documents
+    .filter(document => document.status === 'active' && document.tasks.includes('resume_tailoring'))
+    .map(mapDocument);
+}

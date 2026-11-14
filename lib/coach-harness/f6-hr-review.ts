@@ -5,8 +5,10 @@ import type {F6ReviewHints} from './f6-review-hints';
 import {f6ReviewReferences} from './f6-review-references';
 import {F6_HR_CALIBRATION} from './f6-hr-calibration';
 import {f6AuthorSourceDiff} from './f6-author-source-diff';
+import {f6ScreeningMessages} from './f6-screening-review';
 
-type Material = {resume:string; jd:string; facts:string; currentResume?:string};
+type Material = {resume:string; jd:string; facts:string; currentResume?:string;
+  reviewMode?: 'recruiting_screen'; targetRole?: string};
 type ReviewContext = {
   candidateSha256: string;
   sourceSha256: string;
@@ -37,6 +39,7 @@ candidate.md 是唯一待评的新稿；resume.md 和 facts.md 仅用于核对�
 ${F6_HR_CALIBRATION}`;
 
 export function f6HrMessages(input:Material,body:string,reviewContext?:ReviewContext):LlmMessage[]{
+  if (input.reviewMode === 'recruiting_screen') return f6ScreeningMessages(body, input.jd, input.targetRole);
   const documents = {'resume.md': input.resume, 'facts.md': input.facts, 'jd.txt': input.jd,
     ...(input.currentResume === undefined ? {} : {'current-draft.md': input.currentResume})};
   return [
@@ -112,7 +115,7 @@ export class F6HrReviewSession {
     }
     let reviewContext:ReviewContext|undefined;
     let sourceComparison:F6ReviewHints|undefined;
-    if(this.hintsFor||coaching?.current){
+    if(this.input.reviewMode !== 'recruiting_screen' && (this.hintsFor||coaching?.current)){
       reviewContext={candidateSha256:createHash('sha256').update(body).digest('hex'),
         sourceSha256:createHash('sha256').update(this.input.resume).digest('hex')};
       if(this.hintsFor){
@@ -155,6 +158,7 @@ export class F6HrReviewSession {
   interrupted(reason:string){this.finalState='repair_incomplete:'+reason;}
   captureAuthorResponse(text:string){this.authorResponse={text,audience:'internal_review'};}
   receipt(){return {policy:'plain_commentary_one_author_response' as const,
+    ...(this.input.reviewMode ? {reviewMode: this.input.reviewMode} : {}),
     finalState:this.finalState,records:this.records,
     ...(this.authorResponse?{authorResponse:this.authorResponse}:{}),
   };}

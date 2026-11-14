@@ -11,9 +11,18 @@ import { createArtifactWithClaims, getContextBundleForUser, recordArtifactReview
 import {runWithGenerationContext} from "@/lib/generation-context";
 import {startResumeTrace} from "@/lib/coach-harness/resume-trace";
 import { RESUME_METHOD_IDS } from "@/lib/knowledge/resume-methods";
+import {F6_SCREENING_PROMPT} from '@/lib/coach-harness/f6-screening-review';
+import {f6AuthorContract} from '@/lib/coach-harness/f6-author-contract';
+import {createF6MemoryReader} from '@/lib/coach-harness/f6-memory-reader';
+import {readFileSync, writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/llm");
+jest.mock('@/lib/coach-harness/f6-memory-reader', () => ({createF6MemoryReader: jest.fn(() => ({
+  preload: jest.fn().mockResolvedValue({complete: true, documents: []}),
+  search: jest.fn().mockResolvedValue({matches: []}), read: jest.fn().mockResolvedValue({documents: []}),
+}))}));
 jest.mock("@/lib/quota");
 jest.mock("@/lib/coach-harness/resume-task");
 jest.mock("@/lib/coach-harness/resume-trace", () => ({ startResumeTrace: jest.fn(),readResumeTrace:jest.fn().mockResolvedValue(null) }));
@@ -77,6 +86,49 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     opportunityId:"opp-1", resumeText:"负责模型评测", mode:"general_resume", resumeTaskId:"task", resumeTaskLease:"lease", ...extra,
   })});
   const writerAndReview = () => (runWithGenerationContext as jest.Mock).mock.calls.map(([context]) => context.operation);
+  const acceptedRoot = process.env.F6_ACCEPTED_TRACE_ROOT;
+  (acceptedRoot ? test : test.skip).each([0, 1, 2])('accepted real Trace %i reaches the ordinary production POST unchanged, at zero model cost', async index => {
+    const fixtures = JSON.parse(readFileSync(acceptedRoot + '/fixtures.json', 'utf8'));
+    const fixture = fixtures[index];
+    const old = JSON.parse(readFileSync(acceptedRoot + '/runs/' + fixture.runId + '/eval.json', 'utf8'));
+    const expected = JSON.parse(readFileSync(acceptedRoot + '/runs/' + fixture.runId + '/outputs.json', 'utf8'));
+    const calls = old.spans.filter((span: {kind: string}) => span.kind === 'agent');
+    let cursor = 0;
+    (compileContextBundle as jest.Mock).mockImplementation(input => ({...input,
+      allowedClaimIds: input.allowedClaimIds || [], unverifiedClaimIds: input.unverifiedClaimIds || [],
+      selection: input.selection || {included: [], excluded: []}, usage: {truncated: false},
+    }));
+    (applyResumeChanges as jest.Mock).mockReturnValue({text: expected.fullDocument, findings: []});
+    (reviewAtsText as jest.Mock).mockReturnValue({ok: true, coverage: 1, findings: []});
+    (createArtifactWithClaims as jest.Mock).mockResolvedValue({id: 'local-replay-artifact', version: 1});
+    (recordArtifactReview as jest.Mock).mockImplementation(async data => ({
+      reviewer_type: data.reviewerType, status: data.status, summary: data.summary,
+    }));
+    (callLLM as jest.Mock).mockImplementation(async (messages, settings) => {
+      const recorded = calls[cursor++];
+      expect(recorded).toBeDefined();
+      expect(messages).toEqual(recorded.input.messages);
+      expect(settings.nativeTools).toEqual(recorded.input.options.nativeTools);
+      expect(settings).toMatchObject({model: 'deepseek-flash', resumeF6Model: true, siteFunded: false});
+      return recorded.output;
+    });
+    const response = await productionPOST(new Request('https://local-replay.invalid/api/coach/resume-draft', {
+      method: 'POST', body: JSON.stringify({resumeText: fixture.resume, mode: 'general_resume', requestId: 'local-replay:' + fixture.id}),
+    }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(cursor).toBe(calls.length);
+    expect(body.f6Deliverables.files['resume-new.md']).toBe(expected.fullDocument);
+    expect(body.f6Deliverables.mentorGuidance.text).toBe(expected.f6Deliverables.mentorGuidance.text);
+    expect(body.hrReview.records[0].commentary).toBe(expected.hrReview.records[0].commentary);
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), true);
+    expect(resumeTaskInput).not.toHaveBeenCalled();
+    if (process.env.F6_RELEASE_EVIDENCE_DIR) writeFileSync(process.env.F6_RELEASE_EVIDENCE_DIR + '/post-replay-' + index + '.json',
+      JSON.stringify({fixtureId: fixture.id, runId: fixture.runId, route: '/api/coach/resume-draft', ordinaryAccount: true,
+        allModelMessagesAndToolsEqual: true, model: 'deepseek-flash', replayedCalls: cursor, upstreamCalls: 0, costCny: 0,
+        bodySha256: createHash('sha256').update(expected.fullDocument).digest('hex'),
+        realProductQuotaAndPersistenceBoundaryMocked: true, actualHttpNetworkOrNewModelQualityTest: false}, null, 2), {mode: 0o600});
+  });
   test('restart edits the visible draft, treats old requests as history and does not sell an unchanged old improvement again', async () => {
     const before = '整理评测记录，整理后交给同事每周核对。';
     const current = '整理评测记录，交给同事每周核对。';
@@ -88,7 +140,10 @@ describe("resume draft source mapping and automatic-review baseline", () => {
       conversation: [{id: 'old-message', message: '之前的局部修改', reply: '之前的回复', status: 'completed'}]});
     (ownedResumeTaskSource as jest.Mock).mockResolvedValue({resume: before, jd: '', revision: 'r', changes: oldChanges});
     const output = (files: Array<{name: string; text: string}>) => JSON.stringify({type: 'native_tool_calls', tool_calls: [{
-      id: 'write', type: 'function', function: {name: 'write_output', arguments: JSON.stringify({files})},
+      id: 'write', type: 'function', function: {name: 'write_output', arguments: JSON.stringify({
+        purpose: '交完整稿与同轮沟通', resume_markdown: files.find(file => file.name === 'resume-new.md')?.text ?? current,
+        ...(files.find(file => file.name === 'mentor.md') ? {mentor_markdown: files.find(file => file.name === 'mentor.md')!.text} : {}),
+      })},
     }]});
     const mentor = '这段的交付已写清。你给同事核对时，具体用什么标准判断记录是否可用？';
     (callLLM as jest.Mock).mockResolvedValueOnce(output([{name: 'resume-new.md', text: current + '\n<!-- PAGEBREAK -->'}]))
@@ -105,10 +160,12 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(first['resume.md']).toBe(current);
     expect(first.editingRequest).toBe('');
     expect(first.latestMentorTurn).toBeUndefined();
-    expect(first.source_reference_only['original-resume.md']).toBe(before);
+    expect(first.source_reference_only['original-resume.md']).toBeUndefined();
+    expect(first.contextAccess.originalResume.file).toBe('original-resume.md');
     expect(first.source_reference_only.instructionHistory[0].text).toBe(oldInstruction.answer);
     const hr = (callLLM as jest.Mock).mock.calls[1][0];
-    expect(hr.at(-2).content.endsWith(current)).toBe(true);
+    expect(hr[0].content).toBe(F6_SCREENING_PROMPT);
+    expect(hr.at(-1).content.endsWith(current + '\n<!-- PAGEBREAK -->')).toBe(true);
     expect(finishResumeTask).toHaveBeenCalledWith('user-1', 'task', 'lease', expect.anything(),
       expect.objectContaining({changes: oldChanges, unchanged: true,
         f6Deliverables: expect.objectContaining({mentorGuidance: expect.objectContaining({text: mentor})})}));
@@ -154,9 +211,12 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
     const [messages,settings]=(callLLM as jest.Mock).mock.calls[0];
     expect(messages.map((message:{role:string})=>message.role)).toEqual(['system','user']);
+    expect(messages[0].content).toBe(f6AuthorContract('whole'));
+    expect(createF6MemoryReader).toHaveBeenCalledWith(expect.objectContaining({userId: 'user-1', opportunityId: 'opp-1'}));
     expect(settings.nativeTools.map((tool:{function:{name:string}})=>tool.function.name))
-      .toEqual(['read_file','search','fetch','write_output','render_pdf']);
-    expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,timeoutMs:90000,resumeF6Tools:true,maxRetries:0});
+      .toEqual(['read_file','search','fetch','write_output','render_pdf','knowledge_search','knowledge_read']);
+    expect(settings).toMatchObject({temperature:0.3,maxTokens:7500,timeoutMs:90000,resumeF6Tools:true,
+      resumeF6Model:true, model:'deepseek-flash', siteFunded:false, maxRetries:0});
     expect(body.workflow).toMatchObject({writer:F6_RESUME_WRITER,reviewPolicy:'on_demand',maxDraftAttempts:1,maxReviewContractRepairs:0});
     expect(body.reviewer).toMatchObject({status:'warning',passed:false});
     expect(body.applicationQuality.status).toBe('draft');
@@ -165,12 +225,12 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(body.hrReview.records[0].commentary).toBe(hr);
     expect(body.workflow).toMatchObject({hrPolicy:'plain_commentary_one_author_response',maxHrCalls:1});
     const [hrMessages,hrSettings]=(callLLM as jest.Mock).mock.calls[1];
-    expect(hrMessages).toHaveLength(7);
-    expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'source_reference_only'});
-    expect(hrMessages[2].content).toContain('核源文档 resume.md（不是新稿）');
-    expect(hrMessages.at(-1).content).toContain('唯一待评新稿 candidate.md');
+    expect(hrMessages).toHaveLength(3);
+    expect(hrMessages[0].content).toBe(F6_SCREENING_PROMPT);
+    expect(JSON.parse(hrMessages[1].content)).toMatchObject({purpose:'recruiting_screen'});
+    expect(hrMessages.at(-1).content).toContain('唯一待评投递稿 candidate.md');
     expect(hrMessages.at(-1).content.endsWith(after)).toBe(true);
-    expect(hrSettings).toMatchObject({model:'deepseek-v4-pro',maxRetries:0});
+    expect(hrSettings).toMatchObject({model:'deepseek-flash',resumeF6Model:true,siteFunded:false,maxRetries:0});
     expect(hrSettings.nativeTools).toBeUndefined();
     expect(hrSettings.responseFormat).toBeUndefined();
     const authorReview=(callLLM as jest.Mock).mock.calls[2][0].filter((message:{content:string})=>message.content.startsWith('{'))
@@ -197,7 +257,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(callLLM).toHaveBeenCalledTimes(3);
   });
 
-  test('production wiring sends exact nonblocking evidence to HR and original author before final delivery', async () => {
+  test('production HR sees only the actual candidate; advice returns to original author without becoming user facts', async () => {
     const before = '李青\n有一名算法和两名后端一起做，离线验收允许下降不超过1个百分点。';
     const after = '李青\n带1名算法、2名后端交付，离线验收允许下降≤1%。';
     (resumeTaskInput as jest.Mock).mockResolvedValue({opportunity_id: 'opp-1', answers: []});
@@ -221,27 +281,21 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(response.status).toBe(200);
     expect(callLLM).toHaveBeenCalledTimes(3);
     const reviewMessages = (callLLM as jest.Mock).mock.calls[1][0];
-    const evidence = JSON.parse(reviewMessages[1].content).mechanical_review_hints;
+    const hiring = JSON.parse(reviewMessages[1].content);
     const authorMessages=(callLLM as jest.Mock).mock.calls[2][0];
-    const authorEvidence=authorMessages.filter((message:{content:string})=>message.content.startsWith('{'))
+    const authorHiring=authorMessages.filter((message:{content:string})=>message.content.startsWith('{'))
       .map((message:{content:string})=>JSON.parse(message.content))
-      .find((payload:{source?:string})=>payload.source==='host_review_handoff').mechanical_review_hints;
-    expect(evidence).toEqual(authorEvidence);
-    expect(authorMessages.some((message:{content:string})=>message.content==='核源文档 resume.md（不是新稿）\n\n'+before)).toBe(true);
-    expect(authorMessages.some((message:{content:string})=>message.content.startsWith('唯一待评新稿 candidate.md')
+      .find((payload:{source?:string})=>payload.source==='host_review_handoff');
+    expect(hiring.purpose).toBe('recruiting_screen');
+    expect(hiring).not.toHaveProperty('mechanical_review_hints');
+    expect(authorHiring).toMatchObject({...hiring, source: 'host_review_handoff'});
+    expect(reviewMessages).toHaveLength(3);
+    expect(reviewMessages[0].content).toBe(F6_SCREENING_PROMPT);
+    expect(authorMessages.some((message:{content:string})=>message.content.startsWith('唯一待评投递稿 candidate.md')
       &&message.content.endsWith(after))).toBe(true);
-    expect(evidence.hints.passages).toEqual(expect.arrayContaining([
-      expect.objectContaining({source: expect.objectContaining({document:'resume.md'}),
-        candidate: expect.objectContaining({document:'candidate.md'})}),
-    ]));
-    expect(evidence.hints.passages.every((part:object)=>!('notices' in part))).toBe(true);
-    const pair = evidence.hints.passages.find((part: {source:{start:number;end:number}}) =>
-      before.slice(part.source.start,part.source.end).includes('一起做'));
-    expect(before.slice(pair.source.start,pair.source.end)).toContain('一起做');
-    expect(after.slice(pair.candidate.start,pair.candidate.end)).toContain('带1名');
     expect(reviewMessages.at(-1).content.endsWith(after)).toBe(true);
-    expect(reviewMessages.at(-1).content).toContain('SHA256: ' + evidence.candidateSha256);
-    expect(body.hrReview.records[0].reviewContext).toEqual(evidence);
+    expect(body.hrReview.records[0]).not.toHaveProperty('reviewContext');
+    expect(body.hrReview.reviewMode).toBe('recruiting_screen');
     expect(body.reviewer.passed).toBe(false);
     expect(body.applicationQuality.status).toBe('draft');
     expect(body.changes.some((change: {evidenceNotices?: Array<{quote: string}>}) =>
@@ -277,7 +331,7 @@ describe("resume draft source mapping and automatic-review baseline", () => {
     expect(writerAndReview()).toEqual(['resume_draft', 'resume_draft', 'resume_review', 'resume_draft']);
     const [nextMessages, nextOptions] = (callLLM as jest.Mock).mock.calls[1];
     expect(nextOptions.nativeTools.map((t: {function: {name: string}}) => t.function.name))
-      .toEqual(['read_file', 'write_output', 'render_pdf']);
+      .toEqual(['read_file', 'write_output', 'render_pdf', 'knowledge_search', 'knowledge_read']);
     expect(nextOptions.maxRetries).toBe(0);
     expect(JSON.parse(nextMessages.at(-1).content)).toMatchObject({
       error: 'PUBLIC_REQUEST_BUDGET', publicResearch: {status: 'exhausted', retryable: false},
@@ -297,9 +351,9 @@ describe("resume draft source mapping and automatic-review baseline", () => {
       selection:{included:[],excluded:[]},budget:{maxInputTokens:12000},usage:{truncated:false},
       claims:[{id:'claim-1',displayText:before}],artifacts:[],knowledge:[],attachments:[]});
     (callLLM as jest.Mock).mockResolvedValueOnce(JSON.stringify({type:'native_tool_calls',tool_calls:[{
-      id:'bad-delivery',type:'function',function:{name:'write_output',arguments:JSON.stringify({files:[
-        {name:'resume-new.md',text:'主导模型评测并提升正确率。'},
-      ]})},
+      id:'bad-delivery',type:'function',function:{name:'write_output',arguments:JSON.stringify({
+        resume_markdown:'主导模型评测并提升正确率。',purpose:'交首稿',
+      })},
     }]})).mockResolvedValueOnce(after);
     (applyResumeChanges as jest.Mock).mockReturnValue({text:after,findings:[]});
     (reviewAtsText as jest.Mock).mockReturnValue({ok:true,coverage:1,findings:[]});

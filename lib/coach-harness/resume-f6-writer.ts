@@ -11,14 +11,19 @@ import {f6HrResponseInstruction,type F6HrReviewSession} from './f6-hr-review';
 import {f6CallMessages} from './f6-execution-state';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS, type latestF6MentorTurn} from './f6-mentor-guidance';
 import {f6ReviewExecution} from './f6-review-execution';
+import {f6HasResumeWrite} from './f6-write-request';
 import type {ResumeEditingContext} from './resume-editing-context';
+import type {F6ContextTools} from './f6-context-tools';
+import {f6ContextPayload, uniqueAdditionalFacts} from './f6-context-contract';
+import {f6AuthorContract, F6_CONTEXT_REVIEW_RESPONSE} from './f6-author-contract';
+import {f6ParallelCoachingHandoff} from './f6-parallel-coaching';
 
 export const F6_RESUME_WRITER = F6_RUNTIME_VERSION;
 export const F6_MAX_AUTHOR_CALLS = origin.maxAuthorCalls;
 /** Internal offline benchmark parameters, never accepted from request JSON.
  * The autonomous loop and executors remain the production implementation. */
 export type F6AuthorFixture = {system:string;spec:string;facts:string;task:string};
-type Id = F6ResourceId;
+type Id = F6ResourceId | string;
 type Input = {
   resume: string; jd: string; facts: Array<{ id: string; text: string }>;
   request: string; answers: unknown; decisions: unknown; scope: 'whole' | 'single'; format: unknown;
@@ -33,6 +38,8 @@ type Input = {
   previousMentorGuidance?: string;
   latestMentorTurn?: ReturnType<typeof latestF6MentorTurn>;
   editingContext?: ResumeEditingContext;
+  /** Server-bound read-only lookup, never accepted from model/request JSON. */
+  contextTools?: F6ContextTools;
 };
 type Call = (messages: LlmMessage[], phase: 'read_or_write' | 'write', readIds: Id[], tools: NativeTool[]) => Promise<string>;
 type VerifyDocument = (body:string) => string[];
@@ -71,9 +78,7 @@ export function f6InitialMessages(input: Input): LlmMessage[] {
     .replace('在该项目段取舍、重排和编辑。', '在授权范围内取舍、重排和编辑。')
     .replace('本次交付只有项目段正文，以「### 益职 AI」开头，可直接回复或通过 write_output 保存为 resume-new.md。',
       '本次交付完整的授权范围正文，可直接回复或通过 write_output 保存为 resume-new.md。');
-  return [
-    { role: 'system', content: system + (input.mentorCoaching ? '\n\n' + F6_MENTOR_RESPONSIBILITY : '') },
-    { role: 'user', content: JSON.stringify({
+  const payload = {
       task: scope, 'resume.md': input.editingContext?.current.text ?? input.resume, 'jd.txt': input.jd, 'facts.md': input.facts,
       answers: input.answers, editingRequest: input.request,
       priorDecisions: input.editingContext && Array.isArray(input.decisions)
@@ -95,7 +100,12 @@ export function f6InitialMessages(input: Input): LlmMessage[] {
         repairInstruction:'这是独立检查给原作者的诊断，不是候选人事实或正确答案。逐项对照原稿与候选核实；修正有依据的问题，不照单补写新事实。交回完整修订稿。'} : {}),
       public_hiring_case_notes: accepted.publicHiringCases,
       optional_read_file_examples: accepted.catalogue,
-    }) },
+  };
+  return [
+    {role: 'system', content: input.contextTools ? f6AuthorContract(input.scope)
+      : system + (input.mentorCoaching ? '\n\n' + F6_MENTOR_RESPONSIBILITY : '')},
+    {role: 'user', content: JSON.stringify(input.contextTools
+      ? f6ContextPayload(payload, input.resume, input.editingContext, input.contextTools) : payload)},
   ];
 }
 
@@ -114,7 +124,18 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
   let reviewedBody:string|undefined;
   let documentDeliveryUnresolved = false;
   const mentorCoaching = Boolean(input.mentorCoaching && !input.fixture && !input.acceptedSection);
-  const hrResponseInstruction = f6HrResponseInstruction(mentorCoaching ? F6_MENTOR_HR_RESPONSE_CHANNELS : undefined);
+  const hrResponseInstruction = input.contextTools ? F6_CONTEXT_REVIEW_RESPONSE
+    : f6HrResponseInstruction(mentorCoaching ? F6_MENTOR_HR_RESPONSE_CHANNELS : undefined);
+  const handoffHr = (feedback: string) => {
+    const reviewMessages = hrReview!.authorHandoff(feedback, hrResponseInstruction);
+    if (!input.contextTools || !mentorCoaching) return reviewMessages;
+    const coaching = f6ParallelCoachingHandoff(session.deliverables().mentorGuidance);
+    captureEvalStage('context', 'f6_parallel_coaching_handoff', {
+      input: {source: 'current_author_guidance', userRepliesAddedDuringGeneration: 0},
+      output: {messages: coaching, blocking: false, newCandidateFacts: false},
+    }, Date.now(), 0);
+    return [...reviewMessages, ...coaching];
+  };
   const rejectedBodies=new Set<string>();
   const verify=(body:string)=>{
     const issues=verifyDocument?.(body)||[];
@@ -129,9 +150,17 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     ? {...input, resume: input.acceptedSection.resume, jd: input.acceptedSection.jd,
       facts: input.acceptedSection.facts} : input.fixture?{...input,facts:input.fixture.facts}
       : {...input, resume: input.editingContext?.current.text ?? input.resume};
+  if (input.contextTools) {
+    const answers = Array.isArray(input.answers) ? input.answers as Array<{claimId?: string; answer?: string}> : [];
+    resourceInput.facts = uniqueAdditionalFacts([
+      ...input.contextTools.evidence,
+      ...input.facts.filter(fact => answers.some(answer => answer.claimId === fact.id || answer.answer === fact.text)),
+    ], input.resume, resourceInput.resume);
+  }
   const session = new F6ToolSession({...resourceInput, ...(mentorCoaching ? {
     privateResearchMaterial: JSON.stringify({originalResume: input.resume, facts: input.facts, answers: input.answers}),
-  } : {})}, verify, services, checkpoint?.publicCalls, input.fixture?.spec,
+  } : {}), ...(input.contextTools ? {originalResume: input.resume, contextTools: input.contextTools} : {})},
+    verify, services, checkpoint?.publicCalls, input.fixture?.spec,
     mentorCoaching);
   const started = Date.now();
   captureEvalStage('context', 'f6_origin_runtime_contract', {input: {
@@ -192,7 +221,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         const feedback=await hrReview.inspect(reply,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
           messages.push({role:'assistant',content:reply});
-          messages.push(...hrReview.authorHandoff(feedback,hrResponseInstruction));
+          messages.push(...handoffHr(feedback));
           continue;
         }
       }
@@ -203,6 +232,11 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
     if (input.legacySuggestionProtocol && Array.isArray(value.changes)) return reply;
     if (value.type !== 'native_tool_calls' || !Array.isArray(value.tool_calls)) throw Error('F6_WRITER_PROTOCOL_INVALID');
     const calls = value.tool_calls as NativeToolCall[];
+    if (input.contextTools) captureEvalStage('context', 'f6_visible_tool_decision', {
+      input: {toolNames: calls.map(call => call.function.name)},
+      output: {text: typeof value.content === 'string' ? value.content : '',
+        source: 'model_visible_response', recorded: Boolean(value.content), hiddenReasoning: false},
+    }, Date.now(), 0);
     let writtenBody=false;
     let writtenResponse = false;
     messages.push({ role: 'assistant', content: String(value.content || ''), tool_calls: calls });
@@ -211,8 +245,13 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
       let args: Record<string, unknown> = {}, result: Record<string, unknown>;
       try {
         args = parse(request.function.arguments);
-        if (request.function.name === 'write_output' && Array.isArray(args.files)
-          && args.files.some(file => file?.name === 'resume-new.md')) documentDeliveryUnresolved = true;
+        if (input.contextTools) captureEvalStage('context', 'f6_tool_decision_summary', {
+          input: {decisionForToolCallId: request.id, toolName: request.function.name},
+          output: {source: 'model_tool_argument', hiddenReasoning: false,
+            text: typeof args.purpose === 'string' ? args.purpose : '',
+          },
+        }, Date.now(), 0);
+        if (request.function.name === 'write_output' && f6HasResumeWrite(args)) documentDeliveryUnresolved = true;
         result = await session.invoke(request.function.name, args);
         if(request.function.name==='write_output'&&Array.isArray(result.saved)&&result.saved.includes('resume-new.md')){
           writtenBody=true;
@@ -223,6 +262,10 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         if (request.function.name === 'read_file') {
           const id = args.file as Id;
           readIds.push(id); onRead([id]);
+        }
+        if (request.function.name === 'knowledge_read' && Array.isArray(result.documents)) {
+          const ids = result.documents.map((document: {id: string}) => document.id);
+          readIds.push(...ids); onRead(ids);
         }
       } catch (error) {
         if (error instanceof Error && error.message === 'F6_REPAIR_NO_PROGRESS') throw error;
@@ -239,7 +282,7 @@ export async function runF6ResumeWriter(input: Input, call: Call, onRead: (ids: 
         reviewedBody=body;
         const feedback=await hrReview.inspect(body,F6_MAX_AUTHOR_CALLS-turn-1,session.deliverables().mentorGuidance);
         if(feedback){
-          messages.push(...hrReview.authorHandoff(feedback,hrResponseInstruction));
+          messages.push(...handoffHr(feedback));
           continue;
         }
       }

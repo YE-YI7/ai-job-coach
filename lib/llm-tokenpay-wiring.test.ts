@@ -79,6 +79,35 @@ test('server F6 tools retain the selected gateway model and allow an immediate c
     .rejects.toThrow('F6_TOOL_SCOPE_INVALID');
 });
 
+test('scoped context tools reach ordinary production F6 while arbitrary tools remain unavailable', async () => {
+  const previous = {...process.env};
+  const names = ['knowledge_search', 'knowledge_read', 'memory_search', 'memory_read'];
+  const nativeTools = names.map(name => ({type: 'function' as const,
+    function: {name, description: 'read-only scoped query', parameters: {type: 'object'}}}));
+  try {
+    process.env.F6_QA_CONTEXT_TOOLS = 'v1'; process.env.F6_QA_USER_ID = 'qa'; process.env.F6_QA_BUDGET_ID = 'budget';
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'qa', operation: 'resume_draft'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue(null);
+    create.mockResolvedValue(completion('完整新稿'));
+    expect(await callLLM(messages, {nativeTools, resumeF6Tools: true, maxRetries: 0})).toBe('完整新稿');
+    expect(create.mock.calls[0][0]).toMatchObject({tools: nativeTools, tool_choice: 'auto'});
+    create.mockClear();
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'ordinary', operation: 'resume_draft'});
+    await expect(callLLM(messages, {nativeTools, resumeF6Tools: true, maxRetries: 0})).resolves.toBe('完整新稿');
+    expect(create).toHaveBeenCalledTimes(1);
+    create.mockClear();
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'qa', operation: 'resume_draft'});
+    await expect(callLLM(messages, {nativeTools: [{type: 'function', function: {
+      name: 'arbitrary_execution', description: 'not exposed', parameters: {type: 'object'},
+    }}], resumeF6Tools: true})).rejects.toThrow('F6_TOOL_SCOPE_INVALID');
+    expect(create).not.toHaveBeenCalled();
+  } finally {
+    for (const key of ['F6_QA_CONTEXT_TOOLS', 'F6_QA_USER_ID', 'F6_QA_BUDGET_ID']) {
+      if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
+    }
+  }
+});
+
 test('管理员原生工具确实到达SDK，空正文的tool_calls原样回传且计量，不触发空响应重试', async () => {
   (getGenerationContext as jest.Mock).mockReturnValue({userId: 'u', operation: 'admin_trial'});
   (getTokenPayCredential as jest.Mock).mockResolvedValue('existing-key');
@@ -132,6 +161,62 @@ describe("站点 StepFun 接线", () => {
     await callLLM(messages, {model:"deepseek-chat",timeoutMs:100});
     expect(create.mock.calls[0][0].model).toBe("step-3.7-flash");
     expect((globalThis as Record<string, unknown>).__openaiOptions).toMatchObject({apiKey:"test-step-key",baseURL:"https://api.stepfun.com/v1"});
+  });
+  test.each(['resume_draft', 'resume_review'])('F6 official Flash bypasses hosted Step for %s without charging a linked account', async operation => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'qa', operation});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('personal-key-not-to-use');
+    create.mockResolvedValue({...completion('真实输出'), model: 'deepseek-flash'});
+    const nativeTools = operation === 'resume_draft' ? [{type: 'function' as const,
+      function: {name: 'write_output', description: '交稿', parameters: {type: 'object'}}}] : undefined;
+    const options = {provider: 'deepseek' as const, model: 'deepseek-flash', siteFunded: true,
+      exactSiteF6Model: 'deepseek-flash' as const, maxRetries: 0,
+      ...(nativeTools ? {nativeTools, resumeF6Tools: true as const} : {})};
+    expect(await callLLM(messages, options)).toBe('真实输出');
+    expect(create.mock.calls[0][0].model).toBe('deepseek-flash');
+    expect((globalThis as Record<string, unknown>).__openaiOptions)
+      .toMatchObject({apiKey: 'test-deepseek-key', baseURL: 'https://api.deepseek.com', maxRetries: 0});
+    expect(getTokenPayCredential).not.toHaveBeenCalled();
+  });
+  test('a wrong served model is visible failure and cannot trigger another paid request', async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'qa', operation: 'resume_review'});
+    create.mockResolvedValue({...completion('不该接收'), model: 'step-3.7-flash'});
+    await expect(callLLM(messages, {provider: 'deepseek', model: 'deepseek-flash', siteFunded: true,
+      exactSiteF6Model: 'deepseek-flash', maxRetries: 0})).rejects.toThrow('F6_SERVED_MODEL_MISMATCH');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+  test.each(['resume_draft', 'resume_review'])('ordinary production F6 uses accepted Flash without QA funding for %s', async operation => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'ordinary-user', operation});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue(null);
+    create.mockResolvedValue({...completion('真实输出'), model: 'deepseek-flash'});
+    const nativeTools = operation === 'resume_draft' ? [{type: 'function' as const,
+      function: {name: 'knowledge_search', description: '查方法', parameters: {type: 'object'}}}] : undefined;
+    const result = await callLLM(messages, {provider: 'deepseek', model: 'deepseek-flash', resumeF6Model: true,
+      siteFunded: false, maxRetries: 0, ...(nativeTools ? {nativeTools, resumeF6Tools: true} : {})});
+    expect(result).toBe('真实输出');
+    expect(create.mock.calls[0][0].model).toBe('deepseek-flash');
+    expect(getTokenPayCredential).toHaveBeenCalledWith('ordinary-user');
+    expect((globalThis as Record<string, unknown>).__openaiOptions)
+      .toMatchObject({apiKey: 'test-deepseek-key', baseURL: 'https://api.deepseek.com'});
+  });
+  test('production F6 keeps the connected wallet and canonical Flash id, not a hosted-funded shortcut', async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'connected-user', operation: 'resume_review'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue('personal-key');
+    (resolveTokenDanceModel as jest.Mock).mockResolvedValue('deepseek-v4.1-flash');
+    create.mockResolvedValue({...completion('真实输出'), model: 'deepseek-v4.1-flash'});
+    expect(await callLLM(messages, {provider: 'deepseek', model: 'deepseek-flash', resumeF6Model: true,
+      siteFunded: false, maxRetries: 0})).toBe('真实输出');
+    expect(resolveTokenDanceModel).toHaveBeenCalledWith('connected-user', 'deepseek-v4.1-flash');
+    expect(create.mock.calls[0][0].model).toBe('deepseek-v4.1-flash');
+    expect((globalThis as Record<string, unknown>).__openaiOptions)
+      .toMatchObject({apiKey: 'personal-key', baseURL: 'https://tokendance.space/gateway/v1'});
+  });
+  test('ordinary F6 rejects wrong served model without retrying', async () => {
+    (getGenerationContext as jest.Mock).mockReturnValue({userId: 'ordinary-user', operation: 'resume_review'});
+    (getTokenPayCredential as jest.Mock).mockResolvedValue(null);
+    create.mockResolvedValue({...completion('错模型'), model: 'step-3.7-flash'});
+    await expect(callLLM(messages, {provider: 'deepseek', model: 'deepseek-flash', resumeF6Model: true,
+      maxRetries: 0})).rejects.toThrow('F6_SERVED_MODEL_MISMATCH');
+    expect(create).toHaveBeenCalledTimes(1);
   });
   test("公开工具无用户上下文仍使用站点模型", async () => {
     (getGenerationContext as jest.Mock).mockReturnValue(undefined);

@@ -7,6 +7,8 @@ import { resolveTokenDanceModel } from "./coach-harness/chat-models";
 import { hostedStepModel } from "./hosted-model";
 import { assertFinalLlmOutput, diagnosticFetch, type LlmTransportDiagnostic } from './llm-transport';
 import {nativeToolEnvelope, type LlmMessage, type NativeTool} from './llm-tools';
+import {F6_CONTEXT_TOOL_NAMES} from './coach-harness/f6-context-contract';
+import {assertF6OfficialServedModel} from './coach-harness/f6-model-policy';
 
 type Message = LlmMessage;
 
@@ -17,10 +19,12 @@ type LlmOptions = {
   nativeTools?: NativeTool[];
   /** Server-only F6 origin catalogue, automatic choice, scoped tool executors. */
   resumeF6Tools?: true;
+  /** Accepted F6 author/recruiter model; does not change quota or wallet ownership. */
+  resumeF6Model?: true;
   /** Server-only entitlement decision. Keep account audit attribution without charging its gateway. */
   siteFunded?: boolean;
   /** Server-only funded F6 acceptance: do not substitute the hosted model. */
-  exactSiteF6Model?: 'deepseek-v4-flash';
+  exactSiteF6Model?: 'deepseek-v4-flash' | 'deepseek-flash';
   onDiagnostic?: (diagnostic: LlmTransportDiagnostic) => void;
   onDelta?: (text: string) => void;
   firstTokenTimeoutMs?: number;
@@ -183,12 +187,17 @@ export async function callLLM(
   }
   if (options?.nativeTools && (options.onDelta || !options.nativeTools.length
     || (!options.requireExactConnectedModel && !options.resumeF6Tools))) throw Error('NATIVE_TOOLS_EXPERIMENT_ONLY');
+  const allowedF6Tools = ['read_file', 'search', 'fetch', 'write_output', 'render_pdf', ...F6_CONTEXT_TOOL_NAMES];
   if (options?.resumeF6Tools && (!options.nativeTools?.length
-    || options.nativeTools.some(tool => !['read_file', 'search', 'fetch', 'write_output', 'render_pdf'].includes(tool.function.name)))) throw Error('F6_TOOL_SCOPE_INVALID');
-  if (options?.exactSiteF6Model && (!options.siteFunded || !options.resumeF6Tools
+    || options.nativeTools.some(tool => !allowedF6Tools.includes(tool.function.name)))) throw Error('F6_TOOL_SCOPE_INVALID');
+  const trace = getGenerationContext();
+  if (options?.resumeF6Model && (options.provider !== 'deepseek' || options.model !== 'deepseek-flash'
+    || !options.resumeF6Tools && trace?.operation !== 'resume_review')) throw Error('F6_MODEL_SCOPE_INVALID');
+  const exactHr = options?.exactSiteF6Model === 'deepseek-flash'
+    && trace?.operation === 'resume_review' && !options.nativeTools;
+  if (options?.exactSiteF6Model && (!options.siteFunded || !options.resumeF6Tools && !exactHr
     || options.provider !== 'deepseek' || options.model !== options.exactSiteF6Model)) throw Error('F6_SITE_MODEL_SCOPE_INVALID');
 
-  const trace = getGenerationContext();
   let provider: "deepseek" | "openai" | "tokendance" | "stepfun" = options?.provider || "deepseek";
   let apiKey: string | undefined;
   if (options?.requireExactConnectedModel) {
@@ -214,7 +223,7 @@ export async function callLLM(
   // DeepSeek identifiers. A missing Step credential fails visibly, never swaps
   // silently to the depleted provider.
   const hostedModel = hostedStepModel();
-  if (provider === "deepseek" && hostedModel && !options?.exactSiteF6Model) {
+  if (provider === "deepseek" && hostedModel && !options?.exactSiteF6Model && !options?.resumeF6Model) {
     provider = "stepfun";
     model = hostedModel;
   } else if (provider === "stepfun") {
@@ -226,7 +235,11 @@ export async function callLLM(
   // catalog, or every interview/analyze/quick-practice call fails with a raw
   // 400 "模型不存在". Hosted (unconnected) users never enter this branch.
   if (provider === "tokendance" && trace?.userId && !options?.requireExactConnectedModel) {
+    // This is the accepted Flash id in the existing gateway picker. An absent
+    // explicit id fails rather than substituting another cheap model family.
+    if (options?.resumeF6Model) model = 'deepseek-v4.1-flash';
     model = await resolveTokenDanceModel(trace.userId, model);
+    if (options?.resumeF6Model) assertF6OfficialServedModel(model);
   }
   const startedAt = Date.now();
   let retryCount = 0;
@@ -289,6 +302,7 @@ export async function callLLM(
     attempts: 0, phase: 'connecting',
   };
   let receivedUsage: OpenAI.Completions.CompletionUsage | undefined;
+  let receivedModel: string | undefined;
   const client = new OpenAI({
     apiKey,
     maxRetries: options?.maxRetries ?? 2,
@@ -380,6 +394,7 @@ export async function callLLM(
     });
 
     const content = completion.choices[0]?.message?.content;
+    receivedModel = completion.model;
     if (!content) throw new Error("Empty response from LLM");
 
     const usage = normalizeGenerationUsage(completion.usage as Record<string, unknown> | undefined);
@@ -399,6 +414,10 @@ export async function callLLM(
         averageTokensPerSecond:latencyMs>0
           ?Math.round(usage.outputTokens/(latencyMs/1000)*10)/10:null,
       });
+    }
+    if (options?.exactSiteF6Model === 'deepseek-flash' || options?.resumeF6Model) {
+      assertF6OfficialServedModel(receivedModel);
+      diagnostic.model = receivedModel!;
     }
     await recordGenerationEvent({
       userId: trace?.userId,
@@ -426,7 +445,7 @@ export async function callLLM(
     const failedUsage=normalizeGenerationUsage(receivedUsage as unknown as Record<string,unknown>|undefined);
     const failedCost=receivedUsage?estimateGenerationCost(provider,model,failedUsage):{estimatedCostUsd:null,pricingVersion:null};
     if(receivedUsage)options?.onUsage?.({
-      model,
+      model: receivedModel || model,
       provider,
       inputTokens:failedUsage.inputTokens,
       outputTokens:failedUsage.outputTokens,

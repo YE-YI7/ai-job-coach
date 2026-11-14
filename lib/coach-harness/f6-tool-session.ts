@@ -4,10 +4,13 @@ import type {NativeTool} from '@/lib/llm-tools';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 import {F6PublicResearchPrivacy} from './f6-public-research-privacy';
 import {f6OriginResearch} from './f6-origin-research';
+import {f6ContextToolCatalogue, F6_CONTEXT_TOOL_NAMES, type F6ContextTools} from './f6-context-tools';
+import {f6ContextSpecification} from './f6-context-contract';
+import {f6WriteFiles} from './f6-write-request';
 
 export const F6_OUTPUT_FILES = ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md'];
 export const F6_ORIGIN_TOOLS = origin.tools as NativeTool[];
-export type F6ResourceId = 'resume.md' | 'jd.txt' | 'facts.md' | keyof typeof origin.resources;
+export type F6ResourceId = 'resume.md' | 'original-resume.md' | 'jd.txt' | 'facts.md' | keyof typeof origin.resources;
 export type F6ToolServices = {
   search: (topic: unknown) => Promise<unknown>;
   fetch: (urls: unknown) => Promise<unknown>;
@@ -31,13 +34,18 @@ export class F6ToolSession {
   private publicExhausted = false;
   private mentorGuidanceRevision?: number;
   constructor(input: {resume: string; jd: string; facts: unknown; company?: string; domain?: string;
-    privateResearchMaterial?: string},
+    privateResearchMaterial?: string; originalResume?: string; contextTools?: F6ContextTools},
     private verify: (body: string) => string[], services?: F6ToolServices,
     publicCheckpoint?: Array<{name: string; output: Record<string, unknown>}>,
     fixtureSpec?: string, private mentorCoaching = false) {
     this.resources = {...origin.resources, 'resume.md': input.resume, 'jd.txt': input.jd,
       'facts.md': typeof input.facts === 'string' ? input.facts : JSON.stringify(input.facts),
       ...(fixtureSpec===undefined?{}:{'spec.md':fixtureSpec})};
+    this.contextTools = input.contextTools;
+    if (this.contextTools) {
+      this.resources['original-resume.md'] = input.originalResume ?? input.resume;
+      this.resources['spec.md'] = f6ContextSpecification(this.resources['spec.md']);
+    }
     const company = input.company || '';
     // Preserve the experiment's explicitly identified public research target.
     // Unknown companies are not silently treated as Manus or called official.
@@ -62,11 +70,15 @@ export class F6ToolSession {
       publicBudget: () => research.budget(),
     };
   }
+  private contextTools?: F6ContextTools;
 
   /** Availability is execution state, not an authored workflow. Keep every
    * usable origin tool unchanged; never advertise a tool that cannot run. */
   availableTools(): NativeTool[] {
-    const tools = this.mentorCoaching ? F6_MENTOR_TOOLS : F6_ORIGIN_TOOLS;
+    let tools = this.mentorCoaching ? F6_MENTOR_TOOLS : F6_ORIGIN_TOOLS;
+    if (this.contextTools) {
+      tools = f6ContextToolCatalogue(tools, this.contextTools.memoryAvailable);
+    }
     return this.publicUnavailable()
       ? tools.filter(tool => !['search', 'fetch'].includes(tool.function.name))
       : tools;
@@ -99,8 +111,17 @@ export class F6ToolSession {
       ...(this.publicUnavailable() ? {publicResearch: this.publicState()} : {})};
   }
   async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (this.contextTools && F6_CONTEXT_TOOL_NAMES.includes(name)) return this.contextTools.invoke(name, args);
     if (name === 'read_file') {
+      if (this.contextTools && !['resume.md', 'original-resume.md', 'jd.txt', 'spec.md'].includes(String(args.file))) {
+        throw Error('READ_OUTSIDE_SCOPE');
+      }
       if (typeof args.file !== 'string' || !Object.hasOwn(this.resources, args.file)) throw Error('READ_OUTSIDE_SCOPE');
+      if (this.contextTools && (args.file === 'resume.md'
+        || args.file === 'original-resume.md' && this.resources[args.file] === this.resources['resume.md'])) {
+        return {file: args.file, sameAs: 'initial_user_message.resume.md', contentAlreadyProvided: true,
+          note: '与首请求的完整resume.md逐字相同，原文仍在该消息，不重复载入。'};
+      }
       return {file: args.file, text: this.resources[args.file]};
     }
     if (name === 'search' || name === 'fetch') {
@@ -112,9 +133,11 @@ export class F6ToolSession {
       return {...output, ...(this.services.publicBudget ? {publicResearch: this.publicState()} : {})};
     }
     if (name === 'write_output') {
-      const allowed = this.mentorCoaching ? [...F6_OUTPUT_FILES, 'mentor.md'] : F6_OUTPUT_FILES;
-      if (!Array.isArray(args.files) || !args.files.length || args.files.length > allowed.length) throw Error('OUTPUT_FILE_LIST_INVALID');
-      const files = args.files as Array<{name: string; text: string}>;
+      const allowed = this.contextTools ? ['resume-new.md', 'notes.md', 'mentor.md']
+        : this.mentorCoaching ? [...F6_OUTPUT_FILES, 'mentor.md'] : F6_OUTPUT_FILES;
+      const payload = f6WriteFiles(args, Boolean(this.contextTools));
+      if (!Array.isArray(payload) || !payload.length || payload.length > allowed.length) throw Error('OUTPUT_FILE_LIST_INVALID');
+      const files = payload as Array<{name: string; text: string}>;
       const names = new Set();
       for (const file of files) {
         if (!file || !allowed.includes(file.name) || names.has(file.name)
@@ -124,6 +147,7 @@ export class F6ToolSession {
         names.add(file.name);
       }
       const candidate = files.find(file => file.name === 'resume-new.md');
+      if (this.contextTools && !candidate) throw Error('OUTPUT_RESUME_REQUIRED');
       const issues = candidate ? this.verify(candidate.text) : [];
       if (issues.length) return {saved: [], applied: false, issues,
         instruction: '程序未接收这版。对照原稿核实并修正，交回完整新稿；诊断不提供新的经历事实。'};

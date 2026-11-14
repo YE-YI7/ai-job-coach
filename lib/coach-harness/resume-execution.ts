@@ -60,6 +60,10 @@ import type {F6Deliverables} from './f6-tool-session';
 import {F6HrReviewSession,f6HrSummary,type F6HrReceipt} from './f6-hr-review';
 import {f6ReviewHints} from './f6-review-hints';
 import {resumeEditingContext, isCurrentResumeUnchanged} from './resume-editing-context';
+import {f6ContextTrialEnabled, uniqueAdditionalFacts} from './f6-context-contract';
+import {F6ContextTools, type F6MemoryDocument} from './f6-context-tools';
+import {createF6MemoryReader} from './f6-memory-reader';
+import {f6ProductionLlmOptions} from './f6-model-policy';
 
 // 引用回指硬闸挂在槽3；本模块只按槽执行，不内联任何判定。
 registerDefaultGuards();
@@ -88,6 +92,9 @@ export type ResumeExecutionOptions = {
 export async function runResumeDraft(request: Request, user: NonNullable<Awaited<ReturnType<typeof getCurrentUserFromRequest>>>, options: ResumeExecutionOptions = {}) {
   const deadline = Date.now()+RESUME_EXECUTION_LIMIT_MS;
   const useF6 = options.writer === F6_RESUME_WRITER;
+  const contextEnabled = useF6 && options.reviewPolicy === 'on_demand';
+  // QA billing isolation is separate from the shipped author/tool contract.
+  const contextTrial = contextEnabled && f6ContextTrialEnabled(user.id);
   // The production route always runs the accepted runtime. Rollback is a
   // deployment operation, never a silent switch to a different author.
   const onDemandReview = useF6 && options.reviewPolicy === 'on_demand';
@@ -101,7 +108,8 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     // Receive upstream activity while buffering private JSON. Never show raw
     // partial JSON, silently switch providers, or retry a billable timeout.
     if (options.acceptance) await options.acceptance.beforeCall(messages, settings?.nativeTools);
-    return observedResumeLLM(messages,{...settings,siteFunded,timeoutMs,firstTokenTimeoutMs:Math.min(30_000,timeoutMs),
+    const selected = contextEnabled && !options.acceptance ? f6ProductionLlmOptions(settings) : settings;
+    return observedResumeLLM(messages,{...selected,siteFunded,timeoutMs,firstTokenTimeoutMs:Math.min(30_000,timeoutMs),
       ...(options.acceptance ? {model: options.acceptance.model, exactSiteF6Model: options.acceptance.model,
         onUsage: options.acceptance.onUsage} : {}),
       ...(settings?.nativeTools ? {} : {onDelta:()=>undefined}),maxRetries:0});
@@ -137,7 +145,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     const generationSource=agentTask&&!options.isolated?await ownedResumeTaskSource(user.id,opportunityId):null;
     if(generationSource&&(generationSource.resume!==resumeText||generationSource.jd!==jobDescription))throw Error('简历已更新，请按新材料继续');
     const trialScope = agentTask?.edit_scope || null;
-    siteFunded = Boolean(trialScope || options.acceptance); // Keep audit attribution; never use its linked model account.
+    siteFunded = Boolean(trialScope || options.acceptance || contextTrial);
     if (trialScope && resolveResumeTrialScope(resumeText,trialScope.blockId)?.excerpt !== trialScope.excerpt) throw Error('体验经历已变化，请重新选择；尚未调用模型');
     if(trialScope&&agentTask)agentTask.answers=agentTask.answers.filter(answer=>answer.kind==='instruction'||inResumeTrialScope(trialScope,answer.sourceExcerpt,resumeText));
     const reproSection = options.acceptance?.section;
@@ -261,6 +269,31 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
       { id: "base-resume", text: editSource },
       ...(context.claims || []).filter((claim) => citableIds.has(claim.id)).map((claim) => ({ id: claim.id, text: claim.displayText })),
     ];
+    const memoryReader = contextEnabled ? createF6MemoryReader({
+      userId: user.id, opportunityId: opportunityId || null,
+      currentResume: editingContext?.current.text ?? editSource, originalResume: editSource,
+    }) : undefined;
+    let memorySnapshot: {complete: boolean; documents: F6MemoryDocument[]} | undefined;
+    if (memoryReader?.preload) {
+      try { memorySnapshot = await memoryReader.preload(); }
+      catch { trace.step('context', 'personal_materials_not_preloaded', undefined,
+        {input: {}, output: {complete: false, reason: 'read_failed', memoryStillAvailable: true}}); }
+    }
+    const contextTools = memoryReader
+      ? new F6ContextTools(memoryReader, documents => {
+        for (const document of documents) {
+          const existing = citationSources.find(source => source.id === document.id);
+          if (existing) existing.text = document.text;
+          else citationSources.push({id: document.id, text: document.text});
+          citableIds.add(document.id);
+        }
+      }, memorySnapshot) : undefined;
+    if (contextTools) trace.step('context', 'personal_materials_input_contract', undefined, {
+      input: {},
+      output: {complete: memorySnapshot?.complete === true,
+        preloaded: memorySnapshot?.complete ? memorySnapshot.documents : [],
+        memoryToolsAvailable: contextTools.memoryAvailable},
+    });
     const reproSources = f6ReproSources(reproSection, citationSources);
     const citationVerdicts: Array<{ index: number; outcome: GuardDecision["outcome"]; code: string; message: string }> = [];
 
@@ -349,6 +382,7 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     let output:string;
     try { output = useF6 ? await runF6ResumeWriter({
       resume:editSource,jd:jobDescription,facts:citationSources.slice(1),request:editingRequest,
+      ...(contextTools ? {contextTools} : {}),
       ...(editingContext ? {editingContext} : {}),
       mentorCoaching: true,
       previousMentorGuidance: currentF6MentorGuidance(agentTask?.result?.f6Deliverables),
@@ -388,8 +422,16 @@ export async function runResumeDraft(request: Request, user: NonNullable<Awaited
     }, undefined, options.acceptance?.checkpoint,
     options.hrCommentary && onDemandReview ? new F6HrReviewSession({
       resume: editSource, jd: jobDescription,
-      ...(editingContext ? {currentResume: editingContext.current.text} : {}),
-      facts: citationSources.slice(1).map(item=>`[${item.id}] ${item.text}`).join('\n\n'),
+      ...(contextTools ? {reviewMode: 'recruiting_screen' as const} : {}),
+      ...(editingContext && (!contextTools || editingContext.current.text !== editSource)
+        ? {currentResume: editingContext.current.text} : {}),
+      get facts() {
+        if (!contextTools) return citationSources.slice(1).map(item => `[${item.id}] ${item.text}`).join('\n\n');
+        const explicitIds = new Set(factualResumeAnswers(agentTask?.answers || []).map(answer => answer.claimId));
+        const extra = [...citationSources.filter(source => explicitIds.has(source.id)), ...contextTools.evidence];
+        return uniqueAdditionalFacts(extra, editSource, editingContext?.current.text ?? editSource)
+          .map(item => `[${item.id}] ${item.text}`).join('\n\n');
+      },
     },messages=>runWithGenerationContext({
       userId:modelUserId,operation:'resume_review',requestId:`${requestId}:f6:hr-commentary`,
     },()=>callLLM(messages,{

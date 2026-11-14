@@ -205,25 +205,30 @@ export function resumeDeliveryEventId(event: string, generationId: string) {
 }
 
 export function deliveryFromTask(
-  task: { state?: ResumeDeliveryFacts["taskState"]; question?: unknown; result?: { changes?: { id?: string }[]; previousChanges?: { id?: string }[]; resumeGenerationId?: string; unchanged?: boolean } | null } | null,
+  task: { state?: ResumeDeliveryFacts["taskState"]; question?: unknown; result?: {
+    changes?: { id?: string }[]; previousChanges?: { id?: string }[]; resumeGenerationId?: string; unchanged?: boolean;
+    f6Deliverables?: {reviewExecution?: {status?: string}};
+  } | null } | null,
   extra: ResumeDeliveryFacts = {},
 ): ResumeDeliveryReceipt {
   const generationId = extra.generationId || task?.result?.resumeGenerationId || null;
   const sameGeneration = !extra.generationId || task?.result?.resumeGenerationId === extra.generationId;
   const persisted = extra.persisted ?? (task?.state === "ready" && sameGeneration && Boolean(generationId));
+  const repairIncomplete = sameGeneration
+    && task?.result?.f6Deliverables?.reviewExecution?.status === 'author_response_incomplete';
   return classifyResumeDelivery({
     taskState: task?.state,
     unchanged: extra.unchanged ?? (sameGeneration ? task?.result?.unchanged : false),
     newChangeCount: extra.newChangeCount ?? (sameGeneration ? countNewResumeChanges(task?.result?.previousChanges, task?.result?.changes) : null),
     hasFollowUp: extra.hasFollowUp ?? (sameGeneration && Boolean(task?.question)),
-    hasUnresolved: extra.hasUnresolved,
+    hasUnresolved: Boolean(extra.hasUnresolved || repairIncomplete),
     persisted,
     generationId,
     quotaDenied: extra.quotaDenied,
     blocked: extra.blocked,
     returnedWithoutOpportunity: extra.returnedWithoutOpportunity,
     traceFinishMissing: extra.traceFinishMissing,
-    reasonCode: extra.reasonCode,
+    reasonCode: extra.reasonCode || (repairIncomplete ? 'resume_repair_incomplete' : null),
     stage: extra.stage,
     traceId: extra.traceId,
     evalRunId: extra.evalRunId,

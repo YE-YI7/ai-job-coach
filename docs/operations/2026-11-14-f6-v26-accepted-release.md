@@ -33,4 +33,14 @@
 
 ## 实际发布回执
 
-尚未创建新部署；本段在正式核验完成后追加，不以代码接入或测试通过冒称已上线。
+已正式上线，不是停在待发或QA入口：
+
+- 发布提交`45bb1d2f8ae18ee90bc53dd0c83eba4e616535ea`，2078个Git blob归档逐字核同，无本地私有.env混入。证据中的patch文件保留标准diff空白上下文，所以对这些历史补丁运行diff-check有空白提示；运行码本身无该问题，补丁不为清告警改变历史哈希。
+- 同一team/project生产环境`--skip-domain`创建`dpl_HUD8grW1v5o2a67kF2XvaZZ6omox`，远端生产构建READY，约2分钟。待发URL为`https://ai-job-coach-enntvjjk4-velmavalienteqejimu22-jpgs-projects.vercel.app`。
+- 待发版完整runtime身份与验收候选核同；首页/登录/工作区匿名重定向、5项JS/CSS资源成功；普通改稿、导师、Eval接口未登录均401。没有用登录页200冒充登录后业务验收。
+- 切换前重新核实正式仍为原`4Ww7Q`，再promote上述同一个生产构建，无重建。切换后`yizhioffer.com`与`www.yizhioffer.com`全部runtime字段逐项核同，正式别名再查确为`HUD8gr`，不是另一个旧F6。旧`4Ww7Q`保留可回滚。
+- 本轮0新增模型调用/费用，无真人采纳或PDF新测试。保存/PDF/聊天/计费代码未改，回归通过不扩大为本轮真人全流程实测声明；旧作答、原稿、积分与钱包没有写入。
+
+私有证据有`archive-receipt.json`、`accepted-v26-post-replay.json`、`release-replay.json`、`full-tests.json`、`build.log`、`deploy-output.json`、`deploy.log`、`pre-promote-inspect.log`、`staged-check.json`、`promote.log`、`live-apex-check.json`、`live-www-check.json`及`live-alias-inspect.log`。发布回执再写入Eval，人工发布核验与验收模型原始Trace分开保留。
+
+新增发布Eval `97c72c5e-e233-4e3a-b280-5a05e4e6d56a`已完整读回核同，验收原始Trace写前写后逐字相同；没有覆盖旧Eval或任何业务表。待发及切换后按新部署限定查询最近10分钟error/5xx日志，均为空，命令成功；这是部署初始短窗口，不证明后续长期无错误或真实付费流程全过。没有无限监控或额外模型试跑。

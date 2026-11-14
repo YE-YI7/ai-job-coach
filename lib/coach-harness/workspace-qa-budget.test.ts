@@ -83,3 +83,31 @@ test('a changed provider model cannot silently spend the approved small-model ca
   process.env.HOSTED_LLM_MODEL='other';
   await expect(guard.beforeModel(span())).rejects.toThrow('QA_HOSTED_MODEL_CHANGED');
 });
+test('accepted Flash QA is site funded, independent of the hosted Step default, with a thirteen-call ceiling',async()=>{
+  const store=database({model:'deepseek-flash',capCalls:13}),call=span();
+  call.input={messages:[{role:'user',content:'同一虚构原稿'}],options:{
+    maxTokens:7500,provider:'deepseek',model:'deepseek-flash',siteFunded:true}};
+  const initial=structuredClone(call.input),guard=(await workspaceQaBudget('qa','op','eval'))!;
+  await guard.beforeModel(call);expect(call.input).toEqual(initial);
+  call.status='completed';call.model='deepseek-flash';
+  call.usage={inputTokens:1000,outputTokens:100,cacheHitTokens:0,estimatedCostUsd:null,
+    pricingVersion:null,provider:'deepseek',retryCount:0};
+  await guard.afterModel(call);
+  expect(store.read().calls[0].settledUpperCny).toBeCloseTo(.0042);
+  expect(store.read().capCalls).toBe(13);
+});
+test.each([{provider:'stepfun',model:'step-3.7-flash',siteFunded:true},
+  {provider:'deepseek',model:'deepseek-flash',siteFunded:false}])('Flash QA rejects wrong funding/model before spending: %p',async(options)=>{
+  const store=database({model:'deepseek-flash',capCalls:13}),guard=(await workspaceQaBudget('qa','op','eval'))!,call=span();
+  call.input={options:{maxTokens:7500,...options}};
+  await expect(guard.beforeModel(call)).rejects.toThrow('QA_ACCEPTED_MODEL_CHANGED');
+  expect(store.read().calls).toHaveLength(0);
+});
+test('Flash call ceiling stops a fourteenth attempt even with money remaining',async()=>{
+  const store=database({model:'deepseek-flash',capCalls:13,
+    calls:Array.from({length:13},(_,i)=>({id:String(i),reservedCny:.001,settledUpperCny:.001}))});
+  const guard=(await workspaceQaBudget('qa','op','eval'))!,call=span();
+  call.input={options:{maxTokens:7500,provider:'deepseek',model:'deepseek-flash',siteFunded:true}};
+  await expect(guard.beforeModel(call)).rejects.toThrow('QA_BUDGET_EXHAUSTED');
+  expect(store.read().calls).toHaveLength(13);
+});

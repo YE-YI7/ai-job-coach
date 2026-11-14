@@ -3,10 +3,12 @@
 import {getDbClient} from '@/lib/db';
 import {hostedStepModel} from '@/lib/hosted-model';
 import type {EvalSpan} from './eval-scope';
+import {assertF6OfficialServedModel} from './f6-model-policy';
 
 type Entry = {id:string; reservedCny:number; settledUpperCny?:number; inputTokens?:number; outputTokens?:number};
 type Budget = {
   source:'clean-first-use-budget-v1'; approved:true; synthetic:true;
+  model?:'deepseek-flash';
   opportunityId:string; authorizationId:string; expiresAt:string; closedAt?:string;
   capCny:number; capCalls:number; callVersion:number; calls:Entry[]; evalRunId?:string;
 };
@@ -24,7 +26,7 @@ export async function workspaceQaBudget(userId:string, opportunityId:unknown, ev
     if (row.error || !run || run.source!=='clean-first-use-budget-v1' || !run.approved || !run.synthetic
       || run.opportunityId!==opportunityId || !run.authorizationId || run.closedAt
       || Date.parse(run.expiresAt)<=Date.now() || !Number.isFinite(Date.parse(run.expiresAt))
-      || run.capCny!==0.50 || run.capCalls!==27 || !Array.isArray(run.calls)
+      || run.capCny!==0.50 || run.capCalls!==(run.model==='deepseek-flash'?13:27) || !Array.isArray(run.calls)
       || !Number.isSafeInteger(run.callVersion) || (run.evalRunId && run.evalRunId!==evalRunId)) {
       throw Error('QA_BUDGET_INVALID_OR_EXPIRED');
     }
@@ -40,17 +42,21 @@ export async function workspaceQaBudget(userId:string, opportunityId:unknown, ev
   await write(prepared,{...prepared,evalRunId,callVersion:prepared.callVersion+1});
   return {
     beforeModel:async(span:EvalSpan)=>{
-      if (hostedStepModel()!=='step-3.7-flash') throw Error('QA_HOSTED_MODEL_CHANGED');
-      const options=(span.input as {options?:{maxTokens?:number}})?.options;
+      const previous=await read(), flash=previous.model==='deepseek-flash';
+      const options=(span.input as {options?:{maxTokens?:number;model?:string;provider?:string;siteFunded?:boolean}})?.options;
+      if (flash) {
+        if (options?.provider!=='deepseek' || options.model!=='deepseek-flash' || options.siteFunded!==true) {
+          throw Error('QA_ACCEPTED_MODEL_CHANGED');
+        }
+      } else if (hostedStepModel()!=='step-3.7-flash') throw Error('QA_HOSTED_MODEL_CHANGED');
       const output=options?.maxTokens;
       if (typeof output!=='number' || !Number.isSafeInteger(output) || output<1 || output>16384) {
         throw Error('QA_OUTPUT_RESERVE_INVALID');
       }
-      const previous=await read();
       // Full serialized input bytes plus protocol overhead bounds input tokens;
       // both price rates exceed the configured site's recorded reference rates.
       const inputUpper=Buffer.byteLength(JSON.stringify(span.input))+8192;
-      const reservedCny=(1.5*inputUpper+9*output)/1e6;
+      const reservedCny=((flash?3:1.5)*inputUpper+(flash?12:9)*output)/1e6;
       if (previous.calls.length>=previous.capCalls || spent(previous)+reservedCny>previous.capCny) {
         throw Error('QA_BUDGET_EXHAUSTED');
       }
@@ -61,10 +67,13 @@ export async function workspaceQaBudget(userId:string, opportunityId:unknown, ev
       const previous=await read(),entry=previous.calls.find(call=>call.id===span.id);
       if (!entry) return; // A local refusal before reservation incurs no model request.
       const usage=span.usage;
-      if (span.status!=='completed' || !usage || span.model!=='step-3.7-flash'
+      const flash=previous.model==='deepseek-flash';
+      if (span.status!=='completed' || !usage
         || !Number.isSafeInteger(usage.inputTokens) || usage.inputTokens<0
         || !Number.isSafeInteger(usage.outputTokens) || usage.outputTokens<0) return;
-      const settledUpperCny=(1.5*usage.inputTokens+9*usage.outputTokens)/1e6;
+      if (flash) assertF6OfficialServedModel(span.model);
+      else if (span.model!=='step-3.7-flash') return;
+      const settledUpperCny=((flash?3:1.5)*usage.inputTokens+(flash?12:9)*usage.outputTokens)/1e6;
       if (settledUpperCny>entry.reservedCny) throw Error('QA_USAGE_ABOVE_RESERVE');
       await write(previous,{...previous,callVersion:previous.callVersion+1,
         calls:previous.calls.map(call=>call.id===span.id?{...call,settledUpperCny,

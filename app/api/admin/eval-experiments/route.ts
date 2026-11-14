@@ -10,7 +10,7 @@ const view = (r: Record<string, unknown>) => {
   return {id:r.id,label:r.label,status:r.status,createdAt:r.created_at,summary};
 };
 export async function GET(request: Request) {
-  const {error} = await evalAdminAccess(); if (error) return error;
+  const {error} = await evalAdminAccess({readOnly:true}); if (error) return error;
   const id = new URL(request.url).searchParams.get("id");
   if (id && !evalUuid(id)) return json({error:"批次编号无效"},400);
   try {

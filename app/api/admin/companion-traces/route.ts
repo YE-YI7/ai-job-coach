@@ -6,7 +6,7 @@ import { companionVisibleText } from "@/lib/coach-harness/companion-protocol";
 
 export const runtime = "nodejs";
 export async function GET(request: Request) {
-  const { error } = await evalAdminAccess(); if (error) return error;
+  const { error } = await evalAdminAccess({readOnly:true}); if (error) return error;
   const params = new URL(request.url).searchParams;
   const userId = params.get("userId"), requestId = params.get("requestId");
   if (!evalUuid(userId) || !evalUuid(requestId)) return evalJson({ error: "用户或请求编号无效" }, 400);

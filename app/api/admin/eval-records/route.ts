@@ -4,7 +4,7 @@ import {evalUuid} from '@/lib/coach-harness/eval-feedback';
 import {RECORD_TYPE,parseEvalRecord,recordHash,recordIndex,recordView,type EvalRecord} from '@/lib/coach-harness/eval-records';
 export const runtime='nodejs';
 export async function GET(request:Request){
- const {error}=await evalAdminAccess();if(error)return error;
+ const {error}=await evalAdminAccess({readOnly:true});if(error)return error;
  const p=new URL(request.url).searchParams,id=p.get('id'),file=p.get('file'),limit=Number(p.get('limit')||30);
  if((id&&!evalUuid(id))||(file&&(!id||!/^[a-z0-9-]{1,80}$/.test(file)))||!Number.isInteger(limit)||limit<1||limit>50)return evalJson({error:'查询参数无效'},400);
  try{

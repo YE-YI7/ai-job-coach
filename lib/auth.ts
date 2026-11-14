@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getDbClient } from "./db";
 import { verifySessionToken } from "./session";
+import {isEvalReadOnly} from './coach-harness/eval-access';
 
 export interface AuthResult {
   id: string;
@@ -11,7 +12,7 @@ export interface AuthResult {
  * 从请求中获取当前用户信息
  * 通过检查 session cookie 来验证用户身份
  */
-export async function getCurrentUserFromRequest(): Promise<AuthResult | null> {
+export async function getCurrentUserFromRequest(options: {allowEvalViewer?: boolean} = {}): Promise<AuthResult | null> {
   try {
     const cookieStore = await cookies();
     
@@ -20,6 +21,10 @@ export async function getCurrentUserFromRequest(): Promise<AuthResult | null> {
     const sessionToken = cookieStore.get("sb-access-token")?.value;
     const session = await verifySessionToken(sessionToken);
     if (session) {
+      // Reader principals are denied by default by ALL ordinary product routes.
+      // Only explicit server-side Eval GET/page callers may opt in. Neither a
+      // request body nor user-editable metadata can enable that option.
+      if (isEvalReadOnly({id: session.userId}) && !options.allowEvalViewer) return null;
       // Phone-only sessions have no email. A recovered empty phone account must
       // not stay usable through its old cookie after its login has been moved.
       if (!session.email) {
@@ -53,6 +58,7 @@ export async function getCurrentUserFromRequest(): Promise<AuthResult | null> {
               .single();
 
             if (!userError && user) {
+              if (isEvalReadOnly(user) && !options.allowEvalViewer) return null;
               // 更新 last_seen_at
               await db
                 .from("sessions")

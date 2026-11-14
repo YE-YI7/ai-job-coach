@@ -4,7 +4,7 @@ import { evalUuid, parseEvalFeedback, evalRunChangeIds, feedbackHash, feedbackVi
 export const runtime = "nodejs";
 const fields = "id,run_id,resume_trace_id,change_id,scope,category,verdict,note,expected,status,created_at";
 export async function GET(request: Request) {
-  const {error} = await evalAdminAccess(); if (error) return error;
+  const {error} = await evalAdminAccess({readOnly:true}); if (error) return error;
   const runId = new URL(request.url).searchParams.get("runId");
   if (runId && !evalUuid(runId)) return json({error:"运行编号无效"},400);
   try {

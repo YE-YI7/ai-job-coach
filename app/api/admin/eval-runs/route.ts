@@ -3,6 +3,7 @@ import { getDbClient } from "@/lib/db";
 import {directRunForEvalViewer} from '@/lib/coach-harness/resume-comparison';
 import {
   isEvalAdmin,
+  canReadEvals,
   readEvalAssessment,
 } from "@/lib/coach-harness/eval-access";
 import {
@@ -40,19 +41,19 @@ const uuid = (s: unknown): s is string =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     s,
   );
-async function access() {
-  const user = await getCurrentUserFromRequest();
+async function access(readOnly = false) {
+  const user = await getCurrentUserFromRequest({allowEvalViewer: true});
   return {
     user,
     error: !user
       ? json({ error: "请先登录" }, 401)
-      : !isEvalAdmin(user)
+      : !(readOnly ? canReadEvals(user) : isEvalAdmin(user))
         ? json({ error: "需要管理员权限" }, 403)
         : null,
   };
 }
 export async function GET(request: Request) {
-  const { error } = await access();
+  const { error } = await access(true);
   if (error) return error;
   const params = new URL(request.url).searchParams,
     id = params.get("id"),

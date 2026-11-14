@@ -1,5 +1,5 @@
 import { getCurrentUserFromRequest } from "@/lib/auth";
-import { isEvalAdmin } from "@/lib/coach-harness/eval-access";
+import {canReadEvals} from '@/lib/coach-harness/eval-access';
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -8,9 +8,9 @@ export default async function EvalPage({searchParams}:{searchParams:Promise<{run
   const query=await searchParams;
   const run=typeof query.run==="string"?query.run:undefined;
   const validRun=!query.run||Boolean(run&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(run));
-  const user = await getCurrentUserFromRequest();
+  const user = await getCurrentUserFromRequest({allowEvalViewer: true});
   if (!user) redirect(`/login?redirect=${encodeURIComponent(`/admin/evals${validRun&&run?`?run=${run}`:""}`)}`);
-  if (!isEvalAdmin(user))
+  if (!canReadEvals(user))
     return (
       <main style={{ maxWidth: 640, margin: "15vh auto", padding: 32 }}>
         <h1>需要管理员权限</h1>

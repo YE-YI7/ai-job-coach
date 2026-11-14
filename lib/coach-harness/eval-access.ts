@@ -1,7 +1,16 @@
+export function isEvalReadOnly(user: {id?: string} | null) {
+  return Boolean(user?.id && (process.env.EVAL_VIEWER_USER_IDS || '').split(',')
+    .map(id => id.trim()).filter(Boolean).includes(user.id));
+}
+
+export function canReadEvals(user: {id?: string; email?: string | null} | null) {
+  return isEvalReadOnly(user) || isEvalAdmin(user);
+}
+
 export function isEvalAdmin(
   user: { id?: string; email?: string | null } | null,
 ) {
-  if (!user) return false;
+  if (!user || isEvalReadOnly(user)) return false;
   // Keep an existing secret allowlist intact when its value cannot be read
   // back. Additional grants remain server-controlled and Eval-specific.
   const ids = [process.env.EVAL_ADMIN_USER_IDS, process.env.EVAL_ADMIN_ADDITIONAL_USER_IDS]

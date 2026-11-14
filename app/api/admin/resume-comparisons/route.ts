@@ -3,31 +3,35 @@ import {getDbClient} from '@/lib/db';
 import {evalAdminAccess, evalJson as json} from '@/lib/coach-harness/eval-admin-http';
 import {COMPARISON_TYPE, DRAFT_TYPE, DIRECT_TYPE, parseComparison, parseDraft, uuid} from '@/lib/coach-harness/resume-comparison';
 import {isSameOriginRequest} from '@/lib/phone-auth/security';
+import {isEvalReadOnly} from '@/lib/coach-harness/eval-access';
 export const runtime = 'nodejs';
 function draftId(actor: string, comparison: string) {
   const s = createHash('sha256').update(`comparison-draft:${actor}:${comparison}`).digest('hex');
   return `${s.slice(0, 8)}-${s.slice(8, 12)}-4${s.slice(13, 16)}-a${s.slice(17, 20)}-${s.slice(20, 32)}`;
 }
 export async function GET(request: Request) {
-  const {user, error} = await evalAdminAccess(); if (error || !user) return error!;
+  const {user, error} = await evalAdminAccess({readOnly:true}); if (error || !user) return error!;
   const id = new URL(request.url).searchParams.get('id');
   if (id && !uuid(id)) return json({error: '对照编号无效'}, 400);
   try {
     const db = await getDbClient(); if (!db) throw Error('unavailable');
     if (!id) {
-      const r = await db.from('coach_eval_runs').select('id,label,created_at').eq('user_id', user.id)
-        .eq('run->>recordType', COMPARISON_TYPE).order('created_at', {ascending: false}).limit(30);
+      let listing = db.from('coach_eval_runs').select('id,label,created_at');
+      if (!isEvalReadOnly(user)) listing = listing.eq('user_id', user.id);
+      const r = await listing.eq('run->>recordType', COMPARISON_TYPE).order('created_at', {ascending: false}).limit(30);
       if (r.error) throw r.error; return json({comparisons: r.data});
     }
-    const r = await db.from('coach_eval_runs').select('run').eq('id', id).eq('user_id', user.id)
-      .eq('run->>recordType', COMPARISON_TYPE).maybeSingle();
+    let selection = db.from('coach_eval_runs').select('run,user_id').eq('id', id);
+    if (!isEvalReadOnly(user)) selection = selection.eq('user_id', user.id);
+    const r = await selection.eq('run->>recordType', COMPARISON_TYPE).maybeSingle();
     if (r.error) throw r.error;
     const comparison = parseComparison(r.data?.run?.comparison);
     if (!comparison) return json({error: '对照不存在或不属于当前账号'}, 404);
+    const ownerId = isEvalReadOnly(user) ? r.data.user_id : user.id;
     const [draft, direct] = await Promise.all([
-      db.from('coach_eval_runs').select('run').eq('id', draftId(user.id, id)).eq('user_id', user.id)
+      db.from('coach_eval_runs').select('run').eq('id', draftId(ownerId, id)).eq('user_id', ownerId)
         .eq('run->>recordType', DRAFT_TYPE).maybeSingle(),
-      db.from('coach_eval_runs').select('id,status,created_at,run').eq('user_id', user.id)
+      db.from('coach_eval_runs').select('id,status,created_at,run').eq('user_id', ownerId)
         .eq('run->>recordType', DIRECT_TYPE).eq('run->>comparisonId', id).order('created_at', {ascending: true}).limit(10),
     ]);
     if (draft.error || direct.error) throw Error('read_failed');

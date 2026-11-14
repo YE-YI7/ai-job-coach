@@ -9,7 +9,7 @@ import {f6ContextToolCatalogue} from './f6-context-tools';
 import {f6ContextSpecification} from './f6-context-contract';
 import {f6KnowledgeCatalogue} from './f6-knowledge-catalogue';
 
-export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v25-screening-value-autonomous-context' as const;
+export const F6_RUNTIME_VERSION = 'f6-origin-runtime-v26-balanced-author-autonomous-context' as const;
 const digest = (value: unknown) => createHash('sha256')
   .update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 
@@ -34,7 +34,8 @@ export function f6RuntimeIdentity() {
     knowledgeCatalogueSha256: digest(f6KnowledgeCatalogue()),
     personalMaterials: 'owned_deduplicated_complete_preload_otherwise_agent_lookup',
     contextToolAccess: 'production_no_qa_allowlist',
-    acceptedEvalRecord: 'c1255da4-9575-4f51-9cd4-dfe66cf2e85c',
+    acceptedEvalRecord: 'ccb0f733-032b-412f-a4e8-365f757ea9b0',
+    acceptedEvalRun: '0cb100ec-f3e1-419d-a609-1e52e1feb356',
     maxAuthorCalls: origin.maxAuthorCalls,
     maxPublicRequests: origin.maxPublicRequests,
     publicBudgetContinuation: 'exhausted_tools_unavailable_keep_evidence',

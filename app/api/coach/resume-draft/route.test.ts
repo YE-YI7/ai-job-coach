@@ -129,6 +129,69 @@ describe("resume draft source mapping and automatic-review baseline", () => {
         bodySha256: createHash('sha256').update(expected.fullDocument).digest('hex'),
         realProductQuotaAndPersistenceBoundaryMocked: true, actualHttpNetworkOrNewModelQualityTest: false}, null, 2), {mode: 0o600});
   });
+  const acceptedV26 = process.env.F6_V26_ACCEPTED_TRACE;
+  (acceptedV26 ? test : test.skip)('accepted v26 real Trace reaches the ordinary task POST byte-for-byte without a model call', async () => {
+    const recorded = JSON.parse(readFileSync(acceptedV26!, 'utf8'));
+    const expected = recorded.rawResult;
+    const calls = recorded.spans.filter((span: {kind: string}) => span.kind === 'agent');
+    const source = recorded.input.resume;
+    let cursor = 0;
+    const task = {opportunity_id: 'opp-1', answers: [], conversation: []};
+    const stored = {resume: source, jd: '', changes: [], revision: 'v26-local-replay'};
+    const before = JSON.stringify({task, stored});
+    jest.useFakeTimers().setSystemTime(new Date(recorded.startedAt));
+    const network = jest.spyOn(global, 'fetch').mockRejectedValue(Error('REPLAY_MUST_NOT_USE_NETWORK'));
+    try {
+      (resumeTaskInput as jest.Mock).mockResolvedValue(task);
+      (ownedResumeTaskSource as jest.Mock).mockResolvedValue(stored);
+      (finishResumeTask as jest.Mock).mockResolvedValue({state: 'ready'});
+      (compileContextBundle as jest.Mock).mockImplementation(input => ({...input,
+        allowedClaimIds: input.allowedClaimIds || [], unverifiedClaimIds: input.unverifiedClaimIds || [],
+        selection: input.selection || {included: [], excluded: []}, usage: {truncated: false},
+      }));
+      (applyResumeChanges as jest.Mock).mockReturnValue({text: expected.fullDocument, findings: []});
+      (reviewAtsText as jest.Mock).mockReturnValue({ok: true, coverage: 1, findings: []});
+      (createArtifactWithClaims as jest.Mock).mockResolvedValue({id: 'v26-replay-artifact', version: 1});
+      (recordArtifactReview as jest.Mock).mockImplementation(async data => ({
+        reviewer_type: data.reviewerType, status: data.status, summary: data.summary,
+      }));
+      (callLLM as jest.Mock).mockImplementation(async (messages, settings) => {
+        const actual = calls[cursor++];
+        expect(actual).toBeDefined();
+        expect(messages).toEqual(actual.input.messages);
+        expect(settings.nativeTools).toEqual(actual.input.options.nativeTools);
+        expect(settings).toMatchObject({model: 'deepseek-flash', resumeF6Model: true, siteFunded: false});
+        expect(settings.temperature).toBe(actual.input.options.temperature);
+        expect(settings.maxTokens).toBe(actual.input.options.maxTokens);
+        return actual.output;
+      });
+      const response = await productionPOST(oneShotInput({
+        resumeText: source, resumeTaskAction: 'restart', requestId: 'v26-normal-post-replay',
+      }));
+      const body = await response.json();
+      expect(response.status).toBe(200);
+      expect(cursor).toBe(calls.length);
+      expect(body.f6Deliverables.files['resume-new.md']).toBe(expected.fullDocument);
+      expect(body.f6Deliverables.mentorGuidance.text).toBe(expected.f6Deliverables.mentorGuidance.text);
+      expect(body.hrReview.records[0].commentary).toBe(expected.hrReview.records[0].commentary);
+      expect(body.hrReview.finalState).toBe(expected.hrReview.finalState);
+      expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), true);
+      expect(JSON.stringify({task, stored})).toBe(before);
+      expect(network).not.toHaveBeenCalled();
+      if (process.env.F6_RELEASE_EVIDENCE_DIR) writeFileSync(
+        process.env.F6_RELEASE_EVIDENCE_DIR + '/accepted-v26-post-replay.json',
+        JSON.stringify({runId: recorded.id, route: '/api/coach/resume-draft', ordinaryAccount: true,
+          model: 'deepseek-flash', allModelMessagesAndToolsEqual: true, replayedCalls: cursor,
+          upstreamCalls: 0, costCny: 0, oldTaskAndSourceUnchanged: true,
+          bodySha256: createHash('sha256').update(expected.fullDocument).digest('hex'),
+          mentorSha256: createHash('sha256').update(expected.f6Deliverables.mentorGuidance.text).digest('hex'),
+          productQuotaAndPersistenceMocked: true, actualHttpOrNewQualityTrial: false,
+        }, null, 2), {mode: 0o600});
+    } finally {
+      network.mockRestore();
+      jest.useRealTimers();
+    }
+  });
   test('restart edits the visible draft, treats old requests as history and does not sell an unchanged old improvement again', async () => {
     const before = '整理评测记录，整理后交给同事每周核对。';
     const current = '整理评测记录，交给同事每周核对。';

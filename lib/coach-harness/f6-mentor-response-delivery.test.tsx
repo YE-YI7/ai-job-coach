@@ -124,7 +124,8 @@ test('post-HR conversation is visible in the existing outcome component and surv
   const html = renderToStaticMarkup(<ResumeMentorOutcome result={reread} pendingCount={1}/>);
   expect(html).toContain('aria-label="导师的补强建议"');
   expect(html).toContain(guidance);
-  expect(html.indexOf(guidance)).toBeLessThan(html.indexOf('<details'));
+  expect(html).not.toContain('看看 HR 的建议');
+  expect(html).not.toContain('查看本轮修改说明');
   expect(reread.f6Deliverables.files['resume-new.md']).toBe(body);
 });
 

@@ -6,7 +6,6 @@ import { resumeMessageExpired } from '@/lib/coach-harness/resume-conversation-re
 import styles from "./ResumeAgentConversation.module.css";
 import TutorMarkdown from './TutorMarkdown';
 import ResumeMentorOutcome from './ResumeMentorOutcome';
-import ResumeProcessingReceipt from './ResumeProcessingReceipt';
 import ResumeComposerModel from './ResumeComposerModel';
 import type {ChatMode} from '@/lib/coach-harness/chat-options';
 import { ResumeReferenceDraft, ResumeReferencePreview, useResumeReference } from './ResumeReference';
@@ -98,7 +97,6 @@ export default function ResumeAgentConversation({task,busy,pendingCount,onMessag
         <summary>{factualAnswers.length?`补充记录 · ${factualAnswers.length} 条`:'本次修改要求'}</summary>
         {task.answers.map(item=><div key={item.id}><p>{item.question}</p><p>{item.skipped?'暂不补充，仅用已有事实':item.answer}</p></div>)}
       </details>}
-      {(running||showOutcome)&&task.processing&&<ResumeProcessingReceipt processing={task.processing}/>}
       {visibleTurns.map(turn=><div key={turn.id} data-turn-id={turn.id} className={styles.turn} style={readingTurn?.id===turn.id?{minHeight:readingTurn.height}:undefined}>
         <div className={`${styles.message} ${styles.userMessage}`} aria-label="你">
           {'resumeReference' in turn && turn.resumeReference && <ResumeReferencePreview reference={turn.resumeReference}/>}
@@ -159,7 +157,7 @@ export default function ResumeAgentConversation({task,busy,pendingCount,onMessag
           {modelControl&&<fieldset
             className={styles.modelControl}
             disabled={busy||running||awaitingReply}
-            title="选择简历讨论的模型；改稿和独立质检沿用原流程"
+            title="选择与简历导师聊天使用的模型"
           >{modelControl.control}</fieldset>}
           <button type="submit" className={styles.send}
             aria-label={busy||awaitingReply?'正在处理':'发送'}

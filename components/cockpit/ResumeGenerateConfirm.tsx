@@ -16,7 +16,7 @@ export default function ResumeGenerateConfirm({fee,onConfirm,onClose}:{
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby="resume-generate-title"
     aria-describedby="resume-generate-description" onCancel={onClose}>
     <h2 id="resume-generate-title">确认修改整份简历？</h2>
-    <p id="resume-generate-description">会调用模型编辑整份简历，并进行独立质检。完成后请核对修改。</p>
+    <p id="resume-generate-description">会编辑整份简历。完成后请核对修改，再决定是否采纳。</p>
     <dl>
       <div><dt>耗时</dt><dd>可能需要几分钟</dd></div>
       <div><dt>当前计费</dt><dd>{fee}</dd></div>

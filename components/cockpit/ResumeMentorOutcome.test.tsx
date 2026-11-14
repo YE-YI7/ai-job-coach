@@ -7,16 +7,21 @@ jest.mock('./TutorMarkdown',()=>({__esModule:true,default:({children}:{children:
 const report='独立 HR 点评（针对首稿，供核对，不是审核通过）\n未再复审。\n\n### 先核实这处\n原材料没有确认主导，请核实。\n\n### 面试怎么问\n你本人承担了哪一部分？';
 const result:ResumeAgentTask['result']={changes:[],summary:'本轮生成了建议。\n'+report,
   applicationQuality:{artifactId:'fixture',version:1,status:'draft',reviews:[{reviewerType:'independent_ai',status:'warning',summary:report}]}};
-test('delivery, original explanation and HR are distinct, collapsed, and never duplicate the report',()=>{
+test('user delivery never renders internal summary or HR commentary, while retaining the saved result',()=>{
+  const before=JSON.stringify(result);
   const html=renderToStaticMarkup(<ResumeMentorOutcome result={result} pendingCount={1}/>);
-  expect(html).toContain('新稿已保存');expect(html).toContain('查看本轮修改说明');expect(html).toContain('看看 HR 的建议');
-  expect(html).not.toContain('open=');expect(html.split('原材料没有确认主导，请核实。')).toHaveLength(2);
-  expect(html).toContain('<summary>先核实这处</summary>');
+  expect(html).toContain('新稿已保存');
+  expect(html).not.toContain('查看本轮修改说明');expect(html).not.toContain('HR');
+  expect(html).not.toContain('原材料没有确认主导');
+  expect(html).not.toContain('本轮生成了建议');
+  expect(JSON.stringify(result)).toBe(before);
 });
-test('accepted state no longer instructs the user to confirm again; historical summaries are retained',()=>{
+test('accepted status is preserved without exposing historical internal summaries',()=>{
   const html=renderToStaticMarkup(<ResumeMentorOutcome result={result} pendingCount={0}/>);
   expect(html).toContain('修改已处理');expect(html).not.toContain('等待你确认');
-  expect(renderToStaticMarkup(<ResumeMentorOutcome result={{changes:[],summary:'老记录原话，不能丢失。'}}/>)).toContain('老记录原话，不能丢失。');
+  const old={changes:[],summary:'老记录原话，保留在后台，不展示给求职者。'};
+  expect(renderToStaticMarkup(<ResumeMentorOutcome result={old}/>)).not.toContain(old.summary);
+  expect(old.summary).toBe('老记录原话，保留在后台，不展示给求职者。');
 });
 test('headings inside fenced code do not become report topics; original text is recoverable exactly',()=>{
   const raw=report+'\n```text\n### 不是真标题\n```\n';
@@ -25,13 +30,15 @@ test('headings inside fenced code do not become report topics; original text is 
   expect(introduction+sections.map(s=>s.body).join('')).toBe(raw);
 });
 
-test('current author coaching is visible without opening HR or change-log disclosures',()=>{
+test('current author coaching stays visible with no HR or internal change-log disclosures',()=>{
   const coaching = '这句可以体现**交付推进**。先回忆一次上线卡点，你实际协调了哪一项？';
   const coached = {...result, f6Deliverables: {files: {'changes.md': coaching}, resumeRevision: 2, renderedRevision: -1,
     mentorGuidance: {version: 1 as const, text: coaching, resumeRevision: 2, current: true}}};
   const html = renderToStaticMarkup(<ResumeMentorOutcome result={coached} pendingCount={1}/>);
   expect(html).toContain('aria-label="导师的补强建议"');
-  expect(html.indexOf(coaching)).toBeLessThan(html.indexOf('<details'));
+  expect(html).toContain(coaching);
+  expect(html).not.toContain('<details');
+  expect(html).not.toContain(report);
   expect(html).not.toContain('open=');
   const stale = {...coached, f6Deliverables: {...coached.f6Deliverables,
     mentorGuidance: {...coached.f6Deliverables.mentorGuidance, current: false}}};

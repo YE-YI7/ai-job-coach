@@ -2,6 +2,7 @@ import { getDbClient } from "@/lib/db";
 import { createHash } from "node:crypto";
 import {selectResumeEvidence} from './evidence-retrieval';
 import {estimateTokens} from './context';
+import {personalMaterialScope} from './personal-material-scope';
 import { compileContextBundle } from "./context";
 import { resumeSourceLines } from "./resume-recovery";
 import { readReviewFindings, resumeQualityStatus } from "./resume-quality-state";
@@ -318,9 +319,11 @@ export async function getContextBundleForUser(input: {
   }
 
   const routeClass: RouteClass = input.routeClass || "bounded_orchestration";
+  const materialScope = opportunity ? await personalMaterialScope({userId: input.userId,
+    opportunityId: opportunity.id, resumes: [currentResume]}) : null;
 
   let claimQuery = db.from("coach_claims").select(CLAIM_COLUMNS).eq("user_id", input.userId);
-  claimQuery = scopeToUserAndOpportunity(
+  claimQuery = materialScope ? claimQuery.or(materialScope.filter) : scopeToUserAndOpportunity(
     claimQuery, opportunity?.id ?? null,
     (q, expression) => q.or(expression),
     (q) => q.is("opportunity_id", null),
@@ -340,7 +343,9 @@ export async function getContextBundleForUser(input: {
   ]);
   if (claimError) throw claimError;
   if (artifactError) throw artifactError;
-  const relevantArtifacts = (artifactRows || []) as DbRow[];
+  const relevantClaims = ((claimRows || []) as DbRow[]).filter(row => !materialScope || materialScope.accepts(row));
+  const relevantArtifacts = ((artifactRows || []) as DbRow[])
+    .filter(row => !materialScope || materialScope.opportunityIds.includes(String(row.opportunity_id)));
 
   let claimLinks: Record<string, string[]> = {};
   if (relevantArtifacts.length) {
@@ -381,7 +386,8 @@ export async function getContextBundleForUser(input: {
     task: input.task,
     userId: input.userId,
     opportunity,
-    claims: ((claimRows || []) as DbRow[]).filter(row => row.claim_type !== "resume_source" || !currentResume || currentResume.includes(String(row.source_excerpt || row.display_text || ""))).map(mapClaim),
+    claims: relevantClaims.filter(row => row.claim_type !== "resume_source"
+      || currentResume.includes(String(row.source_excerpt || row.display_text || ""))).map(mapClaim),
     claimSelection: input.claimSelection,
     artifacts,
     knowledge: knowledge.items.map((item) => ({

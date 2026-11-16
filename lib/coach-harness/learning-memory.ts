@@ -73,10 +73,25 @@ export function compactProfile(rows:Array<{id:string;display_text:string;status:
  }
  return `# 个人背景摘要\nDescription: 供导师定位用户背景的抽取式摘要，不是完整经历。\nGoal: 避免重复询问；有冲突时回到原始事实。\n\n${lines.join("\n")||"尚无已录入的个人背景，不能推断为没有能力。"}\n\n原始事实和材料未删除；未纳入内容应按具体问题检索。`;
 }
-export async function refreshProfileMemory(userId:string){
+export async function refreshProfileMemory(userId:string, opportunityId:string|null){
  const db=await getDbClient();if(!db)throw Error("数据库不可用");
- const {data:rows,error}=await db.from("coach_claims").select("id,display_text,status,source_id,updated_at").eq("user_id",userId).is("opportunity_id",null).neq("status","withdrawn").order("updated_at",{ascending:false}).limit(120);
+ let resume = '';
+ if (opportunityId) {
+  const owned = await db.from('coach_opportunities').select('metadata')
+   .eq('user_id', userId).eq('id', opportunityId).maybeSingle();
+  if (owned.error || !owned.data) throw Error('PROFILE_SCOPE_UNAVAILABLE');
+  resume = String(owned.data.metadata?.resumeText || '');
+ }
+ const {personalMaterialScope} = await import('./personal-material-scope');
+ const binding = await personalMaterialScope({userId, opportunityId, resumes: [resume]});
+ const {data:found,error}=await db.from('coach_claims')
+  .select('id,display_text,status,source_id,opportunity_id,entity_type,updated_at')
+  .eq('user_id',userId).eq('visibility','recruiter_safe').or(binding.filter)
+  .neq('status','withdrawn').order('updated_at',{ascending:false}).limit(120);
  if(error)throw error;
+ const rows = ((found || []) as Array<{id: string; display_text: string; status: string;
+  source_id: string | null; opportunity_id: string | null; entity_type: string}>)
+  .filter(row => binding.accepts(row));
  const fingerprint=createHash("sha256").update(JSON.stringify(rows)).digest("hex");
  const {data:cached,error:readError}=await db.from("coach_memory_documents").select("content").eq("user_id",userId).eq("path","profile/overview.md").eq("source_fingerprint",fingerprint).maybeSingle();
  if(readError)throw readError;if(cached)return String(cached.content);

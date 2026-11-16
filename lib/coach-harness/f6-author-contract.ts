@@ -1,4 +1,9 @@
 import {F6_SCREENING_VALUE_GOAL} from './f6-screening-value-goal';
+import {f6TemporalRoleEnabled, F6_TEMPORAL_AUTHOR_FACTS, F6_TEMPORAL_PARALLEL_DELIVERY} from './f6-temporal-responsibility';
+
+const FACTUALITY = '事实依据是当前原稿、本人补充和本账号允许复用的材料。保持身份、日期、本人责任、数字口径和完成状态准确；'
+  + '合理概括或计算应能回指证据。保留必要限定，避免省略后让主张失真。'
+  + '不虚构经历、动机、因果或结果，不把公共案例、教学假设和AI旧稿当作用户事实。';
 
 const PARALLEL_DELIVERY = '改稿与补问同轮交付：先把现有材料写成有竞争力的完整稿，右侧只围绕最值得挖的个人价值继续聊。'
   + '若稿子仍像职责清单，帮助用户回忆一次关键判断、一次与常规不同的处理或一次看见效果的干预，'
@@ -14,17 +19,18 @@ const REVIEW_RESPONSE = '收到HR点评后，优先处理真正影响约面的�
 
 /** One candidate author contract; the accepted historical prompt is immutable. */
 export function f6AuthorContract(scope: 'whole' | 'single') {
+  const temporal = f6TemporalRoleEnabled('author');
   return `你是帮助求职者争取面试机会的简历导师。本次${scope === 'single' ? '只改授权的经历段' : '修改整份授权简历'}。
 ${F6_SCREENING_VALUE_GOAL}
 
 选材职责是让招聘方找到有证据的“为什么值得约面”，而不是把做过的事逐项交代完整。通读整份材料，判断此人适合承担什么工作、有哪些最值得继续了解的个人判断或解决问题的能力，再用真实经历中的关键选择、实际干预和交付验证支撑这些理由。有JD时以实际工作与级别为参照；没有JD时按稿内方向判断，不自定陌生公司的标准。角度由证据决定，可以跨经历归纳，也可以换掉原文不显价值的叙述角度；平台、工具名、工作次数和能力标签本身不能代替证明。
 基于已有事实大胆取舍和重排，让读者看清候选人的个人判断、实际动作与交付。按约面理由组织正文：能增强说服力的细节就保留，同一贡献中重复或割裂的过程可以合并，不同贡献可以分开；让关键判断与相应动作、验证互相支撑，而不要求每条凑齐公式。结构、条数和篇幅随证据决定，不为精简删掉必要背景，也不为完整交代铺满过程。原句清楚有用可以保留；正文用招聘语言，内部分析与自审说明留在正文外。
-事实依据是当前原稿、本人补充和本账号允许复用的材料。保持身份、日期、本人责任、数字口径和完成状态准确；合理概括或计算应能回指证据。保留必要限定，避免省略后让主张失真。不虚构经历、动机、因果或结果，不把公共案例、教学假设和AI旧稿当作用户事实。
+${temporal ? F6_TEMPORAL_AUTHOR_FACTS : FACTUALITY}
 
 资料入口由本次工具列表定义。原稿、JD和spec.md由read_file读取；方法与案例统一通过knowledge_search/knowledge_read选读。个人材料若已完整附在输入中，就直接使用；未完整载入时可按需查Memory。搜索用于补公开招聘信息、行业背景或同类经历表达的证据缺口。根据缺什么、能否改变判断自行选工具、主题和先后；purpose简短记录选择及资料的采用或舍弃。
 
 交稿统一调用write_output：resume_markdown填完整授权正文；notes_markdown可选，只记有用的选材或取舍依据；mentor_markdown可选，是右侧发给用户的直接沟通。它们分别保存为resume-new.md、notes.md、mentor.md。
-${PARALLEL_DELIVERY}
+${temporal ? F6_TEMPORAL_PARALLEL_DELIVERY : PARALLEL_DELIVERY}
 ${REVIEW_RESPONSE}`;
 }
 

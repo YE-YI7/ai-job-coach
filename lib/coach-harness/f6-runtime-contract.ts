@@ -4,7 +4,8 @@ import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-men
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
 import {f6AuthorContract} from './f6-author-contract';
-import {F6_SCREENING_PROMPT} from './f6-screening-review';
+import {f6ScreeningPrompt} from './f6-screening-review';
+import {f6TemporalRoleContract} from './f6-temporal-responsibility';
 import {f6ContextToolCatalogue} from './f6-context-tools';
 import {f6ContextSpecification} from './f6-context-contract';
 import {f6KnowledgeCatalogue} from './f6-knowledge-catalogue';
@@ -20,6 +21,7 @@ export function f6RuntimeIdentity() {
   const lookup = f6ContextToolCatalogue(F6_MENTOR_TOOLS, true);
   return {
     version: F6_RUNTIME_VERSION,
+    ...(f6TemporalRoleContract() ? {temporalRoleContract: f6TemporalRoleContract()} : {}),
     originSystemSha256: origin.systemHash,
     toolsSha256: digest(lookup),
     originToolsSha256: createHash('sha256').update(JSON.stringify(origin.tools)).digest('hex'),
@@ -57,7 +59,7 @@ export function f6RuntimeIdentity() {
     hrSourceTransport: 'candidate_plain_text_with_sha_and_current_date',
     hrAuthorEvidence: 'same_hr_commentary_and_reviewed_candidate_not_new_user_facts',
     hrCoachingEvidence: 'current_mentor_and_unanswered_state_to_original_author_only',
-    hrReviewPolicySha256: digest(F6_SCREENING_PROMPT),
+    hrReviewPolicySha256: digest(f6ScreeningPrompt()),
     legacyHrReviewPolicySha256: digest(F6_HR_PROMPT),
     maxHrCalls: 1,
     modelSelection: 'preserve-user-selection',

@@ -163,15 +163,17 @@ test('HR receives only extra sources actually read, and lookup failures are not 
 function database(rows: Array<Record<string, unknown>>, failure = false) {
   const queries: Array<Array<[string, unknown]>> = [];
   (getDbClient as jest.Mock).mockImplementation(async () => ({from: (table: string) => {
-    expect(table).toBe('coach_claims');
-    const operations: Array<[string, unknown]> = []; queries.push(operations);
+    const operations: Array<[string, unknown]> = [];
+    if (table === 'coach_claims') queries.push(operations);
     const chain = {
       select: (...args: unknown[]) => {operations.push(['select', args]); return chain;},
       eq: (key: string, value: unknown) => {operations.push([key, value]); return chain;},
       in: (key: string, value: unknown) => {operations.push([key, value]); return chain;},
       or: (value: string) => {operations.push(['or', value]); return chain;},
       order: () => chain, range: () => chain,
-      abortSignal: async () => ({data: rows, count: rows.length, error: failure ? {message: 'offline'} : null}),
+      abortSignal: async () => ({data: table === 'coach_claims' ? rows : [],
+        count: table === 'coach_claims' ? rows.length : 0,
+        error: failure && table === 'coach_claims' ? {message: 'offline'} : null}),
     };
     return chain;
   }}));

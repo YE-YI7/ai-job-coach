@@ -1,7 +1,7 @@
 import type {ResumeEditingContext} from './resume-editing-context';
 import type {F6ContextTools} from './f6-context-tools';
 
-export const F6_CONTEXT_TOOL_NAMES = ['knowledge_search', 'knowledge_read', 'memory_search', 'memory_read'];
+export const F6_CONTEXT_TOOL_NAMES = ['knowledge_search', 'knowledge_read', 'memory_search', 'memory_read', 'get_current_time'];
 
 /** Candidate-only server switch, bound to the isolated QA account/budget.
  * No request body can enable this experiment or choose another account. */

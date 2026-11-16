@@ -2,7 +2,14 @@ import {getConfirmedInterviewClaims,getContextBundleForUser} from "./repository"
 import {getDbClient} from "@/lib/db";
 jest.mock("@/lib/db");
 const jobId="11111111-1111-4111-8111-111111111111";
-function chain(data:unknown){const q:any={};for(const method of ["select","eq","is","or","order"])q[method]=jest.fn(()=>q);q.limit=jest.fn(async()=>({data,error:null}));q.maybeSingle=jest.fn(async()=>({data,error:null}));return q;}
+function chain(data:unknown){
+ const q:any={};
+ for(const method of ["select","eq","is","or","order","in"])q[method]=jest.fn(()=>q);
+ q.limit=jest.fn(async()=>({data,error:null}));
+ q.maybeSingle=jest.fn(async()=>({data,error:null}));
+ q.abortSignal=jest.fn(async()=>({data,error:null}));
+ return q;
+}
 test("interview facts require current owner and current-job/global scope",async()=>{
  const q=chain([{id:"fact",entity_type:"experience",entity_key:"key",claim_type:"resume_source",display_text:"没有独立AI项目经历。",status:"confirmed",source_kind:"user_statement",verification_level:"user_confirmed"}]);
  (getDbClient as jest.Mock).mockResolvedValue({from:()=>q});

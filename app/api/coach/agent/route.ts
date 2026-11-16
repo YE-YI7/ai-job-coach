@@ -190,7 +190,7 @@ async function handlePost(req: Request, onDelta?: (text:string)=>void, onStatus?
     // Optional compaction/cache must not prevent a reply. The authoritative
     // context and session ownership checks above still fail closed.
     sessionId&&!groundedDraft?readLearningMemory(user.id,contextId,semanticMessage).catch(()=>""):Promise.resolve(""),
-    sessionId&&!groundedDraft?refreshProfileMemory(user.id).catch(()=>""):Promise.resolve(""),
+    sessionId&&!groundedDraft?refreshProfileMemory(user.id,contextId).catch(()=>""):Promise.resolve(""),
   ]);
   let market="";
   if (/就业形势|行情|招聘趋势|就业市场|最新.*招聘/.test(body.message)) {

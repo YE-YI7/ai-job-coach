@@ -3,14 +3,19 @@ import {f6KnowledgeCatalogue} from './f6-knowledge-catalogue';
 import type {NativeTool} from '@/lib/llm-tools';
 import {evidenceTerms} from './evidence-retrieval';
 import {F6_WRITE_PROPERTIES} from './f6-write-request';
+import {F6_CURRENT_TIME_TOOL, f6CurrentTime, f6CurrentTimeEnabled} from './f6-current-time';
 export {F6_CONTEXT_TOOL_NAMES} from './f6-context-contract';
 
 export type F6MemoryDocument = {
   id: string; text: string; sourceId: string | null; sourceKind: string;
   status: string; updatedAt: string; verification: 'user_report_not_independently_verified';
+  sourceType?: 'coach_agent_turns.question'; interpretation?: string;
+};
+export type F6MemorySnapshot = {
+  complete: boolean; documents: F6MemoryDocument[]; onDemand?: {userChatTurns: number};
 };
 export type F6MemoryReader = {
-  preload?: () => Promise<{complete: boolean; documents: F6MemoryDocument[]}>;
+  preload?: () => Promise<F6MemorySnapshot>;
   search(query: string, offset: number): Promise<Record<string, unknown>>;
   read(ids: string[]): Promise<{documents: F6MemoryDocument[]; unavailableIds: string[]}>;
 };
@@ -44,7 +49,8 @@ export const F6_CONTEXT_TOOLS: NativeTool[] = [
  * Execution stays backward-compatible: absent notes are recorded, not rejected. */
 export function f6ContextToolCatalogue(base: NativeTool[], memoryAvailable = true): NativeTool[] {
   const tools = structuredClone([...base, ...F6_CONTEXT_TOOLS.filter(tool =>
-    memoryAvailable || !tool.function.name.startsWith('memory_'))]);
+    memoryAvailable || !tool.function.name.startsWith('memory_')),
+    ...(f6CurrentTimeEnabled() ? [F6_CURRENT_TIME_TOOL] : [])]);
   for (const tool of tools) {
     const parameters = tool.function.parameters;
     const properties = (parameters.properties || {}) as Record<string, unknown>;
@@ -96,7 +102,7 @@ export class F6ContextTools {
   readonly evidence: F6MemoryDocument[] = [];
   constructor(private memory: F6MemoryReader,
     private onMemoryRead?: (documents: F6MemoryDocument[]) => void,
-    readonly snapshot?: {complete: boolean; documents: F6MemoryDocument[]}) {
+    readonly snapshot?: F6MemorySnapshot) {
     if (snapshot?.complete) {
       this.evidence.push(...snapshot.documents);
       onMemoryRead?.(snapshot.documents);
@@ -104,6 +110,10 @@ export class F6ContextTools {
   }
   get memoryAvailable() { return this.snapshot?.complete !== true; }
   async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (name === 'get_current_time') {
+      if (!f6CurrentTimeEnabled()) throw Error('CONTEXT_TOOL_NOT_AVAILABLE');
+      return f6CurrentTime(args);
+    }
     if (name === 'knowledge_search') {
       const question = text(args.query, true), terms = evidenceTerms(question);
       const matches = f6KnowledgeCatalogue().map(document => {

@@ -8,6 +8,11 @@ import {
   type RoundtableTurnView,
 } from "./interview-assessment-logic";
 
+// Markdown has separate safety tests; isolate this view from its ESM-only renderer.
+jest.mock("./TutorMarkdown", () => ({ __esModule: true,
+  default: ({ children }: { children: string }) => <div>{children}</div>,
+}));
+
 const summary = normalizeRoundSummary({
   overallScore: 72,
   grade: "B",
@@ -67,8 +72,8 @@ const props = {
 
 test("真实作答为唯一计数依据，跳过标记不伪装成回答；评价只来自已给数据", () => {
   const html = renderToStaticMarkup(<InterviewRoundReview {...props} />);
-  expect(html).toMatch(/你答了 <em>2<\/em>/);
-  expect(html).toContain("第2题，跳过");
+  expect(html).toMatch(/留下了 <strong>2<\/strong>/);
+  expect(html).toContain("主动跳过");
   expect(html).toContain("72");
   expect(html).toContain("波动未实测");
   expect(html).toContain("示例工作区");
@@ -80,8 +85,8 @@ test("没有回答时不把跳过或旧反馈当回答，原始输入不被改�
   const html = renderToStaticMarkup(
     <InterviewRoundReview {...props} turns={[turns[1]]} />,
   );
-  expect(html).toContain("还没留下回答");
-  expect(html).toContain("已跳过");
+  expect(html).toContain("没有留下回答");
+  expect(html).toContain("主动跳过");
   expect(JSON.stringify(turns)).toBe(copy);
 });
 
@@ -127,14 +132,14 @@ test("搜索改变可见题目，返回、重练与历史均复用调用方动�
   });
   act(() =>
     tree.root
-      .findByProps({ "aria-label": "搜索本轮问题或回答" })
+      .findByProps({ "aria-label": "搜索本轮问题与回答" })
       .props.onChange({ target: { value: "协作" } }),
   );
   expect(
     tree.root.findAll(
       (node) =>
-        node.type === "article" &&
-        String(node.props.id).startsWith("round-review-"),
+        node.type === "details" &&
+        String(node.props.id).startsWith("interview-"),
     ),
   ).toHaveLength(1);
   for (const callback of [props.onBack, props.onRestart, props.onOpenHistory]) {
@@ -144,5 +149,46 @@ test("搜索改变可见题目，返回、重练与历史均复用调用方动�
     act(() => button.props.onClick());
     expect(callback).toHaveBeenCalled();
   }
+  act(() => tree.unmount());
+});
+
+test("整轮总评、维度、决定性判断、行动标准和用户复盘完整保留", () => {
+  const html = renderToStaticMarkup(<InterviewRoundReview {...props}
+    selfReflection={{ questions: ["哪里卡住？", "还要补什么？"], answers: ["基线没讲清", ""] }} />);
+  for (const text of [summary.verdict, summary.grade, "已有问题与决策。", "需要交代对照基线",
+    "保留原始证据", "缺少对照基线", "补齐基线", "回答中尚未说明", "完成标准：", "能讲清前后口径",
+    "重要", "哪里卡住？", "基线没讲清", "2026-10-30T08:00:00Z", "灰度样本如何选？", "先说口径"]) {
+    expect(html).toContain(text);
+  }
+  expect(html).not.toContain("还要补什么？");
+});
+
+test("保留多次原始作答和各自反馈，零分不变成缺失，输入不被改写", () => {
+  const answerTurns: RoundtableTurnView[] = [{ ...turns[0], attempts: [
+    { id: "a1", answer: "第一版原话", createdAt: props.createdAt, state: "saved",
+      assessment: { status: "assessed", score: 0, summary: "第一版反馈", evidence: ["独有证据词"] } },
+    { id: "a2", answer: "第二版原话", createdAt: props.createdAt, state: "pending" },
+  ] }];
+  const before = JSON.stringify(answerTurns);
+  const html = renderToStaticMarkup(<InterviewRoundReview {...props} turns={answerTurns} />);
+  for (const text of ["第一版原话", "第二版原话", "第一版反馈", "独有证据词", "0 分", "反馈待完成"])
+    expect(html).toContain(text);
+  expect(JSON.stringify(answerTurns)).toBe(before);
+});
+
+test("旧记录 attempts 为空时仍保留原始 answer 和逐题反馈", () => {
+  const html = renderToStaticMarkup(<InterviewRoundReview {...props} turns={[{ ...turns[0], attempts: [] }]} />);
+  expect(html).toContain(turns[0].answer!);
+  expect(html).toContain("已说明判断，仍缺基线口径");
+});
+
+test.each(["需要交代对照基线", "核对了灰度前的失败记录", "先说口径", "灰度样本如何选？"])("搜索也能找到保存的点评：%s", keyword => {
+  let tree!: ReactTestRenderer;
+  act(() => { tree = create(<InterviewRoundReview {...props} />); });
+  act(() => tree.root.findByProps({ "aria-label": "搜索本轮问题与回答" }).props.onChange({ target: { value: keyword } }));
+  const rows = tree.root.findAll(node => node.type === "details" && String(node.props.id).startsWith("interview-"));
+  expect(rows).toHaveLength(1);
+  expect(rows[0].props.open).toBe(true);
+  expect(rows[0].props.id).toContain("q1");
   act(() => tree.unmount());
 });

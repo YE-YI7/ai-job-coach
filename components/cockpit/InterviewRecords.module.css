@@ -27,6 +27,16 @@
 
 /* ---------- 单场记录 / 结果 ---------- */
 .result { padding-block: 20px 32px; }
+.summary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px;
+  padding-block: 22px; margin-top: 24px; border-block: 1px solid var(--record-line);
+}
+.summary > div { margin-right: auto; }
+.summary h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.summary p { margin: 6px 0 0; color: var(--record-muted); font-size: 13px; }
+.summary > strong { font-size: 32px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.summary small { font-size: 13px; color: var(--record-muted); }
+.summary > span { color: var(--record-accent); font-size: 14px; }
 .resultHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .resultHeader h2 {
   margin: 12px 0; font: 500 clamp(28px, 3vw, 42px)/1.28 "Songti SC", "Noto Serif SC", "STSong", serif;

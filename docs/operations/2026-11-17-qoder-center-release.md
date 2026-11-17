@@ -19,3 +19,18 @@
 ## 发布门与回滚
 
 先限定diff、单测/全测/类型/build；production skip-domain生成待发包，完整resumeRuntime、匿名权限/静态资产核同。promote前重新核别名仍8kTagg；若别人已更新须重新对齐，不覆盖。只提升已核同一production构建。原8kTagg保留为回滚点，不改数据库或恢复旧Harness。
+
+## 最终发布回执
+
+- 代码 `4f0c2ea0276900d31fbdbefa11e349fc037b9757`，仅本任务15文件，已push `origin/codex/qoder-center-release-1117`，ls-remote逐字核同。独立浅clone只有原94e75bd祖先，不混main其他未发布候选。ME共享状态不整文件提交。
+- Git归档2137文件逐blob核同，不含node_modules、私有环境或脏预览；原 `.env.example` 为历史模板，不误判为导出的秘密。第一次检查因过宽“.env前缀”断言误报，定位后只允许这一既有模板，原失败不称通过。局部业务两个回调块与94e75bd逐字相同，呈现追踪hook保留。
+- 全仓409套3725条通过，9套31条历史跳过；生产build及类型、局部ESLint quiet、diff通过。已有Next middleware/preferredRegion警告未扩大修复。本地复用依赖构建产生的路径追踪副本已移出源码，不进入发布包；发布最终为云端Linux生产构建，非本机arm64预构建。
+- 生产 `dpl_BQXc7sCoqPaoEBJKArDqhVGry3cp` / `https://ai-job-coach-ppq0zrnim-velmavalienteqejimu22-jpgs-projects.vercel.app` READY；约2分钟远端build，146页。待发完整runtime逐字段同、3页面/5资源/4匿名401通过。匿名开发预览先被原middleware 307到login，跟随后200；初检误要求匿名404已修为核登录重定向，不把200当泄露或强改应用鉴权。正式登录态独立确认该开发路由404。
+- 切换前apex/www均重新确认仍8kTagg，才promote同一个production构建，无重建。UTC `2026-11-17T14:26:01.318Z` 域名回执指向BQXc7；两个域名独立复查完整runtime、3页面/5资源/4匿名401均通过。原8kTagg可回滚。
+- Chrome既有真实登录态新开两页只读验收：正式模拟标题“提前练一场。”、白色复盘材料入口/格式说明、原14个岗位、导师模型和已有未发草稿均可见。原用户tab保留未刷新，不发送其草稿；未启动面试/报告、录音、上传真实材料或付费调用，未改真实简历/回答/积分/钱包/DB结构。原页面浏览埋点可能发生，不宣称全环境零写入。
+- 左/右栏x、宽、字体、底色逐值同（192/386.265625），文档无横溢；完整rect初比不等是不同窗口高度，临时viewport立即采样也未归一，不能宣称全rect精确一致。临时viewport均撤销。最终高层截图重置后返回异常裁切，改用原生CDP实拍 `live-review-final.jpg`（2900×1452，2x真实1450×726），无界面修改/错误覆盖；不把截图工具问题说成UI问题。
+- 新部署短窗（查询回溯10m）error/5xx日志均0行，不代表已有10分钟真实流量或长期稳定。未新建drain/告警。
+
+证据：source-parity.json、staged-check.json、live-apex-check.json、live-www-check.json、deploy日志与promote.log、rails-before/after.json、live-interview.jpg、live-review-final.jpg。回滚命令使用原 `ai-job-coach-8gvzb6wnp-velmavalienteqejimu22-jpgs-projects.vercel.app`，回滚前仍核当前正式别名防覆盖别人后续发布。
+
+正式入口：<https://yizhioffer.com/cockpit?tab=interview>、<https://yizhioffer.com/cockpit?tab=review>。

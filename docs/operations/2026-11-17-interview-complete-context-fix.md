@@ -2,7 +2,7 @@
 
 ## 用户授权与边界
 
-本人要求“赶紧修好上线，别只是把报错藏起来，也别丢我的资料和事实。修完用真实档案测一下，确认模拟面试能正常开始”。本轮可做一次正常真实出题；不发送伪造回答，不录音，不自动完成整轮。记录真实模型调用/费用和旧资料保全；技术回归不替代真实入口验收。
+本人要求“赶紧修好上线，别只是把报错藏起来，也别丢我的资料和事实。修完用真实档案测一下，确认模拟面试能正常开始”。原计划一次正常真实出题；因首轮发现新旧答案串题，明确告知后又做一次最终回归，共两次正常出题。不发送伪造回答，不录音，不自动完成整轮。记录真实模型调用/费用和旧资料保全；技术回归不替代真实入口验收。
 
 基线：正式`dpl_4z6eVnahAfFPsWvDp1Rb93ztavWe`，源码a906a77（产品b33da91）。独立source checkout工作，原共享脏树未动。数据库MCP要求重认证后，使用现有本地项目配置的同一生产DB做本人限定范围只读查询；未导出密钥、改权限/DDL或写事实。
 
@@ -40,3 +40,14 @@
 补充修复：旧轮未提交草稿先通过原 draft 接口保存，成功生成新会话后才清空新题输入框；保存失败则阻止替换并保留输入。已存且未修改的旧回答不重写，用户重新编辑的草稿仍会保存；不调用点评、不结束或删除旧会话。仅拆出这一职责 helper，CockpitApp 只加3行。新增实际 InterviewTab 生命周期测试验证保存顺序、新题空输入及不触发点评，另3个 helper 用例覆盖原文与失败。
 
 最终本地414套3758条通过，9套31条既有跳过；tsc无错误、局部lint无错误，仅CockpitApp三项既有unused警告。首次直接npx jest未带项目要求的experimental-vm-modules使PDF用例失败；按 package test 的运行参数重跑全过，未改PDF代码或测试。最终候选与线上复验回执待下节追加。
+
+## 最终发布与真实验收完成（2026-11-17 UTC）
+
+- 产品提交 `456e91d`，分支 `codex/interview-context-fix-1117` 已 push；精确归档2154个Git blob逐项核同，无环境密钥/私证入包。production候选 `dpl_DF8QS4PtpTSBGTfwkcq1sJmg4fSp`，URL `https://ai-job-coach-mt72lmoqn-velmavalienteqejimu22-jpgs-projects.vercel.app`。云端compile27.2s/TypeScript16.1s/146页构建通过。
+- 候选核完整F6 runtime、3页/5资源/4匿名401；两正式域发布前确认仍8y3，promote同包成功，apex与www最终均DF8且READY。正式同样检查通过，F6作者hash仍756480bc…及其余运行配置逐值同AGq，未回退简历侧修复。回滚可用上一包8y3（保留本轮主容量修复但无草稿隔离），或AGq（本轮之前F6）；不要误回4z6。
+- 普通Chrome本人真实Kimi档案，从原3/3旧回答回准备，选择一面/业务面/3题，实际启动成功HTTP200。最终request `64aa22e8-d2e6-457b-959c-303570ce5227`，session `30d1274f-3be7-44f8-afec-b856002efe47`；页面1/3、文本输入框空白，刷新同URL仍恢复同题且空输入。服务日志同fingerprint `405bd94e…`、333已确认事实、预算30256、必需排除0。
+- 两个真实session各3题均在数据库，均0回答写入；未冒本人提交回答、生成点评或完成整轮。最终问题确实引用ASM/CrabRes项目与尚未验证的边界，非模板或stub；这仅证明真实启动/保存/刷新，不代表整轮出题质量已全面验收。
+- `ai_generation_events`两次实际 `tokendance/deepseek-v4.1-flash` success、重试0：首轮26.023s/43614入1989出，成本估算$0.01146；最终18.792s/43614入1562出，估算$0.00160276。合计估算$0.01306276（缓存/实际定价差异照原遥测记录，不冒实扣账单）。原计费模型/积分/钱包逻辑未更改。
+- 完成后只读保全回执：444原claim完整行全部相同（含333已确认），0新增claim；2份JD/简历、profile、11来源原文/hash均同；旧1轮/3题/3回答逐行hash同。没有删除/覆盖事实、原稿或旧答案。新会话正常写入和访问事件属于真实验证，不冒0业务写入。
+- 最终私证仍在上述根目录：`final-source-parity.json`、`final-staged-check.json`、`final-live-{apex,www}-check.json`、`final-alias-{apex,www}.json`、`final-real-start-response.json`、`real-start-persistence.json`、`archive-protection-receipt.json`、`history-protection-receipt.json`、`final-browser-receipt.json`、`live-interview-start.jpg`。私证不入Git。共享原worktree及其他窗口修改未覆盖。
+- 边界：本轮未调用真实答题点评/总结或测试ASR，不能把启动成功说成先前语音network问题已修。真正超过64k应用安全估算或2000完整事实读取边界仍明确失败，不截断后装成功；更大档案的分批/长期检索可后续独立设计，未隐瞒这一上限。

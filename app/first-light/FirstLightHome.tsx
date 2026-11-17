@@ -41,11 +41,15 @@ export default function FirstLightHome() {
       let handoff;
       try {
         handoff=saveLandingHandoff(sessionStorage,text);
-        if(handoff.preview){location.assign(landingHandoffHref());return;}
+        if(handoff.preview){
+          trackProductEvent("landing_continued", {journey_id:handoff.id,entry_source:"restored"});
+          location.assign(landingHandoffHref());return;
+        }
       } catch {
         if(status)status.textContent='浏览器暂时无法保留输入。请先复制这句话，再进入工作区。';
         return;
       }
+      trackProductEvent("landing_message_submitted", {journey_id:handoff.id,entry_source:"fresh"});
       busy=true;request=new AbortController();
       const deadline=window.setTimeout(()=>request?.abort(),25_000);
       if(submit){submit.disabled=true;submit.textContent='导师正在看这句话…';}
@@ -69,6 +73,7 @@ export default function FirstLightHome() {
       if(disposed||input?.value.trim()!==handoff.text)return;
       try {saveLandingPreview(sessionStorage,handoff,preview);}catch{}
       renderReply(preview);
+      trackProductEvent("landing_response_presented", {journey_id:handoff.id,response_source:preview.source});
       if(status)status.textContent='登录后继续，这句话和回复都会带到工作区。';
     };
     const cleanup = mountFirstLight(root.current,{onStart:start,onDraft:(text:string)=>{
@@ -106,7 +111,11 @@ export default function FirstLightHome() {
           const input=root.current?.querySelector<HTMLTextAreaElement>('#q');
           if(input?.value.trim()){
             event.preventDefault();
-            try {saveLandingHandoff(sessionStorage,input.value);location.assign(landingHandoffHref());}
+            try {
+              const handoff=saveLandingHandoff(sessionStorage,input.value);
+              trackProductEvent("landing_continued", {journey_id:handoff.id,entry_source:"link"});
+              location.assign(landingHandoffHref());
+            }
             catch {const status=root.current?.querySelector('#handoff-status');if(status)status.textContent='请先复制这句话，再进入工作区。';}
           }
         }

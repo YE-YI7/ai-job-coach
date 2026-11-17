@@ -1,4 +1,5 @@
 import { isAcquisitionSource } from "./acquisition";
+import { summarizeProductJourneys } from "./product-journey-analytics";
 
 /** Read-only product metrics. Server receipt time avoids client clock/backfill skew. */
 export interface AnalyticsUser {
@@ -36,6 +37,10 @@ export interface AnalyticsEvent {
   entry_kind?: string | null;
   submission_id?: string | null;
   request_id?: string | null;
+  journey_id?: string | null;
+  response_source?: string | null;
+  export_id?: string | null;
+  resume_revision?: string | null;
 }
 const DAY = 86400000,
   CHINA_OFFSET = 8 * 3600000;
@@ -131,6 +136,9 @@ export const EVENT_LABELS: Record<string, string> = {
   cockpit_viewed: "工作区访问（历史）",
   resume_gap_viewed: "简历工具访问（历史）",
   landing_task_clicked: "首页任务点击",
+  landing_message_submitted: "首页困惑已提交",
+  landing_response_presented: "首页回应已展现",
+  landing_continued: "从首页继续进入工作区",
   agent_install_prompt_copy_clicked: "个人 Agent · 点击复制安装指令",
   agent_install_prompt_copied: "个人 Agent · 安装指令复制成功",
   agent_install_prompt_copy_failed: "个人 Agent · 安装指令复制失败",
@@ -471,6 +479,7 @@ export function buildAnalytics(
       firstSources: sourceRows("first_source"),
     },
     resumeDelivery: summarizeResumeDelivery(raw.filter((e) => !excludedEvent(e)&&(!e.user_id||knownUsers.has(e.user_id))),Date.parse(window.end)),
+    journeys: summarizeProductJourneys(raw.filter(e => !excludedEvent(e) && (!e.user_id || knownUsers.has(e.user_id)))),
     users: eligibleUsers.map((u) => {
       const rows = userEvents.get(u.id) || [],
         usage = estimateUsage(rows);

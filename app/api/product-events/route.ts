@@ -10,6 +10,7 @@ import {
   sanitizeEventProperties,
 } from "@/lib/product-events";
 import { isServerResumeEvent, prepareClientDeliveryEvent, CLIENT_RESUME_EVENTS, ENTRY_EVENTS } from "@/lib/coach-harness/resume-delivery";
+import { isLandingJourneyEvent, isResumeExportEvent, prepareJourneyEvent } from "@/lib/product-journey-events";
 
 export async function POST(request: NextRequest) {
   const userId = await getCurrentUserId();
@@ -46,19 +47,27 @@ export async function POST(request: NextRequest) {
 
   const clientDelivery = (CLIENT_RESUME_EVENTS as readonly string[]).includes(body.name) || (ENTRY_EVENTS as readonly string[]).includes(body.name);
   const prepared = clientDelivery ? prepareClientDeliveryEvent(body.name, clientEventId, body.properties && typeof body.properties === "object" ? body.properties as Record<string, unknown> : {}) : null;
+  const journey = isLandingJourneyEvent(body.name) || isResumeExportEvent(body.name)
+    ? prepareJourneyEvent(body.name, body.properties && typeof body.properties === "object" ? body.properties : {}) : undefined;
+  if (journey === null) return NextResponse.json({error:"流程编号无效"},{status:400});
   if (prepared && "error" in prepared) return NextResponse.json({ error: prepared.error }, { status: 400 });
   if (prepared && !("error" in prepared)) {
     clientEventId = prepared.clientEventId;
     if (!/^[a-zA-Z0-9_-]{8,96}$/.test(clientEventId)) return NextResponse.json({ error: "事件标识无效" }, { status: 400 });
   }
-  if ((CLIENT_RESUME_EVENTS as readonly string[]).includes(body.name)) {
+  const linkedExport = isResumeExportEvent(body.name) && Boolean(journey?.generation_id);
+  const ownedCoordinates: Record<string, string> = {};
+  if ((CLIENT_RESUME_EVENTS as readonly string[]).includes(body.name) || linkedExport) {
     if(!userId)return NextResponse.json({error:"请先登录"},{status:401});
-    const safe=prepared&&!("error" in prepared)?prepared.properties:null;
+    const safe=prepared&&!("error" in prepared)?prepared.properties:journey;
     const {data,error}=await db.from('product_events').select('properties').eq('user_id',userId).eq('event_name','resume_task_outcome')
       .eq('properties->>generation_id',safe?.generation_id).limit(1).maybeSingle();
     if(error)return NextResponse.json({error:"交付记录暂不可读"},{status:503});
     if(Number(data?.properties?.schema_version)!==2||data?.properties?.persistence!=='confirmed')return NextResponse.json({error:"没有本账号的交付记录"},{status:403});
     if(body.name==='resume_change_decided'&&!String(data.properties.change_ids||'').split(',').includes(String(safe?.change_id)))return NextResponse.json({error:"修改编号不属于本次交付"},{status:403});
+    for (const key of ["opportunity_id", "trace_id", "eval_run_id"] as const) {
+      if (typeof data.properties[key] === "string") ownedCoordinates[key] = data.properties[key];
+    }
   }
   const { row, onConflict } = buildProductEventWrite({
     userId,
@@ -67,7 +76,10 @@ export async function POST(request: NextRequest) {
     clientEventId,
     occurredAt,
     properties: {
-      ...sanitizeAcquisitionProperties(prepared && !("error" in prepared) ? prepared.properties : sanitizeEventProperties(body.properties)),
+      ...sanitizeAcquisitionProperties({
+        ...(prepared && !("error" in prepared) ? prepared.properties : journey ?? sanitizeEventProperties(body.properties)),
+        ...ownedCoordinates,
+      }),
       account_cohort: analyticsCohort(
         userId,
         process.env.ANALYTICS_INTERNAL_USER_IDS,

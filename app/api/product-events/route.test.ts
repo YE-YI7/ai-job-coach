@@ -60,6 +60,30 @@ test("page view uses server host/environment and no user-controlled internal fla
   });
   expect(upsert.mock.calls[0][1]).toMatchObject({ ignoreDuplicates: true });
 });
+test("homepage form stages accept the shared journey ID but strip user text",async()=>{
+  for(const name of ["landing_message_submitted","landing_response_presented","landing_continued"]){
+    const r=await POST(request({name,clientEventId:"fixture-journey-event",anonId:"fixture-browser-id",
+      properties:{journey_id:"12345678-1234-4234-9234-123456789abc",response_source:"fallback",message:"私密问题"}}));
+    expect(r.status).toBe(200);
+    expect(upsert.mock.calls.at(-1)?.[0].properties).not.toHaveProperty("message");
+  }
+});
+test("export links only to the owner's confirmed generation and uses authoritative coordinates",async()=>{
+  (getCurrentUserId as jest.Mock).mockResolvedValue("owner");
+  const query={select:jest.fn().mockReturnThis(),eq:jest.fn().mockReturnThis(),limit:jest.fn().mockReturnThis(),
+    maybeSingle:jest.fn().mockResolvedValue({data:{properties:{schema_version:2,persistence:"confirmed",opportunity_id:"owned-job"}}})};
+  (getDbClient as jest.Mock).mockResolvedValue({from:()=>({...query,upsert})});
+  const body={name:"resume_export_clicked",clientEventId:"fixture-export-event",properties:{
+    generation_id:"12345678-1234-4234-9234-123456789abc:4",export_id:"87654321-1234-4234-9234-123456789abc",
+    opportunity_id:"99999999-1234-4234-9234-123456789abc",resumeText:"原稿"}};
+  expect((await POST(request(body))).status).toBe(200);
+  expect(query.eq).toHaveBeenCalledWith("user_id","owner");
+  expect(upsert.mock.calls[0][0].properties).toMatchObject({schema_version:2,opportunity_id:"owned-job",linkage:"generation"});
+  expect(upsert.mock.calls[0][0].properties).not.toHaveProperty("resumeText");
+  query.maybeSingle.mockResolvedValue({data:null} as never);
+  expect((await POST(request(body))).status).toBe(403);
+  expect(upsert).toHaveBeenCalledTimes(1);
+});
 test("missing identity and arbitrary event rejected without database access", async () => {
   expect(
     (

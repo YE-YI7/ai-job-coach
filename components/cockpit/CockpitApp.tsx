@@ -27,6 +27,7 @@ import { appendResumeSupplement, type ResumeRecovery as Recovery } from "@/lib/c
 import {tutorInvitation} from "@/lib/interview/tutor-invitation";
 import { mentorOpening } from "@/lib/opportunities/mentor-opening";
 import {requestsTeaching,learningHandoff} from "@/lib/interview/learning-handoff";
+import {useResumePresentationTracking} from "./useResumePresentationTracking";
 import ChatResizeHandle from "./ChatResizeHandle";
 import ExpandableText from "./ExpandableText";
 import type { ChatMode } from "@/lib/coach-harness/chat-options";
@@ -763,14 +764,9 @@ function CockpitWorkspace({
 
   const [resumeFocus,setResumeFocus]=useState(0);
   const [profileView,setProfileView]=useState("profile");
-  const presentedGenerations=useRef(new Set<string>());
-  useEffect(()=>{
-    const receipt=active&&resumeAgentTasks[active.id]?.delivery;
-    if(dataMode==='live'&&receipt?.generationId&&receipt.persistence==='confirmed'&&active?.resumeGenerationId===receipt.generationId&&!presentedGenerations.current.has(receipt.generationId)&&!creating&&(activeTab==='resume'||active?.workspaceType==='preparation'&&profileView==='profile')){
-      presentedGenerations.current.add(receipt.generationId);
-      trackProductEvent('resume_result_presented',{generation_id:receipt.generationId});
-    }
-  },[active,activeTab,creating,dataMode,resumeAgentTasks,profileView]);
+  useResumePresentationTracking(active?.resumeGenerationId,
+    dataMode === "live" && surface === "opportunity" && !creating &&
+    (activeTab === "resume" || active?.workspaceType === "preparation" && profileView === "profile"));
   useEffect(()=>setProfileView("profile"),[activeId]);
   const focusResumeMentor=()=>{setResumeFocus(value=>value+1);setMobileRail("actions");};
   const changeResumeBlock=(id:string,text:string,expected:string)=>{if(!active)return;const updated=editResumeBlock(active,id,text,expected);setOpportunities(items=>items.map(item=>item.id===active.id?updated:item));};

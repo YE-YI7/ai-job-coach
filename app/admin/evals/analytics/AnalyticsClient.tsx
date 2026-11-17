@@ -1,4 +1,5 @@
 "use client";
+import JourneySummary from "./JourneySummary";
 
 import { acquisitionLabel } from "@/lib/acquisition";
 import Link from "next/link";
@@ -277,6 +278,7 @@ function Overview({ data }: { data: AnalyticsSummary }) {
           </p>
         </section>
       </div>
+      <JourneySummary data={data.journeys}/>
       <div className={styles.columns}>
         <section>
           <div className={styles.sectionHead}>

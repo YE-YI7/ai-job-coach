@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, BriefcaseBusiness, FileText, History, Layers, Mic, Plus } from "lucide-react";
+import { BriefcaseBusiness, FileText, History, Layers, Mic, Plus } from "lucide-react";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { buildTodayView, type TodayCompanionSummary, type TodayTask, type TodayTab } from "@/lib/coach-harness/today-view";
 import { resolveUserTimeZone } from "@/lib/coach-harness/today-progress";
 import CurrentArrangement from "./CurrentArrangement";
+import TodayTaskList from "./TodayTaskList";
 import { useTodayCompanion } from "./useTodayCompanion";
 import styles from "./TodayWorkspace.module.css";
 
@@ -125,28 +126,7 @@ export default function TodayWorkspace({
           <h2>今天</h2>
           <span>{view.tasks.length ? `${view.tasks.length} 件 · 先做第一件` : "不新增任务"}</span>
         </header>
-        {view.tasks.map((task, index) => (
-          <article key={task.id} className={`${styles.task} ${index === 0 ? styles.taskPrimary : ""}`} data-task={task.target}>
-            <span className={styles.taskIndex} aria-hidden="true">{index + 1}</span>
-            <div className={styles.taskBody}>
-              <span className={styles.taskPhase}>{index === 0 ? "现在" : index === 1 ? "接着" : "然后"}</span>
-              <h3>{task.title}</h3>
-              <p className={styles.taskWhy}>{task.why}</p>
-              <p className={styles.taskMeta}>
-                {task.dueLabel && <span>{task.dueLabel}</span>}
-                {task.effort && <span>建议投入 {task.effort}</span>}
-                {!task.effort && <span>时长按你手上的材料再定</span>}
-              </p>
-            </div>
-            <div className={styles.taskActions}>
-              <button type="button" className={styles.taskGo} onClick={() => openTask(task)}>
-                {task.target === "arrangement" ? "去安排里继续" : "去做"}<ArrowRight size={15} />
-              </button>
-              {task.target === "tab" && task.opportunityId && <button type="button" className={styles.taskQuiet} onClick={() => onSnoozeTask(task)}>明天再看</button>}
-              {task.sourceActionId && <button type="button" className={styles.taskQuiet} onClick={() => onCompleteTask(task)}>标记做过</button>}
-            </div>
-          </article>
-        ))}
+        <TodayTaskList tasks={view.tasks} onOpen={openTask} onSnooze={onSnoozeTask} onComplete={onCompleteTask} />
         {view.emptyLine && <p className={styles.emptyLine}>{view.emptyLine}</p>}
       </section>
 

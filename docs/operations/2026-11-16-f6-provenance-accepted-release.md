@@ -25,3 +25,20 @@
 回滚保留本次前正式 `dpl_6D4g1F5rQS1Z65Meo5JuEVn7756i`，只切部署，不重置数据。实际部署、切域与上线后回读结果追加在本文件和原作战盘；此计划段不冒已经上线。
 
 私证：`/Users/yi/Documents/Codex/yizhi-provenance-accepted-release-20261116-NcwrIQ`。
+
+## 实际上线完成
+
+发布提交 `6e6faaf92ed5a5a23b1a1d83e68e3283c8c3e57f`，独立分支 `codex/f6-provenance-accepted-1116`，共10个明确文件。分支导回原产品仓库并有git bundle，未改共享当前分支/index、未远端push触发其他构建。
+
+生产候选 `dpl_3MvYgc3UkguLmMLoJZG79rXbM6Fn` / `https://ai-job-coach-7le7jrik6-velmavalienteqejimu22-jpgs-projects.vercel.app`。Vercel远端生产构建READY、146页；在待发地址完整核同runtime、静态与权限后，重新确认正式仍为旧6D4g1，再于UTC `2026-11-17T02:37:57.830Z`（洛杉矶11月16日18:37）promote同一生产构建，未重建或中途换包。
+
+正式 `yizhioffer.com` 与 `www.yizhioffer.com` 全部runtime字段逐值同待发版。原作者/HR/工具/知识/模型字段仍与实测旧身份相同；新增postHr职责hash为 `767dc7704bda6e137a897a97b0d760fe2f07daa8c3ee8e6ce3689339ac24dcd6`、两项来源接线身份及本次验收run/record，证明不是只把旧v26名称改掉。QA账号/预算/上下文覆盖均清空，时钟与时间职责沿原正式v1/both-v1保留，无生产项目凭据/权限变化。
+
+- 本轮395套/3638项通过，9套/31项原跳过；类型exit0，只有npm旧配置警告。局部lint0错误、1条既有测试未用参数警告。
+- 关闭QA后的6作者+1HR真实响应免费回放，全部作者messages/nativeTools及HR输入逐字同，最终628字正文与403字右侧同；不主张再次证明模型质量或完整新生成。
+- 待发、正式apex、www分别核首页/登录200，工作区/面试匿名跳登录，5项JS/CSS可用，4个写作/导师/Eval匿名接口401。没有把登录页或HTTP200当普通用户改稿/保存/PDF验收。
+- 新部署限定最近10分钟error与5xx查询各0行；只代表初始短窗口，非长期无事故承诺。
+- 879个非回执Harness/接口/知识文件最终hash同实测候选；2个公开版本回执/测试文件的增量不进入模型上下文。正式基线的面试Q页功能保留，未混共享未验收v27。
+- 新增[正式发布回执](https://yizhioffer.com/admin/evals/records?record=79bc1a07-b024-4d31-8729-dfdc6f2fa660)并回读；35条原Eval的run对象同，验收原始spans与结果逐字同。只写此新开发记录，未写旧作答、配额、个人钱包、积分或业务数据。无新模型调用/费用，不解封旧预算。
+
+本轮未新增普通用户实际采纳、保存刷新或PDF测试；相应实现未改。已知语义推导/冗长与右侧口吻问题保留，发布批准不追认为这些都已解决。原402失败与原封账也完整保留。回滚点仍为 `dpl_6D4g1F5rQS1Z65Meo5JuEVn7756i`，不回滚数据。

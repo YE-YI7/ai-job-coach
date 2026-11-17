@@ -10,6 +10,11 @@ import type { ResumeReference } from '@/lib/opportunities/resume-reference';
 import ProfileWorkspace from "./ProfileWorkspace";
 import CurrentArrangement from "./CurrentArrangement";
 import TodayWorkspace from "./TodayWorkspace";
+import InterviewFocusCard from "./InterviewFocusCard";
+import ReviewMaterialComposer from "./ReviewMaterialComposer";
+import interviewDetail from "./QoderInterviewWorkspace.module.css";
+import QoderInterviewLobby from "./QoderInterviewLobby";
+import QoderAnswerComposer from "./QoderAnswerComposer";
 import { useTodayCompanion } from "./useTodayCompanion";
 import EntryWorkspace from "./EntryWorkspace";
 import WorkspaceGuide from "./WorkspaceGuide";
@@ -179,6 +184,7 @@ export function CockpitApp(props: {
   dataMode?: "demo" | "live";
   initialTab?: CockpitTab;
   initialEntry?: EntryKind;
+  interviewDesign?: "qoder" | "legacy";
 }) {
   return <ResumeDraftSession key={props.userId || props.userEmail || props.dataMode || "demo"}><CockpitWorkspace {...props} /></ResumeDraftSession>;
 }
@@ -190,6 +196,7 @@ function CockpitWorkspace({
   dataMode = "demo",
   initialTab,
   initialEntry,
+  interviewDesign = "qoder",
 }: {
   initialOpportunities: Opportunity[];
   userEmail?: string;
@@ -197,7 +204,9 @@ function CockpitWorkspace({
   dataMode?: "demo" | "live";
   initialTab?: CockpitTab;
   initialEntry?: EntryKind;
+  interviewDesign?: "qoder" | "legacy";
 }) {
+  const showInterviewDetail = interviewDesign === "qoder";
   const router = useRouter();
   const [opportunities, setOpportunities] = useState(() => shareBaseResumeAcrossOpportunities(initialOpportunities));
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
@@ -1354,7 +1363,7 @@ function CockpitWorkspace({
 
   return (
     <ResumeReferenceProvider source={active} owner={userEmail || 'preview'} onQuote={focusResumeMentor}>
-    <main className={styles.shell}>
+    <main className={`${styles.shell} ${showInterviewDetail ? interviewDetail.frame : ""}`}>
       {entryGateModal}
       {notesOpen && <MyNotes onClose={() => setNotesOpen(false)} />}
       <header className={styles.topbar}>
@@ -1461,10 +1470,15 @@ function CockpitWorkspace({
             {activeTab === "resume" && <ResumeTab onReplaceResume={()=>setResumeUploadOpen(true)} onEditBlock={changeResumeBlock} onUndo={()=>travelResume("undo")} onRedo={()=>travelResume("redo")} onFocusMentor={focusResumeMentor} opportunity={active} agentTask={resumeAgentTasks[active.id]} onSkip={()=>runResumeAgent("skip")} recovery={resumeRecovery?.opportunityId === active.id ? resumeRecovery.recovery : null} onSupplement={supplementResumeDraft} onOpenEvidence={() => setActiveTab("evidence")} onUpdate={updateResumeChange} onEdit={editResumeChange} onReorder={reorderResumeBlocks} onGenerate={() => {void generateResumeDraft().catch(()=>{});}} onGenerateTrial={dataMode==='live'&&!localIds.includes(active.id)?(blockId,excerpt)=>generateResumeDraft(active,{blockId,excerpt}):undefined} onValidate={validateResumeChanges} onFreeze={freezeResumeVersion} generating={generatingResume} validating={validatingResume} freezing={freezingResume} onPdfResult={(status, summary) => setOpportunities((current) => current.map((item) => item.id !== active.id || !item.applicationQuality ? item : { ...item, applicationQuality: { ...item.applicationQuality, reviews: item.applicationQuality.reviews.map((review) => review.reviewerType === "pdf" ? { ...review, status, summary } : review) } }))} onPhotoChange={dataMode === "live" ? setResumePhoto : undefined}/>}
             {/* 面试台不再挂「概览+优先练题清单」：开练入口就在训练台上，
                 导师聊天保留在右栏，练面试时随时能就题问导师。 */}
-            {activeTab === "interview" && <div className={styles.interviewWorkbench}>
-              <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={setActiveId} onSupplement={supplementOpportunity} supplementing={supplementingMaterial} onAnalyze={analyzeInterviewAnswer} onTeach={startInterviewTeaching} onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
+            {activeTab === "interview" && <div className={`${styles.interviewWorkbench} ${showInterviewDetail ? interviewDetail.workspace : ""}`}>
+              <InterviewTab opportunity={active} relatedJobs={relatedJobs} onSelectJob={setActiveId}
+                onSupplement={supplementOpportunity} supplementing={supplementingMaterial}
+                onAnalyze={analyzeInterviewAnswer} onTeach={startInterviewTeaching}
+                onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} qoder={showInterviewDetail}
+                exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
             </div>}
-            {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview} onGuide={guideReview} analyzing={reviewingInterview} />}
+            {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview}
+              onGuide={guideReview} analyzing={reviewingInterview} polished={showInterviewDetail} />}
             {activeTab === "salary" && <>
               {active.workspaceType === "offer" && active.offerComparison && <OfferSnapshotSummary comparison={active.offerComparison} />}
               <SalaryOverview
@@ -2075,7 +2089,10 @@ function buildDemoAssessment(answer: string): InterviewAssessmentView | null {
   }, "demo");
 }
 
-function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onTeach, onSyncRoundtable, dataMode, exampleRecords = false }: {
+function InterviewTab({
+  opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onTeach,
+  onSyncRoundtable, dataMode, exampleRecords = false, qoder = false,
+}: {
   opportunity: Opportunity;
   relatedJobs: Opportunity[];
   onSelectJob: (id: string) => void;
@@ -2090,6 +2107,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   // its mock-interview records so a pre-populated round never reads as if the
   // system invented a real interview the user never took.
   exampleRecords?: boolean;
+  qoder?: boolean;
 }) {
   const quotaLabel = useQuotaLabel("interview");
   const [practicing, setPracticing] = useState(false);
@@ -2511,6 +2529,19 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   if (historyOpen) return <InterviewHistory opportunityId={opportunity.id} onClose={closeHistory} onResume={resumeHistory}
     demoSessions={dataMode === "demo" ? (opportunity.mockInterviews || []).map(historyFromRecord) : undefined} />;
 
+  if (qoder && hasJd && !practicing && (!roundtableOpen || !roundtable)) {
+    return <QoderInterviewLobby role={opportunity.role} roundLabel={roundOrdinalLabel} roundType={round}
+      questionCount={questionCount} roundTypes={mockRoundOptions} quotaLabel={quotaLabel}
+      starting={startingRoundtable} roundPicker={<RoundPicker value={roundOrdinalLabel} onChange={setRoundOrdinalLabel} />}
+      onRoundType={setRound} onQuestionCount={setQuestionCount} onStart={() => void startRoundtable()}
+      onSingle={() => { setPracticing(true); setPracticeError(""); }} onHistory={openHistory}
+      error={roundtableError} example={exampleRecords}
+      focus={<InterviewFocusCard questions={opportunity.interviewFocus} index={focusIndex}
+        initiallyOpen={false} onNavigate={setFocusIndex} onPractice={id => {
+          setPracticeQuestionId(id); setAnswer(""); setPracticeError(""); setPracticing(true);
+        }} />} />;
+  }
+
   if (roundtableOpen) {
     const turn = roundtable?.turns[roundtable.currentIndex];
     const isAssessed = lastFeedback?.status === "assessed";
@@ -2525,21 +2556,25 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
       hasAiSummary: Boolean(roundtable?.summary),
     });
     return (
-      <section ref={roundtableWorkspaceRef} className={styles.roundtableWorkspace}>
-        <header className={styles.roundtableHeader}>
+      <section ref={roundtableWorkspaceRef} className={`${styles.roundtableWorkspace} ${qoder ? interviewDetail.session : ""}`}
+        data-qoder-state={submittingRoundtable ? "submitting" : isAssessed ? "assessed" : isBlocked ? "blocked" : "answering"}>
+        <header className={styles.roundtableHeader} data-interview-part="round-header">
           <div><button type="button" className={styles.textButton} onClick={() => setRoundtableOpen(false)}>返回面试准备</button><h2>整轮模拟面试</h2><p>{opportunity.company} · {opportunity.role} · {roundtable?.round || `${roundOrdinalLabel} · ${round}`}</p></div>
           <div><button type="button" className={styles.textButton} onClick={openHistory}>过往模拟面试</button>
             {roundtable && <span className={styles.roundtableProgress}>{roundtable.status === "completed" ? "本轮结束" : `${roundtable.currentIndex + 1} / ${roundtable.turns.length}`}</span>}
             {roundtable?.status === "running" && <button type="button" className={styles.textButton} disabled={endingRoundtable}
               onClick={() => void endRoundtable()}>{endingRoundtable ? "正在确认保存…" : "结束并看记录"}</button>}</div>
         </header>
-        {!roundtable ? <div className={styles.roundtableStart}>
-          <div className={styles.interviewStageHero}>
+        {!roundtable ? <div className={styles.roundtableStart} data-interview-part="round-start">
+          <div className={styles.interviewStageHero} data-interview-part="round-hero">
             <div className={styles.interviewSignal} aria-hidden="true"><span /><MessageSquareText size={26} /></div>
             <div><span className={styles.eyebrow}>AI 面试官已就位</span><h3>现在，练一场真的</h3><p>围绕当前岗位连续追问，答完每题立刻指出证据和缺口。</p></div>
           </div>
-          <div className={styles.interviewFlow} aria-label="模拟面试流程"><span data-state="ready"><b>1</b>岗位材料</span><span><b>2</b>{questionCount} 题实战</span><span><b>3</b>逐题反馈</span><span><b>4</b>你先复盘</span><span><b>5</b>AI 再点评</span></div>
-          <div className={styles.roundtableSetup}>
+          <div className={styles.interviewFlow} aria-label="模拟面试流程" data-interview-part="round-flow">
+            <span data-state="ready"><b>1</b>岗位材料</span><span><b>2</b>{questionCount} 题实战</span>
+            <span><b>3</b>逐题反馈</span><span><b>4</b>你先复盘</span><span><b>5</b>AI 再点评</span>
+          </div>
+          <div className={styles.roundtableSetup} data-interview-part="round-setup">
             <div className={styles.setupLabel}><span>这是第几面？</span><small>和面试复盘共用同一套轮次记录，可超过三面</small></div>
             <RoundPicker value={roundOrdinalLabel} onChange={setRoundOrdinalLabel} />
             <div className={styles.setupLabel}><span>出题视角（面试类型）</span><small>决定题目难度和追问口吻，按当前{opportunity.resumeText ? " JD + 简历" : " JD"}出 3 题</small></div>
@@ -2593,24 +2628,40 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           </>}
           </details>
         </div> : <>
-          {roundtable.currentIndex > 0 && <div className={styles.roundtableTranscript} aria-label="本轮对话记录">
+          {roundtable.currentIndex > 0 && <details className={styles.roundtableTranscript}
+            aria-label="本轮对话记录" open={!qoder}>
+            <summary hidden={!qoder}>回看前面的 {roundtable.currentIndex} 题</summary>
             {roundtable.turns.slice(0, roundtable.currentIndex).map((past, index) => <div key={past.questionId} className={styles.transcriptTurn}>
               <div className={styles.transcriptQ}><div className={styles.transcriptAvatar} aria-hidden="true"><span>AI</span></div><p><b>第 {index + 1} 题</b>{past.question}</p></div>
               {past.answer && <p className={styles.transcriptA}>{past.answer}</p>}
               {past.assessment?.status === "assessed" && <details className={styles.transcriptFeedback}><summary>用人经理点评 · {past.assessment.score} 分（{scoreBandShort(past.assessment.variance)}）{past.assessment.source === "demo" ? " · 示例" : ""}</summary><p>{past.assessment.summary}</p><p className={styles.scoreBandNote}>{scoreBandLine(past.assessment.variance)}</p>{past.assessment.followUp && <p><b>当时追问：</b>{past.assessment.followUp}</p>}</details>}
             </div>)}
-          </div>}
-          {turn && <article className={styles.roundtableQuestion}>
+          </details>}
+          {turn && <article className={styles.roundtableQuestion} data-interview-part="round-question">
             <div className={styles.interviewScene}>
               <div className={styles.interviewerAvatar} aria-hidden="true"><span>AI</span><i /></div>
-              <div className={styles.questionBubble}>
+              <div className={styles.questionBubble} data-interview-part="round-question-text">
                 <div className={styles.questionMeta}><span>{round}</span><div aria-label={`第 ${roundtable.currentIndex + 1} 题，共 ${roundtable.turns.length} 题`}>{roundtable.turns.map((item, index) => <i key={item.questionId} data-state={index < roundtable.currentIndex ? "done" : index === roundtable.currentIndex ? "current" : "waiting"} />)}</div></div>
                 <h3>{turn.question}</h3>
                 <p>{turn.rationale}</p>
               </div>
             </div>
             <details className={styles.coachingHint}><summary><Sparkles size={15} />卡住了？看答题提示</summary><div><p>先说结论，再说你实际负责的动作、判断依据和结果；最后说明取舍。没有做过的部分明确说明，不补造数字。</p><p><b>这道题重点考察：</b>{turn.rationale||"回答是否有清楚的判断与可追溯的证据"}</p></div></details>
-            {!isAssessed && <div className={styles.answerComposer}><label htmlFor={`roundtable-answer-${turn.questionId}`}><span>你的回答</span><small>{roundtableAnswer.trim().length ? `${roundtableAnswer.trim().length} 字` : "可以打字，也可以直接说"}</small></label><textarea id={`roundtable-answer-${turn.questionId}`} rows={8} value={roundtableAnswer} onChange={(event) => setRoundtableAnswer(event.target.value)} placeholder={isBlocked ? "根据反馈把证据补完整…" : "像真实面试一样回答，不确定的数字可以明确说待核实…"} /><VoiceControls key={turn.questionId} value={roundtableAnswer} onChange={setRoundtableAnswer} readText={turn.question} disabled={submittingRoundtable}/></div>}
+            {!isAssessed && <div className={styles.answerComposer} data-interview-part="round-answer">
+              {qoder ? <QoderAnswerComposer key={turn.questionId} value={roundtableAnswer}
+                onChange={setRoundtableAnswer} question={turn.question}
+                textareaId={`roundtable-answer-${turn.questionId}`}
+                disabled={submittingRoundtable} blocked={isBlocked} /> : <>
+              <label htmlFor={`roundtable-answer-${turn.questionId}`}><span>你的回答</span>
+                <small>{roundtableAnswer.trim().length ? `${roundtableAnswer.trim().length} 字` : "可以打字，也可以直接说"}</small>
+              </label>
+              <textarea id={`roundtable-answer-${turn.questionId}`} rows={8} value={roundtableAnswer}
+                onChange={event => setRoundtableAnswer(event.target.value)}
+                placeholder={isBlocked ? "根据反馈把证据补完整…" : "像真实面试一样回答，不确定的数字可以明确说待核实…"} />
+              <VoiceControls key={turn.questionId} value={roundtableAnswer} onChange={setRoundtableAnswer}
+                readText={turn.question} disabled={submittingRoundtable} />
+              </>}
+            </div>}
             {isAssessed && turn.answer && <p className={styles.transcriptA}><b>你的回答</b>{turn.answer}</p>}
           </article>}
           {isBlocked && lastFeedback && <section className={styles.assessmentBlocked}>
@@ -2640,7 +2691,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
             </details>
             {lastFeedback.followUp && <footer><b>面试官会继续问</b><p>{lastFeedback.followUp}</p></footer>}
           </section>}
-          <div className={styles.roundtableActions}>
+          <div className={styles.roundtableActions} data-interview-part="round-actions">
             <span>{isAssessed ? (isLastQuestion ? "本轮结束后，先回顾，再看导师反馈。" : "回答已保存，可以继续。") : isBlocked ? "先跟导师学，或跳过这题；不会计为已掌握。" : "回答先保存，再给反馈。"}</span>
             {isAssessed&&<button className={styles.secondaryButton} onClick={()=>{setRoundtableAnswer(turn?.answer||"");setLastFeedback(null);}}>按反馈重新回答</button>}
             {!isAssessed&&<><button type="button" className={styles.textButton} disabled={submittingRoundtable} onClick={()=>onTeach(turn?.question||"",roundtableAnswer.trim()||"教我这道题")}>请导师讲解</button><button type="button" className={styles.secondaryButton} disabled={submittingRoundtable} onClick={()=>void skipQuestion()}>跳过，稍后练</button></>}
@@ -2655,8 +2706,18 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
   }
 
   return (
-    <section>
-      {!practicing&&<div className={`${styles.pageIntro} ${styles.interviewIntro}`}><div><h2>面试准备</h2><p>单题练一个重点，整轮连续问答、结束后复盘。题目来自{opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历）"}。</p></div><div className={styles.interviewActions}>{currentQuestion && <button className={styles.secondaryButton} onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />练一道题</button>}<button className={styles.primaryButton} disabled={!hasJd} onClick={() => { setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null); setSelfReflection(null); setRoundtableOpen(true); }}>{hasJd ? "整轮模拟面试" : "模拟面试 · 需要 JD"}</button></div>
+    <section data-interview-part="preparation-layout" data-qoder-mode={practicing ? "practice" : undefined}>
+      {!practicing && <div className={`${styles.pageIntro} ${styles.interviewIntro}`} data-interview-part="intro">
+        <div><h2>面试准备</h2><p>单题练一个重点，整轮连续问答、结束后复盘。题目来自
+          {opportunity.resumeText ? "当前 JD 与你的简历" : "当前 JD（尚未关联简历）"}。</p></div>
+        <div className={styles.interviewActions} data-interview-part="intro-actions">
+          {currentQuestion && <button className={styles.secondaryButton}
+            onClick={() => { setPracticing(true); setPracticeError(""); }}><MessageSquareText size={16} />练一道题</button>}
+          <button className={styles.primaryButton} disabled={!hasJd} onClick={() => {
+            setRoundtable(null); setRoundtableAnswer(""); setLastFeedback(null);
+            setSelfReflection(null); setRoundtableOpen(true);
+          }}>{hasJd ? "整轮模拟面试" : "模拟面试 · 需要 JD"}</button>
+        </div>
       {!hasJd && <p className={styles.ctaHint}>这个岗位还没有 JD。圆桌的每一题都必须能追溯到当前 JD，缺 JD 时不会用通用题顶上。</p>}
       </div>}
       {!hasJd && (relatedJobs.length ? <ExistingJobPicker jobs={relatedJobs} onSelect={onSelectJob} title={`选择面试岗位 · 已有 ${relatedJobs.length} 个 JD`} /> : <ContextMaterialAction
@@ -2667,7 +2728,7 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
         loading={supplementing}
         onSubmit={onSupplement}
       />)}
-      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel}>
+      {practicing && currentQuestion && <section ref={practiceRef} className={styles.practicePanel} data-interview-part="practice">
         <span>单题练习 · {exampleRecords ? "示例反馈，不消耗额度" : quotaLabel} · 回答保存到当前岗位</span>
         {opportunity.interviewFocus.length > 1 && <label className={styles.practiceQuestionSelect}><span>第 {opportunity.interviewFocus.findIndex(focus=>focus.id===currentQuestion.id)+1} 题 / 共 {Math.min(opportunity.interviewFocus.length,6)} 题 · 换题</span><ChevronDown size={14} aria-hidden="true" /><select aria-label="选择要练的重点题" value={currentQuestion.id} onChange={event=>{if(event.target.value!==currentQuestion.id){setPracticeQuestionId(event.target.value);setAnswer("");setPracticeError("");}}}>
           {opportunity.interviewFocus.slice(0,6).map((focus,index)=><option key={focus.id} value={focus.id}>第{index+1}题：{focus.question}</option>)}
@@ -2681,29 +2742,27 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
           <footer><b>面试官会继续问</b><p>{practiceFeedback.followUp}</p></footer>
         </article>}
         {practiceError&&<p className={styles.inlineError}>{practiceError}</p>}
-        <div><button className={styles.secondaryButton} onClick={()=>setPracticing(false)}>收起</button><button className={styles.primaryButton} disabled={!answer.trim()||analyzingPractice} onClick={async()=>{setAnalyzingPractice(true);setPracticeError("");try{const feedback=await onAnalyze(currentQuestion.question,answer.trim());setPracticeFeedback(feedback);setFeedbackFor(feedback?currentQuestion.question:null);}catch(error){setPracticeError(error instanceof Error?error.message:"分析失败");}finally{setAnalyzingPractice(false);}}}>{analyzingPractice?"导师处理中…":requestsTeaching(answer)?"让导师带我学":"提交回答"}</button></div>
+        <div data-interview-part="practice-actions">
+          <button className={styles.secondaryButton} onClick={() => setPracticing(false)}>收起</button>
+          <button className={styles.primaryButton} disabled={!answer.trim() || analyzingPractice} onClick={async () => {
+            setAnalyzingPractice(true); setPracticeError("");
+            try {
+              const feedback = await onAnalyze(currentQuestion.question, answer.trim());
+              setPracticeFeedback(feedback); setFeedbackFor(feedback ? currentQuestion.question : null);
+            } catch (error) { setPracticeError(error instanceof Error ? error.message : "分析失败"); }
+            finally { setAnalyzingPractice(false); }
+          }}>{analyzingPractice ? "导师处理中…" : requestsTeaching(answer) ? "让导师带我学" : "提交回答"}</button>
+        </div>
       </section>}
       {practicing && currentQuestion && <VoiceControls key={`${opportunity.id}:${currentQuestion.question}`} value={answer} onChange={setAnswer} readText={currentQuestion.question} disabled={analyzingPractice}/>}
       {!practicing && practiceFeedback && <button type="button" className={styles.savedPractice} onClick={() => setPracticing(true)}><span><CircleCheck size={15} />最近一次单题反馈</span><strong>{practiceFeedback.verdict} · {practiceFeedback.summary}</strong><ChevronRight size={16} /></button>}
-      {opportunity.interviewFocus.length > 0 ? <details className={styles.focusStepper} open><summary>岗位重点题 · 共 {opportunity.interviewFocus.length} 题，逐题看</summary>
-        {(() => {
-          const safeIndex = Math.min(focusIndex, opportunity.interviewFocus.length - 1);
-          const focus = opportunity.interviewFocus[safeIndex];
-          return <div className={styles.focusOne}>
-            <div className={styles.focusDots} aria-label={`第 ${safeIndex + 1} 题，共 ${opportunity.interviewFocus.length} 题`}>
-              {opportunity.interviewFocus.map((item, index) => <i key={item.id} data-state={index < safeIndex ? "done" : index === safeIndex ? "current" : "waiting"} />)}
-              <small className={styles.focusCount}>{safeIndex + 1} / {opportunity.interviewFocus.length}</small>
-            </div>
-            <article key={focus.id}><span className={`${styles.readinessDot} ${styles[`readiness_${focus.readiness}`]}`} /><div><strong>{focus.question}</strong><p>{focus.rationale}</p></div><em>{focus.readiness === "ready" ? "已准备" : focus.readiness === "practice" ? "需练习" : "待补充"}</em></article>
-            <div className={styles.focusStepperActions}>
-              <button type="button" className={styles.secondaryButton} disabled={safeIndex === 0} onClick={() => setFocusIndex(safeIndex - 1)}>上一题</button>
-              <button type="button" className={styles.secondaryButton} onClick={() => { setPracticeQuestionId(focus.id); setAnswer(""); setPracticeError(""); setPracticing(true); }}><MessageSquareText size={15} />练这一题</button>
-              {safeIndex < opportunity.interviewFocus.length - 1 && <button type="button" className={styles.primaryButton} onClick={() => setFocusIndex(safeIndex + 1)}>下一题<ArrowRight size={15} /></button>}
-            </div>
-          </div>;
-        })()}
-      </details> : <details><summary>查看岗位重点题（0）</summary><div className={styles.focusList}><EmptySection label="岗位重点题尚未生成，可以先练基础项目介绍。" /></div></details>}
-      <section className={styles.mockHistory}><button type="button" onClick={openHistory}>
+      {opportunity.interviewFocus.length > 0 ? <InterviewFocusCard questions={opportunity.interviewFocus}
+        index={focusIndex} onNavigate={setFocusIndex} onPractice={id => {
+          setPracticeQuestionId(id); setAnswer(""); setPracticeError(""); setPracticing(true);
+        }} /> : <details><summary>查看岗位重点题（0）</summary><div className={styles.focusList}>
+          <EmptySection label="岗位重点题尚未生成，可以先练基础项目介绍。" />
+        </div></details>}
+      <section className={styles.mockHistory} data-interview-part="history-link"><button type="button" onClick={openHistory}>
         <span><strong>过往模拟面试</strong><small>按轮次、问题、回答和追问搜索，逐题回看原话</small></span><ArrowRight size={16} />
       </button></section>
       {roundtableError && <p className={styles.inlineError} role="alert">{roundtableError}</p>}
@@ -2712,7 +2771,13 @@ function InterviewTab({ opportunity, relatedJobs, onSelectJob, onSupplement, sup
 }
 
 
-function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity: Opportunity; onAnalyze: (round: string, notes: string) => Promise<void>; onGuide: (round: string, notes: string) => Promise<boolean>; analyzing: boolean }) {
+function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing, polished = false }: {
+  opportunity: Opportunity;
+  onAnalyze: (round: string, notes: string) => Promise<void>;
+  onGuide: (round: string, notes: string) => Promise<boolean>;
+  analyzing: boolean;
+  polished?: boolean;
+}) {
   const [notes, setNotes] = useState("");
   const [round, setRound] = useState("一面");
   const [guiding, setGuiding] = useState(false);
@@ -2720,19 +2785,26 @@ function ReviewTab({ opportunity, onAnalyze, onGuide, analyzing }: { opportunity
   const reports = opportunity.reviewReports || [];
   const hasNotes = Boolean(notes.trim());
   return (
-    <section>
-      <div className={styles.pageIntro}><div><h2>面试复盘</h2><p>先把这轮发生了什么记下来。默认不替你下结论——导师会在右侧一次一个问题带你自己回看；想要一份完整报告时再生成。</p></div></div>
-      <div className={styles.reviewComposer}>
-        <div className={styles.reviewComposerHead}><span>这是第几面？</span><small>轮次用词和「模拟面试」一致，四面、五面直接填就行。</small></div>
-        <RoundPicker value={round} onChange={setRound} />
-        <div className={styles.reviewNotesHeader}><label htmlFor="review-notes">面试记录</label><VoiceControls showLabel value={notes} onChange={setNotes} readText={notes} disabled={analyzing || guiding} /></div>
-        <textarea id="review-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={9} placeholder="写下或口述你记得的问题和回答：被追问了什么、哪题最没底、对方给了什么反馈…" />
-        <div className={styles.reviewActions}>
-          <button className={styles.primaryButton} disabled={!hasNotes || guiding} onClick={async () => { setGuiding(true); try { if (await onGuide(round, notes.trim())) setNotes(""); } finally { setGuiding(false); } }}>{guiding ? "正在保存素材…" : "存下素材，让导师带我复盘"}</button>
-          <button className={styles.secondaryButton} disabled={!hasNotes || analyzing || guiding} onClick={async () => { try { await onAnalyze(round, notes.trim()); setNotes(""); } catch { /* toast already explains the failure */ } }}>{analyzing ? "正在生成报告…" : `直接生成整轮报告 · ${quotaLabel}`}</button>
-        </div>
+    <section className={polished ? interviewDetail.review : undefined}>
+      <div className={styles.pageIntro} data-interview-part="intro" hidden={polished}>
+        <div><h2>面试复盘</h2><p>先把这轮发生了什么记下来。默认不替你下结论——导师会在右侧一次一个问题带你自己回看；想要一份完整报告时再生成。</p></div>
       </div>
-      <div className={styles.reviewReportList}>{reports.map((report) => {
+      <ReviewMaterialComposer notes={notes} onChange={setNotes} voiceDisabled={analyzing || guiding}
+        qoder={polished} roundLabel={round}
+        roundPicker={<RoundPicker value={round} onChange={setRound} />}>
+        <button className={styles.primaryButton} data-review-action="guide" disabled={!hasNotes || guiding}
+          onClick={async () => {
+            setGuiding(true);
+            try { if (await onGuide(round, notes.trim())) setNotes(""); }
+            finally { setGuiding(false); }
+          }}>{guiding ? "正在保存素材…" : "存下素材，让导师带我复盘"}</button>
+        <button className={styles.secondaryButton} data-review-action="report" disabled={!hasNotes || analyzing || guiding}
+          onClick={async () => {
+            try { await onAnalyze(round, notes.trim()); setNotes(""); }
+            catch { /* toast already explains the failure */ }
+          }}>{analyzing ? "正在生成报告…" : `直接生成整轮报告 · ${quotaLabel}`}</button>
+      </ReviewMaterialComposer>
+      <div className={styles.reviewReportList} data-interview-part="review-history">{reports.map((report) => {
         const guided = report.grade === "待引导复盘";
         if (!guided && !hasReviewMaterial(report.sourceNotes || "")) return <article key={report.id} className={styles.reviewReport}><header><span>{report.round}</span><strong>记录不足 · 不予评分</strong></header><p>这份旧报告缺少有效面试作答，原评分和推断已停止展示。请补充问题及当时的回答后重新复盘。</p><details><summary>查看原始记录</summary><pre>{report.sourceNotes || "未保留原始记录"}</pre></details></article>;
         return (

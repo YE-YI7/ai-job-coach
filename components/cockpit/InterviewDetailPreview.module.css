@@ -1,0 +1,15 @@
+.controls {
+  position: fixed; z-index: 95; top: 9px; left: calc(50% - 90px); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 3px; padding: 2px 8px 2px 3px;
+  border: 1px solid #ded8cf; border-radius: 9px; background: #fffdf9; color: #6d6256;
+  box-shadow: 0 2px 8px rgb(42 38 32 / 5%);
+  font: 11px/1.4 "Outfit", "PingFang SC", sans-serif;
+}
+.controls button {
+  min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+}
+.controls button[aria-pressed="true"] { background: #eee8de; color: #302c27; }
+.controls span { margin-left: 7px; white-space: nowrap; }
+.controls button:focus-visible { outline: 2px solid #9b4429; outline-offset: 2px; }
+@media (max-width: 700px) { .controls { display: none; } }

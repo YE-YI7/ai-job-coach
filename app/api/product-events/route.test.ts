@@ -63,9 +63,11 @@ test("page view uses server host/environment and no user-controlled internal fla
 test("homepage form stages accept the shared journey ID but strip user text",async()=>{
   for(const name of ["landing_message_submitted","landing_response_presented","landing_continued"]){
     const r=await POST(request({name,clientEventId:"fixture-journey-event",anonId:"fixture-browser-id",
-      properties:{journey_id:"12345678-1234-4234-9234-123456789abc",response_source:"fallback",message:"私密问题"}}));
+      properties:{journey_id:"12345678-1234-4234-9234-123456789abc",response_source:"fallback",message:"私密问题",
+        source:"growth-qa",first_source:"growth-qa",session_source:"growth-qa",attribution_version:2}}));
     expect(r.status).toBe(200);
     expect(upsert.mock.calls.at(-1)?.[0].properties).not.toHaveProperty("message");
+    expect(upsert.mock.calls.at(-1)?.[0].properties).toMatchObject({source:"growth-qa",first_source:"growth-qa",attribution_version:2});
   }
 });
 test("export links only to the owner's confirmed generation and uses authoritative coordinates",async()=>{

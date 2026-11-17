@@ -138,7 +138,7 @@ export const EVENT_LABELS: Record<string, string> = {
   landing_task_clicked: "首页任务点击",
   landing_message_submitted: "首页困惑已提交",
   landing_response_presented: "首页回应已展现",
-  landing_continued: "从首页继续进入工作区",
+  landing_continued: "首页继续按钮点击",
   agent_install_prompt_copy_clicked: "个人 Agent · 点击复制安装指令",
   agent_install_prompt_copied: "个人 Agent · 安装指令复制成功",
   agent_install_prompt_copy_failed: "个人 Agent · 安装指令复制失败",

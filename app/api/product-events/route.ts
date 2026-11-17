@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
     if (!/^[a-zA-Z0-9_-]{8,96}$/.test(clientEventId)) return NextResponse.json({ error: "事件标识无效" }, { status: 400 });
   }
   const linkedExport = isResumeExportEvent(body.name) && Boolean(journey?.generation_id);
+  const attribution = Object.fromEntries(Object.entries(sanitizeEventProperties(body.properties))
+    .filter(([key]) => ["source", "first_source", "session_source", "attribution_version"].includes(key)));
   const ownedCoordinates: Record<string, string> = {};
   if ((CLIENT_RESUME_EVENTS as readonly string[]).includes(body.name) || linkedExport) {
     if(!userId)return NextResponse.json({error:"请先登录"},{status:401});
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest) {
     occurredAt,
     properties: {
       ...sanitizeAcquisitionProperties({
+        ...attribution,
         ...(prepared && !("error" in prepared) ? prepared.properties : journey ?? sanitizeEventProperties(body.properties)),
         ...ownedCoordinates,
       }),

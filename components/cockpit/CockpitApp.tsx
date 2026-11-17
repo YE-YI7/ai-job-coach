@@ -1972,7 +1972,23 @@ function ResumeTab({ onReplaceResume,onEditBlock,onUndo,onRedo,onFocusMentor, op
     : undefined;
   return (
     <section className={styles.resumeStudio}>
-      <ResumeToolbar busy={generating||agentTask?.state==='running'} canGenerate={Boolean(opportunity.resumeText&&(opportunity.jdText||opportunity.workspaceType==='preparation'))} needsDetail={agentTask?.state==='needs_detail'} hasChanges={Boolean(opportunity.resumeChanges.length)} pendingCount={pendingCount} fee={quotaLabel} canUndo={Boolean(currentResumeEditHistory(opportunity)?.past.length)} canRedo={Boolean(currentResumeEditHistory(opportunity)?.future.length)} onGenerate={agentTask?.state==='needs_detail'?onFocusMentor:onGenerate} onUndo={onUndo} onRedo={onRedo} showMarks={showMarks} onShowMarks={value=>{setShowMarks(value);setShowOriginal(false);}} showOriginal={showOriginal} onShowOriginal={()=>setShowOriginal(value=>!value)} template={template} onTemplate={chooseTemplate} onReplace={onReplaceResume} deliveryAction={deliveryAction} photo={opportunity.resumePhoto} photoBusy={photoBusy} onPhoto={onPhotoChange?chooseResumePhoto:undefined} onPhotoRemove={onPhotoChange?removeResumePhoto:undefined} exportControl={<ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text} photo={opportunity.resumePhoto} pendingCount={pendingCount} disabledReason={currentExport.findings.length?'有修改无法定位，请先核对或保留原文':undefined}/>}/>
+      <ResumeToolbar
+        busy={generating||agentTask?.state==='running'}
+        canGenerate={Boolean(opportunity.resumeText&&(opportunity.jdText||opportunity.workspaceType==='preparation'))}
+        needsDetail={agentTask?.state==='needs_detail'} hasChanges={Boolean(opportunity.resumeChanges.length)}
+        pendingCount={pendingCount} fee={quotaLabel}
+        canUndo={Boolean(currentResumeEditHistory(opportunity)?.past.length)}
+        canRedo={Boolean(currentResumeEditHistory(opportunity)?.future.length)}
+        onGenerate={agentTask?.state==='needs_detail'?onFocusMentor:onGenerate} onUndo={onUndo} onRedo={onRedo}
+        showMarks={showMarks} onShowMarks={value=>{setShowMarks(value);setShowOriginal(false);}}
+        showOriginal={showOriginal} onShowOriginal={()=>setShowOriginal(value=>!value)}
+        template={template} onTemplate={chooseTemplate} onReplace={onReplaceResume} deliveryAction={deliveryAction}
+        photo={opportunity.resumePhoto} photoBusy={photoBusy}
+        onPhoto={onPhotoChange?chooseResumePhoto:undefined} onPhotoRemove={onPhotoChange?removeResumePhoto:undefined}
+        exportControl={<ResumeExport compact opportunityId={opportunity.id} baseText={currentExport.text}
+          generationId={opportunity.resumeGenerationId||agentTask?.result?.resumeGenerationId}
+          resumeRevision={opportunity.resumeRevision} photo={opportunity.resumePhoto} pendingCount={pendingCount}
+          disabledReason={currentExport.findings.length?'有修改无法定位，请先核对或保留原文':undefined}/>} />
       {photoError&&<p role="alert">{photoError}</p>}
       <ResumeGenerationNotice task={agentTask} hasSavedChanges={Boolean(opportunity.resumeChanges.length)}/>
       {onGenerateTrial&&<ResumeExperienceTrial key={opportunity.id} resume={opportunity.resumeText||''} busy={generating||agentTask?.state==='running'} onStart={onGenerateTrial}/>}

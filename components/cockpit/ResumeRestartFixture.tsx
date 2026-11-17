@@ -18,6 +18,8 @@ const initial:Opportunity={...demoOpportunities[0],id:'11111111-1111-4111-8111-1
 export default function ResumeRestartFixture({replay=false}:{replay?:boolean}){
   const [ready,setReady]=useState(false);
   const [calls,setCalls]=useState<string[]>([]);
+  const [events,setEvents]=useState<Array<{name:string;properties:Record<string,unknown>}>>([]);
+  const [quotaAllowed,setQuotaAllowed]=useState(true);
   useEffect(()=>{
     if(process.env.NODE_ENV!=='development')return;
     const original=window.fetch;
@@ -29,6 +31,14 @@ export default function ResumeRestartFixture({replay=false}:{replay?:boolean}){
     window.fetch=async(input,init)=>{
       const url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url,location.origin);
       if(!url.pathname.startsWith('/api/'))return original(input,init);
+      if(url.pathname==='/api/quota/check')return json({ok:true,
+        checks:{resume:{allowed:quotaAllowed,source:quotaAllowed?'paid':'free',remaining:quotaAllowed?1:0}},
+        resumeTrial:{available:true}});
+      if(url.pathname==='/api/product-events'){
+        const body=JSON.parse(String(init?.body||'{}'));
+        if(String(body.name).startsWith('resume_'))setEvents(previous=>[...previous,{name:body.name,properties:body.properties}]);
+        return json({ok:true});
+      }
       if(url.pathname==='/api/coach/resume-agent'){
         if(init?.method==='POST'){
           const body=JSON.parse(String(init.body));
@@ -53,11 +63,13 @@ export default function ResumeRestartFixture({replay=false}:{replay?:boolean}){
     };
     setReady(true);
     return()=>{window.fetch=original;reads.splice(0).forEach(resolve=>resolve(json({ok:true,task:null})));};
-  },[replay]);
+  },[replay,quotaAllowed]);
   if(process.env.NODE_ENV!=='development')return null;
   return <>
     <p role="status">虚构慢读取验收 · 所有接口为本地替身 · 模型费 0 · 已发改稿动作：{calls.join('、')||'无'}
       {replay?' · 旧结果回放场景':''}</p>
+    <label><input type="checkbox" checked={quotaAllowed} onChange={event=>setQuotaAllowed(event.target.checked)}/>虚构账号有1次改稿额度</label>
+    <details><summary>本地导出事件（不写生产）</summary><pre aria-label="本地导出事件">{JSON.stringify(events,null,2)}</pre></details>
     {ready&&<CockpitApp initialOpportunities={[initial]} userId="fictional-restart-user" userEmail="qa@example.test"
       dataMode="live" initialTab="resume"/>}
   </>;

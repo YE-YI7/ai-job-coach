@@ -92,6 +92,22 @@ test('serif PDF waits for the bundled font and a load failure never silently pri
  await click();expect(print).not.toHaveBeenCalled();expect(button.disabled).toBe(false);expect(button.textContent).toContain('字体未加载');
  await click();expect(load).toHaveBeenCalledWith('10.5pt "YiZhi Resume Serif"');expect(print).toHaveBeenCalledTimes(1);
 });
+test('print lifecycle distinguishes font failure, print failure and dialog close; telemetry failure never stops printing',async()=>{
+ let click!:()=>Promise<void>,afterprint!:()=>void;
+ const button={disabled:false,textContent:'保存为 PDF',addEventListener:(_name:string,fn:()=>Promise<void>)=>{click=fn;}};
+ const failed=jest.fn(),closed=jest.fn(),requested=jest.fn();
+ const print=jest.fn(()=>{expect(requested).toHaveBeenCalled();});
+ const target={document:{open:jest.fn(),write:jest.fn(),close:jest.fn(),getElementById:()=>button},
+  addEventListener:(_name:string,fn:()=>void)=>{afterprint=fn;},print} as unknown as Window;
+ renderResumePrintWindow(target,'虚构简历','modern','验收',requested,undefined,{onFailed:failed,onDialogClosed:closed});
+ afterprint();expect(closed).not.toHaveBeenCalled();
+ await click();afterprint();afterprint();
+ expect(print).toHaveBeenCalledTimes(1);expect(closed).toHaveBeenCalledTimes(1);
+ print.mockImplementationOnce(()=>{throw Error('unavailable');});
+ await click();expect(failed).toHaveBeenLastCalledWith('print_unavailable');afterprint();expect(closed).toHaveBeenCalledTimes(1);
+ renderResumePrintWindow(target,'虚构简历','modern','验收',()=>{throw Error('tracking offline');});
+ await click();expect(print).toHaveBeenCalledTimes(3);
+});
 test("print freezes revision ink at full opacity even during its screen entrance",()=>{
  const html=resumePrintHtml(LANDING_RESUME,"modern","打印动效回归",{toolbar:false,highlight:DEMO_BEFORE});
  expect(html).toContain("animation:ink-land 720ms");

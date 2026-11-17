@@ -31,6 +31,12 @@ describe("product events", () => {
     expect(isProductEventName("offer_save_click")).toBe(true);
     expect(isProductEventName("offer_save_signup")).toBe(true);
   });
+  it('tracks export intent and native dialog lifecycle without inventing PDF saved',()=>{
+    for(const name of ['resume_export_clicked','resume_export_cancelled','resume_print_failed','resume_print_dialog_closed']) {
+      expect(isProductEventName(name)).toBe(true);
+    }
+    expect(isProductEventName('resume_pdf_saved')).toBe(false);
+  });
 
   it("bounds keys and values and removes nested or unsupported data", () => {
     const result = sanitizeEventProperties({

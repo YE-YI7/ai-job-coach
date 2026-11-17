@@ -27,6 +27,9 @@
 .actions .confirm{background:#2f2a23;color:#fff}
 .actions button:hover{background:#e4dbcf}
 .actions .confirm:hover{background:#494137}
+.actions button:disabled{opacity:.5;cursor:not-allowed}
+.recovery{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:14px}
+.recovery button{padding:8px 0;border:0;background:none;color:#75402b;font:inherit;cursor:pointer}
 .dialog button:focus-visible{outline:2px solid #984320;outline-offset:3px}
 .dialog ::selection{background:var(--cockpit-studio-line,#e5dfd5);color:#2f2a23}
 @media(max-width:440px){.dialog{padding:22px}.actions{justify-content:stretch}.actions button{flex:1}}

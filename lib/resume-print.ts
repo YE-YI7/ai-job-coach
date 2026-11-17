@@ -117,12 +117,28 @@ export function resumePrintHtml(text:string,template:PrintTemplate,title:string,
  }
  </style></head><body class="${template}">${options.toolbar===false?"":'<div class="toolbar">在打印窗口选择「另存为 PDF」，取消勾选「页眉和页脚」。正文可选中、搜索。<br><button id="print">保存为 PDF</button></div>'}<main>${content}</main></body></html>`;
 }
-export function renderResumePrintWindow(target:Window,text:string,template:PrintTemplate,title:string,onPrintRequested?:()=>void,photo?:string){
+export type ResumePrintLifecycle = {
+ onFailed?: (reason: "font_unavailable" | "print_unavailable") => void;
+ onDialogClosed?: () => void;
+};
+export function renderResumePrintWindow(
+ target:Window,text:string,template:PrintTemplate,title:string,
+ onPrintRequested?:()=>void,photo?:string,lifecycle:ResumePrintLifecycle={},
+){
+ let requested=false;
+ const notify=(callback?:()=>void)=>{try{callback?.();}catch{/* Telemetry cannot break printing. */}};
  target.document.open();target.document.write(resumePrintHtml(text,template,title,{photo}));target.document.close();
+ target.addEventListener?.('afterprint',()=>{
+  if(!requested)return;
+  requested=false;
+  // A cancelled native dialog also fires afterprint. Never call this PDF saved.
+  notify(lifecycle.onDialogClosed);
+ });
  target.document.getElementById("print")?.addEventListener("click",async()=>{
   const button=target.document.getElementById('print') as HTMLButtonElement|null;
   if(button?.disabled)return;
   if(button)button.disabled=true;
+  let stage: "font_unavailable" | "print_unavailable" = "font_unavailable";
   try{
    if(printTemplates[template].font==='serif'&&target.document.fonts){
     const loaded=await Promise.all([
@@ -131,9 +147,12 @@ export function renderResumePrintWindow(target:Window,text:string,template:Print
     ]);
     if(loaded.some(face=>!face.length))throw Error('PRINT_FONT_UNAVAILABLE');
    }
-   target.print();onPrintRequested?.();
+   stage='print_unavailable';
+   requested=true;notify(onPrintRequested);
+   target.print();
   }catch{
-   if(button)button.textContent='字体未加载，点击重试保存 PDF';
+   requested=false;notify(()=>lifecycle.onFailed?.(stage));
+   if(button)button.textContent=stage==='font_unavailable'?'字体未加载，点击重试保存 PDF':'打印窗口未打开，点击重试';
   }finally{if(button)button.disabled=false;}
  });
 }

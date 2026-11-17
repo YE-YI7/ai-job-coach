@@ -15,6 +15,7 @@ import ReviewMaterialComposer from "./ReviewMaterialComposer";
 import interviewDetail from "./QoderInterviewWorkspace.module.css";
 import QoderInterviewLobby from "./QoderInterviewLobby";
 import QoderAnswerComposer from "./QoderAnswerComposer";
+import { preservePriorInterviewDraft } from "./interview-start-draft";
 import { useTodayCompanion } from "./useTodayCompanion";
 import EntryWorkspace from "./EntryWorkspace";
 import WorkspaceGuide from "./WorkspaceGuide";
@@ -2265,6 +2266,7 @@ function InterviewTab({
     locallyChanged.current = true;
     setRoundtableError("");
     try {
+      await preservePriorInterviewDraft({ dataMode, session: roundtable, answer: roundtableAnswer });
       let session: RoundtableSessionView;
       if (dataMode === "demo") {
         const sourceQuestions = opportunity.interviewFocus.length ? opportunity.interviewFocus : [{ id: "demo-question", question: "请介绍一个最能证明你适合这个岗位的项目。", rationale: "先验证核心岗位证据。", readiness: "practice" as const }];
@@ -2295,6 +2297,7 @@ function InterviewTab({
         trackProductEvent("mock_interview_started", { opportunity_id: opportunity.id, round, round_label: roundOrdinalLabel });
       }
       setRoundtable(session);
+      setRoundtableAnswer("");
       setRoundtableOpen(true);
       setLastFeedback(null);
       setSelfReflection(null);

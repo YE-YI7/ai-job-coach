@@ -30,3 +30,13 @@
 定点5套36条、全仓413套3754条通过，另9套31条既有条件跳过；类型与修改文件lint最终结果及云构建/真实出题回执稍后追加。首次新测试误要求compiler保留数组原序，实际既有compiler按ID排序；改为逐ID对象与原文完整性断言，不放松内容检查。首次lint发现既有测试chain的any，局部改Record类型。一次多文件patch上下文未命中，已重施并复核。无隐瞒为首次全过。
 
 将只导出本任务限定提交、核blob，production skip-domain核原runtime/匿名权限后，重查正式未被他人更新再同包promote。然后普通Chrome真实登录本人Kimi档案启动3题，不用demo/stub；原岗位/草稿保留。真实验收失败则如实继续排错，不把READY或HTTP200当题目交付。当前本节不是已上线声明。
+
+## 第一轮生产验收与附带修复
+
+发布期间另一个授权窗口已将 F6 d26a496 上线为 AGq；本轮保留其祖先和完整 resumeRuntime，改用独立 clone `release-source`，避免共享 checkout 分支切换覆盖彼此。8b22004 推送 `codex/interview-context-fix-1117`，2152 个 blob 核验后以 `dpl_8y3mP9TWbB5YKt1asuAjmHgyEdhb` 上线。候选、apex、www 的完整 F6 runtime、匿名权限及静态资源检查通过。
+
+本人普通 Chrome 的 Kimi 档案真实调用 `/api/interview/start` 返回 200，session `428dbb01-b38d-49c0-a1db-0fed2abc244a`，数据库存下3道真实问题，页面进入1/3。服务日志 request `bfe7085c-a273-4c18-9290-ab351d6e5056`：333事实、inputBudget30256、mandatoryExcluded0；非stub，未提交任何回答。实测仍发现旧回答留在新题输入框，因此没有宣布完工。
+
+补充修复：旧轮未提交草稿先通过原 draft 接口保存，成功生成新会话后才清空新题输入框；保存失败则阻止替换并保留输入。已存且未修改的旧回答不重写，用户重新编辑的草稿仍会保存；不调用点评、不结束或删除旧会话。仅拆出这一职责 helper，CockpitApp 只加3行。新增实际 InterviewTab 生命周期测试验证保存顺序、新题空输入及不触发点评，另3个 helper 用例覆盖原文与失败。
+
+最终本地414套3758条通过，9套31条既有跳过；tsc无错误、局部lint无错误，仅CockpitApp三项既有unused警告。首次直接npx jest未带项目要求的experimental-vm-modules使PDF用例失败；按 package test 的运行参数重跑全过，未改PDF代码或测试。最终候选与线上复验回执待下节追加。

@@ -6,6 +6,7 @@ import renderer, { act } from "react-test-renderer";
 import * as logic from "./interview-assessment-logic";
 import { historyFromRecord } from "@/lib/interview/history";
 import type { Opportunity } from "@/lib/opportunities/types";
+import { preservePriorInterviewDraft } from "./interview-start-draft";
 
 // Execute the actual scoped component, not a second implementation of its handlers.
 const source = fs.readFileSync(path.join(__dirname, "CockpitApp.tsx"), "utf8");
@@ -16,6 +17,7 @@ const compiled = ts.transpileModule(node.getText(ast), { compilerOptions: {
 } }).outputText;
 const Native = (props: Record<string, unknown>) => React.createElement("stub", props);
 const globals = { React, useState: React.useState, useEffect: React.useEffect, useRef: React.useRef,
+  preservePriorInterviewDraft, assertGenerationQuota: async () => undefined, trackProductEvent: jest.fn(),
   styles: new Proxy({}, { get: (_target, name) => String(name) }), useQuotaLabel: () => "测试",
   toSessionView: logic.restoreRoundtableSession, toSessionRecord: (value: unknown) => value,
   normalizeInterviewAssessment: logic.normalizeInterviewAssessment, normalizeRoundSummary: logic.normalizeRoundSummary,
@@ -23,6 +25,8 @@ const globals = { React, useState: React.useState, useEffect: React.useEffect, u
   resolveRoundCompletionPhase: () => "self_reflection", ROUND_REFLECTION_QUESTIONS: ["你怎么看"],
   mockRoundOptions: ["业务面"], requestsTeaching: () => false, apiResponseError: (_response: unknown, body: { error?: string }) => Error(body.error || "失败"),
   InterviewResult: Native, InterviewHistory: Native, RoundPicker: Native, RoundSummary: Native,
+  QoderInterviewLobby: Native, QoderAnswerComposer: Native, InterviewFocusCard: Native,
+  interviewDetail: new Proxy({}, { get: (_target, name) => String(name) }),
   VoiceControls: Native, ExistingJobPicker: Native, ContextMaterialAction: Native, EmptySection: Native,
   ArrowRight: Native, MessageSquareText: Native, Sparkles: Native, CircleAlert: Native, ChevronDown: Native,
   ShieldCheck: Native, RotateCcw: Native, ChevronRight: Native,
@@ -99,4 +103,28 @@ test("a cloud-restored session pins its identity so ending and refresh do not lo
   const urls = (global.window.history.replaceState as jest.Mock).mock.calls.map(call => String(call[2]));
   expect(urls.some(url => new URL(url).searchParams.get("interviewSession") === session.id
     && new URL(url).searchParams.get("tab") === "interview")).toBe(true);
+});
+
+test("starting a new round preserves the previous draft and clears only the new composer", async () => {
+  fetcher.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.includes("/draft?")) return Promise.resolve(response({ ok: true, answer: null }));
+    if (url.includes("/start")) return Promise.resolve(response({ session_id: "new-session", questions: [
+      { id: "new-question", question_text: "新题", tips: {} },
+    ] }));
+    if (init?.method === "POST") return Promise.resolve(response({ ok: true, saved: true }));
+    return Promise.resolve(response({ ok: true, sessions: [session] }));
+  });
+  await act(async () => { tree = renderer.create(React.createElement(Component, { ...props, qoder: true })); });
+  const composer = tree.root.findAllByType(Native).find(item => item.props.onChange && "question" in item.props)!;
+  await act(async () => composer.props.onChange("原题未提交草稿"));
+  await act(async () => findButton(tree, "返回面试准备").props.onClick());
+  await act(async () => tree.root.findAllByType(Native).find(item => item.props.onStart)!.props.onStart());
+  const calls = fetcher.mock.calls;
+  const draftIndex = calls.findIndex(([url, init]) => url.includes("/draft") && init?.method === "POST");
+  const startIndex = calls.findIndex(([url]) => url.includes("/start"));
+  expect(draftIndex).toBeGreaterThanOrEqual(0);
+  expect(startIndex).toBeGreaterThan(draftIndex);
+  expect(JSON.parse(calls[draftIndex][1].body)).toEqual({ sessionId: "session", questionId: "q1", answer: "原题未提交草稿" });
+  expect(tree.root.findAllByType(Native).find(item => item.props.onChange && "question" in item.props)!.props.value).toBe("");
+  expect(calls.some(([url]) => url.includes("/answer"))).toBe(false);
 });

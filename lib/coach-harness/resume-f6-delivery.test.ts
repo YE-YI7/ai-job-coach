@@ -25,8 +25,9 @@ test('list ordinals are structural; unsupported factual numbers remain notices',
   const notices=f6EvidenceNotices('1. 完成 500 条标注。\n2. 整理记录。',sources);
   expect(notices.filter(n=>n.code==='number_not_found').map(n=>n.quote)).toEqual(['500 条']);
 });
-test('identity/contact remains protected, not turned into a content-quality pass',()=>{
-  const input='李青\n邮箱：li@example.test\n\n项目：整理记录。';
+test('explicit identity/contact remains protected, not turned into a content-quality pass',()=>{
+  // A name label establishes identity; an arbitrary short first line does not.
+  const input='姓名：李青\n邮箱：li@example.test\n\n项目：整理记录。';
   expect(f6DocumentSafetyIssues(input,input.replace('李青','张林'))).not.toEqual([]);
   expect(f6DocumentSafetyIssues(input,input.replace('li@example.test','other@example.test'))).not.toEqual([]);
 });

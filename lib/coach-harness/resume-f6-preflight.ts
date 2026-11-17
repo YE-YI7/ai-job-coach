@@ -5,13 +5,13 @@ import {f6MetricDirectionIssues} from './resume-f6-writer';
 import {citationGroundingDecision} from './guard-slots/verification.guards';
 import type {GroundingSource} from './citation-verifier';
 import {resumeResultCaveatIssues} from './resume-result-caveats';
+import {resumeDocumentIdentityIssues} from './resume-document-identity';
 
 /** Content diagnostics below are advisory for the shipped F6 author. Only
  * protected identity/contact can still reject an otherwise readable document.
  * Auth/ownership/scope/CAS/quota checks live in their existing host layers. */
 export function f6DocumentSafetyIssues(source:string,candidate:string){
-  return resumeSourceProtection(source,candidate,'',source,true)
-    .filter(issue=>issue.startsWith('姓名与联系方式'));
+  return resumeDocumentIdentityIssues(source,candidate);
 }
 
 /** Verification feedback is data for the SAME author, not a new reviewer,

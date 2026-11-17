@@ -10,6 +10,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import styles from "./AgentGuide.module.css";
+import AgentInstallPrompt from "./AgentInstallPrompt";
 import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default function AgentGuide() {
           <div><LockKeyhole size={18} /><span><strong>数据边界</strong>默认不上传求职材料</span></div>
           <div><Copy size={18} /><span><strong>模型费用</strong>使用用户现有 Agent 额度</span></div>
         </div>
+        <AgentInstallPrompt />
       </section>
 
       <div className={styles.layout}>

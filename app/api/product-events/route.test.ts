@@ -22,6 +22,21 @@ const request = (body: unknown) =>
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+test.each([
+  "agent_install_prompt_copy_clicked", "agent_install_prompt_copied",
+  "agent_install_prompt_copy_failed", "agent_install_prompt_manual_copy",
+])("accepts anonymous personal-agent entry event %s without installation claims", async name => {
+  const response = await POST(request({
+    name, clientEventId: "fixture-copy-event", anonId: "fixture-copy-browser",
+    properties: { surface: "home", entry: "personal_agent", prompt_version: "install-v1" },
+  }));
+  expect(response.status).toBe(200);
+  expect(upsert.mock.calls[0][0]).toMatchObject({
+    user_id: null, anon_id: "fixture-copy-browser", event_name: name,
+    properties: { surface: "home", entry: "personal_agent", prompt_version: "install-v1" },
+  });
+  expect(upsert.mock.calls[0][0]).not.toHaveProperty("resume");
+});
 test("page view uses server host/environment and no user-controlled internal flag", async () => {
   const res = await POST(
     request({

@@ -7,6 +7,14 @@ import {
 } from "./product-events";
 
 describe("product events", () => {
+  it("records personal-agent copy intent without inventing installed/active events", () => {
+    for (const name of [
+      "agent_install_prompt_copy_clicked", "agent_install_prompt_copied",
+      "agent_install_prompt_copy_failed", "agent_install_prompt_manual_copy",
+    ]) expect(isProductEventName(name)).toBe(true);
+    expect(isProductEventName("personal_agent_installed")).toBe(false);
+    expect(isProductEventName("personal_agent_active")).toBe(false);
+  });
   it("tracks public route buckets without queries, IDs or admin traffic", () => {
     expect(isProductEventName("page_viewed")).toBe(true);
     expect(analyticsPage("/cockpit")).toBe("/cockpit");

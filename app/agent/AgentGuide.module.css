@@ -89,3 +89,17 @@
   .hostList summary { align-items: flex-start; flex-direction: column; gap: 5px; }
   .footer { padding: 25px 17px; align-items: flex-start; flex-direction: column; }
 }
+.installPrompt{margin-top:28px;max-width:760px}
+.installPrompt label{display:block;margin-bottom:10px}
+.installPrompt textarea{
+  display:block;width:100%;box-sizing:border-box;padding:14px;
+  font:inherit;font-size:15px;line-height:1.65;color:inherit;
+  border:1px solid #cbbfab;background:transparent;resize:vertical;
+}
+.installPrompt button{
+  display:inline-flex;align-items:center;gap:8px;margin-top:12px;
+  padding:10px 16px;border:1px solid currentColor;background:transparent;
+  color:inherit;font:inherit;cursor:pointer;
+}
+.installPrompt :is(textarea,button):focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.installPrompt p{font-size:14px;line-height:1.6}

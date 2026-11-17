@@ -1,4 +1,5 @@
 import "server-only";
+import { summarizeAgentInstall } from "./agent-install-metrics";
 import { createHash } from "node:crypto";
 import { analyticsInternalIds, analyticsVisitorIds, isExcludedEvent, analyticsDay } from "./admin-analytics";
 import { redactEval } from "./coach-harness/eval-scope";
@@ -116,7 +117,18 @@ export async function readBusinessDataset(db: Db, from: string, to: string, feat
     const eventRows = (selectedEvents as BusinessEvent[]).filter(e => inBusinessWindow(e.created_at, window) && !isExcludedEvent(e, excluded, access.visitors));
     const breakdown = Object.entries(Object.groupBy(eventRows, e => e.event_name)).map(([name, es]) => ({ name, label: eventLabel(name), count: es!.length, users: new Set(es!.map(e => e.user_id).filter(Boolean)).size }));
     const dailyRows=daily.rows.map(row=>({...row,pv:tracking.data?.created_at&&row.day>=analyticsDay(tracking.data.created_at)?row.pv:null,uv:tracking.data?.created_at&&row.day>=analyticsDay(tracking.data.created_at)?row.uv:null}));
-    return { window, ...daily,rows:dailyRows, users: paginate(userRows, offset), features: breakdown, ...paymentStatus({ creditedTransfer: false, positiveBalance: false, confirmedPayment: null }), coverage: { ...daily.coverage,orphanEvents:events.length-knownEvents.length, trackingStartedAt: tracking.data?.created_at || null, filtered: restricted, messageBasis: "已保存的用户消息／导师回复；失败事件另列，不补造未保存正文；旧记录无request时无法配对完成轮。", limits: "最多20000事件、10000条对话／账号、2000简历任务；超限拒绝，不报截断总数。", stageBasis: "当前已保存的岗位阶段，非历史阶段快照。" } };
+    return {
+        window, ...daily, rows: dailyRows, users: paginate(userRows, offset), features: breakdown,
+        personalAgent: summarizeAgentInstall(eventRows),
+        ...paymentStatus({ creditedTransfer: false, positiveBalance: false, confirmedPayment: null }),
+        coverage: {
+            ...daily.coverage, orphanEvents: events.length - knownEvents.length,
+            trackingStartedAt: tracking.data?.created_at || null, filtered: restricted,
+            messageBasis: "已保存的用户消息／导师回复；失败事件另列，不补造未保存正文；旧记录无request时无法配对完成轮。",
+            limits: "最多20000事件、10000条对话／账号、2000简历任务；超限拒绝，不报截断总数。",
+            stageBasis: "当前已保存的岗位阶段，非历史阶段快照。",
+        },
+    };
 }
 async function owner(db: Db, userId: string) {
     const access = policy();

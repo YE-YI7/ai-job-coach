@@ -4,6 +4,25 @@ import { writeFileSync } from "node:fs";
 jest.mock("@/lib/db",()=>({getDbClient:jest.fn(()=>{throw Error("Real DB forbidden in fixtures");})}));
 const from="2026-10-22",to=from,asOf="2026-10-22T10:00:00.000Z";
 const previous=process.env.ANALYTICS_INTERNAL_USER_IDS;
+test("personal agent copy summary includes anonymous visitors and obeys QA/date/user filters", async () => {
+ const seed = analyticsSeed();
+ const copy = {
+   ...seed.product_events[0], user_id: null, anon_id: "fixture-install-browser",
+   event_identity: "anon:fixture-install-browser", event_name: "agent_install_prompt_copied",
+   created_at: "2026-10-22T03:00:00.000Z", properties: { environment: "production" },
+ };
+ seed.product_events.push(
+   { ...copy, id: "copy-1" }, { ...copy, id: "copy-2" },
+   { ...copy, id: "copy-qa", properties: { environment: "production", qa: true } },
+   { ...copy, id: "copy-outside", created_at: "2026-10-21T03:00:00.000Z" },
+ );
+ const f = analyticsDb(seed);
+ const data = await readBusinessDataset(f.db, from, to, undefined, 0, { asOf });
+ expect(data.personalAgent).toMatchObject({ copied: 2, copiedVisitors: 1, activeUsers: null });
+ const filtered = await readBusinessDataset(f.db, from, to, undefined, 0, { asOf, userId: ids.user });
+ expect(filtered.personalAgent.copied).toBe(0);
+ expect(filtered.coverage.filtered).toBe(true);
+});
 beforeEach(()=>{process.env.ANALYTICS_INTERNAL_USER_IDS=ids.owner;});
 afterAll(()=>{if(previous===undefined)delete process.env.ANALYTICS_INTERNAL_USER_IDS;else process.env.ANALYTICS_INTERNAL_USER_IDS=previous;});
 test("full filtered users page, exact feature cohort, and date selection use the same population",async()=>{

@@ -8,12 +8,12 @@ import ResumePaper from "@/components/resume/ResumePaper";
 import { DEMO_AFTER, DEMO_BEFORE, LANDING_RESUME } from "@/lib/landing-demo";
 import { renderResumePrintWindow } from "@/lib/resume-print";
 import { trackProductEvent } from "@/lib/product-events";
-import { PUBLIC_SITE_URL } from "@/lib/public-discovery";
+import { copyAgentInstallPrompt, recordAgentPromptManualCopy } from "@/lib/agent-install-copy";
+import { AGENT_INSTALL_PROMPT as AGENT_PROMPT } from "@/lib/agent-install-prompt";
 import styles from "./Home.module.css";
 
 const START = "/login?redirect=%2Fcockpit";
 const MENTOR_LINE = "先写清你负责了什么，再补能核实的结果。";
-const AGENT_PROMPT = `请打开并完整阅读 ${PUBLIC_SITE_URL}/agent 。按页面的 Agent 执行说明，在你当前的沙箱环境中安装益职免费版，验证本地求职作战盘可以打开。完成后只告诉我安装结果，并问我第一个应该提供的求职材料。`;
 
 type ShareState = "idle" | "copied" | "downloaded" | "text" | "error";
 
@@ -134,8 +134,8 @@ export default function HomeClient() {
   }
 
   async function copyAgentPrompt() {
-    try { await navigator.clipboard.writeText(AGENT_PROMPT); setCopyState("copied"); }
-    catch { setCopyState("error"); }
+    const copied = await copyAgentInstallPrompt(AGENT_PROMPT, text => navigator.clipboard.writeText(text), "demo");
+    setCopyState(copied ? "copied" : "error");
   }
 
   async function copyShareCard() {
@@ -259,7 +259,14 @@ export default function HomeClient() {
       <details id="try-tools"><summary>想先不用登录试一试？</summary><p>可以先用<Link href="/tools/resume-jd-gap" onClick={() => trackProductEvent("landing_task_clicked", { task: "resume_gap", placement: "tools" })}>简历与岗位对照</Link>，或<Link href="/tools/offer-compare" onClick={() => trackProductEvent("landing_task_clicked", { task: "offer_compare", placement: "tools" })}>比较两份 Offer</Link>。前者是本地文字初筛，不等于完整的 AI 简历修改。</p></details>
       <details><summary>没有业绩数字，或刚面完试，可以先做什么？</summary><p>读一条<Link href="/guides/resume-without-metrics">没有数字的简历改写示例</Link>，看如何写清真实动作与交付物；也可以填写<Link href="/tools/interview-review">免登录面试复盘模板</Link>，复制或下载后带走。模板不生成答案，不保存到账号。</p></details>
       <details id="compare"><summary>网页版和 Agent 版有什么区别？</summary><p>网页版直接使用益职提供的模型和云端工作区，AI 操作消耗额度。Agent 版使用你已有的 Agent 模型和本地沙箱，益职不另收模型费，但宿主模型仍按自身套餐计费；两个版本的资料默认不互相同步。</p><Link href="/agent">查看完整 Agent 使用说明 <ArrowRight size={15} /></Link>
-        <div id="local-board" className={styles.agentInstall}><label htmlFor="agent-prompt">把这句话交给你的 Agent</label><textarea id="agent-prompt" readOnly value={AGENT_PROMPT} rows={4} /><button type="button" onClick={() => void copyAgentPrompt()}><Copy size={16} />{copyState === "copied" ? "已复制" : "复制安装指令"}</button>{copyState === "error" && <p role="alert">复制受限，请在上方指令中全选并复制。</p>}</div>
+        <div id="local-board" className={styles.agentInstall}>
+          <label htmlFor="agent-prompt">把这句话交给你的 Agent</label>
+          <textarea id="agent-prompt" readOnly value={AGENT_PROMPT} rows={4} onCopy={() => recordAgentPromptManualCopy("demo")} />
+          <button type="button" onClick={() => void copyAgentPrompt()}>
+            <Copy size={16} />{copyState === "copied" ? "已复制" : "复制安装指令"}
+          </button>
+          {copyState === "error" && <p role="alert">复制受限，请在上方指令中全选并复制。</p>}
+        </div>
       </details>
     </div></section>
 

@@ -6,6 +6,7 @@
 
 import { callLLM } from "@/lib/llm";
 import { estimateTokens } from "@/lib/coach-harness";
+import { assertInterviewPromptFits } from "./start-context";
 import { interviewAssessmentSchema, boundInterviewQuestionSchema, INTERVIEW_REASONING_RESERVE, INTERVIEW_CALL_DEADLINE_MS } from "./output-contract";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -504,6 +505,7 @@ ${resumeText ? "请根据候选人的简历内容，结合岗位JD，生成有�
     const available = Object.entries(input.sourceMaterials).flatMap(([source, items]) => (items || []).map(item => ({ source, pointer: item.id })));
     userPrompt += `\n\n【可用来源索引】\n${JSON.stringify(available)}\n每题必须另加 sources 数组，从上面按实际题意选至少两个不同 source。pointer 必须逐字复制上述 id；不能用标题、自己生成的编号或概括。不要引用未列出的材料。`;
   }
+  assertInterviewPromptFits(systemPrompt, userPrompt);
   // 调用 LLM（使用与 chat 相同的模型配置）
   // 使用较长的超时时间，因为生成多个面试题需要较长时间
   const response = await callLLM(
@@ -787,6 +789,7 @@ ${resumeText ? "请结合候选人简历信息评估其回答的真实性、完�
 
 注意：只输出 JSON，不要有任何其他文字。`;
 
+  assertInterviewPromptFits(systemPrompt, userPrompt);
   // 调用 LLM（超时 30 秒）
   const response = await callLLM(
     [

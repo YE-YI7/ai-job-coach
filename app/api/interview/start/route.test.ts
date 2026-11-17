@@ -5,6 +5,7 @@ import { generateInterviewQuestions } from "@/lib/interview/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { finalizeQuota, reserveQuota } from "@/lib/quota";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
+import { getConfirmedInterviewClaims } from "@/lib/coach-harness/repository";
 
 jest.mock("@/lib/auth");
 jest.mock("@/lib/db");
@@ -32,6 +33,7 @@ describe("interview start POST", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (getConfirmedInterviewClaims as jest.Mock).mockResolvedValue([]);
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: userId });
     (getLatestResumeByUserId as jest.Mock).mockResolvedValue(null);
     (buildAgentKnowledgeContext as jest.Mock).mockResolvedValue({ items: [], contextText: "" });
@@ -102,5 +104,47 @@ describe("interview start POST", () => {
     expect(response.status).toBe(500);
     expect(sessionQ.delete).toHaveBeenCalled();
     expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(), false);
+  });
+
+  test("large real-shaped archives reach generation with all333 facts and full JD/résumé", async () => {
+    const claims=Array.from({length:333},(_,i)=>({id:`fact-${i}`,entityType:"project",entityKey:`project-${i}`,
+      claimType:"experience",value:i,displayText:`真实项目${i}的经历。`.repeat(6),sourceExcerpt:`项目${i}原文。`,
+      status:"confirmed",visibility:"private",sourceKind:"user_statement",verificationLevel:"user_confirmed"}));
+    (getConfirmedInterviewClaims as jest.Mock).mockResolvedValue(claims);
+    const opportunityQ=chain({data:{id:opportunityId,jd_text:"完整岗位原文",metadata:{resumeText:"完整简历原文"}}});
+    (getDbClient as jest.Mock).mockResolvedValue({from:jest.fn((table:string)=>({
+      coach_opportunities:opportunityQ,interview_sessions:chain(),interview_questions:chain(),
+    })[table])});
+    const response=await POST(new Request("http://localhost/api/interview/start",{method:"POST",
+      body:JSON.stringify({opportunityId,roundType:"业务面",questionCount:3})}));
+    expect(response.status).toBe(200);
+    expect(getConfirmedInterviewClaims).toHaveBeenCalledWith(userId,opportunityId,{complete:true});
+    const input=(generateInterviewQuestions as jest.Mock).mock.calls[0][0];
+    expect(input.contextText).toContain("完整岗位原文");
+    expect(input.contextText).toContain("完整简历原文");
+    for(const claim of claims){
+      expect(input.contextText).toContain(claim.displayText);
+      expect(input.contextText).toContain(claim.sourceExcerpt);
+      expect(input.sourceMaterials.resume).toContainEqual({id:claim.id,text:`${claim.displayText}\n${claim.sourceExcerpt}`});
+    }
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),true);
+  });
+
+  test("true overload keeps fail-loud and refunds, without exposing private fact IDs", async () => {
+    (getConfirmedInterviewClaims as jest.Mock).mockResolvedValue([{id:"private-fact-id",entityType:"project",
+      entityKey:"project",claimType:"experience",displayText:"完整原文不可丢。".repeat(30_000),
+      status:"confirmed",sourceKind:"user_statement",verificationLevel:"user_confirmed"}]);
+    const session=chain();
+    (getDbClient as jest.Mock).mockResolvedValue({from:(table:string)=>table==="coach_opportunities"
+      ?chain({data:{id:opportunityId,jd_text:"岗位原文"}}):session});
+    const response=await POST(new Request("http://localhost/api/interview/start",{method:"POST",
+      body:JSON.stringify({opportunityId,roundType:"业务面",questionCount:3})}));
+    expect(response.status).toBe(422);
+    const body=await response.json();
+    expect(body).toMatchObject({code:"INTERVIEW_CONTEXT_CAPACITY",dataPreserved:true});
+    expect(JSON.stringify(body)).not.toContain("private-fact-id");
+    expect(generateInterviewQuestions).not.toHaveBeenCalled();
+    expect(session.insert).not.toHaveBeenCalled();
+    expect(finalizeQuota).toHaveBeenCalledWith(expect.anything(),false);
   });
 });

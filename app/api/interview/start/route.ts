@@ -24,13 +24,10 @@ import { getDbClient, getLatestResumeByUserId } from "@/lib/db";
 import { getCurrentUserFromRequest } from "@/lib/auth";
 import { generateInterviewQuestions, formatResumeForPrompt } from "@/lib/interview/llm";
 import { readCompanyResearch, renderCompanyResearch } from "@/lib/coach-harness/research-runtime";
-import { interviewMaterials } from "@/lib/interview/question-lineage";
+import { buildInterviewStartContext, INTERVIEW_CAPACITY_MESSAGE } from "@/lib/interview/start-context";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import {
   ContextBudgetExceededError,
-  assertContextFits,
-  compileContextBundle,
-  renderContextForPrompt,
 } from "@/lib/coach-harness";
 import { v4 as uuidv4 } from "uuid";
 import { finalizeQuota, reserveQuota, type QuotaReservation } from "@/lib/quota";
@@ -44,9 +41,6 @@ import type {
 } from "@/lib/interview/types";
 
 const ALLOWED_ROUNDS = new Set<RoundType>(["业务面", "技术面", "HR面", "项目深挖", "总监面"]);
-
-/** 出题预算：JD 必须完整读到，简历与知识可降级。 */
-const INTERVIEW_START_BUDGET = 12_000;
 
 function toKnowledgeItems(items: Array<Record<string, unknown>>) {
   return items.map((item) => ({
@@ -179,24 +173,24 @@ export async function POST(request: Request) {
       limit: 6,
     });
 
-    // M4：JD / 简历 / 知识全部纳入 ContextBundle 预算，出题 prompt 只消费
-    // 渲染结果。JD 是出题的必要输入 → required；简历与知识装不下可降级。
-    // 关键原句装不下时 assertContextFits fail-loud，不再让 3 万字 JD 无声进 prompt。
-    const context = compileContextBundle({
-      task: "mock_interview",
+    // Keep JD, résumé and every task-scoped confirmed fact verbatim. Capacity
+    // follows the measured mandatory material; optional knowledge may degrade.
+    const { context, rendered, sourceMaterials } = buildInterviewStartContext({
       userId,
-      claims: await getConfirmedInterviewClaims(userId,opportunityId),
-      claimSelection: "all_required",
+      claims: await getConfirmedInterviewClaims(userId, opportunityId, { complete: true }),
       knowledge: toKnowledgeItems(knowledge.items as unknown as Array<Record<string, unknown>>),
       attachments: [
         { id: "interview-jd", label: "岗位 JD", text: effectiveJd, required: true },
         { id: "resume-text", label: "候选人简历", text: resumeText, required: Boolean(resumeText) },
         ...(companyResearch ? [{ id: "company-research", label: "公司公开调研（未交叉验证）", text: companyResearch, required: false }] : []),
       ],
-      budget: { maxInputTokens: INTERVIEW_START_BUDGET },
     });
-    assertContextFits(context);
-    const rendered = renderContextForPrompt(context);
+    console.info("Interview context compiled", {
+      requestId, opportunityId: opportunityId || null,
+      fingerprint: context.fingerprint, confirmedFacts: context.claims.length,
+      inputBudget: context.budget.maxInputTokens,
+      mandatoryExcluded: context.selection.excluded.filter(entry => entry.required).length,
+    });
 
     // 6. 创建面试会话
     const sessionId = uuidv4();
@@ -243,7 +237,7 @@ export async function POST(request: Request) {
         contextText: rendered.text,
         warnings: rendered.warnings,
         requireSourcing: true,
-        sourceMaterials: interviewMaterials(context),
+        sourceMaterials,
       }));
     } catch (generationError) {
       await db.from("interview_sessions").delete().eq("id", sessionId).eq("user_id", userId);
@@ -287,10 +281,12 @@ export async function POST(request: Request) {
   } catch (error) {
     if (reservation) await finalizeQuota(reservation, false).catch((refundError) => console.error("Interview quota refund failed", refundError));
     console.error("API Error:", error);
-    // 预算溢出可由用户决策恢复：换更短 JD / 去掉简历。走 422 而不是 500。
+    // Log detailed compiler evidence above, not raw private fact IDs in the UI.
+    // The archive is untouched; a true safety-cap failure still rejects generation.
     if (error instanceof ContextBudgetExceededError) {
       return new Response(
-        JSON.stringify({ ok: false, error: error.message, blocked: error.blocked }),
+        JSON.stringify({ ok: false, code: "INTERVIEW_CONTEXT_CAPACITY",
+          error: INTERVIEW_CAPACITY_MESSAGE, dataPreserved: true }),
         { status: 422, headers: { "Content-Type": "application/json" } }
       );
     }

@@ -17,12 +17,8 @@ import { evaluateAnswer, formatResumeForPrompt } from "@/lib/interview/llm";
 import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { runWithGenerationContext } from "@/lib/generation-context";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
-import {
-  ContextBudgetExceededError,
-  assertContextFits,
-  compileContextBundle,
-  renderContextForPrompt,
-} from "@/lib/coach-harness";
+import { ContextBudgetExceededError } from "@/lib/coach-harness";
+import { buildInterviewAnswerContext, INTERVIEW_CAPACITY_MESSAGE } from "@/lib/interview/start-context";
 import {
   acquireInterviewGenerationClaim,
   completeInterviewGenerationClaim,
@@ -38,9 +34,6 @@ import type {
   AnswerQuestionResponse,
   RoundType,
 } from "@/lib/interview/types";
-
-/** 答题评估预算：JD 必须读到，简历/知识可降级。 */
-const ANSWER_BUDGET = 12_000;
 
 function toKnowledgeItems(items: Array<Record<string, unknown>>) {
   return items.map((item) => ({
@@ -258,11 +251,9 @@ export async function POST(request: Request) {
     // M4：JD / 简历 / 知识纳入 ContextBundle 预算；题目和回答走 required 槽位
     // 单独计价。评估 prompt 自己有「面试问题 / 候选人回答」抬头，渲染时用
     // excludeKinds 去掉重复。JD 缺了评估就失去对照基准 → required。
-    const context = compileContextBundle({
-      task: "mock_interview",
+    const { rendered } = buildInterviewAnswerContext({
       userId,
-      claims: await getConfirmedInterviewClaims(userId,effectiveOpportunityId),
-      claimSelection: "all_required",
+      claims: await getConfirmedInterviewClaims(userId, effectiveOpportunityId, { complete: true }),
       knowledge: toKnowledgeItems(knowledge.items as unknown as Array<Record<string, unknown>>),
       questionSource: { id: question_id, text: question.question_text },
       currentInput: answer.trim(),
@@ -270,11 +261,6 @@ export async function POST(request: Request) {
         { id: "interview-jd", label: "岗位 JD", text: String(session.jd || ""), required: true },
         { id: "resume-text", label: "候选人简历", text: resumeText, required: Boolean(resumeText) },
       ],
-      budget: { maxInputTokens: ANSWER_BUDGET },
-    });
-    assertContextFits(context);
-    const rendered = renderContextForPrompt(context, {
-      excludeKinds: ["question_source", "current_input"],
     });
 
       // 10. 评估答案（LLM 失败时抛出错误，不静默降级）
@@ -329,10 +315,11 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("API Error:", error);
-    // 预算溢出可由用户决策恢复：换更短 JD / 去掉简历。走 422 而不是 500。
+    // The draft remains saved; expose recovery without private fact IDs.
     if (error instanceof ContextBudgetExceededError) {
       return new Response(
-        JSON.stringify({ ok: false, error: error.message, blocked: error.blocked }),
+        JSON.stringify({ ok: false, code: "INTERVIEW_CONTEXT_CAPACITY",
+          error: INTERVIEW_CAPACITY_MESSAGE, dataPreserved: true }),
         { status: 422, headers: { "Content-Type": "application/json" } }
       );
     }

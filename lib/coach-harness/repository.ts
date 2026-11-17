@@ -47,10 +47,35 @@ export function requireDb(db: Awaited<ReturnType<typeof getDbClient>>) {
 }
 
 /** Interview phases reuse owned confirmed facts; another job's facts never enter. */
-export async function getConfirmedInterviewClaims(userId: string, opportunityId?: string | null): Promise<CareerClaim[]> {
+export async function getConfirmedInterviewClaims(
+  userId: string, opportunityId?: string | null, options?: { complete?: boolean },
+): Promise<CareerClaim[]> {
   const db = requireDb(await getDbClient());
-  let query = db.from("coach_claims").select(CLAIM_COLUMNS).eq("user_id", userId).eq("status", "confirmed");
-  query = scopeToUserAndOpportunity(query, opportunityId || null, (q, expression)=>q.or(expression), q=>q.is("opportunity_id",null));
+  const scoped = () => {
+    const query = db.from("coach_claims").select(CLAIM_COLUMNS).eq("user_id", userId).eq("status", "confirmed");
+    return scopeToUserAndOpportunity(query, opportunityId || null,
+      (q, expression) => q.or(expression), q => q.is("opportunity_id", null));
+  };
+  if (options?.complete) {
+    const all: DbRow[] = [];
+    const ids = new Set<string>();
+    // Start requests read complete pages, never silently keep only the latest300.
+    // A true resource cap still fails without changing any stored fact.
+    for (let offset = 0; offset <= 2000; offset += 200) {
+      const { data, error } = await scoped().order("id", { ascending: true }).range(offset, offset + 199);
+      if (error) throw error;
+      const page = (data || []) as DbRow[];
+      if (offset === 2000 && page.length) throw new Error("已确认档案超出单次完整读取容量，原事实均已保留，需要分批处理。");
+      for (const row of page) {
+        if (ids.has(String(row.id))) throw new Error("档案读取期间发生变化，请重新开始，原事实均已保留。");
+        ids.add(String(row.id));
+        all.push(row);
+      }
+      if (page.length < 200) return all.map(mapClaim);
+    }
+    return all.map(mapClaim);
+  }
+  const query = scoped();
   const {data,error} = await query.order("updated_at",{ascending:false}).limit(301);
   if(error)throw error;
   if((data||[]).length>300)throw new Error("已确认事实较多，本轮无法完整读取；请缩小练习范围，原材料仍已保存。");

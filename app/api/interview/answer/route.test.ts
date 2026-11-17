@@ -7,6 +7,7 @@ import { buildAgentKnowledgeContext } from "@/lib/knowledge/context";
 import { acquireInterviewGenerationClaim, completeInterviewGenerationClaim, releaseInterviewGenerationClaim } from "@/lib/interview-generation-claims";
 import { tokenPayRecoveryResponse } from "@/lib/tokenpay-recovery";
 import { saveInterviewDraft, finishInterviewDraft } from "@/lib/interview/answer-draft";
+import { getConfirmedInterviewClaims } from "@/lib/coach-harness/repository";
 jest.mock("@/lib/interview/answer-draft");
 
 jest.mock("@/lib/auth");
@@ -46,6 +47,7 @@ describe("interview answer POST", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (getConfirmedInterviewClaims as jest.Mock).mockResolvedValue([]);
     (saveInterviewDraft as jest.Mock).mockResolvedValue("draft-1");
     (finishInterviewDraft as jest.Mock).mockResolvedValue(undefined);
     (getCurrentUserFromRequest as jest.Mock).mockResolvedValue({ id: userId });
@@ -54,6 +56,31 @@ describe("interview answer POST", () => {
     (completeInterviewGenerationClaim as jest.Mock).mockResolvedValue(undefined);
     (releaseInterviewGenerationClaim as jest.Mock).mockResolvedValue(undefined);
     (tokenPayRecoveryResponse as jest.Mock).mockReturnValue(null);
+  });
+
+  test("large archives reach assessment without dropping facts or the saved answer", async () => {
+    const claims=Array.from({length:333},(_,i)=>({id:`fact-${i}`,entityType:"project",entityKey:`project-${i}`,
+      claimType:"experience",displayText:`真实项目${i}经历。`.repeat(7),sourceExcerpt:`项目${i}原始证据。`,
+      status:"confirmed",sourceKind:"user_statement",verificationLevel:"user_confirmed"}));
+    (getConfirmedInterviewClaims as jest.Mock).mockResolvedValue(claims);
+    const sessionQ=mockTableChain(),questionQ=mockTableChain(),answerQ=mockTableChain();
+    sessionQ.single.mockResolvedValue({data:{id:sessionId,user_id:userId,round_type:"业务面",jd:"完整JD"},error:null});
+    questionQ.single.mockResolvedValue({data:{id:questionId,question_text:questionText},error:null});
+    answerQ.insert=jest.fn().mockResolvedValue({data:null,error:null});
+    (getDbClient as jest.Mock).mockResolvedValue(mockDbClient({
+      interview_sessions:sessionQ,interview_questions:questionQ,interview_answers:answerQ,
+    }));
+    (detectAnswerGap as jest.Mock).mockReturnValue({kind:"none",isLowInfo:false,concreteSignals:[]});
+    (evaluateAnswer as jest.Mock).mockResolvedValue({status:"assessed",score:80});
+    const response=await POST(new Request("http://localhost/api/interview/answer",{method:"POST",
+      body:JSON.stringify({session_id:sessionId,question_id:questionId,answer:"我亲自做了需求访谈并推进验收。"})}));
+    expect(response.status).toBe(200);
+    expect(getConfirmedInterviewClaims).toHaveBeenCalledWith(userId,undefined,{complete:true});
+    const input=(evaluateAnswer as jest.Mock).mock.calls[0][0];
+    for(const c of claims){expect(input.contextText).toContain(c.displayText);expect(input.contextText).toContain(c.sourceExcerpt);}
+    expect(input.answer).toBe("我亲自做了需求访谈并推进验收。");
+    expect(saveInterviewDraft).toHaveBeenCalled();
+    expect(finishInterviewDraft).toHaveBeenCalled();
   });
 
   test("returns needs_more_input for low-info answer", async () => {

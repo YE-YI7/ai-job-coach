@@ -36,3 +36,17 @@
 ## 回滚
 
 若本轮上线出现相关回归，回滚至上述FBDFjE部署；不得改数据库、重置用户任务或恢复旧Harness。具体promotion前仍需确认当前别名，避免覆盖协作者的新发布。
+
+## 最终发布回执
+
+- 已发布代码 `268c7d482809b7375b5e761cbf72d49aeea4be72`，只5文件，已push `origin/codex/today-task-detail-1116`。原共享脏树及V1源哈希不变，未夹带旧预览。
+- 第一次本地预构建上传因外部依赖路径失败；独立npm ci后重跑403套3684条、类型、lint全过。本地第二预构建8PL2zg已Ready但未使用，因本机arm64/原生依赖跨平台风险，最终选同一源码的云端Linux构建，而非补改PDF或依赖锁文件。
+- 云端production `dpl_B6BfbBdwf4xht7ybyN7MBfvsB6EM`，原始URL `https://ai-job-coach-ceqq1twi7-velmavalienteqejimu22-jpgs-projects.vercel.app`。最终构建Ready后预检通过；此前构建未Ready时两次收到HTML，均不计验证成功。旧预构建取消请求时已Ready，返回400，未删除部署或动正式站。
+- UTC `2026-11-17T07:23:47.241Z` promote该production同包，无重建。切换前正式仍FBDFjE，裸域与www切换后均核为B6BfbB。
+- 待发、正式apex、正式www：完整resumeRuntime逐字段相同（含作者/HR/工具/Memory/已验收来源及模型选择）；4页面与3匿名401检查通过。检查脚本只读，不发模型或业务写入。
+- Chrome真实已登录正式工作区可见新任务三条原文、每条三个原命令。1450px下左栏x0/w192、右栏x1063.734375/w386.265625、top60/h710，字体和透明底色与发布前一致；新按钮均44px，文档无横溢。
+- 正式只观察，不点击本人任务完成/延后，不发送导师输入框内已有草稿；这些动作在本地示例验证，不冒新云端保存/刷新回读验收。打开工作区可能产生原有浏览埋点，不宣称全环境零写入。
+- 发布后的短窗日志查询：error 0、5xx 0（查询回溯10m，但部署新上线，不代表已有10m真实用户流量或长期监控）。未新建日志drain/告警。
+- 私证 `promote-receipt.json`、`cloud-staged-check.json`、`live-{apex,www}-check.json`、`live-after.jpg`、`mobile-390.png`、`contrast-{normal,background}.jpg`、`contrast-result.json`。21项当帧可见任务文字最低4.727；不是全应用AA认证。
+
+正式入口：https://yizhioffer.com/cockpit 。回滚保留FBDFjE，未变更项目安全/域名配置、数据库或付费权益。

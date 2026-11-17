@@ -20,6 +20,7 @@
   outline: 2px solid var(--q-accent); outline-offset: 4px;
 }
 .lobby { text-align: center; padding: 21px 12px 10px; }
+.lobby[data-setup-mode="progressive"] { overflow-anchor: none; }
 .heroCopy { text-align: center; }
 .eyebrow { margin: 0 0 12px; font-size: 10px; letter-spacing: .12em; color: var(--q-muted); }
 .heroTitle {

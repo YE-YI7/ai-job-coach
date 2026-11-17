@@ -1,0 +1,58 @@
+.setup { max-width: 500px; margin: 20px auto 12px; text-align: left; color: #30281e; }
+.phase { animation: arrive 220ms cubic-bezier(.2,.7,.25,1) both; }
+.setup h3 { margin: 0; font: inherit; font-size: 21px; font-weight: 500; line-height: 1.6; }
+.setup h3:focus { outline: none; }
+.explanation { margin: 6px 0 10px; font-size: 12px; line-height: 1.8; color: #70614e; }
+.setup button { min-height: 44px; font: inherit; cursor: pointer; }
+.setup button:focus-visible, .setup input:focus-visible {
+  outline: 2px solid #9b3d22; outline-offset: 3px;
+}
+.roundStage > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.roundStage [role="group"] {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; gap: 5px 14px;
+}
+.roundStage [role="group"] button, .choices button, .quantity button {
+  border: 0; border-radius: 0; background: none; box-shadow: none; color: #70614e;
+  padding: 8px 10px; font-size: 13px; text-align: left;
+}
+.roundStage [role="group"] button[aria-pressed="true"],
+.choices button[aria-pressed="true"], .quantity button[aria-pressed="true"] {
+  color: #9b3d22; font-weight: 600; text-decoration: underline;
+  border: 0; background: none; box-shadow: none;
+  text-underline-offset: 7px; text-decoration-thickness: 1px;
+}
+.roundStage label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #70614e; }
+.roundStage input { width: 130px; min-height: 44px; border: 0; background: transparent; font: inherit; color: #30281e; }
+.roundStage > div > button { padding: 0 7px; background: none; border: 0; font-size: 12px; color: #9b3d22; }
+.roundStage > div > button:disabled { color: #817668; cursor: default; }
+.roundStage [aria-live="polite"] { padding: 0; background: none; color: #9b3d22; font-size: 12px; }
+.shortcut {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 2px 9px; width: 100%;
+  margin-top: 10px; padding: 7px 0; border: 0; background: none; color: #70614e; text-align: left;
+}
+.shortcut > span { flex-basis: 100%; font-size: 12px; }
+.shortcut > small { font-size: 11px; line-height: 1.8; }
+.chosenRound { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; font-size: 12px; color: #70614e; }
+.chosenRound strong { font-weight: 500; color: #30281e; }
+.chosenRound button, .back { padding: 0; border: 0; background: none; color: #70614e; font-size: 12px; }
+.choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; margin-top: 14px; }
+.quantity { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px; margin-top: 20px; }
+.quantity > span { font-size: 12px; color: #70614e; }
+.quantity > div { display: flex; gap: 9px; }
+.nextAction { display: flex; justify-content: flex-end; margin-top: 22px; }
+.nextAction > button {
+  display: inline-flex; align-items: center; gap: 9px; padding: 0;
+  border: 0; background: none; color: #9b3d22; font-size: 14px;
+}
+.nextAction svg, .shortcut svg { transition: transform 160ms ease; }
+.nextAction > button:hover svg, .shortcut:hover svg { transform: translateX(3px); }
+.setup .readyTitle, .readySummary { text-align: center; }
+.readySummary { margin: 12px 0 0; font-size: 13px; color: #514535; }
+.readySummary > span { padding: 0 12px; color: #70614e; }
+.back { display: flex; align-items: center; gap: 7px; margin: 0 auto; }
+@keyframes arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .phase { animation: none; }
+  .setup svg { transition: none; }
+  .nextAction > button:hover svg, .shortcut:hover svg { transform: none; }
+}

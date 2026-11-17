@@ -185,6 +185,7 @@ export function CockpitApp(props: {
   initialTab?: CockpitTab;
   initialEntry?: EntryKind;
   interviewDesign?: "qoder" | "legacy";
+  progressiveInterviewSetup?: boolean;
 }) {
   return <ResumeDraftSession key={props.userId || props.userEmail || props.dataMode || "demo"}><CockpitWorkspace {...props} /></ResumeDraftSession>;
 }
@@ -197,6 +198,7 @@ function CockpitWorkspace({
   initialTab,
   initialEntry,
   interviewDesign = "qoder",
+  progressiveInterviewSetup = true,
 }: {
   initialOpportunities: Opportunity[];
   userEmail?: string;
@@ -205,8 +207,10 @@ function CockpitWorkspace({
   initialTab?: CockpitTab;
   initialEntry?: EntryKind;
   interviewDesign?: "qoder" | "legacy";
+  progressiveInterviewSetup?: boolean;
 }) {
   const showInterviewDetail = interviewDesign === "qoder";
+  const showProgressiveSetup = progressiveInterviewSetup;
   const router = useRouter();
   const [opportunities, setOpportunities] = useState(() => shareBaseResumeAcrossOpportunities(initialOpportunities));
   const [activeId, setActiveId] = useState(initialOpportunities[0]?.id ?? "");
@@ -1475,6 +1479,7 @@ function CockpitWorkspace({
                 onSupplement={supplementOpportunity} supplementing={supplementingMaterial}
                 onAnalyze={analyzeInterviewAnswer} onTeach={startInterviewTeaching}
                 onSyncRoundtable={syncRoundtableSession} dataMode={dataMode} qoder={showInterviewDetail}
+                progressiveSetup={showProgressiveSetup}
                 exampleRecords={dataMode === "demo" && !localIds.includes(active.id)} />
             </div>}
             {activeTab === "review" && <ReviewTab opportunity={active} onAnalyze={analyzeReview}
@@ -2091,7 +2096,7 @@ function buildDemoAssessment(answer: string): InterviewAssessmentView | null {
 
 function InterviewTab({
   opportunity, relatedJobs, onSelectJob, onSupplement, supplementing, onAnalyze, onTeach,
-  onSyncRoundtable, dataMode, exampleRecords = false, qoder = false,
+  onSyncRoundtable, dataMode, exampleRecords = false, qoder = false, progressiveSetup = false,
 }: {
   opportunity: Opportunity;
   relatedJobs: Opportunity[];
@@ -2108,6 +2113,7 @@ function InterviewTab({
   // system invented a real interview the user never took.
   exampleRecords?: boolean;
   qoder?: boolean;
+  progressiveSetup?: boolean;
 }) {
   const quotaLabel = useQuotaLabel("interview");
   const [practicing, setPracticing] = useState(false);
@@ -2533,6 +2539,8 @@ function InterviewTab({
     return <QoderInterviewLobby role={opportunity.role} roundLabel={roundOrdinalLabel} roundType={round}
       questionCount={questionCount} roundTypes={mockRoundOptions} quotaLabel={quotaLabel}
       starting={startingRoundtable} roundPicker={<RoundPicker value={roundOrdinalLabel} onChange={setRoundOrdinalLabel} />}
+      progressiveSetup={progressiveSetup} renderRoundPicker={onConfirmed => <RoundPicker value={roundOrdinalLabel}
+        onChange={value => { setRoundOrdinalLabel(value); onConfirmed(); }} />}
       onRoundType={setRound} onQuestionCount={setQuestionCount} onStart={() => void startRoundtable()}
       onSingle={() => { setPracticing(true); setPracticeError(""); }} onHistory={openHistory}
       error={roundtableError} example={exampleRecords}

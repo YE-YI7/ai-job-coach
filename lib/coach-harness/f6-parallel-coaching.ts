@@ -17,14 +17,17 @@ export function f6ParallelCoachingHandoff(guidance?: F6MentorGuidance): LlmMessa
       sha256: createHash('sha256').update(guidance.text).digest('hex'),
     } : null,
   };
-  return [
+  const messages: LlmMessage[] = [
     {role: 'user', content: JSON.stringify(state)},
     {role: 'user', content: '改稿与补问并行：继续交付已有材料能支撑的完整稿，不等待用户回复。'
       + '首请求中的本人回答仍有效，但本次生成开始后没有收到新的本人回答。'
       + '下方是你给用户的沟通，不是用户回答，也不是新增事实。'
       + '未答的问题保持未确认；既不自行补答案，也不把未答当否认、据此削弱原稿已有贡献。'
       + '可改好其他部分、保留原有证据强度，同时在右侧继续一个有价值的问题。'
-      + (guidance ? '\n\n已发给用户的导师消息（AI原话，仅供接续）：\n\n' + guidance.text
-        : '\n\n本轮尚未保存导师消息；有关键缺口时可与正文同次交付，不为走流程强问。')},
+      + (guidance ? '' : '\n\n本轮尚未保存导师消息；有关键缺口时可与正文同次交付，不为走流程强问。')},
   ];
+  if (guidance) messages.push({role: 'assistant', content: JSON.stringify({
+    ...state.guidance, document: 'mentor.md', text: guidance.text,
+  })});
+  return messages;
 }

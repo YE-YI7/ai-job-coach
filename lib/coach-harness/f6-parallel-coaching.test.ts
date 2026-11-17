@@ -50,8 +50,13 @@ test('HR response explicitly receives unanswered guidance, not candidate confirm
       sha256: createHash('sha256').update(question).digest('hex'),
     }});
   const coaching = seen[1].find(m => m.content.startsWith('改稿与补问并行'))!.content;
-  expect(coaching).toContain(question);
+  expect(coaching).not.toContain(question);
   expect(coaching).toContain('不把未答当否认');
+  const priorAiMessage = seen[1].find(m => {
+    try { return JSON.parse(m.content).document === 'mentor.md'; } catch { return false; }
+  })!;
+  expect(priorAiMessage.role).toBe('assistant');
+  expect(JSON.parse(priorAiMessage.content).text).toBe(question);
   expect(result.fullDocument).toBe(body);
   expect(result.f6Deliverables.mentorGuidance.text).toBe(question);
   expect(result.hrReview.finalState).toBe('author_retained_not_rechecked');

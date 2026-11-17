@@ -351,11 +351,13 @@ describe("resume draft source mapping and automatic-review baseline", () => {
       .find((payload:{source?:string})=>payload.source==='host_review_handoff');
     expect(hiring.purpose).toBe('recruiting_screen');
     expect(hiring).not.toHaveProperty('mechanical_review_hints');
-    expect(authorHiring).toMatchObject({...hiring, source: 'host_review_handoff'});
+    expect(authorHiring).toMatchObject({source: 'host_review_handoff',
+      reviewScope: 'recruiting_opinion_only_not_source_verification',
+      candidateReference: {authority: 'ai_draft_not_user_fact', alreadyInAuthorWriteHistory: true}});
+    expect(authorHiring.recruitingContext).toEqual(hiring);
     expect(reviewMessages).toHaveLength(3);
     expect(reviewMessages[0].content).toBe(F6_SCREENING_PROMPT);
-    expect(authorMessages.some((message:{content:string})=>message.content.startsWith('唯一待评投递稿 candidate.md')
-      &&message.content.endsWith(after))).toBe(true);
+    expect(authorMessages.some((message:{content:string})=>message.content.startsWith('唯一待评投递稿 candidate.md'))).toBe(false);
     expect(reviewMessages.at(-1).content.endsWith(after)).toBe(true);
     expect(body.hrReview.records[0]).not.toHaveProperty('reviewContext');
     expect(body.hrReview.reviewMode).toBe('recruiting_screen');

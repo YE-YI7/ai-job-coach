@@ -86,15 +86,25 @@ export class F6HrReviewSession {
       ...(record.sourceComparison?{authorSourceDiff:f6AuthorSourceDiff(record.sourceComparison)}:{})} : undefined;
   }
   /** HR prose is external advice, never a successful-save receipt or user fact.
-   * Reuse the exact reviewed documents so the original author can reconcile it.
-   * No extraction, correction, verdict parsing or extra model call occurs here. */
+   * Screening returns a reference to the author's existing draft, not the HR
+   * user's candidate message. Legacy source-review documents stay unchanged. */
   authorHandoff(commentary:string,instruction:string):LlmMessage[]{
     const record=this.records[0];
     if(record?.status!=='completed'||record.commentary!==commentary)throw Error('F6_HR_HANDOFF_RECORD_MISMATCH');
     if(!this.reviewedMessages)throw Error('F6_HR_REVIEW_INPUT_MISSING');
-    const evidence=structuredClone(this.reviewedMessages.slice(1));
-    evidence[0]={role:'user',content:JSON.stringify({...JSON.parse(evidence[0].content),
-      source:'host_review_handoff',instruction})};
+    const evidence: LlmMessage[] = this.input.reviewMode === 'recruiting_screen'
+      ? [{role: 'user', content: JSON.stringify({source: 'host_review_handoff', instruction,
+        reviewScope: 'recruiting_opinion_only_not_source_verification',
+        recruitingContext: JSON.parse(this.reviewedMessages[1].content),
+        candidateReference: {document: 'resume-new.md', authority: 'ai_draft_not_user_fact',
+          sha256: createHash('sha256').update(record.body).digest('hex'),
+          alreadyInAuthorWriteHistory: true},
+      })}]
+      : structuredClone(this.reviewedMessages.slice(1));
+    if (this.input.reviewMode !== 'recruiting_screen') {
+      evidence[0] = {role: 'user', content: JSON.stringify({...JSON.parse(evidence[0].content),
+        source: 'host_review_handoff', instruction})};
+    }
     const messages:LlmMessage[]=[
       {role:'assistant',content:JSON.stringify({source:'independent_hr',
         authority:'unverified_advice_not_user_fact',hrReview:commentary,
@@ -103,7 +113,9 @@ export class F6HrReviewSession {
     ];
     captureEvalStage('context','f6_hr_author_evidence_handoff',{
       input:{reviewedCandidateSha256:createHash('sha256').update(record.body).digest('hex')},
-      output:{messages,adviceSeparateFromSave:true,source:'existing_review_documents',newFactsAdded:false},
+      output:{messages,adviceSeparateFromSave:true,
+        source:this.input.reviewMode === 'recruiting_screen' ? 'recruiter_opinion_with_existing_draft_reference' : 'existing_review_documents',
+        newFactsAdded:false},
     },Date.now(),0);
     return messages;
   }

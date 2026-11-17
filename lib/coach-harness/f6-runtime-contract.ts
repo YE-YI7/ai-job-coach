@@ -3,7 +3,7 @@ import origin from './f6-origin.json';
 import {F6_MENTOR_RESPONSIBILITY, F6_MENTOR_HR_RESPONSE_CHANNELS} from './f6-mentor-guidance';
 import {F6_HR_PROMPT} from './f6-hr-review';
 import {F6_MENTOR_TOOLS} from './f6-output-channels';
-import {f6AuthorContract} from './f6-author-contract';
+import {f6AuthorContract, F6_CONTEXT_REVIEW_RESPONSE} from './f6-author-contract';
 import {f6ScreeningPrompt} from './f6-screening-review';
 import {f6TemporalRoleContract} from './f6-temporal-responsibility';
 import {f6ContextToolCatalogue} from './f6-context-tools';
@@ -59,6 +59,11 @@ export function f6RuntimeIdentity() {
     hrSourceTransport: 'candidate_plain_text_with_sha_and_current_date',
     hrAuthorEvidence: 'same_hr_commentary_and_reviewed_candidate_not_new_user_facts',
     hrCoachingEvidence: 'current_mentor_and_unanswered_state_to_original_author_only',
+    postHrAuthorInstructionSha256: digest(F6_CONTEXT_REVIEW_RESPONSE),
+    hrAuthorSourceHandoff: 'review_opinion_and_existing_ai_draft_reference_v1',
+    hrCoachingSourceHandoff: 'prior_ai_coaching_as_assistant_unanswered_state_preserved_v1',
+    acceptedContinuationEvalRecord: '3523cfb3-53fe-424b-a628-b29abc23604c',
+    acceptedContinuationEvalRun: '73863219-dd4b-4a1b-9fd5-24273a4fba51',
     hrReviewPolicySha256: digest(f6ScreeningPrompt()),
     legacyHrReviewPolicySha256: digest(F6_HR_PROMPT),
     maxHrCalls: 1,

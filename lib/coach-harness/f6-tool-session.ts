@@ -7,6 +7,7 @@ import {f6OriginResearch} from './f6-origin-research';
 import {f6ContextToolCatalogue, F6_CONTEXT_TOOL_NAMES, type F6ContextTools} from './f6-context-tools';
 import {f6ContextSpecification} from './f6-context-contract';
 import {f6WriteFiles} from './f6-write-request';
+import {f6AuthorDocumentProvenance} from './f6-author-document-provenance';
 
 export const F6_OUTPUT_FILES = ['portrait.md', 'battle.md', 'resume-new.md', 'changes.md', 'notes.md'];
 export const F6_ORIGIN_TOOLS = origin.tools as NativeTool[];
@@ -183,6 +184,7 @@ export class F6ToolSession {
   }
   /** Execution facts, never an instruction to follow a required tool order. */
   deliveryState() {
+    const candidate = this.outputs.get('resume-new.md');
     return {
       resume:{saved:this.outputs.has('resume-new.md'),revision:this.revision},
       pdf:{
@@ -194,6 +196,9 @@ export class F6ToolSession {
         current:this.mentorGuidanceRevision===this.revision,
         ...(this.mentorGuidanceRevision===undefined?{}:{revision:this.mentorGuidanceRevision}),
       },
+      ...(this.contextTools && candidate ? {documentProvenance: f6AuthorDocumentProvenance(
+        this.resources['original-resume.md'], candidate, this.revision, [...this.outputs.keys()],
+      )} : {}),
     };
   }
   deliverables(): F6Deliverables {

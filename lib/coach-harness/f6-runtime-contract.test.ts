@@ -51,13 +51,14 @@ test('the actual writer, workflow receipt and public release identity cannot dri
   expect(F6_MAX_AUTHOR_CALLS).toBe(12);
 });
 
-test('the accepted v26 author, HR and tool contracts remain frozen until another explicit acceptance',()=>{
+test('the approved basic-information candidate changes only author identity, not accepted HR and tool contracts',()=>{
   // ccb0f733 / 0cb100ec: the user accepted the balanced-author candidate on Nov 14.
-  // These are release receipts, not a substitute for a new quality experiment.
+  // Nov 17: the user approved this one author boundary, not a new release or quality verdict.
+  // Prior author hashes are preserved in f6-basic-information-boundary.test.ts.
   expect(f6RuntimeIdentity()).toMatchObject({
     version:'f6-origin-runtime-v26-balanced-author-autonomous-context',
-    authorSystemSha256:'25180abf0ee79cf0f11bb729dd851ea28426e491e3f393bff27b617d0926d7db',
-    singleAuthorSystemSha256:'ded753cdd75e74652c00e3814653eceed4bde8cc4c9990e0d3204a1990337f93',
+    authorSystemSha256:'5907bb8bfba74191e5dcf5bb1f9b2fe2fb9d0586dcff31d82355731b3c7a606a',
+    singleAuthorSystemSha256:'161282bdda8eca6924feece462178d9b4bc608cae8657a1dc1a7941215f26730',
     toolsSha256:'d515b966d1f4a27b1f6acb990f6440bae5fd67623b5f7c34a8070c8b6e46cfcb',
     contextSpecificationSha256:'aedac64489e15d2a4dd2436483f8b388d076a56acb084b382cc53113970a8f0b',
     knowledgeCatalogueSha256:'2b6d1f365b956a105bff05d25b3bb4ce7d01cbe8fc3c272da4c643af0f96f0f8',

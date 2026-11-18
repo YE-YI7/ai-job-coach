@@ -1,6 +1,6 @@
-# 模拟面试题目阅读排版（本地候选）
+# 模拟面试题目阅读排版（已上线）
 
-**当前版本为下方Round57的饱满黑体候选；Round55纯排版、Round56细笔画宋体均被本人否定，保留历史不当作视觉接受。均未上线。**
+**当前为Round57饱满黑体版本，2026-11-17本人明确“上线”后已正式发布；以下Round55/56与Round57本地阶段的未发布陈述保留为历史，不代表当前部署状态。Round55纯排版、Round56细笔画宋体均被本人否定。发布证据见文末。**
 
 本人反馈：“你这个正式开始模拟面试的页面，把一大堆字全都堆在那儿了，就是问题那个地方太丑了”。本轮只处理已开始面试的中列问题区域，不重做大厅、两侧、复盘、模型、收费、存储或业务流程。按 Yi 前端品味 T38 先判断任务：读完整问题并开始回答；不能靠截短或隐藏题目换整洁。
 
@@ -54,3 +54,12 @@
 - 仅字体/样式/生成脚本变化，定点2套11条通过，diff检查通过；不冒本轮新跑全仓。新题干双截图对比度正常14.24/重点6.88，透明/冻结检查样式移除。本地可看不等于本人视觉接受，未发生产、无新模型调用/录音/回答/生产写入。
 
 当前预览仍`http://localhost:3445/cockpit/preview?tab=interview&interviewDetail=1&questionExample=1`。私证同父目录：`font-seriff-rejected.jpg`、`font-sans-final.jpg`、`font-sans-mobile.jpg`、`font-sans-receipt.json`、`font-sans-contrast.json`、`interview-sans-build.log`、`interview-sans-tests.log`，构建原件在`sans-font-source-0gOcKz`。旧GIF为宋体版，不作为当前字体展示。下一等本人看黑体实际效果，不把字体粗了直接当“好看了”。
+
+## Round57正式发布回执
+
+- 本人明确授权“上线”。冻结产品提交`76c1780b5b30fc3a562e0a0b63859899739ac3bd`，分支`codex/interview-question-reading-1117`；完整2163个Git blob逐项核同独立导出目录，未混共享脏树。正式发布前apex/www均仍`dpl_DF8QS4PtpTSBGTfwkcq1sJmg4fSp`；没有覆盖其他窗口新增生产提交。
+- 项目`prj_fav7gQZKEEE2JO3b8v9S9leeRhkS`、团队`team_7qIutahimwnjCje1fOtQEPyT`。先production skip-domain构建，编译26.3s/TypeScript16.1s/146页通过；待发两字体SHA256与本地逐项一致。检查通过后同包promote：`dpl_327ypoqDWDsXpP85msw7qyhEPsXC`，`https://ai-job-coach-b8520w6c4-velmavalienteqejimu22-jpgs-projects.vercel.app`。apex/www最终均该包READY；回退点为上述DF8，不回退到旧容量故障版本。
+- 本轮发布前定点3套14条通过：题干保全、提交生命周期、旧草稿隔离。diff检查通过；本轮不冒新跑全仓。待发及两正式域各3页/5静态资源/4匿名401检查通过；开发预览匿名跳登录，未公开夹具。健康接口完整`resumeRuntime`逐值仍同发布前F6，不换模型、工具、简历逻辑或收费。
+- 普通Chrome真实登录既有Kimi面试记录刷新恢复，第1/3题、196字原题逐字同发布前，3段、20px、真实题干500，3处重点700，presence和01/03正常。两字体状态loaded，DevTools实际中文字体YiZhiInterviewSans-500/customFont=true；仅观察，不出新题、不提交答案、不录音或调用付费生成。左右与原记录功能保留，不声称本轮重新验完整业务流程。
+- **性能限制**：本机本次线上首次字体传输约2.39/2.45MB，耗时3979/2915ms；不是所有网络基准，也不能声称字体零闪烁或性能已优化。后续可独立做公共分片/传输优化，不在本次授权下临时重造字体或改变视觉。短窗10分钟该deployment error/fatal日志无命中，不当长期可靠性保证。
+- 私证同原父目录：`font-release-staged-check.json`、`font-release-before-{apex,www}.json`、`font-release-live-{apex,www}.json`、`font-release-browser.json`、`font-release-live.jpg`。独立发布目录`/Users/yi/Documents/Codex/yizhi-interview-font-release-20261117-Pu9nq1`只由冻结提交导出并添加已核项目关联；无环境密钥/用户资料入包。

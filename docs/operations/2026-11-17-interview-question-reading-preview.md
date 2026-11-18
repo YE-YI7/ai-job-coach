@@ -1,5 +1,7 @@
 # 模拟面试题目阅读排版（本地候选）
 
+**当前版本为下方Round56的提问呈现候选；Round55的纯排版被本人否定，保留本段历史，不当作视觉接受。均未上线。**
+
 本人反馈：“你这个正式开始模拟面试的页面，把一大堆字全都堆在那儿了，就是问题那个地方太丑了”。本轮只处理已开始面试的中列问题区域，不重做大厅、两侧、复盘、模型、收费、存储或业务流程。按 Yi 前端品味 T38 先判断任务：读完整问题并开始回答；不能靠截短或隐藏题目换整洁。
 
 ## 问题与方案
@@ -25,3 +27,18 @@
 私证目录 `/Users/yi/Documents/Codex/yizhi-interview-budget-fix-20261117-P0qJgq`：`question-layout-before.jpg`（真实线上取样）、`question-layout-after.jpg`（本地虚构长题）、`question-layout-short.jpg`、`question-layout-mobile.jpg`、`question-layout-background.jpg`、`question-layout-browser-checks.json`、`question-layout-real-text-replay.json`、`question-layout-tests.log`。前后图内容不是同一题，不冒严格同题视觉A/B；真实题逐字保全另有回放。
 
 原用户共享脏worktree未覆盖，基于上一轮正式修复独立source局部工作。当前仅可点候选，待本人视觉判断；不把测试通过等同于视觉认可或上线。新反馈已在品味skill的Round55原文记录，没有自造全局风格规则。
+
+## Round56：字体、提问存在感与句内重点
+
+本人明确：“首先，字体很丑；第二，太素了，没有任何东西。”并要求合适位置有面试官提问的动画、重点可用红字或加粗。本轮对这一场景覆盖旧T16正文全中性的默认，不把克制当无设计，不泛化全产品配色。
+
+- 题干换为Outfit西文＋真实400/600字重的Source Han Serif派生字体；身份文字保留原Qoder展示字。字体只挂题干，不改两侧/首页/简历打印。新增字体由既有授权字体离线派生公共GB2312＋标点字符集，family改名YiZhi Interview Serif，许可随原SIL OFL；不按本人档案切私有字形。两份合计约2.63MB，相比复用两份完整5.5MB字体减重；罕见字明确走设备衬线后备，不冒完整Unicode覆盖。完整打印字体原样。
+- 新轻量InterviewQuestionHeader独立呈现“益职面试官”、轮次和正确题序。标识短暂起伏约2.38秒，段落480ms分次进入，随后静止；换题会重播，打字不会。不是语音播放、真人在线或后台推理状态，不自动开麦/播音。
+- 少量原文提问动作/短疑问分句砖红色，原文中的方法/证据词真600字重。只由字面规则生成范围，最多3个主色词组＋3个黑色粗体；缺省备用短疑问分句限2个且限制总字符预算。不是模型语义标注/事实评分，没有调用LLM、编造重点句或按关键字决定面试评分。无命中可保留普通显示，不强行染色。
+- 所有展示字符串拼回仍与原题相同；语音/存储/点评继续接原始问题。首次React检查发现兄弟节点key相同，已加header/text前缀；渲染期offset可变累积被immutability规则拒绝，已改纯派生。未跳过检查或用state掩盖。最终全仓415套3765条通过，9套31条既有条件跳过，tsc通过，局部lint0错/3项App既有警告。
+- Chrome实载字体分别核到YiZhiInterviewSerif-400/600，不靠font-family声明冒加载。本人既有3道题的194个不同汉字，两字重缺字0；最终加粗/着色原文渲染回放逐字不变。第一版离线回放未指定ES2022导致matchAll迭代未执行，已按实际构建目标重放，不把错误的0高亮作为产品结论。
+- 普通Chrome实走：提示开合保草稿，未提交；打字后动效不重播，跳过到第2/3题时5个标识动画实际running，短题保留重点；390px文档宽390，减少动态时8处animation均none，随后恢复viewport/media。没有新真实生成、生产写入或正式语音测试。
+- 新题干/标识文字正常与透明文字双截图复测：正文14.24、砖红6.88、上下文5.23；计数小字初测4.35，已加深到同上下文rgb(118,105,92)，最终浏览器回读一致。仅新增区文字检查，不冒全站AA或主观好看已获本人认可。
+- 预览仍同一localhost:3445地址；顶部“重播提问动效”仅重载本地虚构夹具，不播放声音，不是新增生产按钮。14张实际CSS关键时刻截图合成约3.7秒GIF（原动画有限次，GIF为循环回放）；非生成视频/实际录音。临时动效暂停与遮字检查样式均移除。GIF捕于计数小字加深前，动效与题干不变，最终全页实拍为最新颜色。
+
+新增私证：同父目录`interviewer-final.jpg`、`interviewer-motion.gif`、`interviewer-motion/frame-*.jpg`、`interviewer-mobile.jpg`、`interviewer-short.jpg`、`interviewer-browser-receipt.json`、`interviewer-contrast.json`（含小字初测失败）、`interviewer-real-text-replay.json`、`interviewer-presence-acceptance-tests.log`、`interviewer-font-build.log`。真实档案原题仅私有零费回放，未入Git。代码在原阅读候选分支接续push，不发布。下一由本人看字体、重点与动效，不拿自动化通过代替视觉接受。

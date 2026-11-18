@@ -38,6 +38,8 @@ export default function InterviewDetailPreview({ initialTab, initialPolished = t
         <button type="button" aria-pressed={!polished} onClick={() => setPolished(false)}>原样对照</button>
       </>}
       <span>本地示例 · 未上线</span>
+      {questionExample && <button type="button" title="重新加载虚构示例，不播放声音，不提交回答"
+        onClick={() => window.location.reload()}>重播提问动效</button>}
     </div>
     <div>
       <CockpitApp initialOpportunities={opportunities} userEmail="interview-detail-preview@example.test"

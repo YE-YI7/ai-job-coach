@@ -17,6 +17,7 @@ import QoderInterviewLobby from "./QoderInterviewLobby";
 import QoderAnswerComposer from "./QoderAnswerComposer";
 import { preservePriorInterviewDraft } from "./interview-start-draft";
 import InterviewQuestionText from "./InterviewQuestionText";
+import InterviewQuestionHeader from "./InterviewQuestionHeader";
 import { useTodayCompanion } from "./useTodayCompanion";
 import EntryWorkspace from "./EntryWorkspace";
 import WorkspaceGuide from "./WorkspaceGuide";
@@ -2653,8 +2654,15 @@ function InterviewTab({
             <div className={styles.interviewScene}>
               <div className={styles.interviewerAvatar} aria-hidden="true"><span>AI</span><i /></div>
               <div className={styles.questionBubble} data-interview-part="round-question-text">
-                <div className={styles.questionMeta}><span>{round}</span><div aria-label={`第 ${roundtable.currentIndex + 1} 题，共 ${roundtable.turns.length} 题`}>{roundtable.turns.map((item, index) => <i key={item.questionId} data-state={index < roundtable.currentIndex ? "done" : index === roundtable.currentIndex ? "current" : "waiting"} />)}</div></div>
-                {qoder ? <InterviewQuestionText question={turn.question} /> : <h3>{turn.question}</h3>}
+                {qoder ? <InterviewQuestionHeader key={`header-${turn.questionId}`} round={round}
+                  index={roundtable.currentIndex} total={roundtable.turns.length} /> :
+                  <div className={styles.questionMeta}><span>{round}</span>
+                    <div aria-label={`第 ${roundtable.currentIndex + 1} 题，共 ${roundtable.turns.length} 题`}>
+                      {roundtable.turns.map((item, index) => <i key={item.questionId}
+                        data-state={index < roundtable.currentIndex ? "done" : index === roundtable.currentIndex ? "current" : "waiting"} />)}
+                    </div>
+                  </div>}
+                {qoder ? <InterviewQuestionText key={`text-${turn.questionId}`} question={turn.question} /> : <h3>{turn.question}</h3>}
                 {!qoder && <p>{turn.rationale}</p>}
               </div>
             </div>

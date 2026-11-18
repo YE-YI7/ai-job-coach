@@ -89,18 +89,25 @@
 .session [data-interview-part="round-question"] > div:first-child > div:first-child { display: none; }
 .session [data-interview-part="round-question-text"] {
   padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
-  text-align: center; max-width: 620px; margin: 0 auto;
+  text-align: left; max-width: none; margin: 0;
 }
 .session [data-interview-part="round-question-text"]::before { display: none; }
-.session [data-interview-part="round-question-text"] > div { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; font-size: 11px; }
+.session [data-interview-part="round-question-text"] > div {
+  display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; font-size: 12px;
+}
 .session [data-interview-part="round-question-text"] h3 {
-  margin: 0; font-size: clamp(22px, 3.5cqi, 29px); font-weight: 500; line-height: 1.65;
+  margin: 0; font-size: clamp(21px, 2.9cqi, 24px); font-weight: 500; line-height: 1.7;
   font-family: inherit; letter-spacing: 0;
   color: var(--q-ink); text-wrap: pretty; transition: color 220ms ease;
 }
+.session [data-interview-part="round-question-text"] h3[data-question-length="long"] {
+  font-size: 19px; font-weight: 400; line-height: 1.85; text-wrap: wrap;
+}
+.session [data-question-paragraph] { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+.session [data-question-paragraph] + [data-question-paragraph] { margin-top: 12px; }
 .session [data-interview-part="round-question-text"] > p { margin: 14px 0; font-size: 12px; line-height: 1.8; color: var(--q-muted); }
 .session [data-interview-part="round-question"] > details {
-  margin: 16px 0; padding: 0; border: 0; background: none; box-shadow: none; text-align: center;
+  margin: 12px 0; padding: 0; border: 0; background: none; box-shadow: none; text-align: left;
 }
 .session [data-interview-part="round-question"] > details > summary { display: inline-flex; min-height: 44px; align-items: center; font-size: 12px; }
 .session [data-interview-part="round-answer"] {

@@ -7,6 +7,7 @@ import * as logic from "./interview-assessment-logic";
 import { historyFromRecord } from "@/lib/interview/history";
 import type { Opportunity } from "@/lib/opportunities/types";
 import { preservePriorInterviewDraft } from "./interview-start-draft";
+import InterviewQuestionText from "./InterviewQuestionText";
 
 // Execute the actual scoped component, not a second implementation of its handlers.
 const source = fs.readFileSync(path.join(__dirname, "CockpitApp.tsx"), "utf8");
@@ -18,6 +19,7 @@ const compiled = ts.transpileModule(node.getText(ast), { compilerOptions: {
 const Native = (props: Record<string, unknown>) => React.createElement("stub", props);
 const globals = { React, useState: React.useState, useEffect: React.useEffect, useRef: React.useRef,
   preservePriorInterviewDraft, assertGenerationQuota: async () => undefined, trackProductEvent: jest.fn(),
+  InterviewQuestionText,
   styles: new Proxy({}, { get: (_target, name) => String(name) }), useQuotaLabel: () => "测试",
   toSessionView: logic.restoreRoundtableSession, toSessionRecord: (value: unknown) => value,
   normalizeInterviewAssessment: logic.normalizeInterviewAssessment, normalizeRoundSummary: logic.normalizeRoundSummary,

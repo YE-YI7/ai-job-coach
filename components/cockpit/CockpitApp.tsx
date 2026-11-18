@@ -16,6 +16,7 @@ import interviewDetail from "./QoderInterviewWorkspace.module.css";
 import QoderInterviewLobby from "./QoderInterviewLobby";
 import QoderAnswerComposer from "./QoderAnswerComposer";
 import { preservePriorInterviewDraft } from "./interview-start-draft";
+import InterviewQuestionText from "./InterviewQuestionText";
 import { useTodayCompanion } from "./useTodayCompanion";
 import EntryWorkspace from "./EntryWorkspace";
 import WorkspaceGuide from "./WorkspaceGuide";
@@ -2653,8 +2654,8 @@ function InterviewTab({
               <div className={styles.interviewerAvatar} aria-hidden="true"><span>AI</span><i /></div>
               <div className={styles.questionBubble} data-interview-part="round-question-text">
                 <div className={styles.questionMeta}><span>{round}</span><div aria-label={`第 ${roundtable.currentIndex + 1} 题，共 ${roundtable.turns.length} 题`}>{roundtable.turns.map((item, index) => <i key={item.questionId} data-state={index < roundtable.currentIndex ? "done" : index === roundtable.currentIndex ? "current" : "waiting"} />)}</div></div>
-                <h3>{turn.question}</h3>
-                <p>{turn.rationale}</p>
+                {qoder ? <InterviewQuestionText question={turn.question} /> : <h3>{turn.question}</h3>}
+                {!qoder && <p>{turn.rationale}</p>}
               </div>
             </div>
             <details className={styles.coachingHint}><summary><Sparkles size={15} />卡住了？看答题提示</summary><div><p>先说结论，再说你实际负责的动作、判断依据和结果；最后说明取舍。没有做过的部分明确说明，不补造数字。</p><p><b>这道题重点考察：</b>{turn.rationale||"回答是否有清楚的判断与可追溯的证据"}</p></div></details>

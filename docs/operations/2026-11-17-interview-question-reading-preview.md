@@ -1,6 +1,6 @@
 # 模拟面试题目阅读排版（本地候选）
 
-**当前版本为下方Round56的提问呈现候选；Round55的纯排版被本人否定，保留本段历史，不当作视觉接受。均未上线。**
+**当前版本为下方Round57的饱满黑体候选；Round55纯排版、Round56细笔画宋体均被本人否定，保留历史不当作视觉接受。均未上线。**
 
 本人反馈：“你这个正式开始模拟面试的页面，把一大堆字全都堆在那儿了，就是问题那个地方太丑了”。本轮只处理已开始面试的中列问题区域，不重做大厅、两侧、复盘、模型、收费、存储或业务流程。按 Yi 前端品味 T38 先判断任务：读完整问题并开始回答；不能靠截短或隐藏题目换整洁。
 
@@ -42,3 +42,15 @@
 - 预览仍同一localhost:3445地址；顶部“重播提问动效”仅重载本地虚构夹具，不播放声音，不是新增生产按钮。14张实际CSS关键时刻截图合成约3.7秒GIF（原动画有限次，GIF为循环回放）；非生成视频/实际录音。临时动效暂停与遮字检查样式均移除。GIF捕于计数小字加深前，动效与题干不变，最终全页实拍为最新颜色。
 
 新增私证：同父目录`interviewer-final.jpg`、`interviewer-motion.gif`、`interviewer-motion/frame-*.jpg`、`interviewer-mobile.jpg`、`interviewer-short.jpg`、`interviewer-browser-receipt.json`、`interviewer-contrast.json`（含小字初测失败）、`interviewer-real-text-replay.json`、`interviewer-presence-acceptance-tests.log`、`interviewer-font-build.log`。真实档案原题仅私有零费回放，未入Git。代码在原阅读候选分支接续push，不发布。下一由本人看字体、重点与动效，不拿自动化通过代替视觉接受。
+
+## Round57：拒绝细笔画宋体，改饱满无衬线
+
+本人原话：“这个字体不好 这个字体太细了 看着有一种不舒服的感觉”。不再以字体授权、真字重或对比度证明本人应当喜欢，也不把拒绝这一处宋体泛化为全场景禁令。
+
+- 只替换题干为思源黑体派生的真实Medium500＋Bold700，取消宋体的细横粗竖和为宋体设置的.025em字距；字号、行高、原题、重点范围/颜色、提问动效、两侧及提交逻辑不动。没有描边、文字阴影或合成粗体。
+- Adobe官方GitHub contents API确认Medium/Bold实际download_url后下载（网页抓取失败，不把第三方镜像当权威），完整源文件留私有构建缓存。脚本核两文件SHA256与真实OS/2字重；只切公共GB2312＋标点字符集、改名YiZhi Interview Sans，同时改CFF内部名，附完整SIL OFL。两派生字体2390008/2448304字节；加载量约4.84MB，生产首访性能仍需另验，不冒只靠本地已证线上快。
+- 已移除候选中两份无引用的interview-serif400/600及其README，Git b095b9d可恢复；旧视觉截图/讨论和完整简历打印字体保留。没有删用户资料或历史决策证据。
+- 普通Chrome同一虚构题实拍，DevTools实际字体为YiZhiInterviewSans-500与700、customFont=true，不靠声明冒加载；20px题干高194px。390px页面宽390、真实字重500、无横溢，viewport已复原。本人旧3题194种汉字在两字重中缺字0。
+- 仅字体/样式/生成脚本变化，定点2套11条通过，diff检查通过；不冒本轮新跑全仓。新题干双截图对比度正常14.24/重点6.88，透明/冻结检查样式移除。本地可看不等于本人视觉接受，未发生产、无新模型调用/录音/回答/生产写入。
+
+当前预览仍`http://localhost:3445/cockpit/preview?tab=interview&interviewDetail=1&questionExample=1`。私证同父目录：`font-seriff-rejected.jpg`、`font-sans-final.jpg`、`font-sans-mobile.jpg`、`font-sans-receipt.json`、`font-sans-contrast.json`、`interview-sans-build.log`、`interview-sans-tests.log`，构建原件在`sans-font-source-0gOcKz`。旧GIF为宋体版，不作为当前字体展示。下一等本人看黑体实际效果，不把字体粗了直接当“好看了”。
